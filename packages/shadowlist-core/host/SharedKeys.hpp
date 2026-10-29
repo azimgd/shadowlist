@@ -32,6 +32,13 @@ public:
 
   std::size_t size() const { return size_; }
   KeyList list() const { return {slots_ ? slots_->data.get() + begin_ : nullptr, size_}; }
+
+  /*
+   * count keys from start, which fall inside.
+   */
+  KeyList list(std::size_t start, std::size_t count) const {
+    return {slots_ ? slots_->data.get() + begin_ + start : nullptr, count};
+  }
   const std::string& operator[](std::size_t index) const { return *slots_->data[begin_ + index]; }
 
   /*

@@ -145,9 +145,10 @@ NS_SWIFT_UI_ACTOR
 /*
  * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
  * items are the ones in the core's measured range, an overscan past the viewport, outside the
- * mounted ones. Without listView:sizeForItemAtIndex:crossSize: the list has already measured
- * each of them through listView:cellForItemAtIndex: by the time it is prefetched. A prefetched
- * item that leaves that range before it shows is cancelled.
+ * mounted ones. The layout pass that brings an item into the range measures the items it will
+ * show first, then prefetches the rest before it measures them. Without
+ * listView:sizeForItemAtIndex:crossSize: that is before listView:cellForItemAtIndex: makes their
+ * cells. A prefetched item that leaves that range before it shows is cancelled.
  */
 NS_SWIFT_UI_ACTOR
 @protocol ShadowListKitListViewPrefetchDataSource <NSObject>

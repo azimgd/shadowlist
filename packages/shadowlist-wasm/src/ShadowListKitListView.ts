@@ -81,8 +81,11 @@ export interface ShadowListKitListViewDelegate {
 
 /*
  * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
- * items are the ones in the core's measured range, an overscan past the viewport, that have
- * no cell yet. A prefetched item that leaves the measured range before it shows is cancelled.
+ * items are the ones in the core's measured range, an overscan past the viewport, outside the
+ * mounted ones. The layout pass that brings an item into the range measures the items it will
+ * show first, then prefetches the rest before it measures them. Without sizeForItem that is
+ * before cellForItem makes their cells. A prefetched item that leaves the measured range before
+ * it shows is cancelled.
  */
 export interface ShadowListKitListViewPrefetchDataSource {
   prefetchItems(listView: ShadowListKitListView, indices: number[]): void;
@@ -555,16 +558,15 @@ export class ShadowListKitListView extends HTMLElement {
   private createCore(): ShadowListKitCore {
     const created = new ShadowListKitCore(
       (row, crossSize) => this.measureRow(row, crossSize),
-      (rows, crossSizes, sizes) => this.measureRows(rows, crossSizes, sizes)
+      (rows, crossSizes, sizes) => this.measureRows(rows, crossSizes, sizes),
+      () => this.dispatchPrefetch()
     );
     this.coreOrNull = created;
     this.applySettings(created);
     if (this.stickyPinning.stickyRows.length > 0) {
       created.setStickyIndices(this.stickyPinning.stickyRows);
     }
-    if (this.keys.length > 0) {
-      created.replaceKeys(0, 0, this.keys, 0, this.keys.length);
-    }
+    this.data.seedCore(created);
     this.measuredLow = -1;
     this.measuredHigh = -1;
     this.measuredGeometry = -1;
@@ -901,6 +903,14 @@ export class ShadowListKitListView extends HTMLElement {
     pass[ShadowListKitCore.PASS_PHASE] = this.scrollPhase();
     pass[ShadowListKitCore.PASS_USER_SCROLLED] = this.userScrolled ? 1 : 0;
     pass[ShadowListKitCore.PASS_TRACKING] = this.gesture.isTracking ? 1 : 0;
+    // The mount pass's padding and look-ahead, which the core prefetches around before it measures.
+    const step = this.offset - this.mountedOffset;
+    const pad = this.windowAlong * this.mountOverscan;
+    const ahead = Math.max(0, Math.abs(step) * 2 - pad);
+    pass[ShadowListKitCore.PASS_PREFETCH] = this.prefetchDataSource ? 1 : 0;
+    pass[ShadowListKitCore.PASS_MOUNT_PAD] = pad;
+    pass[ShadowListKitCore.PASS_LEADING_INSET] = step < 0 ? ahead : 0;
+    pass[ShadowListKitCore.PASS_TRAILING_INSET] = step > 0 ? ahead : 0;
     core.runPasses();
     this.userScrolled = false;
     this.needsFrame = false;
@@ -1186,14 +1196,24 @@ export class ShadowListKitListView extends HTMLElement {
   // region Prefetching
 
   /*
-   * Tell the prefetch data source about items the measured range brought in that have no cell
-   * yet, and the ones that left it unseen. One wasm call per mount pass, none on band frames.
+   * Tell the prefetch data source about items the measured range brought in that are not
+   * mounted, and the ones that left it unseen. runPasses already told it about the rows it
+   * brought in before it measured them, which is before their cells exist. This finds what the
+   * mount changed, one wasm call per mount pass and none on band frames.
    */
   private prefetchAround(low: number, high: number): void {
+    if (!this.prefetchDataSource) return;
+    this.core.updatePrefetch(low, high);
+    this.dispatchPrefetch();
+  }
+
+  /*
+   * Hand the core's prefetched and cancelled items to the prefetch data source.
+   */
+  private dispatchPrefetch(): void {
     const prefetch = this.prefetchDataSource;
     if (!prefetch) return;
     const core = this.core;
-    core.updatePrefetch(low, high);
     if (core.prefetched) prefetch.prefetchItems(this, core.prefetched);
     if (core.cancelled)
       prefetch.cancelPrefetchingForItems?.(this, core.cancelled);

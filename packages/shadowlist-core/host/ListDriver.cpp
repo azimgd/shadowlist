@@ -19,6 +19,12 @@ namespace {
 /*
  * Runs of adjacent values in a sorted list of count values read through valueAt.
  */
+/*
+ * How many times a pass with prefetch on measures the rows its mount plan reaches before it
+ * prefetches the rest.
+ */
+constexpr int MAX_MOUNT_PLAN_ROUNDS = 3;
+
 template <typename ValueAt>
 std::size_t countRuns(std::size_t count, ValueAt valueAt) {
   std::size_t runs = count > 0 ? 1 : 0;
@@ -47,6 +53,10 @@ void ListDriver::setMeasureRow(MeasureRow measureRow) {
 
 void ListDriver::setMeasureRows(MeasureRows measureRows) {
   measureRows_ = std::move(measureRows);
+}
+
+void ListDriver::setPrefetchRows(PrefetchRows prefetchRows) {
+  prefetchRows_ = std::move(prefetchRows);
 }
 
 void ListDriver::setSettings(const ListSettings& settings) {
@@ -284,7 +294,7 @@ PassResult ListDriver::runPasses(const PassInput& input) {
     keysChanged_ = false;
     pendingEdit_ = KeyEdit{};
     editsSinceUpdate_ = 0;
-    bool measured = measureRange(offset);
+    bool measured = measureRange(offset, input);
 
     ContainerStateUpdate update = core.resolveStateUpdate(horizontal ? offset : 0, horizontal ? 0 : offset,
       core.revision.contentWidth, core.revision.contentHeight);
@@ -339,34 +349,67 @@ double ListDriver::clampOffset(double target, const PassInput& input) const {
 
 /*
  * Give the core the size of every row in its measured range that has none yet, then reflow once.
- * Returns whether any size changed.
+ * Returns whether any size changed. With prefetch on, the rows the host will mount get their
+ * sizes first, which places them where they show, and the rows past them are prefetched before
+ * they are measured.
  */
-bool ListDriver::measureRange(double offset) {
-  Container& core = *core_;
-  SizeBatch batch;
+bool ListDriver::measureRange(double offset, const PassInput& input) {
   std::optional<MountedRange> measured = getMeasuredRange();
   if (!measured) {
-    return batch.commit(core);
+    SizeBatch batch;
+    return batch.commit(*core_);
   }
   // The pinned section header needs its real size even when it sits far above the measured range.
   std::size_t sticky = activeStickyIndex(offset);
-  bool stickyOutside = sticky != UNDEFINED_INDEX && (sticky < measured->low || sticky > measured->high);
+  if (sticky != UNDEFINED_INDEX && sticky >= measured->low && sticky <= measured->high) {
+    sticky = UNDEFINED_INDEX;
+  }
+  if (!input.prefetch || !prefetchRows_) {
+    return measureSpan(measured->low, measured->high, sticky);
+  }
+  bool changed = false;
+  auto plan = [&] {
+    return planMount(offset, input.windowAlong, input.mountPad, input.leadingInset, input.trailingInset);
+  };
+  MountPlan mounted = plan();
+  // Sizes move the rows. A plan that grew reaches rows still placed by estimate.
+  for (int round = 0; round < MAX_MOUNT_PLAN_ROUNDS && mounted.low != UNDEFINED_INDEX; ++round) {
+    if (!measureSpan(mounted.low, mounted.high, round == 0 ? sticky : UNDEFINED_INDEX)) {
+      break;
+    }
+    changed = true;
+    mounted = plan();
+  }
+  updatePrefetch(mounted.low, mounted.high, prefetchFound_, cancelFound_);
+  if (!prefetchFound_.empty() || !cancelFound_.empty()) {
+    prefetchRows_(prefetchFound_, cancelFound_);
+  }
+  return measureSpan(measured->low, measured->high, sticky) || changed;
+}
+
+/*
+ * Give the core the size of every row from low to high and of extra that has none yet, then
+ * reflow once. Returns whether any size changed.
+ */
+bool ListDriver::measureSpan(std::size_t low, std::size_t high, std::size_t extra) {
+  Container& core = *core_;
+  SizeBatch batch;
   if (!measureRows_) {
-    for (std::size_t index = measured->low; index <= measured->high; ++index) {
+    for (std::size_t index = low; index <= high; ++index) {
       measureIndex(index, batch);
     }
-    if (stickyOutside) {
-      measureIndex(sticky, batch);
+    if (extra != UNDEFINED_INDEX) {
+      measureIndex(extra, batch);
     }
     return batch.commit(core);
   }
   measureIndices_.clear();
   measureCrosses_.clear();
-  for (std::size_t index = measured->low; index <= measured->high; ++index) {
+  for (std::size_t index = low; index <= high; ++index) {
     collectIndex(index);
   }
-  if (stickyOutside) {
-    collectIndex(sticky);
+  if (extra != UNDEFINED_INDEX) {
+    collectIndex(extra);
   }
   if (!measureIndices_.empty()) {
     measureSizes_.assign(measureIndices_.size(), 0.0);

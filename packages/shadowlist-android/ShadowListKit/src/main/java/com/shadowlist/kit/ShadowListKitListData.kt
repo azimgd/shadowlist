@@ -8,12 +8,14 @@ import kotlin.math.min
 
 /*
  * The list's data: row keys, sections and the changes that move them. The keys are the same
- * list the core holds. Reloads, inserts, deletes, batches and applyChanges update both and
- * report the change to the list, which mounts from the keys here.
+ * list the list's state holds natively and hands to the core. Reloads, inserts, deletes, batches
+ * and applyChanges send the state only what changed and report the change to the list, which
+ * mounts from the keys here.
  */
 internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   /*
-   * Row keys in data order, the same list the core holds. Section headers and footers included.
+   * Row keys in data order, the same list the state and the core hold. Section headers and
+   * footers included.
    */
   var keys = ArrayList<String>()
     private set
@@ -52,18 +54,12 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   private var sectionItemKeys: List<String>? = null
 
   /*
-   * The changes performBatchUpdates collects and the content versions applyChanges compares
-   * live in the list's state, the core's BatchCollector and ContentVersions, which outlive the
-   * core. The payload of the last reload in a batch stays here.
+   * The keys held natively, the changes performBatchUpdates collects and the content versions
+   * applyChanges compares live in the list's state, which outlives the core. The payload of the
+   * last reload in a batch stays here.
    */
   private val state get() = list.state
   private var batchPayload: Any? = null
-
-  /*
-   * The two key lists applyChanges diffs, joined for the JNI.
-   */
-  private val previousPacker = ShadowListKitKeyPacker()
-  private val nextPacker = ShadowListKitKeyPacker()
 
   /*
    * Read the sections and every key into next and return the item keys. A list with sections
@@ -160,38 +156,46 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
       return
     }
     if (list.dataSource == null) return
+    val previousItems = itemKeys
     val next = spareKeys
-    recordContentVersions(readRowKeys(next))
-    applyRowKeys(next)
+    // The content version of every item now, which the next applyChanges compares against.
+    commitRowKeys(previousItems, next, readRowKeys(next), ShadowListKitListState.COMMIT_RECORD_VERSIONS)
     list.structureChanged()
     list.reloadSectionIndex()
   }
 
   /*
-   * The content version of every item now, which the next applyChanges compares against.
+   * The item keys held, the row keys without sections.
    */
-  private fun recordContentVersions(items: List<String>) {
-    val versioned = list.dataSource as? ContentVersions ?: return
-    state.recordContentVersions(items, contentVersionsOf(versioned, items.size))
-  }
-
-  private fun contentVersionsOf(versioned: ContentVersions, count: Int): LongArray =
-    LongArray(count) { versioned.contentVersionForItem(list, it) }
+  private val itemKeys: List<String> get() = sectionItemKeys ?: keys
 
   /*
-   * The core's keySplice over the key list kept here, which needs no copy of the keys into the
-   * core. The core test key_splice_finds_the_changed_middle holds the rule. A caller that already
-   * compared the two lists passes the unchanged rows at both ends.
+   * Take next as the row keys, with nextItems as the items, next itself without sections. The
+   * core's keySplice over the key lists kept here finds the unchanged rows at both ends, and only
+   * the keys between them cross into the state. The core test key_splice_finds_the_changed_middle
+   * holds the rule. Items go on their own while either the previous or the next keys have
+   * sections. Returns what ShadowListKitListState.commitKeys returns.
    */
-  private fun applyRowKeys(next: ArrayList<String>, knownStart: Int = -1, knownEnd: Int = -1) {
-    val start = if (knownStart >= 0) knownStart else commonPrefix(keys, next)
-    val end = if (knownEnd >= 0) knownEnd else commonSuffix(keys, next, start)
-    if (start < keys.size || start < next.size) {
-      if (list.animatesChanges) list.changes.capture(deleted = keys.subList(start, keys.size - end), inserted = next.subList(start, next.size - end))
-      list.liveCore?.replaceKeys(start, keys.size - start - end, next, start, next.size - end)
+  private fun commitRowKeys(
+    previousItems: List<String>, next: ArrayList<String>, nextItems: List<String>, flags: Int,
+  ): IntArray {
+    val start = commonPrefix(keys, next)
+    val end = commonSuffix(keys, next, start)
+    if (list.animatesChanges && (start < keys.size || start < next.size)) {
+      list.changes.capture(deleted = keys.subList(start, keys.size - end), inserted = next.subList(start, next.size - end))
     }
+    val separate = nextItems !== next || previousItems !== keys
+    val itemStart = if (separate) commonPrefix(previousItems, nextItems) else start
+    val itemEnd = if (separate) commonSuffix(previousItems, nextItems, itemStart) else end
+    val versioned = list.dataSource as? ContentVersions
+    val versionFlags = ShadowListKitListState.COMMIT_RECORD_VERSIONS or ShadowListKitListState.COMMIT_UPDATE_VERSIONS
+    val versions = if (versioned == null || flags and versionFlags == 0) null
+      else LongArray(nextItems.size) { versioned.contentVersionForItem(list, it) }
+    val committed = state.commitKeys(list.liveCore, next, start, end, if (separate) nextItems else null, itemStart, itemEnd,
+      versions, if (versions != null) flags else flags and versionFlags.inv())
     spareKeys = keys
     keys = next
+    return committed
   }
 
   fun insertItems(indices: IntArray) {
@@ -210,7 +214,7 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     val inserted = Array(sorted.size) { source.keyForItem(list, sorted[it]) }
     if (list.animatesChanges) list.changes.capture(deleted = emptyList(), inserted = inserted.asList())
     forEachRun(sorted) { first, last -> keys.addAll(sorted[first], inserted.asList().subList(first, last + 1)) }
-    list.liveCore?.insertKeys(sorted, inserted)
+    state.insertRows(list.liveCore, sorted, inserted)
     setPlainSections(keys.size)
     list.structureChanged()
   }
@@ -231,7 +235,7 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     val runs = ArrayList<IntArray>()
     forEachRun(sorted) { first, last -> runs.add(intArrayOf(sorted[first], sorted[last])) }
     for (run in runs.asReversed()) keys.subList(run[0], run[1] + 1).clear()
-    list.liveCore?.deleteKeys(sorted)
+    state.deleteRows(list.liveCore, sorted)
     setPlainSections(keys.size)
     list.structureChanged()
   }
@@ -294,6 +298,7 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     // The reloaded rows by key, from the data before.
     val reloadedKeys = HashSet<String>()
     for (at in 1 until taken.size) keys.getOrNull(list.rowForItem(taken[at]))?.let(reloadedKeys::add)
+    val previousItems = itemKeys
     val next = spareKeys
     next.clear()
     var planned = false
@@ -310,19 +315,16 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
         Log.w("ShadowListKitListView", "batch updates do not add up to $nextCount items, reloading")
       }
     }
-    if (!planned) readRowKeys(next)
-    commitKeyChanges(next, reloadedKeys, payload, reloadsSectionIndex = !planned)
+    val nextItems = if (planned) next else readRowKeys(next)
+    commitRowKeys(previousItems, next, nextItems, 0)
+    reloadKeyRows(reloadedKeys, payload, reloadsSectionIndex = !planned)
   }
 
   /*
-   * Take the next keys, then reload the rows of reloadedKeys. Reloaded rows report the change
-   * themselves.
+   * After the next keys are taken, reload the rows of reloadedKeys. Reloaded rows report the
+   * change themselves.
    */
-  private fun commitKeyChanges(
-    next: ArrayList<String>, reloadedKeys: Set<String>, payload: Any?, reloadsSectionIndex: Boolean,
-    knownStart: Int = -1, knownEnd: Int = -1,
-  ) {
-    applyRowKeys(next, knownStart, knownEnd)
+  private fun reloadKeyRows(reloadedKeys: Set<String>, payload: Any?, reloadsSectionIndex: Boolean) {
     val rows = rowsOfKeys(reloadedKeys)
     if (rows.isNotEmpty()) reloadRows(rows, payload) else list.structureChanged()
     if (reloadsSectionIndex) list.reloadSectionIndex()
@@ -338,25 +340,13 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   fun applyChanges(): ShadowListKitListChanges {
     // Without a data source readRowKeys leaves the spare list as it was. Nothing is read, the same as reloadData.
     if (list.dataSource == null) return ShadowListKitListChanges(IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
-    // readRowKeys fills the spare list. The keys held stay as they are until commitKeyChanges.
-    val previousItems = sectionItemKeys ?: keys
+    // readRowKeys fills the spare list. The keys held stay as they are until commitRowKeys.
+    val previousItems = itemKeys
     val next = spareKeys
     val nextItems = readRowKeys(next)
-    val start = commonPrefix(previousItems, nextItems)
-    val end = commonSuffix(previousItems, nextItems, start)
-    val diff = ShadowListKitCore.diffKeys(previousItems, nextItems, start, end, previousPacker, nextPacker)
-
-    // Rows that stayed but whose content version changed get reloaded.
-    val versioned = list.dataSource as? ContentVersions
-    val reloaded =
-      if (versioned != null) state.updateContentVersions(nextItems, contentVersionsOf(versioned, nextItems.size)) else IntArray(0)
-    val reloadedKeys = HashSet<String>(reloaded.size * 2)
-    for (item in reloaded) reloadedKeys.add(nextItems[item])
-
-    // Without sections the items are the rows, and the diff already found their unchanged ends.
-    val rowsAreItems = previousItems === keys && nextItems === next
-    commitKeyChanges(next, reloadedKeys, null, reloadsSectionIndex = true,
-      knownStart = if (rowsAreItems) start else -1, knownEnd = if (rowsAreItems) end else -1)
+    // The state diffs the items and finds the ones whose content version changed under the same key.
+    val diff = commitRowKeys(previousItems, next, nextItems,
+      ShadowListKitListState.COMMIT_DIFF or ShadowListKitListState.COMMIT_UPDATE_VERSIONS)
 
     var at = 0
     val deleted = IntArray(diff[at]) { diff[at + 1 + it] }
@@ -366,6 +356,13 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     val moves = diff[at]
     val movedFrom = IntArray(moves) { diff[at + 1 + it * 2] }
     val movedTo = IntArray(moves) { diff[at + 2 + it * 2] }
+    at += 1 + moves * 2
+    val reloaded = IntArray(diff[at]) { diff[at + 1 + it] }
+
+    // Rows that stayed but whose content version changed get reloaded.
+    val reloadedKeys = HashSet<String>(reloaded.size * 2)
+    for (item in reloaded) reloadedKeys.add(nextItems[item])
+    reloadKeyRows(reloadedKeys, null, reloadsSectionIndex = true)
     return ShadowListKitListChanges(deleted, inserted, movedFrom, movedTo, reloaded)
   }
 

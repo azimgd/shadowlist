@@ -79,6 +79,15 @@ struct PassInput {
   ScrollPhase phase = ScrollPhase::Idle;
   bool userScrolled = false;
   bool tracking = false;
+
+  /*
+   * Whether runPasses reports prefetch to the PrefetchRows callback, and how the host pads the
+   * rows it mounts, the values it gives planMount. Rows that plan mounts are not prefetched.
+   */
+  bool prefetch = false;
+  double mountPad = 0.0;
+  double leadingInset = 0.0;
+  double trailingInset = 0.0;
 };
 
 /*
@@ -153,6 +162,15 @@ public:
     const std::vector<double>& crossSizes,
     std::vector<double>& sizes)>;
 
+  /*
+   * Hears the rows to prefetch and to cancel, low to high, from runPasses with PassInput's
+   * prefetch on. Each pass measures the rows its mount plan reaches, then reports, then measures
+   * the rest. A host that measures a row by making its cell hears about the row first. The
+   * vectors are reused and valid during the call.
+   */
+  using PrefetchRows =
+    std::function<void(const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel)>;
+
   ListDriver();
 
   /*
@@ -169,6 +187,7 @@ public:
    * Used in place of the MeasureRow when set.
    */
   void setMeasureRows(MeasureRows measureRows);
+  void setPrefetchRows(PrefetchRows prefetchRows);
   void setSettings(const ListSettings& settings);
 
   /*
@@ -310,7 +329,9 @@ public:
    * Rows of the measured range that are not mounted get prefetched once, the measured range
    * running an overscan ahead of the viewport. A prefetched row that leaves the range before
    * it was mounted is cancelled. Mounted is the range the host mounts, rows given as indices.
-   * Results go into prefetch and cancel, low to high.
+   * Results go into prefetch and cancel, low to high. runPasses runs this with the
+   * PrefetchRows callback before it measures the rows past the mount plan. The host's call
+   * after it mounts finds what the mount changed.
    */
   void updatePrefetch(
     std::size_t mountedLow,
@@ -366,7 +387,8 @@ private:
   void insertKeysInPlace(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
   void insertKeysRebuilding(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
   FrameInput makeFrameInput(const PassInput& input, double offset, bool firstPass) const;
-  bool measureRange(double offset);
+  bool measureRange(double offset, const PassInput& input);
+  bool measureSpan(std::size_t low, std::size_t high, std::size_t extra);
   void measureIndex(std::size_t index, SizeBatch& batch);
   bool needsMeasure(std::size_t index);
   double crossSizeOf(std::size_t index) const;
@@ -399,6 +421,9 @@ private:
   std::optional<MountedRange> prefetchRange_;
   std::size_t prefetchCount_ = 0;
   bool prefetchStale_ = true;
+  PrefetchRows prefetchRows_;
+  std::vector<std::size_t> prefetchFound_;
+  std::vector<std::size_t> cancelFound_;
   ScrollLanding landing_;
   DragReorder drag_;
 

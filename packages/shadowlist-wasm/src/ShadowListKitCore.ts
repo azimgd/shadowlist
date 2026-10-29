@@ -57,6 +57,8 @@ export function loadShadowListKit(options?: {
       sizes
     ) =>
       cores.get(handle)?.deref()?.measureRowsAt(rows, crossSizes, count, sizes);
+    loaded.shadowListKitPrefetchRows = (handle, packed) =>
+      cores.get(handle)?.deref()?.prefetchRowsAt(packed);
     offsetMovedThreshold =
       loaded._ShadowListKitCore_nativeOffsetMovedThreshold();
     wasmModule = loaded;
@@ -208,18 +210,22 @@ export class ShadowListKitCore {
   static readonly PASS_PHASE = 5;
   static readonly PASS_USER_SCROLLED = 6;
   static readonly PASS_TRACKING = 7;
-  static readonly PASS_OUT_OFFSET = 8;
-  static readonly PASS_OUT_CONTENT = 9;
-  static readonly PASS_OUT_BAND_LOW = 10;
-  static readonly PASS_OUT_BAND_HIGH = 11;
-  static readonly PASS_OUT_SETTLING = 12;
-  static readonly PASS_OUT_REACHED_START = 13;
-  static readonly PASS_OUT_REACHED_END = 14;
-  static readonly PASS_OUT_GEOMETRY = 15;
-  static readonly PASS_OUT_MEASURED_LOW = 16;
-  static readonly PASS_OUT_MEASURED_HIGH = 17;
-  static readonly PASS_OUT_FOOTER_START = 18;
-  static readonly PASS_SLOTS = 19;
+  static readonly PASS_PREFETCH = 8;
+  static readonly PASS_MOUNT_PAD = 9;
+  static readonly PASS_LEADING_INSET = 10;
+  static readonly PASS_TRAILING_INSET = 11;
+  static readonly PASS_OUT_OFFSET = 12;
+  static readonly PASS_OUT_CONTENT = 13;
+  static readonly PASS_OUT_BAND_LOW = 14;
+  static readonly PASS_OUT_BAND_HIGH = 15;
+  static readonly PASS_OUT_SETTLING = 16;
+  static readonly PASS_OUT_REACHED_START = 17;
+  static readonly PASS_OUT_REACHED_END = 18;
+  static readonly PASS_OUT_GEOMETRY = 19;
+  static readonly PASS_OUT_MEASURED_LOW = 20;
+  static readonly PASS_OUT_MEASURED_HIGH = 21;
+  static readonly PASS_OUT_FOOTER_START = 22;
+  static readonly PASS_SLOTS = 23;
 
   /*
    * Slots of plan, the same as PlanSlot in the wasm side. A missing row is -1.
@@ -260,39 +266,6 @@ export class ShadowListKitCore {
   }
 
   /*
-   * The diff of two key lists through the core's diffKeys, packed: the delete count and
-   * previous indices, the insert count and next indices, the move count and from, to pairs.
-   * Only the keys between the unchanged rows at both ends cross. They change nothing in the
-   * diff. A caller that already compared the lists passes how many keys match at each end.
-   */
-  static diffKeys(
-    previous: ReadonlyArray<string>,
-    next: ReadonlyArray<string>,
-    unchanged: { start: number; end: number } = unchangedEnds(previous, next)
-  ): Int32Array {
-    const { start, end } = unchanged;
-    const previousTo = previous.length - end;
-    const nextTo = next.length - end;
-    const at = reserve(
-      packedBytes(previous, start, previousTo) +
-        packedBytes(next, start, nextTo)
-    );
-    const before = pack(previous, start, previousTo, at);
-    const after = pack(next, start, nextTo, at + before.taken);
-    return takeInts(
-      wasm()._ShadowListKitCore_nativeDiffKeys(
-        before.packed,
-        before.ends,
-        previousTo - start,
-        after.packed,
-        after.ends,
-        nextTo - start,
-        start
-      )
-    );
-  }
-
-  /*
    * The core's insertionIndices and deletionIndices: sorted, each once, an insert past the
    * end at the end, a delete past the end dropped. Negative indices name no row.
    */
@@ -327,9 +300,13 @@ export class ShadowListKitCore {
   }
 
   /*
-   * The wasm Peer, 0 once destroyed.
+   * The wasm Peer, 0 once destroyed. The list's state hands key changes to it in wasm.
    */
-  private handle: number;
+  private peer: number;
+
+  get handle(): number {
+    return this.peer;
+  }
 
   /*
    * The pass slots, see PASS_*. The view fills the inputs and reads the outputs.
@@ -354,7 +331,8 @@ export class ShadowListKitCore {
 
   /*
    * measure sizes one row. measureRows, when given, sizes every row a pass needs at once into
-   * sizes and is used instead.
+   * sizes and is used instead. prefetchedRows hears each prefetch runPasses reports, with the
+   * changes in prefetched and cancelled.
    */
   constructor(
     private readonly measure: (row: number, crossSize: number) => number,
@@ -362,9 +340,10 @@ export class ShadowListKitCore {
       rows: ReadonlyArray<number>,
       crossSizes: ReadonlyArray<number>,
       sizes: number[]
-    ) => void
+    ) => void,
+    private readonly prefetchedRows?: () => void
   ) {
-    this.handle = wasm()._ShadowListKitCore_nativeCreate();
+    this.peer = wasm()._ShadowListKitCore_nativeCreate();
     this.passSlots = wasm()._ShadowListKitCore_nativePassSlots(this.handle);
     cores.set(this.handle, new WeakRef(this));
     reclaimer.register(this, this.handle, this);
@@ -399,6 +378,15 @@ export class ShadowListKitCore {
   }
 
   /*
+   * Called by the driver during runPasses with PASS_PREFETCH on, before it measures the rows it
+   * reports. packed is laid out the way updatePrefetch reads it.
+   */
+  prefetchRowsAt(packed: number): void {
+    this.readPrefetch(packed);
+    this.prefetchedRows?.();
+  }
+
+  /*
    * Free the wasm peer. The core is unusable after this.
    */
   destroy(): void {
@@ -406,7 +394,7 @@ export class ShadowListKitCore {
     wasm()._ShadowListKitCore_nativeDestroy(this.handle);
     cores.delete(this.handle);
     reclaimer.unregister(this);
-    this.handle = 0;
+    this.peer = 0;
   }
 
   setSettings(
@@ -444,51 +432,6 @@ export class ShadowListKitCore {
       at,
       indices.length
     );
-  }
-
-  /*
-   * Replace count keys from start with keys from until to. Keys cross as one UTF-8 buffer and
-   * one array of where each key ends.
-   */
-  replaceKeys(
-    start: number,
-    count: number,
-    keys: ReadonlyArray<string>,
-    from: number,
-    to: number
-  ): void {
-    const packed = pack(keys, from, to, reserve(packedBytes(keys, from, to)));
-    wasm()._ShadowListKitCore_nativeReplaceKeys(
-      this.handle,
-      start,
-      count,
-      packed.packed,
-      packed.ends,
-      Math.max(0, to - from)
-    );
-  }
-
-  insertKeys(
-    indices: ReadonlyArray<number>,
-    keys: ReadonlyArray<string>
-  ): void {
-    const count = Math.min(indices.length, keys.length);
-    const at = reserve(align(count * 4) + packedBytes(keys, 0, count));
-    putInts(at, indices.slice(0, count));
-    const packed = pack(keys, 0, count, at + align(count * 4));
-    wasm()._ShadowListKitCore_nativeInsertKeys(
-      this.handle,
-      at,
-      packed.packed,
-      packed.ends,
-      count
-    );
-  }
-
-  deleteKeys(indices: ReadonlyArray<number>): void {
-    const at = reserve(indices.length * 4);
-    putInts(at, indices);
-    wasm()._ShadowListKitCore_nativeDeleteKeys(this.handle, at, indices.length);
   }
 
   markRemeasure(indices: ReadonlyArray<number>): void {
@@ -665,14 +608,17 @@ export class ShadowListKitCore {
   }
 
   /*
-   * Prefetch changes for the mounted rows into prefetched and cancelled.
+   * Prefetch changes for the mounted rows into prefetched and cancelled. runPasses reports the
+   * rows it brings in through prefetchedRows before it measures them. This call after a mount
+   * finds what the mount changed.
    */
   updatePrefetch(low: number, high: number): void {
-    const pointer = wasm()._ShadowListKitCore_nativeUpdatePrefetch(
-      this.handle,
-      low,
-      high
+    this.readPrefetch(
+      wasm()._ShadowListKitCore_nativeUpdatePrefetch(this.handle, low, high)
     );
+  }
+
+  private readPrefetch(pointer: number): void {
     // The packed values: their length, the prefetch count and rows, then the cancel count and rows.
     const heap = wasm().HEAP32;
     const at = pointer / 4 + 1;
@@ -760,13 +706,24 @@ function versionHalves(
 /* eslint-enable no-bitwise */
 
 /*
- * What a list keeps across the cores it makes and drops: the batch performBatchUpdates collects
- * and the content versions applyChanges compares, the core's BatchCollector and ContentVersions
- * in C++. The list drops its core on disconnect, and this lives as long as the list. The peer is
- * made on first use, which needs the module loaded. Versions recorded before that wait here.
+ * What a list keeps across the cores it makes and drops: the row keys, the batch
+ * performBatchUpdates collects and the content versions applyChanges compares, the core's
+ * HeldKeys, BatchCollector and ContentVersions in C++. The list drops its core on disconnect, and
+ * this lives as long as the list. A key change crosses once, here, and reaches the live core from
+ * the wasm side. The peer is made on first use, which needs the module loaded. Keys a list took
+ * before that reach the peer with its first change after, and versions recorded before that wait
+ * here.
  */
 export class ShadowListKitListState {
+  /*
+   * Bits of commitKeys' flags, the same as CommitFlag in the wasm side.
+   */
+  static readonly COMMIT_DIFF = 1;
+  static readonly COMMIT_RECORD_VERSIONS = 2;
+  static readonly COMMIT_UPDATE_VERSIONS = 4;
+
   private peer = 0;
+  private holdsKeys = false;
   private pendingRecord: {
     keys: ReadonlyArray<string>;
     versions: ReadonlyArray<number | string>;
@@ -863,68 +820,157 @@ export class ShadowListKitListState {
   }
 
   /*
-   * Forget every version and keep these, one per item key.
+   * Take next as the keys, previous being the keys the list held. Only the keys between the
+   * unchanged ends cross. The wasm side splices the keys it holds and hands the splice to core
+   * when it is live. record keeps one version per key, update compares them and keeps them.
+   * Returns, with diff, the diff packed as the delete count and previous indices, the insert
+   * count and next indices, the move count and from, to pairs, then the count and items whose
+   * version changed under update. Before the module loads this keeps record for later and
+   * returns null.
    */
-  recordContentVersions(
-    keys: ReadonlyArray<string>,
-    versions: ReadonlyArray<number | string>
-  ): void {
-    if (!isShadowListKitLoaded()) {
-      this.pendingRecord = { keys, versions };
-      return;
+  commitKeys(
+    core: ShadowListKitCore | null,
+    previous: ReadonlyArray<string>,
+    next: ReadonlyArray<string>,
+    unchanged: { start: number; end: number },
+    change: {
+      diff?: boolean;
+      record?: ReadonlyArray<number | string> | null;
+      update?: ReadonlyArray<number | string> | null;
     }
-    this.pendingRecord = null;
+  ): Int32Array | null {
+    if (!isShadowListKitLoaded() && !change.diff) {
+      if (change.record) {
+        this.pendingRecord = { keys: next.slice(), versions: change.record };
+      }
+      return null;
+    }
+    this.holdKeys(previous);
+    return this.sendKeys(core, next, unchanged, change);
+  }
+
+  /*
+   * Rows inserted at the sorted positions of the next keys, previous being the keys before.
+   */
+  insertRows(
+    core: ShadowListKitCore | null,
+    previous: ReadonlyArray<string>,
+    indices: ReadonlyArray<number>,
+    keys: ReadonlyArray<string>
+  ): void {
+    if (!isShadowListKitLoaded()) return;
+    this.holdKeys(previous);
     const handle = this.handle;
-    const { at, ends, packed } = this.packVersions(keys, versions);
-    wasm()._ShadowListKitListState_nativeRecordContentVersions(
+    const count = Math.min(indices.length, keys.length);
+    const at = reserve(align(count * 4) + packedBytes(keys, 0, count));
+    putInts(at, indices.slice(0, count));
+    const packed = pack(keys, 0, count, at + align(count * 4));
+    wasm()._ShadowListKitListState_nativeInsertRows(
       handle,
-      packed,
-      ends,
-      keys.length,
-      at
+      core?.handle ?? 0,
+      at,
+      packed.packed,
+      packed.ends,
+      count
     );
   }
 
   /*
-   * The items whose version changed under the same key, low to high. The new versions are kept.
+   * Rows deleted at the sorted positions of the previous keys.
    */
-  updateContentVersions(
-    keys: ReadonlyArray<string>,
-    versions: ReadonlyArray<number | string>
-  ): Int32Array {
-    if (this.pendingRecord) {
-      this.recordContentVersions(
-        this.pendingRecord.keys,
-        this.pendingRecord.versions
-      );
-    }
+  deleteRows(
+    core: ShadowListKitCore | null,
+    previous: ReadonlyArray<string>,
+    indices: ReadonlyArray<number>
+  ): void {
+    if (!isShadowListKitLoaded()) return;
+    this.holdKeys(previous);
     const handle = this.handle;
-    const { at, ends, packed } = this.packVersions(keys, versions);
+    const at = reserve(indices.length * 4);
+    putInts(at, indices);
+    wasm()._ShadowListKitListState_nativeDeleteRows(
+      handle,
+      core?.handle ?? 0,
+      at,
+      indices.length
+    );
+  }
+
+  /*
+   * Give a new core every key held, keys being the list's keys.
+   */
+  seedCore(core: ShadowListKitCore, keys: ReadonlyArray<string>): void {
+    this.holdKeys(keys);
+    wasm()._ShadowListKitListState_nativeSeedCore(this.handle, core.handle);
+  }
+
+  /*
+   * Hand the peer the keys the list took before it existed or before the module loaded, after
+   * the versions recorded then.
+   */
+  private holdKeys(keys: ReadonlyArray<string>): void {
+    if (this.holdsKeys) return;
+    this.holdsKeys = true;
+    const pending = this.pendingRecord;
+    this.pendingRecord = null;
+    let held: ReadonlyArray<string> = [];
+    if (pending) {
+      this.sendKeys(
+        null,
+        pending.keys,
+        { start: 0, end: 0 },
+        { record: pending.versions }
+      );
+      held = pending.keys;
+    }
+    this.sendKeys(null, keys, unchangedEnds(held, keys), {});
+  }
+
+  /*
+   * Send next to the peer: the versions as halves, then the keys between the unchanged ends
+   * packed after them.
+   */
+  private sendKeys(
+    core: ShadowListKitCore | null,
+    next: ReadonlyArray<string>,
+    unchanged: { start: number; end: number },
+    change: {
+      diff?: boolean;
+      record?: ReadonlyArray<number | string> | null;
+      update?: ReadonlyArray<number | string> | null;
+    }
+  ): Int32Array {
+    const handle = this.handle;
+    const { start, end } = unchanged;
+    const to = next.length - end;
+    const versions = change.record ?? change.update ?? null;
+    const halves = versions ? align(next.length * 8) : 0;
+    const at = reserve(halves + packedBytes(next, start, to));
+    if (versions) {
+      const heap = wasm().HEAP32;
+      for (let item = 0; item < next.length; ++item) {
+        versionHalves(versions[item] ?? 0, heap, at / 4 + item * 2);
+      }
+    }
+    const { ends, packed } = pack(next, start, to, at + halves);
+    const flags =
+      (change.diff ? ShadowListKitListState.COMMIT_DIFF : 0) +
+      (change.record ? ShadowListKitListState.COMMIT_RECORD_VERSIONS : 0) +
+      (!change.record && change.update
+        ? ShadowListKitListState.COMMIT_UPDATE_VERSIONS
+        : 0);
     return takeInts(
-      wasm()._ShadowListKitListState_nativeUpdateContentVersions(
+      wasm()._ShadowListKitListState_nativeCommitKeys(
         handle,
+        core?.handle ?? 0,
+        start,
+        end,
         packed,
         ends,
-        keys.length,
-        at
+        Math.max(0, to - start),
+        versions ? at : 0,
+        flags
       )
     );
-  }
-
-  /*
-   * The versions as halves, then the keys packed after them.
-   */
-  private packVersions(
-    keys: ReadonlyArray<string>,
-    versions: ReadonlyArray<number | string>
-  ): { at: number; ends: number; packed: number } {
-    const halves = align(keys.length * 8);
-    const at = reserve(halves + packedBytes(keys, 0, keys.length));
-    const heap = wasm().HEAP32;
-    for (let item = 0; item < keys.length; ++item) {
-      versionHalves(versions[item] ?? 0, heap, at / 4 + item * 2);
-    }
-    const { ends, packed } = pack(keys, 0, keys.length, at + halves);
-    return { at, ends, packed };
   }
 }

@@ -105,8 +105,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
   /*
    * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
    * items are the ones in the core's measured range, an overscan past the viewport, outside the
-   * mounted ones. Without Sizing the list has already measured each of them through cellForItem
-   * by the time it is prefetched. A prefetched item that leaves the measured range before it
+   * mounted ones. The layout pass that brings an item into the range measures the items it will
+   * show first, then prefetches the rest before it measures them. Without Sizing that is before
+   * cellForItem makes their cells. A prefetched item that leaves the measured range before it
    * shows is cancelled.
    */
   interface PrefetchDataSource {
@@ -557,12 +558,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * output here is dropped and the next layout pass runs it.
    */
   private fun createCore(): ShadowListKitCore {
-    val created = ShadowListKitCore(::measureRow)
+    val created = ShadowListKitCore(::measureRow, ::dispatchPrefetch)
     coreOrNull = created
     applySettings(created)
     if (stickyPinning.stickyRows.isNotEmpty()) created.setStickyIndices(stickyPinning.stickyRows)
     created.setSections(data.itemCount, data.sectionCounts, data.sectionFlags)
-    if (keys.isNotEmpty()) created.replaceKeys(0, 0, keys, 0, keys.size)
+    if (keys.isNotEmpty()) state.seedCore(created)
     measuredLow = -1
     measuredHigh = -1
     measuredGeometry = -1.0
@@ -744,21 +745,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * The data source already shows the new data. Read every key, work out the inserts, deletes
-   * and moves against the keys held with the core's diffKeys, reload the items whose content
-   * version changed, and return what changed. Animates like any change with animatesChanges.
+   * and moves against the keys the state holds with the core's diffKeys, reload the items whose
+   * content version changed, and return what changed. Animates like any change with
+   * animatesChanges.
    */
   fun applyChanges(): ShadowListKitListChanges = data.applyChanges()
 
   /*
-   * The data changed. Sticky rows follow the sections, the selection drops deleted rows and a
-   * waiting saved position lands once its row is there.
+   * The data changed. Sticky rows follow the sections and a waiting saved position lands once
+   * its row is there. The state already dropped deleted rows from the selection.
    */
   internal fun structureChanged() {
     ++structureVersion
     // An open row closes. One swiped all the way stays out while its delete runs.
     swipe.cell?.let { if (!swipe.isSwipedOut(it)) swipe.close(false) }
     if (stickyIndices.isNotEmpty() || stickySectionHeaders) updateStickyRows()
-    selection.dropDeletedKeys(keys)
     restorePendingAnchor()
     invalidateFrame()
   }
@@ -958,6 +959,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
     pass[ShadowListKitCore.PASS_PHASE] = scrollPhase().toDouble()
     pass[ShadowListKitCore.PASS_USER_SCROLLED] = if (userScrolled) 1.0 else 0.0
     pass[ShadowListKitCore.PASS_TRACKING] = if (gesture.isTracking) 1.0 else 0.0
+    // The mount pass's padding, which the core prefetches around before it measures.
+    pass[ShadowListKitCore.PASS_PREFETCH] = if (prefetchDataSource != null) 1.0 else 0.0
+    pass[ShadowListKitCore.PASS_MOUNT_PAD] = windowAlong * mountOverscan
+    pass[ShadowListKitCore.PASS_LEADING_INSET] = leadingPadding.toDouble()
+    pass[ShadowListKitCore.PASS_TRAILING_INSET] = trailingPadding.toDouble()
     core.runPasses()
     userScrolled = false
     needsFrame = false
@@ -1224,12 +1230,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Tell the prefetch data source about items the measured range brought in that are not
-   * mounted, and the ones that left it unseen. One JNI call per mount pass, none on band frames.
+   * mounted, and the ones that left it unseen. runPasses already told it about the rows it
+   * brought in before it measured them, which is before their cells exist. This finds what the
+   * mount changed, one JNI call per mount pass and none on band frames.
    */
   private fun prefetchAround(low: Int, high: Int) {
-    val prefetch = prefetchDataSource ?: return
-    val core = core
+    if (prefetchDataSource == null) return
     core.updatePrefetch(low, high)
+    dispatchPrefetch()
+  }
+
+  /*
+   * Hand the prefetch changes in the core's prefetchOut to the prefetch data source.
+   */
+  private fun dispatchPrefetch() {
+    val prefetch = prefetchDataSource ?: return
     val packed = core.prefetchOut
     val prefetchCount = packed[0]
     val cancelCount = packed[1 + prefetchCount]

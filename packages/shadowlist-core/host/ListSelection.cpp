@@ -70,6 +70,10 @@ bool ListSelection::setKeys(const std::vector<std::string>& keys) {
 }
 
 std::vector<std::size_t> ListSelection::indicesIn(const std::vector<std::string>& keys) const {
+  return indicesIn(KeyList(keys));
+}
+
+std::vector<std::size_t> ListSelection::indicesIn(KeyList keys) const {
   std::vector<std::size_t> indices;
   if (keys_.empty()) {
     return indices;
@@ -83,6 +87,10 @@ std::vector<std::size_t> ListSelection::indicesIn(const std::vector<std::string>
 }
 
 bool ListSelection::retainKeys(const std::vector<std::string>& keys) {
+  return retainKeys(KeyList(keys));
+}
+
+bool ListSelection::retainKeys(KeyList keys) {
   if (keys_.empty()) {
     return false;
   }

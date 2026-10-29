@@ -221,6 +221,9 @@ struct ShadowListKitPassGeometry {
     ShadowListKitListView *list = weakSelf;
     return list ? [list measureRow:(NSInteger)row key:key cross:(CGFloat)cross] : 0.0;
   });
+  _driver.setPrefetchRows([weakSelf](const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel) {
+    [weakSelf reportPrefetchRows:prefetch cancel:cancel];
+  });
 
   UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
   tap.cancelsTouchesInView = NO;
@@ -890,6 +893,11 @@ struct ShadowListKitPassGeometry {
   input.phase = [self scrollPhase];
   input.userScrolled = _userScrolled;
   input.tracking = self.isTracking;
+  // The mount pass's padding, which the core prefetches around before it measures.
+  input.prefetch = _prefetchDataSource != nil;
+  input.mountPad = _windowAlong * _mountOverscan;
+  input.leadingInset = [self leadingInset];
+  input.trailingInset = [self trailingInset];
   PassResult result = _driver.runPasses(input);
   _userScrolled = NO;
   _needsFrame = NO;
@@ -1152,20 +1160,33 @@ struct ShadowListKitPassGeometry {
 
 /*
  * Tell the prefetch data source about items the measured range brought in that are not
- * mounted, and the ones that left it unseen.
+ * mounted, and the ones that left it unseen. runPasses already told it about the rows it
+ * brought in before it measured them, which is before their cells exist. This finds what the
+ * mount changed.
  */
 - (void)prefetchAround:(const MountPlan&)plan
+{
+  if (!_prefetchDataSource) {
+    return;
+  }
+  _driver.updatePrefetch(plan.low, plan.high, _prefetchRows, _cancelRows);
+  [self reportPrefetchRows:_prefetchRows cancel:_cancelRows];
+}
+
+/*
+ * Hand prefetch changes to the prefetch data source as items.
+ */
+- (void)reportPrefetchRows:(const std::vector<std::size_t>&)rows cancel:(const std::vector<std::size_t>&)cancelRows
 {
   id<ShadowListKitListViewPrefetchDataSource> prefetch = _prefetchDataSource;
   if (!prefetch) {
     return;
   }
-  _driver.updatePrefetch(plan.low, plan.high, _prefetchRows, _cancelRows);
-  NSIndexSet *items = [self itemsOfRows:_prefetchRows];
+  NSIndexSet *items = [self itemsOfRows:rows];
   if (items.count > 0) {
     [prefetch listView:self prefetchItemsAtIndices:items];
   }
-  NSIndexSet *cancelled = [self itemsOfRows:_cancelRows];
+  NSIndexSet *cancelled = [self itemsOfRows:cancelRows];
   if (cancelled.count > 0 && [prefetch respondsToSelector:@selector(listView:cancelPrefetchingForItemsAtIndices:)]) {
     [prefetch listView:self cancelPrefetchingForItemsAtIndices:cancelled];
   }

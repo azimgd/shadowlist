@@ -38,6 +38,10 @@ std::vector<std::size_t> longestIncreasing(const std::vector<std::size_t>& value
 }
 
 KeyDiff diffKeys(const std::vector<std::string>& previous, const std::vector<std::string>& next) {
+  return diffKeys(KeyList(previous), KeyList(next));
+}
+
+KeyDiff diffKeys(KeyList previous, KeyList next) {
   KeyDiff diff;
   std::unordered_map<std::string_view, std::size_t> previousIndex;
   previousIndex.reserve(previous.size());

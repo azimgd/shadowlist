@@ -29,6 +29,9 @@
 - Android and the web count a scroll as the user's from the core's `OFFSET_MOVED_THRESHOLD` (0.5) instead of a bare 1, like iOS. Android offsets are whole pixels and behave the same. The web now notices moves from half a pixel.
 - Android: rows moved by an edge scroll during a drag animate to their new place.
 - `performBatchUpdates`' completion is documented as running once the change is laid out and, with the default item animator only, its animation ended. A custom item animator's animations are not waited for.
+- Android and the web hold the row keys natively across cores: one `commitKeys` call sends only the keys between the unchanged ends and native does the splice, the diff, the content versions and the selection in one step, and a new core is seeded from the held keys. `retainSelection` and the per-change key repacking are gone.
+- Items are prefetched before their cells are made: a pass measures the rows about to show, reports prefetching and cancels, and only then builds the remaining cells. Without `prefetchDataSource` nothing changes.
+- Android TalkBack's "Moved to" announcement waits for the row to land in the target list, like VoiceOver, and stays silent after the landing timeout.
 
 ### Core (C++)
 
@@ -37,6 +40,7 @@
 - `KeyEdit` has a `Splice` kind with `start`, `deleted` and `inserted`, which every `ListDriver` edit hands to the core through `keyEditOf`. `endEdit` is gone. `ListDriver::reloadKeys` takes the splice.
 - `Row::index` is removed.
 - `stickyIndicesFromProps` sorts and deduplicates the indices, and skips an index too large for an `int`.
+- Row keys are stored once and shared across versions: `KeyList` is a read-only view over a version's keys and `SharedKeys` holds them as pointers into a pool shared down a line of versions. An append or prepend writes only the new pointers, a delete at either end shares the buffer, and a middle splice copies pointers, never strings. Appending one key to 100k rows costs 0.17 µs against 1.5 ms before.
 
 ### ShadowListUtils
 
@@ -48,6 +52,7 @@
 - `Board.List` draws a board of draggable columns on one drag board with ids it names itself, `Board.Card` a card for it, and `useDragBoardState` with the pure `moveBoardItem` hold the columns and apply each move within or between them.
 - `Board.List` takes `renderColumnFooter` for a view under each column's cards that never drags, `renderColumnHeader` and `columnStyle`, and `columnHeight="content"` with `minColumnHeight`, `maxColumnHeight` and `estimatedItemHeight` for a board that sizes itself to its tallest column. An empty column of a board whose cards cannot move says "No cards" (`emptyColumnReadOnly`), and a column's list no longer draws a background of its own over the column's.
 - `Board.List`'s `columnWidth` sets every column's width in points, which the snap to each column follows, and one that is not a positive number falls back to 78% of the board, at most 360. `sidePadding` sets the inset before the first column and after the last in points, in place of the 24 points or the centring, and one that is negative or not finite is ignored.
+- `useDragBoardState` calls `onMoveItem` only for a move that changes the board. A move to an unknown column or to a card's own place changes nothing and stays silent.
 
 ### ShadowListKit for the web
 

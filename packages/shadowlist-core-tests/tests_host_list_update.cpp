@@ -6,6 +6,7 @@
 
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
+#include <shadowlist-core/host/ListSelection.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
 
 #include <optional>
@@ -194,4 +195,79 @@ TEST(batch_collector_keeps_a_reload_inside_the_batch) {
   CollectedBatch batch = collector.take();
   CHECK(batch.needsReload && batch.update.isEmpty() && !batch.isEmpty());
   CHECK(!collector.take().needsReload);
+}
+
+/*
+ * The keys the Android and wasm kits hold beside their core. A change brings only the middle,
+ * and the diff, the content versions and the selection read the keys held.
+ */
+namespace {
+
+Keys keysOf(KeyList list) {
+  return Keys(list.begin(), list.end());
+}
+
+}
+
+TEST(held_keys_splice_the_middle_and_diff_the_items) {
+  HeldKeys held;
+  HeldKeysCommit first = held.commit({0, 0, {"a", "b", "c", "d"}}, std::nullopt, true);
+  CHECK(first.rows.start == 0 && first.rows.deleted == 0 && first.rows.inserted == 4);
+  CHECK(first.diff.inserted == (Indices{0, 1, 2, 3}));
+  // a and d stay at the ends. c moves before b and x is new.
+  HeldKeysCommit next = held.commit({1, 1, {"c", "x", "b"}}, std::nullopt, true);
+  CHECK(next.rows.start == 1 && next.rows.deleted == 2 && next.rows.inserted == 3);
+  CHECK(keysOf(held.rows()) == (Keys{"a", "c", "x", "b", "d"}));
+  CHECK(keysOf(held.items()) == keysOf(held.rows()));
+  CHECK(next.diff.deleted.empty());
+  CHECK(next.diff.inserted == (Indices{2}));
+  CHECK(next.diff.moved.size() == 1);
+  CHECK(next.diff.moved[0].from == 2 && next.diff.moved[0].to == 1);
+  // Ends past the keys held are clipped.
+  HeldKeysCommit clipped = held.commit({9, 9, {}}, std::nullopt, false);
+  CHECK(clipped.rows.start == 5 && clipped.rows.deleted == 0);
+  CHECK(clipped.diff.isEmpty());
+}
+
+TEST(held_keys_keep_the_items_of_a_list_with_sections_apart) {
+  HeldKeys held;
+  held.commit({0, 0, {"h0", "a", "b", "h1", "c"}}, KeyChange{0, 0, {"a", "b", "c"}}, false);
+  CHECK(keysOf(held.items()) == (Keys{"a", "b", "c"}));
+  HeldKeysCommit next = held.commit({2, 2, {}}, KeyChange{1, 1, {}}, true);
+  CHECK(keysOf(held.rows()) == (Keys{"h0", "a", "h1", "c"}));
+  CHECK(keysOf(held.items()) == (Keys{"a", "c"}));
+  CHECK(next.diff.deleted == (Indices{1}));
+  // Without sections again the items are the rows.
+  held.commit({0, 0, {"a", "c"}}, std::nullopt, false);
+  CHECK(keysOf(held.items()) == keysOf(held.rows()));
+}
+
+TEST(held_keys_insert_and_delete_rows_at_positions) {
+  HeldKeys held;
+  held.insertRows(insertionIndices({0, 1}, 0), {"a", "b"});
+  CHECK(keysOf(held.rows()) == (Keys{"a", "b"}));
+  // One between, one past the end.
+  held.insertRows(insertionIndices({1, 9}, 2), {"x", "y"});
+  CHECK(keysOf(held.rows()) == (Keys{"a", "x", "b", "y"}));
+  held.deleteRows({3, 0, 7, 0});
+  CHECK(keysOf(held.rows()) == (Keys{"x", "b"}));
+  held.deleteRows({0, 1});
+  CHECK(held.rows().empty());
+}
+
+TEST(selection_and_content_versions_read_held_keys) {
+  HeldKeys held;
+  held.commit({0, 0, {"a", "b", "c"}}, std::nullopt, false);
+  ListSelection selection;
+  selection.setMultiple(true);
+  std::vector<std::string> deselected;
+  selection.select("a", deselected);
+  selection.select("c", deselected);
+  CHECK(selection.indicesIn(held.rows()) == (Indices{0, 2}));
+  ContentVersions versions;
+  versions.record(held.items(), {1, 1, 1});
+  held.commit({0, 1, {"b"}}, std::nullopt, false);
+  CHECK(selection.retainKeys(held.rows()));
+  CHECK(selection.indicesIn(held.rows()) == (Indices{1}));
+  CHECK(versions.update(held.items(), {2, 1}) == (Indices{0}));
 }

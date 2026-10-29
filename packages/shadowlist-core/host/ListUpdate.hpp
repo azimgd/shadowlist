@@ -1,9 +1,12 @@
 #pragma once
 
+#include <shadowlist-core/KeyList.hpp>
 #include <shadowlist-core/host/KeyDiff.hpp>
+#include <shadowlist-core/host/SharedKeys.hpp>
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -147,12 +150,14 @@ public:
    * Forget every version and keep these. versions has one value per item key.
    */
   void record(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions);
+  void record(KeyList itemKeys, const std::vector<std::int64_t>& versions);
 
   /*
    * The items whose version differs from the one kept for their key, low to high. Items
    * without a kept version did not change. The new versions are kept after.
    */
   std::vector<std::size_t> update(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions);
+  std::vector<std::size_t> update(KeyList itemKeys, const std::vector<std::int64_t>& versions);
 
   bool isEmpty() const { return versions_.empty(); }
 
@@ -170,10 +175,65 @@ private:
    * Keep versions as a new round. Calls changed with each item whose kept version differs.
    */
   template <typename Changed>
-  void keep(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions, Changed changed);
+  void keep(KeyList itemKeys, const std::vector<std::int64_t>& versions, Changed changed);
 
   std::unordered_map<std::string, Entry> versions_;
   std::uint64_t round_ = 0;
+};
+
+/*
+ * One edit of a key list: the keys between start unchanged keys at the front and end unchanged
+ * keys at the back become inserted.
+ */
+struct KeyChange {
+  std::size_t start = 0;
+  std::size_t end = 0;
+  std::vector<std::string> inserted;
+};
+
+/*
+ * What HeldKeys::commit did: the splice of the rows, and the diff of the items when asked for,
+ * with indices in the whole lists.
+ */
+struct HeldKeysCommit {
+  KeySplice rows;
+  KeyDiff diff;
+};
+
+/*
+ * The row keys a native list holds across the cores it makes and drops, and the item keys of a
+ * list with sections. Without sections the items are the rows. A change brings only the keys
+ * between the unchanged ends, and the keys kept are shared with the previous version, see
+ * SharedKeys. The selection and the content versions read the keys here, which then never cross
+ * from the host again.
+ */
+class HeldKeys final {
+public:
+  KeyList rows() const { return rows_.list(); }
+  KeyList items() const { return sectioned_ ? items_.list() : rows_.list(); }
+
+  /*
+   * Take the next keys. items is the change of a list with sections, nothing without. A start
+   * or end past the keys held is clipped.
+   */
+  HeldKeysCommit commit(KeyChange rows, std::optional<KeyChange> items, bool diff);
+
+  /*
+   * Rows inserted at positions of the next keys, as insertionIndices gives them, in a list
+   * without sections. keys has one key per position.
+   */
+  void insertRows(const std::vector<std::size_t>& indices, std::vector<std::string> keys);
+
+  /*
+   * Rows deleted at positions of the previous keys in a list without sections. deletionIndices
+   * sorts them first.
+   */
+  void deleteRows(const std::vector<std::size_t>& indices);
+
+private:
+  SharedKeys rows_;
+  SharedKeys items_;
+  bool sectioned_ = false;
 };
 
 }

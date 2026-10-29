@@ -13,6 +13,15 @@ void sortUnique(std::vector<std::size_t>& indices) {
   indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 }
 
+/*
+ * The splice a change makes in a list of size keys, its ends clipped to fit.
+ */
+KeySplice spliceOf(std::size_t size, const KeyChange& change) {
+  std::size_t start = std::min(change.start, size);
+  std::size_t end = std::min(change.end, size - start);
+  return {start, size - start - end, change.inserted.size()};
+}
+
 }
 
 std::vector<std::size_t> insertionIndices(std::vector<std::size_t> indices, std::size_t previousCount) {
@@ -101,7 +110,7 @@ CollectedBatch BatchCollector::take() {
 
 template <typename Changed>
 void ContentVersions::keep(
-  const std::vector<std::string>& itemKeys,
+  KeyList itemKeys,
   const std::vector<std::int64_t>& versions,
   Changed changed) {
   std::uint64_t round = ++round_;
@@ -133,15 +142,88 @@ void ContentVersions::keep(
 }
 
 void ContentVersions::record(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions) {
+  record(KeyList(itemKeys), versions);
+}
+
+void ContentVersions::record(KeyList itemKeys, const std::vector<std::int64_t>& versions) {
   keep(itemKeys, versions, [](std::size_t) {});
 }
 
 std::vector<std::size_t> ContentVersions::update(
   const std::vector<std::string>& itemKeys,
   const std::vector<std::int64_t>& versions) {
+  return update(KeyList(itemKeys), versions);
+}
+
+std::vector<std::size_t> ContentVersions::update(KeyList itemKeys, const std::vector<std::int64_t>& versions) {
   std::vector<std::size_t> changed;
   keep(itemKeys, versions, [&](std::size_t item) { changed.push_back(item); });
   return changed;
+}
+
+HeldKeysCommit HeldKeys::commit(KeyChange rows, std::optional<KeyChange> items, bool diff) {
+  HeldKeysCommit result;
+  result.rows = spliceOf(rows_.size(), rows);
+  const SharedKeys& previousItems = sectioned_ ? items_ : rows_;
+  const KeyChange& itemChange = items ? *items : rows;
+  KeySplice itemSplice = spliceOf(previousItems.size(), itemChange);
+  if (diff) {
+    result.diff = diffKeys(previousItems.list(itemSplice.start, itemSplice.deleted), KeyList(itemChange.inserted));
+    for (std::size_t& index : result.diff.deleted) {
+      index += itemSplice.start;
+    }
+    for (std::size_t& index : result.diff.inserted) {
+      index += itemSplice.start;
+    }
+    for (KeyMove& move : result.diff.moved) {
+      move.from += itemSplice.start;
+      move.to += itemSplice.start;
+    }
+  }
+  // The items splice reads the rows held before when the list had no sections.
+  items_ = items ? previousItems.splice(itemSplice.start, itemSplice.deleted, std::move(items->inserted)) : SharedKeys();
+  sectioned_ = items.has_value();
+  rows_ = rows_.splice(result.rows.start, result.rows.deleted, std::move(rows.inserted));
+  return result;
+}
+
+void HeldKeys::insertRows(const std::vector<std::size_t>& indices, std::vector<std::string> keys) {
+  std::size_t count = std::min(indices.size(), keys.size());
+  if (count == 0) {
+    return;
+  }
+  std::size_t size = rows_.size();
+  SharedKeys::Builder builder(rows_, size + count);
+  std::size_t from = 0;
+  for (std::size_t at = 0; at < count; ++at) {
+    // A position past the end goes at the end.
+    std::size_t kept = std::min(indices[at] - std::min(indices[at], from + at), size - from);
+    builder.append(from, kept);
+    from += kept;
+    builder.append(std::move(keys[at]));
+  }
+  builder.append(from, size - from);
+  rows_ = builder.finish();
+  sectioned_ = false;
+  items_ = SharedKeys();
+}
+
+void HeldKeys::deleteRows(const std::vector<std::size_t>& indices) {
+  std::vector<std::size_t> sorted = deletionIndices(indices, rows_.size());
+  if (sorted.empty()) {
+    return;
+  }
+  std::size_t size = rows_.size();
+  SharedKeys::Builder builder(rows_, size - sorted.size());
+  std::size_t from = 0;
+  for (std::size_t index : sorted) {
+    builder.append(from, index - from);
+    from = index + 1;
+  }
+  builder.append(from, size - from);
+  rows_ = builder.finish();
+  sectioned_ = false;
+  items_ = SharedKeys();
 }
 
 }

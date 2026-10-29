@@ -116,6 +116,12 @@ final class ShadowListDragController {
   private boolean mBoardDropPending = false;
   @Nullable private String mBoardLandingKey = null;
   private boolean mBoardAnimateShifts = false;
+  /*
+   * The row TalkBack moved into this list, announced once its data holds it, and when the wait
+   * ends.
+   */
+  @Nullable private String mAccessibilityMovedKey = null;
+  private long mAccessibilityMovedDeadlineMs = 0;
   private boolean mForeign = false;
   private boolean mHeldAway = false;
   /*
@@ -1450,6 +1456,7 @@ final class ShadowListDragController {
     if (board == null) {
       return;
     }
+    announceAccessibilityMoveIfLanded();
     String heldKey = board.getHeldKey();
     if (heldKey.isEmpty()) {
       heldKey = null;
@@ -1609,7 +1616,8 @@ final class ShadowListDragController {
   /*
    * TalkBack's Move to on a row: the row goes to the end of target, through the same events as a
    * drag dropped there. The target hears the landing first, then this list sends onDragEnd with
-   * the target's list id, an empty key and the target's row count. TalkBack says where it went.
+   * the target's list id, an empty key and the target's row count. TalkBack says where it went
+   * once the target's data holds the row, see announceAccessibilityMoveIfLanded.
    */
   boolean performAccessibilityMoveToList(ShadowListCellView view, ShadowListDragController target) {
     String key = view.getRowKey();
@@ -1619,8 +1627,29 @@ final class ShadowListDragController {
     }
     target.dispatchDragEvent(DRAG_EVENT_LAND, key, key);
     dispatchDragEvent(DRAG_EVENT_END, key, "", target.mDragListId, target.getView().getRowKeyCount());
-    mView.announceForAccessibility(mView.getContext().getString(R.string.shadowlist_moved_to, target.getDragListLabel()));
+    target.mAccessibilityMovedKey = key;
+    target.mAccessibilityMovedDeadlineMs = SystemClock.uptimeMillis() + ShadowListDragBoard.LAND_TIMEOUT_MS;
     return true;
+  }
+
+  /*
+   * A row TalkBack moved into this list landed in its data. Say so once. A move that has not
+   * landed by the board's landing timeout is forgotten.
+   */
+  private void announceAccessibilityMoveIfLanded() {
+    String key = mAccessibilityMovedKey;
+    if (key == null) {
+      return;
+    }
+    if (SystemClock.uptimeMillis() > mAccessibilityMovedDeadlineMs) {
+      mAccessibilityMovedKey = null;
+      return;
+    }
+    if (!mView.rowKeysContain(key)) {
+      return;
+    }
+    mAccessibilityMovedKey = null;
+    mView.announceForAccessibility(mView.getContext().getString(R.string.shadowlist_moved_to, getDragListLabel()));
   }
 
   /*
