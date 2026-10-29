@@ -105,6 +105,18 @@ describe('useDragBoardState', () => {
     expect(second).toHaveBeenCalledWith(info);
   });
 
+  it('skips onMoveItem for a move that leaves the board unchanged', () => {
+    const onMoveItem = jest.fn();
+    const board = renderBoard({ onMoveItem });
+    act(() => {
+      const { moveItem } = board.current();
+      moveItem(moveOf(INITIAL[0]!.items[0]!, 'missing', ''));
+      moveItem(moveOf(INITIAL[0]!.items[1]!, 'todo', ''));
+    });
+    expect(board.current().columns).toBe(INITIAL);
+    expect(onMoveItem).not.toHaveBeenCalled();
+  });
+
   it('reads keys through the keyExtractor option', () => {
     const board = renderBoard({ keyExtractor: (card) => `card-${card.id}` });
     act(() => {
