@@ -56,7 +56,7 @@ inline bool offsetBandPublished(double low, double high, const OffsetBand& band)
 }
 
 /*
- * Sticky indices from props, for the core, without negatives.
+ * Sticky indices from props, for the core: sorted, each once, without negatives.
  */
 void stickyIndicesFromProps(const std::vector<int>& propIndices, std::vector<std::size_t>& indices);
 

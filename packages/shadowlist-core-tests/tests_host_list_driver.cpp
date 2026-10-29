@@ -604,6 +604,34 @@ TEST(list_driver_prefetches_measured_rows_once_and_cancels_them_when_they_leave)
   CHECK(!prefetch.empty());
 }
 
+/*
+ * A key replaced inside the prefetched rows, with the ranges and the count unchanged, is a new
+ * row to prefetch once the core took it.
+ */
+TEST(list_driver_prefetch_sees_a_key_replaced_under_the_same_ranges) {
+  Host host(1000);
+  host.settle();
+  std::vector<std::size_t> prefetch;
+  std::vector<std::size_t> cancel;
+  MountPlan plan = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0);
+  host.driver.updatePrefetch(plan.low, plan.high, prefetch, cancel);
+  CHECK(!prefetch.empty());
+  std::size_t replaced = prefetch.back();
+
+  // The same height as the row it replaces, which keeps every range where it was.
+  host.driver.replaceKeys(replaced, 1, {"k" + std::to_string(replaced + 3000)});
+  host.settle();
+  MountPlan next = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0);
+  CHECK_EQ(next.low, plan.low);
+  CHECK_EQ(next.high, plan.high);
+  host.driver.updatePrefetch(next.low, next.high, prefetch, cancel);
+  CHECK(prefetch == std::vector<std::size_t>({replaced}));
+  CHECK(cancel.empty());
+
+  host.driver.updatePrefetch(next.low, next.high, prefetch, cancel);
+  CHECK(prefetch.empty());
+}
+
 TEST(list_driver_moved_key_keeps_its_size_and_the_top_row_holds) {
   Host host(300);
   host.settle();

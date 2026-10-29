@@ -59,7 +59,19 @@ public:
    */
   TreeSplice collapse(std::size_t row);
 
+  /*
+   * The same as expand and collapse on a copy of base, built in one pass. Rows they take out
+   * are never copied.
+   */
+  TreeSplice expandFrom(const TreeRows& base, std::size_t row, std::vector<TreeRow> descendants);
+  TreeSplice collapseFrom(const TreeRows& base, std::size_t row);
+
 private:
+  /*
+   * Become base with its rows from start to end replaced by inserted.
+   */
+  void spliceFrom(const TreeRows& base, std::size_t start, std::size_t end, std::vector<TreeRow>& inserted);
+
   std::vector<std::string> keys_;
   std::vector<std::uint32_t> depths_;
 

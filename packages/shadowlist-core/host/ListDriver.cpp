@@ -2,6 +2,7 @@
 
 #include <shadowlist-core/Virtualizer.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
+#include <shadowlist-core/host/RowKeyStore.hpp>
 #include <shadowlist-core/host/Snap.hpp>
 #include <shadowlist-core/host/StickyLayout.hpp>
 
@@ -9,6 +10,7 @@
 #include <cmath>
 #include <iterator>
 #include <limits>
+#include <numeric>
 
 namespace azimgd::shadowlist {
 
@@ -85,7 +87,7 @@ void ListDriver::replaceKeys(std::size_t start, std::size_t count, std::vector<s
   if (count == 0 && keys.empty()) {
     return;
   }
-  KeyEdit edit = endEdit(start, count, keys.size());
+  KeyEdit edit = keyEditOf(keys_.size(), start, count, keys.size());
   auto first = keys_.begin() + static_cast<std::ptrdiff_t>(start);
   std::size_t common = std::min(count, keys.size());
   std::move(keys.begin(), keys.begin() + static_cast<std::ptrdiff_t>(common), first);
@@ -98,46 +100,46 @@ void ListDriver::replaceKeys(std::size_t start, std::size_t count, std::vector<s
   recordEdit(edit);
 }
 
-/*
- * A splice that only inserts or only deletes keys at an end, as an edit the core can trust.
- */
-KeyEdit ListDriver::endEdit(std::size_t start, std::size_t deleted, std::size_t inserted) const {
-  std::size_t size = keys_.size();
-  if (size == 0 || (deleted > 0) == (inserted > 0) || deleted == size) {
-    return {};
-  }
-  if (inserted > 0) {
-    return {start == 0 ? KeyEditKind::Prepend : start == size ? KeyEditKind::Append : KeyEditKind::Unknown, inserted};
-  }
-  return {start == 0 ? KeyEditKind::TrimStart : start + deleted == size ? KeyEditKind::TrimEnd : KeyEditKind::Unknown,
-    deleted};
-}
-
 void ListDriver::insertKeys(std::vector<std::size_t> indices, std::vector<std::string> keys) {
-  // Pair each index with its key before sorting, then keep the first of any repeated index.
-  std::vector<std::pair<std::size_t, std::string>> inserted;
-  inserted.reserve(std::min(indices.size(), keys.size()));
-  for (std::size_t position = 0; position < indices.size() && position < keys.size(); ++position) {
-    inserted.emplace_back(indices[position], std::move(keys[position]));
+  std::size_t count = std::min(indices.size(), keys.size());
+  indices.resize(count);
+  keys.resize(count);
+  bool ascending = true;
+  for (std::size_t position = 1; position < count && ascending; ++position) {
+    ascending = indices[position - 1] < indices[position];
   }
-  std::stable_sort(inserted.begin(), inserted.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-  inserted.erase(std::unique(inserted.begin(), inserted.end(), [](const auto& a, const auto& b) { return a.first == b.first; }),
-    inserted.end());
-  if (inserted.empty()) {
+  // Sort the indices with their keys, then keep the first of any repeated index.
+  if (!ascending) {
+    std::vector<std::size_t> order(count);
+    std::iota(order.begin(), order.end(), std::size_t{0});
+    std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return indices[a] < indices[b]; });
+    std::vector<std::size_t> sortedIndices;
+    std::vector<std::string> sortedKeys;
+    sortedIndices.reserve(count);
+    sortedKeys.reserve(count);
+    for (std::size_t position : order) {
+      if (!sortedIndices.empty() && sortedIndices.back() == indices[position]) {
+        continue;
+      }
+      sortedIndices.push_back(indices[position]);
+      sortedKeys.push_back(std::move(keys[position]));
+    }
+    indices = std::move(sortedIndices);
+    keys = std::move(sortedKeys);
+  }
+  if (indices.empty()) {
     return;
   }
   std::size_t previousCount = keys_.size();
-  std::size_t runs = countRuns(inserted.size(), [&](std::size_t at) { return inserted[at].first; });
+  std::size_t runs = countRuns(indices.size(), [&](std::size_t at) { return indices[at]; });
   KeyEdit edit;
-  if (runs == 1 && previousCount > 0) {
-    std::size_t at = std::min(inserted.front().first, previousCount);
-    edit.kind = at == 0 ? KeyEditKind::Prepend : at == previousCount ? KeyEditKind::Append : KeyEditKind::Unknown;
-    edit.count = inserted.size();
+  if (runs == 1) {
+    edit = keyEditOf(previousCount, std::min(indices.front(), previousCount), 0, indices.size());
   }
   if (runs <= MAX_IN_PLACE_KEY_RUNS) {
-    insertKeysInPlace(inserted);
+    insertKeysInPlace(indices, keys);
   } else {
-    insertKeysRebuilding(inserted);
+    insertKeysRebuilding(indices, keys);
   }
   recordEdit(edit);
 }
@@ -146,21 +148,17 @@ void ListDriver::insertKeys(std::vector<std::size_t> indices, std::vector<std::s
  * Insert each run of adjacent new rows with one vector insert. Runs go in ascending order,
  * which leaves every row before the next run at its final index.
  */
-void ListDriver::insertKeysInPlace(std::vector<std::pair<std::size_t, std::string>>& inserted) {
+void ListDriver::insertKeysInPlace(const std::vector<std::size_t>& indices, std::vector<std::string>& keys) {
   std::size_t first = 0;
-  while (first < inserted.size()) {
+  while (first < indices.size()) {
     std::size_t last = first + 1;
-    while (last < inserted.size() && inserted[last].first == inserted[last - 1].first + 1) {
+    while (last < indices.size() && indices[last] == indices[last - 1] + 1) {
       ++last;
     }
-    std::size_t at = std::min(inserted[first].first, keys_.size());
-    std::vector<std::string> run;
-    run.reserve(last - first);
-    for (std::size_t position = first; position < last; ++position) {
-      run.push_back(std::move(inserted[position].second));
-    }
-    keys_.insert(keys_.begin() + static_cast<std::ptrdiff_t>(at), std::make_move_iterator(run.begin()),
-      std::make_move_iterator(run.end()));
+    std::size_t at = std::min(indices[first], keys_.size());
+    keys_.insert(keys_.begin() + static_cast<std::ptrdiff_t>(at),
+      std::make_move_iterator(keys.begin() + static_cast<std::ptrdiff_t>(first)),
+      std::make_move_iterator(keys.begin() + static_cast<std::ptrdiff_t>(last)));
     first = last;
   }
 }
@@ -168,16 +166,16 @@ void ListDriver::insertKeysInPlace(std::vector<std::pair<std::size_t, std::strin
 /*
  * Build the new key list in one pass, for inserts spread over many places.
  */
-void ListDriver::insertKeysRebuilding(std::vector<std::pair<std::size_t, std::string>>& inserted) {
+void ListDriver::insertKeysRebuilding(const std::vector<std::size_t>& indices, std::vector<std::string>& keys) {
   std::vector<std::string> next;
-  next.reserve(keys_.size() + inserted.size());
+  next.reserve(keys_.size() + indices.size());
   std::size_t source = 0;
-  for (auto& [index, key] : inserted) {
+  for (std::size_t position = 0; position < indices.size(); ++position) {
     // Keep the old keys that sit before this new row.
-    while (next.size() < index && source < keys_.size()) {
+    while (next.size() < indices[position] && source < keys_.size()) {
       next.push_back(std::move(keys_[source++]));
     }
-    next.push_back(std::move(key));
+    next.push_back(std::move(keys[position]));
   }
   while (source < keys_.size()) {
     next.push_back(std::move(keys_[source++]));
@@ -192,10 +190,8 @@ void ListDriver::deleteKeys(std::vector<std::size_t> indices) {
   }
   std::size_t runs = countRuns(deleted.size(), [&](std::size_t at) { return deleted[at]; });
   KeyEdit edit;
-  if (runs == 1 && deleted.size() < keys_.size()) {
-    edit.kind = deleted.front() == 0 ? KeyEditKind::TrimStart
-      : deleted.back() + 1 == keys_.size() ? KeyEditKind::TrimEnd : KeyEditKind::Unknown;
-    edit.count = deleted.size();
+  if (runs == 1) {
+    edit = keyEditOf(keys_.size(), deleted.front(), deleted.size(), 0);
   }
   if (runs <= MAX_IN_PLACE_KEY_RUNS) {
     // Erase runs from the last one back, which keeps the earlier indices valid.
@@ -272,6 +268,9 @@ PassResult ListDriver::runPasses(const PassInput& input) {
   windowCross_ = input.windowCross;
   bool horizontal = settings_.horizontal;
   double offset = input.offset;
+  if (keysChanged_) {
+    prefetchStale_ = true;
+  }
   for (int pass = 0; pass < MAX_CORE_PASSES_PER_LAYOUT; ++pass) {
     Virtualizer::update(core, makeFrameInput(input, offset, pass == 0));
     keysChanged_ = false;
@@ -521,11 +520,20 @@ std::optional<AnchorState> ListDriver::getAnchorState(double offset) const {
 }
 
 bool ListDriver::restoreAnchorState(const AnchorState& anchor) {
-  auto found = std::find(keys_.begin(), keys_.end(), anchor.key);
-  if (found == keys_.end()) {
+  std::size_t index = UNDEFINED_INDEX;
+  // Until the next edit the core's rows are the keys, and its key map finds the row.
+  if (!keysChanged_ && !anchor.key.empty()) {
+    index = core_->indexOfKey(anchor.key);
+  } else {
+    auto found = std::find(keys_.begin(), keys_.end(), anchor.key);
+    if (found != keys_.end()) {
+      index = static_cast<std::size_t>(found - keys_.begin());
+    }
+  }
+  if (index == UNDEFINED_INDEX) {
     return false;
   }
-  core_->scrollToRow(static_cast<std::size_t>(found - keys_.begin()), 0.0, anchor.offset);
+  core_->scrollToRow(index, 0.0, anchor.offset);
   return true;
 }
 
@@ -539,7 +547,18 @@ void ListDriver::updatePrefetch(
     mounted = MountedRange{mountedLow, mountedHigh};
   }
   const std::vector<Row>& rows = core_->revision.rows;
-  prefetch_.update(mounted, getMeasuredRange(), rows.size(),
+  std::optional<MountedRange> range = getMeasuredRange();
+  // The same rows and ranges as the previous call prefetch and cancel nothing.
+  if (!prefetchStale_ && mounted == prefetchMounted_ && range == prefetchRange_ && rows.size() == prefetchCount_) {
+    prefetch.clear();
+    cancel.clear();
+    return;
+  }
+  prefetchStale_ = false;
+  prefetchMounted_ = mounted;
+  prefetchRange_ = range;
+  prefetchCount_ = rows.size();
+  prefetch_.update(mounted, range, rows.size(),
     [&](std::size_t index) -> const std::string& { return rows[index].key; },
     [&](const std::string& key) { return indexOfKey(key); }, prefetch, cancel);
 }
@@ -592,7 +611,6 @@ DragRow ListDriver::dragRowAt(std::size_t index) const {
   bool horizontal = settings_.horizontal;
   DragRow row;
   row.index = index;
-  row.key = placed.key;
   row.leading = horizontal ? placed.offsetX : placed.offsetY;
   row.extent = horizontal ? placed.width : placed.height;
   if (settings_.numberOfColumns > 1) {
@@ -607,6 +625,7 @@ void ListDriver::dragBegin(std::size_t index, double touchAlong, double touchCro
     return;
   }
   DragRow resting = dragRowAt(index);
+  resting.key = core_->revision.rows[index].key;
   heldKey_ = resting.key;
   drag_.begin(resting, touchAlong, touchCross, settings_.numberOfColumns);
 }
@@ -630,15 +649,16 @@ DragOffset ListDriver::placeHeld(std::size_t held, double touchAlong, double tou
 
 void ListDriver::dragUpdateInsertion(const std::vector<std::size_t>& mounted) {
   std::size_t held = getHeldIndex();
-  std::vector<DragRow> rows;
-  rows.reserve(mounted.size());
+  std::vector<DragRow>& rows = dragRows_;
+  rows.clear();
   for (std::size_t index : mounted) {
     if (index < getRowCount() && index != held) {
       rows.push_back(dragRowAt(index));
     }
   }
   std::sort(rows.begin(), rows.end(), [](const DragRow& a, const DragRow& b) { return a.index < b.index; });
-  drag_.updateInsertion(rows);
+  const std::vector<Row>& placed = core_->revision.rows;
+  drag_.updateInsertion(rows, [&placed](const DragRow& row) -> const std::string& { return placed[row.index].key; });
 }
 
 }

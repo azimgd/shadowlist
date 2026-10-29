@@ -158,6 +158,38 @@ TEST(tree_rows_collapse_and_expand_splice_the_visible_descendants) {
   checkRows(tree, rows);
 }
 
+/*
+ * A new version of a tree is built from its base, which stays as it was.
+ */
+TEST(tree_rows_expand_and_collapse_from_a_base_leave_the_base_alone) {
+  std::vector<Node> nodes = sampleTree();
+  std::set<std::string> expanded = {"a", "b", "f"};
+  std::vector<TreeRow> rows;
+  flatten(nodes, 0, expanded, rows);
+  TreeRows base;
+  base.reset(rows);
+
+  TreeRows collapsed;
+  TreeSplice splice = collapsed.collapseFrom(base, 0);
+  CHECK_EQ(splice.start, std::size_t(1));
+  CHECK_EQ(splice.deleted, std::size_t(4));
+  checkRows(base, rows);
+  std::set<std::string> collapsedSet = {"b", "f"};
+  std::vector<TreeRow> collapsedRows;
+  flatten(nodes, 0, collapsedSet, collapsedRows);
+  checkRows(collapsed, collapsedRows);
+
+  TreeRows reopened;
+  std::vector<TreeRow> under;
+  std::uint32_t depth = 0;
+  const Node* a = findNode(nodes, "a", depth);
+  flatten(a->children, depth + 1, expanded, under);
+  splice = reopened.expandFrom(collapsed, 0, under);
+  CHECK_EQ(splice.inserted, under.size());
+  checkRows(reopened, rows);
+  checkRows(collapsed, collapsedRows);
+}
+
 TEST(tree_rows_ignore_expanding_a_leaf_or_a_row_past_the_end) {
   TreeRows tree;
   tree.reset({{"x", 0, false, false}});
@@ -218,7 +250,7 @@ TEST(tree_rows_match_a_full_flatten_through_random_toggles) {
   }
 }
 
-TEST(row_key_store_splices_from_a_base_and_reports_end_edits) {
+TEST(row_key_store_splices_from_a_base_and_reports_its_edit) {
   RowKeyStore store;
   CHECK(store.setKeys(1, keysOf({"a", "b", "c"})));
   CHECK(store.spliceKeys(2, 1, 3, 0, keysOf({"d", "e"})));
@@ -234,11 +266,18 @@ TEST(row_key_store_splices_from_a_base_and_reports_end_edits) {
   CHECK(store.snapshot(4)->getEdit().kind == KeyEditKind::TrimStart);
   CHECK(store.spliceKeys(5, 4, 1, 1, keysOf({"q"})));
   CHECK(store.snapshot(5)->keys() == keysOf({"b", "q", "d", "e"}));
-  CHECK(store.snapshot(5)->getEdit().kind == KeyEditKind::Unknown);
+  const KeyEdit& replaced = store.snapshot(5)->getEdit();
+  CHECK(replaced.kind == KeyEditKind::Splice);
+  CHECK_EQ(replaced.start, std::size_t(1));
+  CHECK_EQ(replaced.deleted, std::size_t(1));
+  CHECK_EQ(replaced.inserted, std::size_t(1));
+  // Every key replaced is no edit the core can use.
+  CHECK(store.spliceKeys(6, 5, 0, 4, keysOf({"x"})));
+  CHECK(store.snapshot(6)->getEdit().kind == KeyEditKind::Unknown);
 
   // A base that is not there, or a splice past its end, fails.
   CHECK(!store.spliceKeys(9, 42, 0, 0, keysOf({"x"})));
-  CHECK(!store.spliceKeys(9, 5, 3, 2, {}));
+  CHECK(!store.spliceKeys(9, 6, 3, 2, {}));
 }
 
 TEST(row_key_store_drops_versions_no_commit_can_name) {

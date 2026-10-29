@@ -450,6 +450,18 @@ public:
   void updateInsertion(const std::vector<DragRow>& rows);
 
   /*
+   * The same with the key of the drop spot's row read through keyOf, which takes its DragRow.
+   * A host that looks keys up by index leaves DragRow::key empty.
+   */
+  template <typename KeyOf>
+  void updateInsertion(const std::vector<DragRow>& rows, KeyOf keyOf) {
+    std::size_t position = locateInsertion(rows);
+    if (position != UNDEFINED_INDEX) {
+      takeInsertionKey(keyOf(rows[position]));
+    }
+  }
+
+  /*
    * How far a row slides along the scroll axis. The same as offsetFor without the cross value.
    */
   double shiftFor(std::size_t index) const { return offsetFor(index).leading; }
@@ -510,8 +522,14 @@ public:
   double getCrossLeading() const { return crossLeading_; }
 
 private:
-  void updateGridInsertion(const std::vector<DragRow>& rows);
-  void updateForeignInsertion(const std::vector<DragRow>& rows);
+  /*
+   * Everything updateInsertion does but take the drop spot's key. Returns the position of the
+   * row whose key it is, or UNDEFINED_INDEX when the key is already set.
+   */
+  std::size_t locateInsertion(const std::vector<DragRow>& rows);
+  std::size_t locateGridInsertion(const std::vector<DragRow>& rows);
+  std::size_t locateForeignInsertion(const std::vector<DragRow>& rows);
+  void takeInsertionKey(const std::string& key);
 
   /*
    * Fill offsets_ for the mounted rows. relayout(write) calls write(position, offset).

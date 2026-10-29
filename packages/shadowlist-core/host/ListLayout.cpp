@@ -2,7 +2,9 @@
 
 #include <shadowlist-core/Virtualizer.hpp>
 
+#include <limits>
 #include <type_traits>
+#include <utility>
 
 namespace azimgd::shadowlist {
 
@@ -24,6 +26,14 @@ bool applyLayoutInputs(Container& core, double headerSize, double footerSize, do
   core.revision.windowHeight = windowHeight;
   if (rowsMove) {
     Virtualizer::recomputeRowOffsets(core, 0);
+    /*
+     * The next layout has nothing left to reflow for these inputs. The measured range still
+     * comes from before they changed, and the next frame picks it again.
+     */
+    core.previousLayoutHeaderSize = headerSize;
+    core.previousLayoutWindowWidth = windowWidth;
+    core.previousLayoutWindowHeight = windowHeight;
+    core.measuredRangeStale = true;
   }
   // The core's frame ran with the previous header size. Settle the change now.
   Virtualizer::applyHeaderSizeChange(core, previousHeaderSize);
@@ -127,7 +137,7 @@ bool PublishedGeometry::refresh(const Container& core) {
     if (cached && *cached == next) {
       return;
     }
-    cached = std::make_shared<const std::vector<ValueT>>(std::move(next));
+    cached = std::make_shared<const std::vector<ValueT>>(std::forward<decltype(next)>(next));
   };
 
   std::vector<int> indices;
@@ -138,7 +148,8 @@ bool PublishedGeometry::refresh(const Container& core) {
 
   if (!core.inverted) {
     for (std::size_t stickyIndex : core.stickyIndices) {
-      if (stickyIndex >= rowCount) {
+      // The published indices are ints. A row past that range is never pinned.
+      if (stickyIndex >= rowCount || stickyIndex > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
         continue;
       }
       indices.push_back(static_cast<int>(stickyIndex));
@@ -149,8 +160,8 @@ bool PublishedGeometry::refresh(const Container& core) {
   adoptIfChanged(stickyIndices, std::move(indices));
   adoptIfChanged(stickyOffsets, std::move(offsets));
   adoptIfChanged(stickySizes, std::move(sizes));
-  // Empty unless snapToItem is set.
-  adoptIfChanged(snapOffsets, std::vector<double>(core.getSnapOffsets()));
+  // Empty unless snapToItem is set. Compared before it is copied.
+  adoptIfChanged(snapOffsets, core.getSnapOffsets());
   return true;
 }
 

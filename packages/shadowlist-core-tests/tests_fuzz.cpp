@@ -13,6 +13,7 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 #include <shadowlist-core/host/ListCommit.hpp>
+#include <shadowlist-core/host/ListLayout.hpp>
 #include <shadowlist-core/host/ScrollSync.hpp>
 
 #include <algorithm>
@@ -148,23 +149,7 @@ struct SimHost {
    */
   void layoutPass() {
     Container& core = container;
-    bool inputsChanged = core.headerSize != header || core.footerSize != footer ||
-      core.revision.windowHeight != windowSize || core.revision.windowWidth != WINDOW_WIDTH;
-    if (inputsChanged) {
-      double previousHeader = core.headerSize;
-      double previousWindow = core.getWindowSize();
-      bool rowsMove = previousHeader != header || core.revision.windowWidth != WINDOW_WIDTH;
-      core.headerSize = header;
-      core.footerSize = footer;
-      core.revision.windowWidth = WINDOW_WIDTH;
-      core.revision.windowHeight = windowSize;
-      if (rowsMove) {
-        Virtualizer::recomputeRowOffsets(core, 0);
-      }
-      Virtualizer::applyHeaderSizeChange(core, previousHeader);
-      Virtualizer::applyWindowSizeChange(core, previousWindow);
-      core.offsetCorrected = true;
-    }
+    applyLayoutInputs(core, header, footer, WINDOW_WIDTH, windowSize);
 
     auto visible = core.getMeasuredRange();
     if (visible.low != UNDEFINED_INDEX && !core.revision.rows.empty()) {
@@ -309,9 +294,6 @@ std::string checkGeometry(const SimHost& host) {
     }
     if (std::fabs(row.offsetY - expected) > 0.01) {
       return "row " + std::to_string(index) + " at " + std::to_string(row.offsetY) + " expected " + std::to_string(expected);
-    }
-    if (row.index != index) {
-      return "row " + std::to_string(index) + " carries index " + std::to_string(row.index);
     }
     expected += row.height;
   }

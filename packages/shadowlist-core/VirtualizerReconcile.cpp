@@ -94,6 +94,35 @@ KeyEnds commonEnds(const std::vector<Row>& rows, const std::vector<std::string>&
 }
 
 /*
+ * The ends a host's splice keeps, when its counts add up and the keys at the edges of both
+ * ends match. Only those edges are checked, which catches a splice applied at the wrong place
+ * or with the wrong counts.
+ */
+bool spliceEnds(
+  const std::vector<Row>& rows,
+  const std::vector<std::string>& nextKeys,
+  const KeyEdit& edit,
+  KeyEnds& ends) {
+  std::size_t previousCount = rows.size();
+  std::size_t nextCount = nextKeys.size();
+  if (edit.kind != KeyEditKind::Splice || edit.start > previousCount || edit.deleted > previousCount - edit.start ||
+      previousCount - edit.deleted + edit.inserted != nextCount) {
+    return false;
+  }
+  std::size_t prefix = edit.start;
+  std::size_t suffix = previousCount - edit.start - edit.deleted;
+  if (prefix > 0 && (rows[0].key != nextKeys[0] || rows[prefix - 1].key != nextKeys[prefix - 1])) {
+    return false;
+  }
+  if (suffix > 0 &&
+      (rows[previousCount - suffix].key != nextKeys[nextCount - suffix] || rows.back().key != nextKeys.back())) {
+    return false;
+  }
+  ends = {prefix, suffix};
+  return true;
+}
+
+/*
  * Drop the key map entries of rows first to first + count, before the rows go away.
  * Only valid without duplicate keys, where every row owns its entry.
  */
@@ -128,7 +157,6 @@ bool reconcileAppend(
   for (std::size_t index = rows.size(); index < nextKeys.size(); ++index) {
     rows.emplace_back();
     rows.back().key = nextKeys[index];
-    rows.back().index = index;
     // A duplicate key keeps its first index, same as the general path.
     if (!revision.setIndexOfKey(nextKeys[index], index)) {
       revision.hasDuplicateKeys = true;
@@ -400,12 +428,10 @@ std::size_t reconcileRebuilding(Container& container, const std::vector<std::str
     if (survives) {
       // Keep the row's size and flags. Move it straight into place to avoid a second copy.
       nextRows.push_back(std::move(previousRows[previousRowIndex]));
-      nextRows.back().index = nextRowIndex;
       survivorCount++;
     } else {
       nextRows.emplace_back();
       nextRows.back().key = nextKey;
-      nextRows.back().index = nextRowIndex;
     }
   }
 
@@ -451,7 +477,6 @@ std::size_t reconcileMatching(Container& container, const std::vector<std::strin
       nextRows.emplace_back();
       nextRows.back().key = nextKey;
     }
-    nextRows.back().index = nextIndex;
     duplicates = duplicates || repeated;
     if (repeated || nextKey.empty()) {
       continue;
@@ -487,8 +512,6 @@ std::size_t Virtualizer::reconcileRows(
    * trimming a range of rows. Rebuilding the key map costs about 6ms at 100k rows, a dropped
    * frame. These keep the rows and the map in place. An empty list is a cold start and takes
    * the general path.
-   * Rows are not renumbered here. The reflow from row 0 sets every index anyway, and nothing
-   * reads the index before then.
    */
   std::size_t previousCount = previousRows.size();
   // Each path returns the first row whose place changed.
@@ -505,11 +528,18 @@ std::size_t Virtualizer::reconcileRows(
     return UNDEFINED_INDEX;
   };
   // A host that vouched for the edit skips the comparisons. Otherwise compare each end once.
-  std::size_t changedFrom = edit.kind != KeyEditKind::Unknown ? atEnds(nullptr) : UNDEFINED_INDEX;
   KeyEnds ends;
-  if (changedFrom == UNDEFINED_INDEX) {
-    ends = commonEnds(previousRows, nextKeys);
+  std::size_t changedFrom = UNDEFINED_INDEX;
+  if (spliceEnds(previousRows, nextKeys, edit, ends)) {
     changedFrom = atEnds(&ends);
+  } else {
+    if (edit.kind != KeyEditKind::Unknown && edit.kind != KeyEditKind::Splice) {
+      changedFrom = atEnds(nullptr);
+    }
+    if (changedFrom == UNDEFINED_INDEX) {
+      ends = commonEnds(previousRows, nextKeys);
+      changedFrom = atEnds(&ends);
+    }
   }
   if (changedFrom != UNDEFINED_INDEX) {
     container.geometryVersion++;

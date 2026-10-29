@@ -186,7 +186,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
     const auto& previous = geometryCache->keysSnapshot;
     keysChanged = previous != keysSnapshot;
     input.keysUnchanged = !keysChanged;
-    // A splice at an end of the keys the core last took skips its comparison of every key.
+    // A splice of the keys the core last took skips its comparison of every key.
     if (keysChanged && previous && keysSnapshot->getBaseVersion() == previous->getVersion()) {
       input.keyEdit = keysSnapshot->getEdit();
     }

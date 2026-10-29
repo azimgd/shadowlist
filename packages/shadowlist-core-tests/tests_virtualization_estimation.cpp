@@ -115,6 +115,53 @@ TEST(snap_offsets_include_both_ends_and_stay_sorted) {
   }
 }
 
+/*
+ * A single column comes in order. Rows near either end of the scroll range fold into it, and
+ * no two offsets sit within OFFSET_MOVED_THRESHOLD of each other.
+ */
+TEST(single_column_snap_offsets_are_sorted_without_repeats) {
+  Fixture fixture;
+  std::vector<std::string> keys = keysFor(40);
+  for (SnapAlignment alignment : {SnapAlignment::Start, SnapAlignment::Center, SnapAlignment::End}) {
+    Container container;
+    FrameInput input = inputFor(keys, 0.0, fixture);
+    input.snapToItem = true;
+    input.snapAlignment = alignment;
+    Virtualizer::update(container, input);
+    std::vector<double> heights;
+    for (std::size_t index = 0; index < keys.size(); ++index) {
+      heights.push_back(index % 3 == 0 ? 0.2 : 90.0 + static_cast<double>(index % 4) * 25.0);
+    }
+    measureRows(container, heights);
+    Virtualizer::update(container, input);
+
+    const std::vector<double>& offsets = container.getSnapOffsets();
+    double maxOffset = container.revision.contentHeight - WINDOW_HEIGHT;
+    CHECK_NEAR(offsets.front(), 0.0, 0.001);
+    CHECK_NEAR(offsets.back(), maxOffset, OFFSET_MOVED_THRESHOLD);
+    for (std::size_t index = 1; index < offsets.size(); ++index) {
+      CHECK(offsets[index] - offsets[index - 1] > OFFSET_MOVED_THRESHOLD);
+    }
+  }
+}
+
+/*
+ * A frame that names no viewable rule uses the default one. Rules it names replace it.
+ */
+TEST(a_frame_without_viewable_rules_uses_the_default_rule) {
+  FrameInput input;
+  CHECK(input.viewableRules.empty());
+  CHECK_EQ(input.getViewableRules().size(), static_cast<std::size_t>(1));
+  CHECK(input.getViewableRules()[0] == ViewableRule{});
+  input.viewableRules = {ViewableRule{0.5, true}};
+  CHECK(input.getViewableRules()[0] == (ViewableRule{0.5, true}));
+
+  Container container;
+  Virtualizer::update(container, inputFor(keysFor(20), 0.0));
+  CHECK_EQ(container.viewableRules.size(), static_cast<std::size_t>(1));
+  CHECK(container.viewableRules[0] == ViewableRule{});
+}
+
 TEST(viewable_indices_stay_inside_the_viewport) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(200);

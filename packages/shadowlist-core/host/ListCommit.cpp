@@ -1,5 +1,7 @@
 #include <shadowlist-core/host/ListCommit.hpp>
 
+#include <algorithm>
+
 namespace azimgd::shadowlist {
 
 namespace {
@@ -62,6 +64,8 @@ void stickyIndicesFromProps(const std::vector<int>& propIndices, std::vector<std
       indices.push_back(static_cast<std::size_t>(stickyHeaderIndex));
     }
   }
+  std::sort(indices.begin(), indices.end());
+  indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 }
 
 }

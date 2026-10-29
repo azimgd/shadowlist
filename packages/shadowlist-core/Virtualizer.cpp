@@ -99,13 +99,21 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
 
   // Capture the anchor row so the same content stays in view through the reconcile.
   bool hadRowsBefore = !container.revision.rows.empty();
-  captureAnchor(container, inputOffset);
+  std::size_t anchorIndex = captureAnchor(container, inputOffset);
 
-  std::string anchorKey = container.anchor.key;
+  std::string& anchorKey = container.frameAnchorKey;
+  anchorKey = container.anchor.key;
   double anchorDelta = container.anchor.offset;
-  reconcileFrameKeys(container, input, inputKeys, inputOffset, restingAtBottom, hadRowsBefore, anchorKey, anchorDelta);
+  // Lookups by key find the first of repeated keys. Keep to that row.
+  if (anchorKey.empty()) {
+    anchorIndex = UNDEFINED_INDEX;
+  } else if (container.revision.hasDuplicateKeys) {
+    anchorIndex = container.indexOfKey(anchorKey);
+  }
+  reconcileFrameKeys(
+    container, input, inputKeys, inputOffset, restingAtBottom, hadRowsBefore, anchorKey, anchorIndex, anchorDelta);
 
-  measureFrame(container, input, previousHeaderSize, hadRowsBefore, anchorKey, anchorDelta);
+  measureFrame(container, input, previousHeaderSize, hadRowsBefore, anchorKey, anchorIndex, anchorDelta);
 
   // The commit token is just the running operation's id. No operation means no token.
   SHADOWLIST_LOG("  resolved: offset=(%.1f,%.1f) corrected=%d invInit=%d token=%llu",
@@ -360,6 +368,7 @@ void Virtualizer::reconcileFrameKeys(
   bool restingAtBottom,
   bool hadRowsBefore,
   std::string& anchorKey,
+  std::size_t& anchorIndex,
   double& anchorDelta) {
   /*
    * Debug only. Log the frame where the keys changed, which is when JS and native indices
@@ -394,13 +403,26 @@ void Virtualizer::reconcileFrameKeys(
    * Match the rows to the new keys. Most commits don't change the keys. Compare them
    * first and skip the rebuild, which is the main cost of each commit after a prepend.
    */
+  KeyEdit keyEdit = input.keyEdit;
   bool keysChanged = !input.keysUnchanged && container.revision.rows.size() != inputKeys.size();
   if (!keysChanged && !input.keysUnchanged) {
-    for (std::size_t nextRowIndex = 0; nextRowIndex < inputKeys.size(); ++nextRowIndex) {
-      if (container.revision.rows[nextRowIndex].key != inputKeys[nextRowIndex]) {
-        keysChanged = true;
-        break;
+    /*
+     * The same count. The keys from the first to the last one that differs are a splice,
+     * which the reconcile then takes without comparing the keys again.
+     */
+    const std::vector<Row>& rows = container.revision.rows;
+    std::size_t count = inputKeys.size();
+    std::size_t first = 0;
+    while (first < count && rows[first].key == inputKeys[first]) {
+      ++first;
+    }
+    if (first < count) {
+      std::size_t end = count;
+      while (end - 1 > first && rows[end - 1].key == inputKeys[end - 1]) {
+        --end;
       }
+      keysChanged = true;
+      keyEdit = KeyEdit{KeyEditKind::Splice, 0, first, end - first, end - first};
     }
   }
   if (keysChanged) {
@@ -414,7 +436,7 @@ void Virtualizer::reconcileFrameKeys(
     std::string previousLastKey = restingAtBottom && input.followAppends
       ? container.revision.rows.back().key
       : std::string();
-    std::vector<Anchor> fallbackAnchors = captureFallbackAnchors(container, inputOffset);
+    std::vector<Anchor> fallbackAnchors = captureFallbackAnchors(container, anchorIndex, inputOffset);
     /*
      * The keys make exactly the change a drag just showed: its row moved within the list, left
      * it for another list of a drag board, or landed here from one. The drag already showed
@@ -426,7 +448,7 @@ void Virtualizer::reconcileFrameKeys(
     DropHint drop = std::move(container.pendingDrop);
     container.pendingDrop = DropHint{};
     bool dropKeepsOffset = keysMakeDropChange(container.revision.rows, inputKeys, drop);
-    std::size_t survivors = reconcileRows(container, inputKeys, input.keyEdit);
+    std::size_t survivors = reconcileRows(container, inputKeys, keyEdit);
     if (dropKeepsOffset) {
       SHADOWLIST_LOG("  drop keeps offset: %s kind=%d, anchor %s released",
         drop.key.c_str(), static_cast<int>(drop.kind), anchorKey.empty() ? "(none)" : anchorKey.c_str());
@@ -453,12 +475,15 @@ void Virtualizer::reconcileFrameKeys(
      * The anchor row may have been removed, like a refresh that drops the top post while
      * adding new ones. Hold the next row that was on screen instead.
      */
-    if (!anchorKey.empty() && container.indexOfKey(anchorKey) == UNDEFINED_INDEX) {
+    anchorIndex = anchorKey.empty() ? UNDEFINED_INDEX : container.indexOfKey(anchorKey);
+    if (!anchorKey.empty() && anchorIndex == UNDEFINED_INDEX) {
       for (const Anchor& candidate : fallbackAnchors) {
-        if (container.indexOfKey(candidate.key) != UNDEFINED_INDEX) {
+        std::size_t candidateIndex = container.indexOfKey(candidate.key);
+        if (candidateIndex != UNDEFINED_INDEX) {
           SHADOWLIST_LOG("  anchor fallback: %s -> %s sub=%.1f", anchorKey.c_str(), candidate.key.c_str(), candidate.offset);
           container.anchor = candidate;
           anchorKey = candidate.key;
+          anchorIndex = candidateIndex;
           anchorDelta = candidate.offset;
           break;
         }
@@ -479,6 +504,7 @@ void Virtualizer::measureFrame(
   double previousHeaderSize,
   bool hadRowsBefore,
   const std::string& anchorKey,
+  std::size_t anchorIndex,
   double anchorDelta) {
   /*
    * Apply sizes the host predicted since the last frame. This runs after the reconcile to
@@ -527,11 +553,11 @@ void Virtualizer::measureFrame(
     debugKeyAt(container, container.getMeasuredRange().low),
     debugKeyAt(container, container.getMeasuredRange().high),
     anchorKey.empty() ? "(none)" : anchorKey.c_str(),
-    static_cast<std::ptrdiff_t>(anchorKey.empty() ? UNDEFINED_INDEX : container.indexOfKey(anchorKey)));
+    static_cast<std::ptrdiff_t>(anchorIndex));
 
   // Apply scroll corrections, and pick the measured range again if the offset moved.
   bool offsetConfirmed = !input.offsetEnabled && !headerMovedOffset && !windowMovedOffset;
-  bool scrollCorrected = resolveScroll(container, anchorKey, anchorDelta, hadRowsBefore, offsetConfirmed);
+  bool scrollCorrected = resolveScroll(container, anchorKey, anchorIndex, anchorDelta, hadRowsBefore, offsetConfirmed);
   if (headerMovedOffset || windowMovedOffset) {
     container.offsetCorrected = true;
   }
@@ -561,6 +587,7 @@ void Virtualizer::measure(Container& container, bool rangeFromOffset) {
   // Reset the measured range so it reflects only this pass.
   container.revision.measuredLow = UNDEFINED_INDEX;
   container.revision.measuredHigh = UNDEFINED_INDEX;
+  container.measuredRangeStale = false;
 
   /*
    * After an insert, remove or reorder, rows still hold their old offsets. Reflow first so

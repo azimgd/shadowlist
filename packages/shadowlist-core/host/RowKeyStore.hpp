@@ -37,8 +37,8 @@ public:
   std::size_t size() const { return keys().size(); }
 
   /*
-   * The version this one was spliced from and how, as an edit at an end the core can trust when
-   * it last took exactly that version. Unknown otherwise.
+   * The version this one was spliced from and how, as an edit the core can trust when it last
+   * took exactly that version. Unknown otherwise.
    */
   std::uint64_t getBaseVersion() const { return baseVersion_; }
   const KeyEdit& getEdit() const { return edit_; }
@@ -173,9 +173,10 @@ private:
 };
 
 /*
- * A splice that only adds or only removes keys at an end of a list of size keys, as an edit the
- * core can trust. Unknown otherwise.
+ * A splice of a list of size keys as an edit the core can trust: an end edit when it only adds
+ * or only removes keys at an end, a Splice otherwise. Unknown when it changes nothing, replaces
+ * every key or falls outside the list.
  */
-KeyEdit endEditOf(std::size_t size, std::size_t start, std::size_t deleted, std::size_t inserted);
+KeyEdit keyEditOf(std::size_t size, std::size_t start, std::size_t deleted, std::size_t inserted);
 
 }

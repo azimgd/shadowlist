@@ -329,9 +329,8 @@ public:
 private:
   void installCallbacks();
   void recordEdit(KeyEdit edit);
-  KeyEdit endEdit(std::size_t start, std::size_t deleted, std::size_t inserted) const;
-  void insertKeysInPlace(std::vector<std::pair<std::size_t, std::string>>& inserted);
-  void insertKeysRebuilding(std::vector<std::pair<std::size_t, std::string>>& inserted);
+  void insertKeysInPlace(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
+  void insertKeysRebuilding(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
   FrameInput makeFrameInput(const PassInput& input, double offset, bool firstPass) const;
   bool measureRange(double offset);
   void measureIndex(std::size_t index, SizeBatch& batch);
@@ -347,16 +346,29 @@ private:
   std::vector<std::size_t> sticky_;
   std::unordered_set<std::string> remeasureKeys_;
   PrefetchTracker prefetch_;
+
+  /*
+   * What the previous updatePrefetch ran with. Stale once the core took new keys.
+   */
+  std::optional<MountedRange> prefetchMounted_;
+  std::optional<MountedRange> prefetchRange_;
+  std::size_t prefetchCount_ = 0;
+  bool prefetchStale_ = true;
   ScrollLanding landing_;
   DragReorder drag_;
+
+  /*
+   * The mounted rows of the latest drag frame, kept to reuse the buffer.
+   */
+  std::vector<DragRow> dragRows_;
   std::string heldKey_;
   std::uint64_t echoToken_ = 0;
   double windowCross_ = 0.0;
   bool keysChanged_ = true;
 
   /*
-   * The one edit at an end of the keys since the core last took them, which lets the core
-   * skip comparing every key. Unknown after any other change or a second edit.
+   * The one edit of the keys since the core last took them, which lets the core skip
+   * comparing every key. Unknown after a second edit or one it can't describe.
    */
   KeyEdit pendingEdit_;
   int editsSinceUpdate_ = 0;

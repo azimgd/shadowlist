@@ -336,6 +336,11 @@ public:
   Anchor anchor = {};
 
   /*
+   * The anchor key update holds for one frame. It lives here so its buffer is reused.
+   */
+  std::string frameAnchorKey;
+
+  /*
    * The running offset correction, if any. Its id goes to the host as the commit token.
    * End corrections hold the end edge. Keeping content in place and scrollToRow hold a row by key.
    */
@@ -383,6 +388,12 @@ public:
   double previousLayoutWindowHeight = -1.0;
   std::size_t previousLayoutNumberOfColumns = 0;
   bool previousLayoutHorizontal = false;
+
+  /*
+   * Set when rows moved outside a frame, like a header change in the host's layout pass. The
+   * measured range was picked before they moved, and the next measure picks it again.
+   */
+  bool measuredRangeStale = false;
 
   /*
    * Size previously given to unmeasured rows. While it and the layout stay the same, the sizing
@@ -619,6 +630,11 @@ private:
    * Last viewable ranges sent, two indices per rule. Only changes are sent.
    */
   std::vector<std::size_t> previousViewableRanges_;
+
+  /*
+   * This frame's viewable ranges, kept to reuse the buffer.
+   */
+  std::vector<std::size_t> viewableRangesScratch_;
 
   /*
    * Whether we were already at an edge. Reached callbacks fire once on arrival.

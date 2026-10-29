@@ -6,15 +6,17 @@
 
 namespace azimgd::shadowlist {
 
-KeyEdit endEditOf(std::size_t size, std::size_t start, std::size_t deleted, std::size_t inserted) {
-  if (size == 0 || (deleted > 0) == (inserted > 0) || deleted == size || start > size) {
+KeyEdit keyEditOf(std::size_t size, std::size_t start, std::size_t deleted, std::size_t inserted) {
+  if (size == 0 || start > size || deleted > size - start || deleted == size || (deleted == 0 && inserted == 0)) {
     return {};
   }
-  if (inserted > 0) {
-    return {start == 0 ? KeyEditKind::Prepend : start == size ? KeyEditKind::Append : KeyEditKind::Unknown, inserted};
+  if (deleted == 0 && (start == 0 || start == size)) {
+    return {start == 0 ? KeyEditKind::Prepend : KeyEditKind::Append, inserted};
   }
-  return {start == 0 ? KeyEditKind::TrimStart : start + deleted == size ? KeyEditKind::TrimEnd : KeyEditKind::Unknown,
-    deleted};
+  if (inserted == 0 && (start == 0 || start + deleted == size)) {
+    return {start == 0 ? KeyEditKind::TrimStart : KeyEditKind::TrimEnd, deleted};
+  }
+  return {KeyEditKind::Splice, 0, start, deleted, inserted};
 }
 
 std::size_t RowKeysSnapshot::indexOfKey(const std::string& key, std::size_t hint) const {
@@ -134,7 +136,7 @@ bool RowKeyStore::spliceKeys(
   auto snapshot = std::make_shared<RowKeysSnapshot>();
   snapshot->version_ = version;
   snapshot->baseVersion_ = baseVersion;
-  snapshot->edit_ = endEditOf(previous.size(), start, deleteCount, inserted.size());
+  snapshot->edit_ = keyEditOf(previous.size(), start, deleteCount, inserted.size());
   auto& keys = snapshot->keys_;
   keys.reserve(previous.size() - deleteCount + inserted.size());
   keys.insert(keys.end(), previous.begin(), previous.begin() + static_cast<std::ptrdiff_t>(start));
@@ -223,8 +225,7 @@ std::optional<TreeSplice> RowKeyStore::expandTree(
   snapshot->version_ = version;
   snapshot->baseVersion_ = baseVersion;
   snapshot->kind_ = RowKeysSnapshot::Kind::Tree;
-  snapshot->tree_ = base->tree_;
-  TreeSplice splice = snapshot->tree_.expand(row, std::move(descendants));
+  TreeSplice splice = snapshot->tree_.expandFrom(base->tree_, row, std::move(descendants));
   std::lock_guard<std::mutex> lock(mutex_);
   publish(std::move(snapshot));
   return splice;
@@ -243,8 +244,7 @@ std::optional<TreeSplice> RowKeyStore::collapseTree(std::uint64_t version, std::
   snapshot->version_ = version;
   snapshot->baseVersion_ = baseVersion;
   snapshot->kind_ = RowKeysSnapshot::Kind::Tree;
-  snapshot->tree_ = base->tree_;
-  TreeSplice splice = snapshot->tree_.collapse(row);
+  TreeSplice splice = snapshot->tree_.collapseFrom(base->tree_, row);
   std::lock_guard<std::mutex> lock(mutex_);
   publish(std::move(snapshot));
   return splice;
