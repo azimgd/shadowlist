@@ -23,7 +23,7 @@ namespace facebook::react {
  * The rows React mounts, which rows are viewable and which to prefetch, worked out natively for
  * one list. JS only applies what it gets: onMountedRangeChange hands it the next range by edge
  * keys, onViewabilityChange the changed keys per config and the pinned section header, and
- * onPrefetchChange the rows to load early.
+ * onPrefetchChange the rows to load early with their keys.
  *
  * The commit side runs in the component descriptor's adopt, under the core's lock: beginCommit,
  * the core's reports during its update, then endCommit. The host side runs on the UI thread:
@@ -81,6 +81,28 @@ public:
   bool tick();
 
   /*
+   * The sticky and snap lists of the state the Android view mounted last, set when it reads the
+   * state's MapBuffer. The view copies them through ShadowListGeometry instead of reading the
+   * whole state. Null means empty.
+   */
+  struct MountedGeometry {
+    std::shared_ptr<const std::vector<int>> stickyIndices;
+    std::shared_ptr<const std::vector<double>> stickyOffsets;
+    std::shared_ptr<const std::vector<double>> stickySizes;
+    std::shared_ptr<const std::vector<double>> snapOffsets;
+  };
+
+  void setMountedGeometry(MountedGeometry geometry) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    mountedGeometry_ = std::move(geometry);
+  }
+
+  MountedGeometry getMountedGeometry() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return mountedGeometry_;
+  }
+
+  /*
    * A process wide id for this list. Android's Java view finds the driver by it, see find.
    */
   std::int64_t getHandle() const {
@@ -107,6 +129,8 @@ private:
     std::vector<std::pair<std::size_t, azimgd::shadowlist::ViewabilityReport>> reports;
     std::vector<std::size_t> prefetch;
     std::vector<std::size_t> cancel;
+    std::vector<std::string> prefetchKeys;
+    std::vector<std::string> cancelKeys;
   };
 
   void takeViewabilityReports(double now, Outgoing& outgoing);
@@ -131,6 +155,8 @@ private:
   std::size_t visibleLow_ = azimgd::shadowlist::UNDEFINED_INDEX;
   std::size_t visibleHigh_ = azimgd::shadowlist::UNDEFINED_INDEX;
   bool propsChanged_ = false;
+
+  MountedGeometry mountedGeometry_;
 
   azimgd::shadowlist::PrefetchTracker prefetch_;
   azimgd::shadowlist::MountedRange prefetchMounted_;

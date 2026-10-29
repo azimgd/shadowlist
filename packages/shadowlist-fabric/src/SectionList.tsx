@@ -12,6 +12,7 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { ShadowListBase } from './ShadowList';
 import {
   forwardedCommands,
+  forwardedListProps,
   renderComponent,
   useInputTrace,
   useStableReactElement,
@@ -413,7 +414,7 @@ function SectionListInner<ItemT, SectionT = object>(
 
   const list = (
     <ShadowListBase
-      {...rest}
+      {...forwardedListProps(rest, 'SectionList')}
       style={sectionIndexTitles?.length ? styles.fill : style}
       ref={innerRef}
       source={source}

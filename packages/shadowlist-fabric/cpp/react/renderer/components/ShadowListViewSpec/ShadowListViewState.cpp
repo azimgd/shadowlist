@@ -5,89 +5,141 @@
 namespace facebook::react {
 
 #ifdef ANDROID
-ShadowListViewState::ShadowListViewState(const ShadowListViewState& previousState, folly::dynamic data) :
-  windowHeight_(data.count("windowHeight") ? data["windowHeight"].getDouble() : previousState.windowHeight_),
-  windowWidth_(data.count("windowWidth") ? data["windowWidth"].getDouble() : previousState.windowWidth_),
-  offsetY_(data.count("offsetY") ? data["offsetY"].getDouble() : previousState.offsetY_),
-  offsetX_(data.count("offsetX") ? data["offsetX"].getDouble() : previousState.offsetX_),
-  scrollIndex_(data.count("scrollIndex")
-      ? azimgd::shadowlist::scrollCommandIndexFromDouble(data["scrollIndex"].getDouble())
-      : previousState.scrollIndex_),
-  scrollIndexSequence_(data.count("scrollIndexSequence") ? data["scrollIndexSequence"].getDouble() : previousState.scrollIndexSequence_),
-  scrollIndexViewPosition_(data.count("scrollIndexViewPosition") ? data["scrollIndexViewPosition"].getDouble() : previousState.scrollIndexViewPosition_),
-  contentHeight_(data.count("contentHeight") ? data["contentHeight"].getDouble() : previousState.contentHeight_),
-  contentWidth_(data.count("contentWidth") ? data["contentWidth"].getDouble() : previousState.contentWidth_),
-  startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
-  endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_),
-  offsetEnabled_(data.count("offsetEnabled") ? data["offsetEnabled"].getBool() : previousState.offsetEnabled_),
-  dragEventSequence_(data.count("dragEventSequence") ? data["dragEventSequence"].getDouble() : previousState.dragEventSequence_),
-  dragEventType_(data.count("dragEventType") ? data["dragEventType"].getDouble() : previousState.dragEventType_),
-  dragSourceKey_(data.count("dragSourceKey") ? data["dragSourceKey"].getString() : previousState.dragSourceKey_),
-  dragDestinationKey_(data.count("dragDestinationKey") ? data["dragDestinationKey"].getString() : previousState.dragDestinationKey_),
-  dragDestinationListId_(data.count("dragDestinationListId") ? data["dragDestinationListId"].getString() : previousState.dragDestinationListId_),
-  dragDestinationIndex_(data.count("dragDestinationIndex") ? data["dragDestinationIndex"].getDouble() : previousState.dragDestinationIndex_),
-  userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_),
-  scrollPhase_(data.count("scrollPhase") ? data["scrollPhase"].getDouble() : previousState.scrollPhase_),
-  /*
-   * Sticky header geometry only comes from the core. A partial update from
-   * the Android view, like a scroll commit, carries it over unchanged.
-   */
-  stickyIndices_(previousState.stickyIndices_),
-  stickyOffsets_(previousState.stickyOffsets_),
-  stickySizes_(previousState.stickySizes_),
-  snapOffsets_(previousState.snapOffsets_),
-  commitToken_(
-    data.count("commitToken") ? static_cast<std::uint64_t>(data["commitToken"].getDouble()) : previousState.commitToken_),
-  /*
-   * Carry the base over from the mounted state, like iOS does. A report that echoes a
-   * correction keeps the base its first write started from. A republished correction
-   * stays one running delta the host has partly applied.
-   */
-  offsetBaseX_(previousState.offsetBaseX_),
-  offsetBaseY_(previousState.offsetBaseY_),
-  // Android never conceals rows. Just carry these over.
-  concealGeneration_(previousState.concealGeneration_),
-  concealGenerationAck_(previousState.concealGenerationAck_),
-  // The band comes from the layout pass and the live report is shared. Carry both over.
-  offsetBandLow_(previousState.offsetBandLow_),
-  offsetBandHigh_(previousState.offsetBandHigh_),
-  hostSequence_(data.count("hostSequence") ? data["hostSequence"].asDouble() : previousState.hostSequence_),
-  liveScroll_(previousState.liveScroll_),
-  scrollIndexViewOffset_(data.count("scrollIndexViewOffset") ? data["scrollIndexViewOffset"].asDouble() : previousState.scrollIndexViewOffset_),
-  scrollIndexAnimated_(data.count("scrollIndexAnimated") ? data["scrollIndexAnimated"].asBool() : previousState.scrollIndexAnimated_),
-  // The estimate comes from the layout pass. Carry it over.
-  animationTargetSequence_(previousState.animationTargetSequence_),
-  animationTargetOffset_(previousState.animationTargetOffset_),
-  anchorRequestSequence_(data.count("anchorRequestSequence") ? data["anchorRequestSequence"].asDouble() : previousState.anchorRequestSequence_),
-  // Made with the list's first state. Carry it over.
-  mountDriver_(previousState.mountDriver_) {
-  if (data.count("stickyIndices") && data.count("stickyOffsets") && data.count("stickySizes")) {
-    auto stickyIndices = std::make_shared<std::vector<int>>();
-    auto stickyOffsets = std::make_shared<std::vector<double>>();
-    auto stickySizes = std::make_shared<std::vector<double>>();
-    for (const auto& value : data["stickyIndices"]) {
-      stickyIndices->push_back((int)value.getInt());
-    }
-    for (const auto& value : data["stickyOffsets"]) {
-      stickyOffsets->push_back(value.getDouble());
-    }
-    for (const auto& value : data["stickySizes"]) {
-      stickySizes->push_back(value.getDouble());
-    }
-    /*
-     * Turn empty back into null like the layout pass does. Otherwise a round trip
-     * through Android hands back an empty list that the pointer check reads as a change.
-     */
-    stickyIndices_ = stickyIndices->empty() ? nullptr : std::move(stickyIndices);
-    stickyOffsets_ = stickyOffsets->empty() ? nullptr : std::move(stickyOffsets);
-    stickySizes_ = stickySizes->empty() ? nullptr : std::move(stickySizes);
+namespace {
+
+/*
+ * The ScrollPatch in a state update's "patch" array, see ShadowListPatchSlot. Android never
+ * conceals rows, and its acknowledgement carries over.
+ */
+azimgd::shadowlist::ScrollPatch scrollPatchFromSlots(const folly::dynamic& slots, double concealGenerationAck) {
+  azimgd::shadowlist::ScrollPatch patch;
+  if (!slots.isArray() || slots.size() < static_cast<std::size_t>(PATCH_SLOTS)) {
+    return patch;
   }
-  if (data.count("snapOffsets")) {
-    auto snapOffsets = std::make_shared<std::vector<double>>();
-    for (const auto& value : data["snapOffsets"]) {
-      snapOffsets->push_back(value.getDouble());
+  auto slot = [&slots](ShadowListPatchSlot index) { return slots[static_cast<std::size_t>(index)].asDouble(); };
+  patch.report.offsetX = slot(PATCH_OFFSET_X);
+  patch.report.offsetY = slot(PATCH_OFFSET_Y);
+  patch.report.userScrolled = slot(PATCH_USER_SCROLLED) != 0.0;
+  patch.report.scrollPhase = slot(PATCH_SCROLL_PHASE);
+  patch.report.commitToken = static_cast<std::uint64_t>(slot(PATCH_COMMIT_TOKEN));
+  patch.report.concealGenerationAck = concealGenerationAck;
+  patch.report.sequence = static_cast<std::uint64_t>(slot(PATCH_SEQUENCE));
+  patch.offsetEnabled = slot(PATCH_OFFSET_ENABLED) != 0.0;
+  patch.hasCommand = slot(PATCH_HAS_COMMAND) != 0.0;
+  patch.commandIndex = azimgd::shadowlist::scrollCommandIndexFromDouble(slot(PATCH_COMMAND_INDEX));
+  patch.commandSequence = slot(PATCH_COMMAND_SEQUENCE);
+  patch.commandViewPosition = slot(PATCH_COMMAND_VIEW_POSITION);
+  patch.commandViewOffset = slot(PATCH_COMMAND_VIEW_OFFSET);
+  patch.commandAnimated = slot(PATCH_COMMAND_ANIMATED) != 0.0;
+  patch.hasAnchorRequest = slot(PATCH_HAS_ANCHOR_REQUEST) != 0.0;
+  patch.anchorRequestSequence = slot(PATCH_ANCHOR_REQUEST_SEQUENCE);
+  return patch;
+}
+
+/*
+ * A list of numbers from the state, or null when empty, like the layout pass publishes it.
+ * A round trip through Android then hands back no empty list the pointer check reads as a
+ * change.
+ */
+template <typename Value>
+std::shared_ptr<const std::vector<Value>> numbersFrom(const folly::dynamic& values) {
+  if (!values.isArray() || values.empty()) {
+    return nullptr;
+  }
+  auto numbers = std::make_shared<std::vector<Value>>();
+  numbers->reserve(values.size());
+  for (const auto& value : values) {
+    numbers->push_back(static_cast<Value>(value.asDouble()));
+  }
+  return numbers;
+}
+
+}
+
+/*
+ * The Android view sends the scroll patch as one "patch" array of numbers, plus the few keys a
+ * drag or an edge switch adds. Every other field carries over. Only the keys present are read.
+ */
+ShadowListViewState::ShadowListViewState(const ShadowListViewState& previousState, folly::dynamic data) :
+  ShadowListViewState(previousState) {
+  if (!data.isObject()) {
+    return;
+  }
+  const folly::dynamic* stickyIndices = nullptr;
+  const folly::dynamic* stickyOffsets = nullptr;
+  const folly::dynamic* stickySizes = nullptr;
+  for (const auto& [name, value] : data.items()) {
+    if (!name.isString()) {
+      continue;
     }
-    snapOffsets_ = snapOffsets->empty() ? nullptr : std::move(snapOffsets);
+    const std::string& key = name.getString();
+    if (key == "patch") {
+      applyPatch(scrollPatchFromSlots(value, previousState.concealGenerationAck_));
+    } else if (key == "startReachedEnabled") {
+      startReachedEnabled_ = value.asBool();
+    } else if (key == "endReachedEnabled") {
+      endReachedEnabled_ = value.asBool();
+    } else if (key == "dragEventSequence") {
+      dragEventSequence_ = value.asDouble();
+    } else if (key == "dragEventType") {
+      dragEventType_ = value.asDouble();
+    } else if (key == "dragSourceKey") {
+      dragSourceKey_ = value.asString();
+    } else if (key == "dragDestinationKey") {
+      dragDestinationKey_ = value.asString();
+    } else if (key == "dragDestinationListId") {
+      dragDestinationListId_ = value.asString();
+    } else if (key == "dragDestinationIndex") {
+      dragDestinationIndex_ = value.asDouble();
+    } else if (key == "windowHeight") {
+      windowHeight_ = value.asDouble();
+    } else if (key == "windowWidth") {
+      windowWidth_ = value.asDouble();
+    } else if (key == "offsetY") {
+      offsetY_ = value.asDouble();
+    } else if (key == "offsetX") {
+      offsetX_ = value.asDouble();
+    } else if (key == "scrollIndex") {
+      scrollIndex_ = azimgd::shadowlist::scrollCommandIndexFromDouble(value.asDouble());
+    } else if (key == "scrollIndexSequence") {
+      scrollIndexSequence_ = value.asDouble();
+    } else if (key == "scrollIndexViewPosition") {
+      scrollIndexViewPosition_ = value.asDouble();
+    } else if (key == "scrollIndexViewOffset") {
+      scrollIndexViewOffset_ = value.asDouble();
+    } else if (key == "scrollIndexAnimated") {
+      scrollIndexAnimated_ = value.asBool();
+    } else if (key == "anchorRequestSequence") {
+      anchorRequestSequence_ = value.asDouble();
+    } else if (key == "contentHeight") {
+      contentHeight_ = value.asDouble();
+    } else if (key == "contentWidth") {
+      contentWidth_ = value.asDouble();
+    } else if (key == "offsetEnabled") {
+      offsetEnabled_ = value.asBool();
+    } else if (key == "userScrolled") {
+      userScrolled_ = value.asBool();
+    } else if (key == "scrollPhase") {
+      scrollPhase_ = value.asDouble();
+    } else if (key == "commitToken") {
+      commitToken_ = static_cast<std::uint64_t>(value.asDouble());
+    } else if (key == "hostSequence") {
+      hostSequence_ = value.asDouble();
+    } else if (key == "stickyIndices") {
+      stickyIndices = &value;
+    } else if (key == "stickyOffsets") {
+      stickyOffsets = &value;
+    } else if (key == "stickySizes") {
+      stickySizes = &value;
+    } else if (key == "snapOffsets") {
+      snapOffsets_ = numbersFrom<double>(value);
+    }
+  }
+  // Sticky header geometry only comes from the core, and a partial update carries it over.
+  if (stickyIndices && stickyOffsets && stickySizes) {
+    stickyIndices_ = numbersFrom<int>(*stickyIndices);
+    stickyOffsets_ = numbersFrom<double>(*stickyOffsets);
+    stickySizes_ = numbersFrom<double>(*stickySizes);
   }
 }
 
@@ -181,6 +233,7 @@ MapBuffer ShadowListViewState::getMapBuffer() const {
   builder.putDouble(ShadowListStateKey::ANIMATION_OFFSET, animationTargetOffset_);
   if (mountDriver_) {
     ShadowListMountDriver::registerHandle(mountDriver_);
+    mountDriver_->setMountedGeometry({stickyIndices_, stickyOffsets_, stickySizes_, snapOffsets_});
   }
   builder.putLong(ShadowListStateKey::MOUNT_HANDLE, mountDriver_ ? mountDriver_->getHandle() : 0);
   return builder.build();

@@ -354,16 +354,6 @@ void Container::dispatchObservers() {
       onViewableIndicesChangeCallback(changed);
     }
   }
-
-  double offsetX = revision.offsetX;
-  double offsetY = revision.offsetY;
-  if (onScrollCallback &&
-    (!previousOffsetValid_ || offsetX != previousOffsetX_ || offsetY != previousOffsetY_)) {
-    onScrollCallback(offsetX, offsetY);
-  }
-  previousOffsetX_ = offsetX;
-  previousOffsetY_ = offsetY;
-  previousOffsetValid_ = true;
 }
 
 bool Container::hasPendingCommand() const {
@@ -403,11 +393,6 @@ OffsetBand Container::computeOffsetBand() const {
   if (fallbackWidth != previousFallbackWidth || fallbackHeight != previousFallbackHeight ||
       headerSize != previousLayoutHeaderSize || crossWindowChanged ||
       numberOfColumns != previousLayoutNumberOfColumns || horizontal != previousLayoutHorizontal) {
-    return empty;
-  }
-
-  // These listeners need every offset, not just the measured range.
-  if (onScrollCallback || onViewableIndicesChangeCallback || !stickyIndices.empty()) {
     return empty;
   }
 
@@ -466,6 +451,18 @@ OffsetBand Container::computeOffsetBand() const {
     double rowSize = horizontal ? row.width : row.height;
     addFlip(rowStart - windowSize - overscanSize);
     addFlip(rowStart + rowSize + overscanSize);
+    /*
+     * A row is viewable once the share getViewableIndices asks of it shows, so it turns
+     * viewable and stops at these two offsets.
+     */
+    if (onViewableIndicesChangeCallback && rowSize > 0.0) {
+      for (const ViewableRule& rule : viewableRules) {
+        double shown = rule.coverage ? std::min(rowSize, rule.threshold * windowSize)
+                                     : rule.threshold * std::min(rowSize, windowSize);
+        addFlip(rowStart - windowSize + shown);
+        addFlip(rowStart + rowSize - shown);
+      }
+    }
   }
 
   // The edge callbacks flip where they start and stop counting as reached.

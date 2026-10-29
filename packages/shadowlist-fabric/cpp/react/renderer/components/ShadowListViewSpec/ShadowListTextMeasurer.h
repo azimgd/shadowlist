@@ -176,6 +176,19 @@ inline std::vector<azimgd::shadowlist::RowSizeSpec> parseRowSizeSpecs(const std:
  * Measures one spec into the row size the core should use.
  * Text wraps in the list width minus the spec's insets, with no height limit.
  */
+/*
+ * Whether two specs describe the same text in the same style. Unset numbers are NaN and match
+ * each other.
+ */
+inline bool sameRowSizeSpec(const azimgd::shadowlist::RowSizeSpec& a, const azimgd::shadowlist::RowSizeSpec& b) {
+  auto sameNumber = [](double x, double y) { return x == y || (std::isnan(x) && std::isnan(y)); };
+  return a.key == b.key && a.text == b.text && a.fontFamily == b.fontFamily && a.fontSize == b.fontSize &&
+    a.fontWeight == b.fontWeight && a.fontStyle == b.fontStyle && sameNumber(a.lineHeight, b.lineHeight) &&
+    sameNumber(a.letterSpacing, b.letterSpacing) && a.numberOfLines == b.numberOfLines &&
+    a.insetWidth == b.insetWidth && a.insetHeight == b.insetHeight && a.widthFraction == b.widthFraction &&
+    sameNumber(a.fixedHeight, b.fixedHeight);
+}
+
 inline azimgd::shadowlist::Size measureRowSizeSpec(
   const TextLayoutManager& textLayoutManager,
   const azimgd::shadowlist::RowSizeSpec& spec,

@@ -5,7 +5,6 @@
 
 #include "ShadowListMountDriver.h"
 #include "ShadowListOffsetBand.h"
-#include "ShadowListScrollEvent.h"
 #include "ShadowListStoreJsi.h"
 #include "ShadowListTextMeasurer.h"
 #include "ShadowListTrace.h"

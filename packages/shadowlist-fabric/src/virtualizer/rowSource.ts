@@ -197,6 +197,29 @@ export interface PlainSourceCache<ItemT> {
 }
 
 /*
+ * Duplicate keys already warned about, so a list that keeps them warns once per key.
+ */
+const warnedDuplicateKeys = new Set<string>();
+
+function warnDuplicateKeys(keys: ReadonlyArray<string>): void {
+  const seen = new Set<string>();
+  for (const key of keys) {
+    if (!seen.has(key)) {
+      seen.add(key);
+      continue;
+    }
+    if (!warnedDuplicateKeys.has(key)) {
+      warnedDuplicateKeys.add(key);
+      console.warn(
+        `ShadowList: two items have the key '${key}'. Every item needs its own key, or rows ` +
+          'swap content and the list cannot keep what is on screen in place. Check keyExtractor.'
+      );
+    }
+    return;
+  }
+}
+
+/*
  * The source of a plain data array after previous. keyExtractor runs over every row on a data
  * change, since it is the caller's. Native gets only the keys that changed. When the keys come
  * out the same, like for an item edited in place, the previous version is kept: native gets no
@@ -208,15 +231,19 @@ export function nextPlainSource<ItemT>(
   keyExtractor: (item: ItemT, index: number) => string,
   store: ListStore | null
 ): PlainSourceCache<ItemT> {
-  // The same inputs again, like a Strict Mode second run, give the same source.
-  if (
-    previous !== null &&
-    previous.source.data === data &&
-    previous.keyExtractor === keyExtractor
-  ) {
-    return previous;
+  /*
+   * The same data again gives the same source, like a Strict Mode second run or a parent render
+   * that passes a new inline keyExtractor. The same items keep their keys.
+   */
+  if (previous !== null && previous.source.data === data) {
+    return previous.keyExtractor === keyExtractor
+      ? previous
+      : { ...previous, keyExtractor };
   }
   const keyed = keysOf(data, keyExtractor, previous?.keys ?? null);
+  if (__DEV__ && !keyed.same) {
+    warnDuplicateKeys(keyed.keys);
+  }
   const keys = keyed.same ? previous!.keys : keyed.keys;
   let version = 0;
   if (store !== null) {

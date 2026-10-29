@@ -6,7 +6,7 @@ import {
   type ComponentRef,
   type RefObject,
 } from 'react';
-import { processColor } from 'react-native';
+import { processColor, type ColorValue } from 'react-native';
 import ShadowListCellView, {
   Commands as CellCommands,
   type NativeMenuAction,
@@ -63,13 +63,16 @@ function nativeSwipeActions<ItemT>(
   return configuration.actions.map((action) => {
     const style = action.style ?? 'normal';
     const fallback = style === 'destructive' ? '#FF3B30' : '#8E8E93';
-    const backgroundColor = processColor(action.backgroundColor ?? fallback);
+    /*
+     * Nested props skip the view config's color processing. A PlatformColor or DynamicColorIOS
+     * comes out as an object native resolves.
+     */
+    const backgroundColor =
+      processColor(action.backgroundColor ?? fallback) ??
+      processColor(fallback);
     return {
       title: action.title,
-      backgroundColor:
-        typeof backgroundColor === 'number'
-          ? backgroundColor
-          : (processColor(fallback) as number),
+      backgroundColor: backgroundColor as ColorValue,
       style,
     };
   });

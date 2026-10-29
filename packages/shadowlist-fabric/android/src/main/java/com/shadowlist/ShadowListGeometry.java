@@ -68,8 +68,42 @@ final class ShadowListGeometry {
     return nativePageScrollTarget(offset, windowAlong, maxOffset, direction);
   }
 
+  /*
+   * The number of sticky rows in the state a list mounted last, found by its mount handle.
+   */
+  static int stickyCount(long mountHandle) {
+    return nativeStickyCount(mountHandle);
+  }
+
+  /*
+   * Copy those sticky rows, their offsets and sizes in dp, into arrays at least stickyCount
+   * long. Returns how many it copied.
+   */
+  static int copyStickyGeometry(long mountHandle, int[] indices, double[] offsets, double[] sizes) {
+    return nativeCopyStickyGeometry(mountHandle, indices, offsets, sizes);
+  }
+
+  /*
+   * The number of snap offsets in the state a list mounted last.
+   */
+  static int snapCount(long mountHandle) {
+    return nativeSnapCount(mountHandle);
+  }
+
+  /*
+   * Copy those snap offsets in dp into an array at least snapCount long. Returns how many it
+   * copied.
+   */
+  static int copySnapOffsets(long mountHandle, double[] offsets) {
+    return nativeCopySnapOffsets(mountHandle, offsets);
+  }
+
   private static native void nativeStickyTranslations(double[] slots);
   private static native double nativeSectionOverlayTranslation(double[] offsets, double[] sizes, int count, double offset);
   private static native int nativeNearestSnapOffsetPx(float[] offsetsPx, int count, int targetPx);
   private static native double nativePageScrollTarget(double offset, double windowAlong, double maxOffset, int direction);
+  private static native int nativeStickyCount(long mountHandle);
+  private static native int nativeCopyStickyGeometry(long mountHandle, int[] indices, double[] offsets, double[] sizes);
+  private static native int nativeSnapCount(long mountHandle);
+  private static native int nativeCopySnapOffsets(long mountHandle, double[] offsets);
 }

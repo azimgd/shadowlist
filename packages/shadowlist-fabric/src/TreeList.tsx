@@ -18,7 +18,7 @@ import type {
   TreeListProps,
   TreeListCommands,
 } from './types';
-import { forwardedCommands } from './virtualizer';
+import { forwardedCommands, forwardedListProps } from './virtualizer';
 import { useListStore } from './virtualizer/nativeStore';
 import {
   buildTreeSource,
@@ -209,7 +209,7 @@ function TreeListInner<ItemT>(
 
   return (
     <ShadowListBase
-      {...rest}
+      {...forwardedListProps(rest, 'TreeList')}
       ref={innerRef}
       source={source}
       store={store}

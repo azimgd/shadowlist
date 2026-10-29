@@ -154,11 +154,10 @@ void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& co
     if (const auto cellViewProps = dynamic_cast<const ShadowListCellViewProps*>(childProps)) {
       /*
        * Look the row up by key, since a child committed before a prepend, insert or reorder
-       * has a stale index. Skip it if the key is gone. Use the index only when there is no key.
+       * sits at another index now. Skip it if the key is gone.
        */
-      std::size_t rowIndex = cellViewProps->rowKey.empty()
-        ? static_cast<std::size_t>(cellViewProps->index)
-        : core.indexOfKey(cellViewProps->rowKey);
+      std::size_t rowIndex = cellViewProps->rowKey.empty() ? azimgd::shadowlist::UNDEFINED_INDEX
+                                                           : core.indexOfKey(cellViewProps->rowKey);
       const auto cellViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(child.get());
       if (cellViewNode != nullptr && rowIndex < core.getRowCount()) {
         slots.mountedRows.push_back({childIndex, rowIndex, cellViewNode});
@@ -342,14 +341,15 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
 
   /*
    * Work out what to publish. The core decides if the content size changed and if it wants
-   * to move the scroll view. The offset is only written then. We never fight the user.
+   * to move the scroll view. The offset is only written then. We never fight the user. The
+   * state is only copied when something is published.
    */
-  auto nextStateData = getStateData();
+  const auto& currentStateData = getStateData();
   auto stateUpdate = core.resolveStateUpdate(
-    nextStateData.offsetX_,
-    nextStateData.offsetY_,
-    nextStateData.contentWidth_,
-    nextStateData.contentHeight_);
+    currentStateData.offsetX_,
+    currentStateData.offsetY_,
+    currentStateData.contentWidth_,
+    currentStateData.contentHeight_);
 
   // Sticky header and snap positions, rebuilt only when the row geometry moved.
   auto& published = geometry.published;
@@ -357,29 +357,30 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
 
   // Compare pointers. This stays cheap because the cache only takes a new one when the values changed.
   bool stickyChanged =
-    published.stickyIndices != nextStateData.stickyIndices_ ||
-    published.stickyOffsets != nextStateData.stickyOffsets_ ||
-    published.stickySizes != nextStateData.stickySizes_;
-  bool snapChanged = published.snapOffsets != nextStateData.snapOffsets_;
+    published.stickyIndices != currentStateData.stickyIndices_ ||
+    published.stickyOffsets != currentStateData.stickyOffsets_ ||
+    published.stickySizes != currentStateData.stickySizes_;
+  bool snapChanged = published.snapOffsets != currentStateData.snapOffsets_;
 
   double concealGeneration = concealed.getPublishedGeneration();
-  bool concealChanged = nextStateData.concealGeneration_ != concealGeneration;
+  bool concealChanged = currentStateData.concealGeneration_ != concealGeneration;
 
   // The offsets the host can scroll through without a state update, see ShadowListOffsetBand.h.
   auto offsetBand = shadowListOffsetBand(*this);
-  bool bandChanged = !shadowListOffsetBandPublished(nextStateData, offsetBand);
+  bool bandChanged = !shadowListOffsetBandPublished(currentStateData, offsetBand);
 
   SHADOWLIST_LOG("layout: cellChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
     getChildren().size(), headerSize, footerSize,
-    nextStateData.offsetX_, nextStateData.offsetY_,
+    currentStateData.offsetX_, currentStateData.offsetY_,
     stateUpdate.offsetX, stateUpdate.offsetY,
     stateUpdate.contentWidth, stateUpdate.contentHeight,
     stateUpdate.applyOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
   // A new animated command's estimate, see ShadowListViewGeometryCache::animationSequence.
-  bool animationChanged = nextStateData.animationTargetSequence_ != geometry.animationSequence;
+  bool animationChanged = currentStateData.animationTargetSequence_ != geometry.animationSequence;
 
   if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged || bandChanged || animationChanged) {
+    auto nextStateData = currentStateData;
     auto scrollState = nextStateData.scrollState();
     if (azimgd::shadowlist::publishStateUpdate(scrollState, stateUpdate)) {
       nextStateData.setScrollState(scrollState);
@@ -438,9 +439,8 @@ void ShadowListViewShadowNode::replaceChild(
       std::lock_guard<std::recursive_mutex> lock(containerManager_->coreMutex);
 
       // Look up the index under the lock, since a stale child can arrive before the data catches up.
-      std::size_t rowIndex = cellViewProps->rowKey.empty()
-        ? static_cast<std::size_t>(cellViewProps->index)
-        : containerManager_->indexOfKey(cellViewProps->rowKey);
+      std::size_t rowIndex = cellViewProps->rowKey.empty() ? azimgd::shadowlist::UNDEFINED_INDEX
+                                                           : containerManager_->indexOfKey(cellViewProps->rowKey);
       const auto cellViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(nextChildShadowNode.get());
       const auto cellViewNodeSize = cellViewNode
         ? cellViewNode->getLayoutMetrics().frame.size

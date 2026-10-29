@@ -109,17 +109,35 @@ export const VERSION_GONE = -2;
 let storeModule: ShadowListStoreModule | null | undefined;
 
 /*
+ * Jest runs lists without the module on purpose.
+ */
+function runsInTests(): boolean {
+  const env = (globalThis as { process?: { env?: { NODE_ENV?: string } } })
+    .process?.env;
+  return env?.NODE_ENV === 'test';
+}
+
+/*
  * The module, or null where it is missing, like in tests or an app built without it. Lists then
  * send their keys in props. Looked up on first use, after the native side registered it.
  */
 export function shadowListStoreModule(): ShadowListStoreModule | null {
   if (storeModule === undefined) {
+    let failure: unknown = null;
     try {
       storeModule =
         TurboModuleRegistry.get<ShadowListStoreModule>('ShadowListStore') ??
         null;
-    } catch {
+    } catch (error) {
+      failure = error;
       storeModule = null;
+    }
+    if (__DEV__ && storeModule === null && !runsInTests()) {
+      console.warn(
+        'ShadowList: the ShadowListStore native module is missing. Every list sends its keys in ' +
+          'props instead. Rebuild the app with the shadowlist native code installed.' +
+          (failure ? ` ${String(failure)}` : '')
+      );
     }
   }
   return storeModule;

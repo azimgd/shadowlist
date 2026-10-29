@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="shadowlist_move_up">Move up</string>
+  <string name="shadowlist_move_down">Move down</string>
+  <string name="shadowlist_move_to">Move to %1$s</string>
+  <string name="shadowlist_moved_to">Moved to %1$s</string>
+</resources>

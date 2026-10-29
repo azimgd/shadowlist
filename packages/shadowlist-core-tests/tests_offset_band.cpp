@@ -32,6 +32,7 @@ struct BandScenario {
   double startThreshold = 1.0;
   double endThreshold = 1.0;
   double offset = 5000.0;
+  std::vector<ViewableRule> viewableRules;
 };
 
 double rowHeight(std::size_t index) {
@@ -45,6 +46,7 @@ FrameInput bandInput(const BandScenario& scenario, const std::vector<std::string
   input.overscan = scenario.overscan;
   input.startReachedThreshold = scenario.startThreshold;
   input.endReachedThreshold = scenario.endThreshold;
+  input.viewableRules = scenario.viewableRules;
   return input;
 }
 
@@ -249,18 +251,70 @@ TEST(offset_band_is_empty_while_a_prepend_is_held_in_place) {
   CHECK(container->computeOffsetBand().isEmpty());
 }
 
-TEST(offset_band_is_empty_with_scroll_or_viewable_listeners) {
+TEST(offset_band_stays_open_with_viewable_listeners_and_sticky_rows) {
   BandScenario scenario;
   auto container = settledContainer(scenario);
   CHECK(!container->computeOffsetBand().isEmpty());
-  container->onScrollCallback = [](double, double) {};
-  CHECK(container->computeOffsetBand().isEmpty());
-  container->onScrollCallback = nullptr;
   container->onViewableIndicesChangeCallback = [](const std::vector<std::size_t>&) {};
-  CHECK(container->computeOffsetBand().isEmpty());
+  CHECK(!container->computeOffsetBand().isEmpty());
   container->onViewableIndicesChangeCallback = nullptr;
   container->stickyIndices = {0, 40};
-  CHECK(container->computeOffsetBand().isEmpty());
+  CHECK(!container->computeOffsetBand().isEmpty());
+}
+
+namespace {
+
+/*
+ * The measured range and each rule's viewable rows after a finger scroll to offset.
+ */
+std::vector<IndexRange> viewableRowsAt(const BandScenario& scenario, double offset) {
+  auto container = settledContainer(scenario);
+  FrameInput input = bandInput(scenario, keysFor(scenario.rows), offset);
+  input.keysUnchanged = false;
+  input.userScrolled = true;
+  input.scrollPhase = ScrollPhase::Dragging;
+  Virtualizer::update(*container, input);
+  std::vector<IndexRange> ranges = {container->getMeasuredRange()};
+  for (const ViewableRule& rule : scenario.viewableRules) {
+    ranges.push_back(container->getViewableIndices(rule));
+  }
+  return ranges;
+}
+
+}
+
+/*
+ * A viewable listener needs a frame wherever a row turns viewable or stops for any rule. Every
+ * offset inside the band keeps every rule's rows, and the frames just past its ends change them.
+ */
+TEST(offset_band_keeps_the_viewable_rows_for_every_offset_inside_it) {
+  for (double offset : {5000.0, 3100.7, 1234.5}) {
+    BandScenario scenario;
+    scenario.offset = offset;
+    scenario.viewableRules = {{0.0, false}, {0.5, false}, {0.6, true}, {1.0, false}, {0.1, true}};
+    auto container = settledContainer(scenario);
+    OffsetBand withoutListener = container->computeOffsetBand();
+    container->onViewableIndicesChangeCallback = [](const std::vector<std::size_t>&) {};
+    OffsetBand band = container->computeOffsetBand();
+    CHECK(!band.isEmpty());
+    CHECK(band.contains(scenario.offset));
+    CHECK(band.low >= withoutListener.low);
+    CHECK(band.high <= withoutListener.high);
+
+    std::vector<IndexRange> baseline = viewableRowsAt(scenario, scenario.offset);
+    const int samples = 24;
+    for (int sample = 0; sample <= samples; ++sample) {
+      double inside = band.low + (band.high - band.low) * static_cast<double>(sample) / samples;
+      CHECK(viewableRowsAt(scenario, inside) == baseline);
+    }
+    double maxOffset = std::max(0.0, container->revision.contentHeight - WINDOW_HEIGHT);
+    if (band.high < maxOffset) {
+      CHECK(viewableRowsAt(scenario, band.high + OFFSET_BAND_MARGIN + 0.01) != baseline);
+    }
+    if (band.low > 0.0) {
+      CHECK(viewableRowsAt(scenario, band.low - OFFSET_BAND_MARGIN - 0.01) != baseline);
+    }
+  }
 }
 
 TEST(offset_band_is_empty_while_a_measured_size_waits_for_layout) {

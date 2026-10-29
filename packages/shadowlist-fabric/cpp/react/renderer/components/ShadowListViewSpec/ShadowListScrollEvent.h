@@ -57,17 +57,21 @@ inline jsi::Object shadowListScrollPayload(jsi::Runtime& runtime, const ShadowLi
 }
 
 /*
- * Velocity from the offsets the core sees, and the scrollEventThrottle gate. One per list,
- * shared by its scroll callback.
+ * Velocity from the offsets the scroll view reports, and the scrollEventThrottle gate. One per
+ * list, kept by the platform view.
  */
 class ShadowListScrollTracker final {
 public:
-  explicit ShadowListScrollTracker(double throttleMs) : throttleMs_(throttleMs) {}
+  explicit ShadowListScrollTracker(double throttleMs = 0.0) : throttleMs_(throttleMs) {}
 
   /*
    * Record an offset and fill the velocity in metrics. Returns whether to send the event now.
+   * A callback that repeats the previous offset sends nothing.
    */
   bool track(ShadowListScrollMetrics& metrics) {
+    if (hasPrevious_ && metrics.offsetX == previousX_ && metrics.offsetY == previousY_) {
+      return false;
+    }
     double now = nowMs();
     if (hasPrevious_ && now > previousTimeMs_) {
       double elapsed = now - previousTimeMs_;

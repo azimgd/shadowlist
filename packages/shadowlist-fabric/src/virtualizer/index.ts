@@ -6,6 +6,7 @@ export {
   slTraceEnabled,
   nativeTagOf,
   defaultKeyExtractor,
+  forwardedListProps,
   renderComponent,
 } from './helpers';
 export {

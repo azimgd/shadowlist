@@ -110,12 +110,6 @@ public class ShadowListCellViewManager extends ViewGroupManager<ShadowListCellVi
   }
 
   @Override
-  @ReactProp(name = "index")
-  public void setIndex(ShadowListCellView view, int index) {
-    view.setRowIndex(index);
-  }
-
-  @Override
   @ReactProp(name = "rowKey")
   public void setRowKey(ShadowListCellView view, @Nullable String value) {
     // Drag to reorder reads this to find the key of the touched row.

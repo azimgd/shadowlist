@@ -121,6 +121,29 @@ constexpr MapBuffer::Key ANIMATION_SEQUENCE = 18;
 constexpr MapBuffer::Key ANIMATION_OFFSET = 19;
 constexpr MapBuffer::Key MOUNT_HANDLE = 20;
 }
+
+/*
+ * Slots of the "patch" array the Android host sends in a state update, one ScrollPatch.
+ * ShadowListScrollSync.java's PATCH_* slots use the same numbers.
+ */
+enum ShadowListPatchSlot {
+  PATCH_OFFSET_X = 0,
+  PATCH_OFFSET_Y,
+  PATCH_OFFSET_ENABLED,
+  PATCH_USER_SCROLLED,
+  PATCH_SCROLL_PHASE,
+  PATCH_COMMIT_TOKEN,
+  PATCH_SEQUENCE,
+  PATCH_HAS_COMMAND,
+  PATCH_COMMAND_INDEX,
+  PATCH_COMMAND_SEQUENCE,
+  PATCH_COMMAND_VIEW_POSITION,
+  PATCH_COMMAND_VIEW_OFFSET,
+  PATCH_COMMAND_ANIMATED,
+  PATCH_HAS_ANCHOR_REQUEST,
+  PATCH_ANCHOR_REQUEST_SEQUENCE,
+  PATCH_SLOTS,
+};
 #endif
 
 class ShadowListViewState final {
@@ -170,7 +193,8 @@ public:
   /*
    * The scalars the Android host reads on every mount. Much cheaper than getDynamic, which
    * copies the sticky and snap lists each time. Those lists get a version instead, see
-   * ShadowListLiveScroll::geometryVersions, and the host reads getDynamic only when one moved.
+   * ShadowListLiveScroll::geometryVersions, and the host copies them from the mount driver
+   * only when one moved, see ShadowListMountDriver::MountedGeometry.
    */
   MapBuffer getMapBuffer() const;
 #endif

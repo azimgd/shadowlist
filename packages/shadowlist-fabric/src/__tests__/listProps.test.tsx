@@ -314,32 +314,20 @@ describe('viewability and prefetch from native', () => {
       viewableRules: [0, 0, 0.5, 0],
       viewableTimings: [0, 0],
     });
-    const change = (
-      viewableKeys: string[],
-      added: string[],
-      removed: string[]
-    ) => ({
+    const change = (added: string[], removed: string[]) => ({
       activeStickyIndex: -1,
       visibleLow: 0,
       visibleHigh: 3,
-      changes: [
-        { config: 0, viewableKeys, addedKeys: added, removedKeys: removed },
-      ],
+      changes: [{ config: 0, addedKeys: added, removedKeys: removed }],
     });
-    await sendToList(
-      'onViewabilityChange',
-      change(['r0', 'r1'], ['r0', 'r1'], [])
-    );
-    await sendToList(
-      'onViewabilityChange',
-      change(['r1', 'r2'], ['r2'], ['r0'])
-    );
+    await sendToList('onViewabilityChange', change(['r1', 'r0'], []));
+    await sendToList('onViewabilityChange', change(['r2'], ['r0']));
     expect(reports).toEqual([
       {
         viewable: ['r0', 'r1'],
         changed: [
-          ['r0', true],
           ['r1', true],
+          ['r0', true],
         ],
       },
       {
@@ -368,9 +356,22 @@ describe('viewability and prefetch from native', () => {
       />
     );
     expect(listProps().prefetchRows).toBe(5);
-    await sendToList('onPrefetchChange', { prefetch: [21, 22], cancel: [3] });
+    await sendToList('onPrefetchChange', {
+      prefetch: [21, 22],
+      cancel: [3],
+      prefetchKeys: [keyOf(MANY[21]!), keyOf(MANY[22]!)],
+      cancelKeys: [keyOf(MANY[3]!)],
+    });
     expect(prefetched).toEqual([[21, 22]]);
     expect(cancelled).toEqual([[3]]);
+    // Keys find their rows in the data rendered now, and a key the data lost is dropped.
+    await sendToList('onPrefetchChange', {
+      prefetch: [5, 6],
+      cancel: [],
+      prefetchKeys: [keyOf(MANY[30]!), 'gone'],
+      cancelKeys: [],
+    });
+    expect(prefetched).toEqual([[21, 22], [30]]);
   });
 });
 

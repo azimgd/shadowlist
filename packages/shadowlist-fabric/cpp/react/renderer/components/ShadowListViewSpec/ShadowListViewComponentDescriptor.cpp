@@ -197,10 +197,13 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   /*
    * Keys of decoration rows like date pills and dividers that the core must never use as
    * the anchor for keeping content in place. An empty list means any row can be the anchor.
-   * The same props also mean the same anchor ignore keys.
+   * Props the core already took, or props with the same list, leave the core's set alone.
    */
   input.nonAnchorKeysRef = &shadowlistViewProps.nonAnchorKeys;
-  input.nonAnchorKeysUnchanged = sameProps;
+  input.nonAnchorKeysUnchanged = sameProps ||
+    (geometryCache && geometryCache->keysProps &&
+     static_cast<const ShadowListViewProps&>(*geometryCache->keysProps).nonAnchorKeys ==
+       shadowlistViewProps.nonAnchorKeys);
   input.dropHint = std::move(dropHint);
   input.frameTimeMs = std::chrono::duration<double, std::milli>(
     std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -282,19 +285,6 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
       mountDriver->endCommit(*containerManager, shadowlistViewProps, rowKeys, input.getStickyIndexList());
     }
     /*
-     * The list came to rest with a scroll event still held back by scrollEventThrottle.
-     * Send it now. JS would otherwise keep an offset from before the scroll stopped.
-     */
-    if (callbacksCache && callbacksCache->scrollTracker &&
-        shadowlistViewStateData.scrollPhase_ == SCROLL_PHASE_IDLE && !shadowlistViewStateData.userScrolled_) {
-      ShadowListScrollMetrics trailing;
-      if (callbacksCache->scrollTracker->takeTrailing(trailing)) {
-        std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteEventEmitter>(eventEmitter)
-          ->dispatchUniqueEvent("scroll",
-            [trailing](jsi::Runtime& runtime) { return shadowListScrollPayload(runtime, trailing); });
-      }
-    }
-    /*
      * Only the layout pass publishes to the host, and a state only commit won't run it.
      * So mark layout dirty when there's a correction or the state has old geometry.
      * Hosts build scroll reports on the state they mounted, which can carry an old content
@@ -345,10 +335,10 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
 /*
  * Pass core events to the event emitter. The core already drops repeats.
  *
- * The per frame scroll event below, and the mount driver's mounted range event, skip the
- * generated emitter methods and use dispatchUniqueEvent, which marks them unique and
- * continuous, like React Native's own ScrollView scroll event. The generated methods cause
- * two problems:
+ * The mount driver's mounted range event, and the scroll event the platform view sends from
+ * its scroll callback, skip the generated emitter methods and use dispatchUniqueEvent, which
+ * marks them unique and continuous, like React Native's own ScrollView scroll event. The
+ * generated methods cause two problems:
  * Events are not merged. When JS falls behind, like while dragging the scroll
  * indicator, the queue grows for the whole gesture. That backlog is the long freeze.
  * Events are sent as discrete. React renders each one synchronously. Dragging content
@@ -367,15 +357,13 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
   const std::shared_ptr<ShadowListMountDriver>& mountDriver) {
   /*
    * The callbacks hold the family's event emitter. They only need building again when
-   * the emitter or the listened events change. Rebuilding six std::function objects on
+   * the emitter or the listened events change. Rebuilding five std::function objects on
    * every commit, scroll frames included, is pure allocation.
    */
   const auto& callbacksCache = shadowlistViewShadowNode.getGeometryCache();
   const auto& eventEmitter = shadowlistViewShadowNode.getEventEmitter();
   bool callbacksCurrent = callbacksCache && callbacksCache->callbacksEmitter == eventEmitter &&
-    callbacksCache->callbacksViewable == shadowlistViewProps.viewableEventEnabled &&
-    callbacksCache->callbacksScroll == shadowlistViewProps.scrollEventEnabled &&
-    callbacksCache->callbacksScrollThrottle == shadowlistViewProps.scrollEventThrottle;
+    callbacksCache->callbacksViewable == shadowlistViewProps.viewableEventEnabled;
   if (!callbacksCurrent) {
     auto emitter = std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteEventEmitter>(eventEmitter);
     containerManager->onStartReachedCallback = [emitter]() -> void {
@@ -412,43 +400,9 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
       containerManager->onViewableIndicesChangeCallback = nullptr;
     }
 
-    if (shadowlistViewProps.scrollEventEnabled) {
-      /*
-       * The callback lives in the core and only runs while the core does. Reading its sizes
-       * through the raw pointer is safe. The tracker adds velocity and drops events inside
-       * scrollEventThrottle.
-       */
-      auto tracker = std::make_shared<ShadowListScrollTracker>(shadowlistViewProps.scrollEventThrottle);
-      containerManager->onScrollCallback = [emitter, tracker, containerManager](
-                                             double offsetX, double offsetY) -> void {
-        ShadowListScrollMetrics metrics;
-        metrics.offsetX = offsetX;
-        metrics.offsetY = offsetY;
-        metrics.contentWidth = containerManager->revision.contentWidth;
-        metrics.contentHeight = containerManager->revision.contentHeight;
-        metrics.viewportWidth = containerManager->revision.windowWidth;
-        metrics.viewportHeight = containerManager->revision.windowHeight;
-        if (!tracker->track(metrics)) {
-          return;
-        }
-        emitter->dispatchUniqueEvent("scroll",
-          [metrics](jsi::Runtime& runtime) { return shadowListScrollPayload(runtime, metrics); });
-      };
-      if (callbacksCache) {
-        callbacksCache->scrollTracker = tracker;
-      }
-    } else {
-      containerManager->onScrollCallback = nullptr;
-      if (callbacksCache) {
-        callbacksCache->scrollTracker = nullptr;
-      }
-    }
-
     if (callbacksCache) {
       callbacksCache->callbacksEmitter = eventEmitter;
       callbacksCache->callbacksViewable = shadowlistViewProps.viewableEventEnabled;
-      callbacksCache->callbacksScroll = shadowlistViewProps.scrollEventEnabled;
-      callbacksCache->callbacksScrollThrottle = shadowlistViewProps.scrollEventThrottle;
     }
   }
 }
@@ -492,8 +446,12 @@ std::shared_ptr<const azimgd::shadowlist::RowKeysSnapshot> ShadowListViewCompone
   auto storeId = static_cast<std::int64_t>(shadowlistViewProps.keysStore);
   if (geometryCache->keysStoreId != storeId) {
     geometryCache->keysStoreId = storeId;
-    geometryCache->keysStore = shadowlist::findRowKeyStore(storeId);
+    geometryCache->keysStore = nullptr;
     geometryCache->keysSnapshot = nullptr;
+  }
+  // A store not found yet is looked up again on the next commit instead of staying missing.
+  if (!geometryCache->keysStore) {
+    geometryCache->keysStore = shadowlist::findRowKeyStore(storeId);
   }
   if (!geometryCache->keysStore) {
     return nullptr;
@@ -534,23 +492,57 @@ void ShadowListViewComponentDescriptor::applyRowSizeSpecs(
   if (storeSpecs) {
     source = storeSpecs;
   } else if (!shadowlistViewProps.rowSizeSpecs.empty()) {
-    source = shadowlistViewShadowNode.getProps();
+    auto& json = geometryCache->rowSizeSpecsJson;
+    if (!json || *json != shadowlistViewProps.rowSizeSpecs) {
+      json = std::make_shared<const std::string>(shadowlistViewProps.rowSizeSpecs);
+    }
+    source = json;
   }
   geometryCache->sizeSpecsSource = source;
-  if (!source) {
+  if (!source || !(availableWidth > 0.0)) {
     return;
   }
   const auto& textLayoutManager = *textLayoutManager_;
-  geometryCache->sizeSpecs.run(
-    *containerManager,
-    source,
-    availableWidth,
-    [&]() {
-      return storeSpecs ? *storeSpecs : parseRowSizeSpecs(shadowlistViewProps.rowSizeSpecs);
-    },
-    [&](const azimgd::shadowlist::RowSizeSpec& spec, double width) {
-      return measureRowSizeSpec(textLayoutManager, spec, width, pointScaleFactor, surfaceId);
-    });
+  auto& measuredSpecs = geometryCache->measuredSpecs;
+  auto parse = [&]() {
+    auto specs = storeSpecs ? *storeSpecs : parseRowSizeSpecs(shadowlistViewProps.rowSizeSpecs);
+    std::unordered_map<std::string, ShadowListViewGeometryCache::MeasuredSpec> kept;
+    kept.reserve(specs.size());
+    for (const auto& spec : specs) {
+      auto previous = measuredSpecs.find(spec.key);
+      if (previous != measuredSpecs.end()) {
+        kept.emplace(spec.key, std::move(previous->second));
+      }
+    }
+    measuredSpecs = std::move(kept);
+    return specs;
+  };
+  std::size_t measures = 0;
+  std::size_t layouts = 0;
+  auto measure = [&](const azimgd::shadowlist::RowSizeSpec& spec, double width) {
+    ++measures;
+    auto& measured = measuredSpecs[spec.key];
+    if (measured.width == width && measured.pointScaleFactor == pointScaleFactor &&
+        sameRowSizeSpec(measured.spec, spec)) {
+      return measured.size;
+    }
+    ++layouts;
+    measured.spec = spec;
+    measured.width = width;
+    measured.pointScaleFactor = pointScaleFactor;
+    measured.size = measureRowSizeSpec(textLayoutManager, spec, width, pointScaleFactor, surfaceId);
+    return measured.size;
+  };
+  /*
+   * The queue spends its budget on text layouts. Rows whose spec measured before cost none,
+   * and a source that only resends them finishes in this commit.
+   */
+  auto& queue = geometryCache->sizeSpecs;
+  do {
+    measures = 0;
+    layouts = 0;
+    queue.run(*containerManager, source, availableWidth, parse, measure);
+  } while (measures > 0 && layouts == 0 && !queue.isFinished(source));
 }
 
 }

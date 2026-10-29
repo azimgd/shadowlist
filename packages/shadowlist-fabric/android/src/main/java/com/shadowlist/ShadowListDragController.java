@@ -320,7 +320,7 @@ final class ShadowListDragController {
     if (view == null) {
       return;
     }
-    int index = view.getRowIndex();
+    int index = mView.rowIndexOf(view);
     if (index < 0) {
       return;
     }
@@ -473,7 +473,7 @@ final class ShadowListDragController {
     }
 
     // A data change during the drag can move the held row. The drop names it by key.
-    mDrag.updateOrigin(view.getRowIndex(), view.getRowKey());
+    mDrag.updateOrigin(mView.rowIndexOf(view), view.getRowKey());
 
     // Over another list of the drag board the row floats above the window. The board moves it.
     if (updateDragBoard()) {
@@ -554,7 +554,7 @@ final class ShadowListDragController {
         continue;
       }
       ShadowListCellView cellChild = (ShadowListCellView) child;
-      int rowIndex = cellChild.getRowIndex();
+      int rowIndex = mView.rowIndexOf(cellChild);
       if (rowIndex < 0) {
         continue;
       }
@@ -740,7 +740,7 @@ final class ShadowListDragController {
             return;
           }
           ShadowListCellView view = mDroppedView;
-          int current = view == null || view.getParent() == null ? -1 : view.getRowIndex();
+          int current = view == null || view.getParent() == null ? -1 : mView.rowIndexOf(view);
           int status = mDrag.tickSettle(current, SystemClock.uptimeMillis());
           if (status == ShadowListDrag.SETTLE_WAITING) {
             Choreographer.getInstance().postFrameCallback(this);
@@ -1557,7 +1557,7 @@ final class ShadowListDragController {
    * useDragReorder handle it as usual.
    */
   boolean performAccessibilityMove(ShadowListCellView view, boolean up) {
-    int index = view.getRowIndex();
+    int index = mView.rowIndexOf(view);
     String key = view.getRowKey();
     if (!mReorderEnabled || mDragging || index < 0 || key.isEmpty()) {
       return false;
@@ -1570,7 +1570,7 @@ final class ShadowListDragController {
       if (!(child instanceof ShadowListCellView) || child == view) {
         continue;
       }
-      int childIndex = ((ShadowListCellView) child).getRowIndex();
+      int childIndex = mView.rowIndexOf((ShadowListCellView) child);
       if (childIndex < 0) {
         continue;
       }
@@ -1587,8 +1587,9 @@ final class ShadowListDragController {
   }
 
   /*
-   * The other lists of the drag board a row of this list can move to with TalkBack: on the
-   * window, with drag on and a dragListId. Empty off a board or with drag off.
+   * The other lists of the drag board a row of this list can move to with TalkBack: shown on
+   * the window with their state, drag on and a dragListId, like on iOS. Empty off a board or with
+   * drag off.
    */
   List<ShadowListDragController> boardMoveTargets() {
     ArrayList<ShadowListDragController> targets = new ArrayList<>();
@@ -1597,7 +1598,8 @@ final class ShadowListDragController {
       return targets;
     }
     for (ShadowListDragController list : board.getLists()) {
-      if (list != this && list.mReorderEnabled && !list.mDragListId.isEmpty() && list.mView.isAttachedToWindow()) {
+      if (list != this && list.mReorderEnabled && !list.mDragListId.isEmpty() && list.mView.isAttachedToWindow()
+          && list.mView.isShown() && list.mView.getStateWrapper() != null) {
         targets.add(list);
       }
     }
@@ -1617,7 +1619,7 @@ final class ShadowListDragController {
     }
     target.dispatchDragEvent(DRAG_EVENT_LAND, key, key);
     dispatchDragEvent(DRAG_EVENT_END, key, "", target.mDragListId, target.getView().getRowKeyCount());
-    mView.announceForAccessibility("Moved to " + target.getDragListLabel());
+    mView.announceForAccessibility(mView.getContext().getString(R.string.shadowlist_moved_to, target.getDragListLabel()));
     return true;
   }
 

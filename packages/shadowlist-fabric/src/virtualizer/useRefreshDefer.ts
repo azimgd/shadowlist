@@ -30,7 +30,8 @@ interface UseRefreshDeferResult<RowsT extends Rows> {
 
 /*
  * Hold data that arrives during a refresh until the spinner is fully gone, then apply it as
- * a normal prepend so the visible content stays in place. Other changes pass straight through.
+ * a normal prepend so the visible content stays in place. Every data change is held while
+ * refreshing, deletes and edits included, and the newest data shows once it settles.
  * Only for vertical, non inverted lists with onRefresh.
  */
 export function useRefreshDefer<RowsT extends Rows>({

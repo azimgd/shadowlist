@@ -59,10 +59,17 @@ export function useViewability<ItemT>({
   latestRef.current = { source, pairs };
 
   /*
-   * The tokens each config reported last, by key. A row that stops being viewable is reported
-   * with the token it had, flagged not viewable.
+   * The keys native holds viewable for each config, and the tokens each config reported last,
+   * by key. A row that stops being viewable is reported with the token it had, flagged not
+   * viewable.
    */
+  const viewableKeysRef = useRef<Set<string>[]>([]);
   const reportedRef = useRef<Map<string, ViewToken<ItemT>>[]>([]);
+  // A config native dropped starts empty when it comes back.
+  if (viewableKeysRef.current.length > pairs.length) {
+    viewableKeysRef.current.length = pairs.length;
+    reportedRef.current.length = pairs.length;
+  }
 
   /*
    * The visible rows, any part of which is on screen, from the last report.
@@ -93,19 +100,25 @@ export function useViewability<ItemT>({
       const previous =
         reportedRef.current[change.config] ??
         new Map<string, ViewToken<ItemT>>();
+      // Native sends what changed. The viewable keys are the previous ones with that applied.
+      const viewableKeys = new Set(viewableKeysRef.current[change.config]);
+      for (const key of change.removedKeys) viewableKeys.delete(key);
+      for (const key of change.addedKeys) viewableKeys.add(key);
+      viewableKeysRef.current[change.config] = viewableKeys;
       const reported = new Map<string, ViewToken<ItemT>>();
       const viewableItems: ViewToken<ItemT>[] = [];
-      // Viewable keys come in row order. Each one is looked for after the one before.
-      let hint = visibleLow;
-      for (const key of change.viewableKeys) {
-        const index = currentSource.indexOfKey(key, hint);
+      for (const key of viewableKeys) {
+        const index = currentSource.indexOfKey(
+          key,
+          previous.get(key)?.index ?? visibleLow
+        );
         const item = index < 0 ? undefined : currentSource.itemAt(index);
         if (index < 0 || item === undefined) continue;
-        hint = index + 1;
         const token = { item, index, key, isViewable: true };
         viewableItems.push(token);
         reported.set(key, token);
       }
+      viewableItems.sort((a, b) => a.index - b.index);
       const changed: ViewToken<ItemT>[] = [];
       for (const key of change.addedKeys) {
         const token = reported.get(key);

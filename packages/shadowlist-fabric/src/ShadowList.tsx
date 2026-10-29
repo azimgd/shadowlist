@@ -18,9 +18,11 @@ import {
 import ShadowListView, {
   type OnAtEndChange,
   type OnContentSizeChange,
+  type OnScroll,
 } from './ShadowListViewNativeComponent';
 import ShadowListTemplateView from './ShadowListTemplateViewNativeComponent';
 import type {
+  ScrollEvent,
   ShadowListProps,
   ShadowListCommands,
   ViewabilityConfigCallbackPair,
@@ -85,6 +87,33 @@ const EMPTY_NUMBERS: ReadonlyArray<number> = [];
 const PREFETCH_ROWS = 10;
 
 /*
+ * A number prop native reads as an Int32, cut to a whole number the way native does. A
+ * value that is not finite takes fallback.
+ */
+function int32Of(value: number, fallback: number): number {
+  return Number.isFinite(value) ? Math.trunc(value) : fallback;
+}
+
+type ScrollHandler = ((event: ScrollEvent) => void) | undefined;
+
+/*
+ * A scroll event handler that hears contentInset in the event, which native leaves 0 since it
+ * lays the inset out as padding.
+ */
+function withScrollInset(
+  handler: ScrollHandler,
+  inset: OnScroll['contentInset'] | null
+): ScrollHandler {
+  if (!handler || !inset) return handler;
+  return (event) => {
+    (
+      event.nativeEvent as { contentInset: OnScroll['contentInset'] }
+    ).contentInset = inset;
+    handler(event);
+  };
+}
+
+/*
  * The named deceleration rates.
  */
 const DECELERATION_RATES = {
@@ -129,15 +158,16 @@ function ShadowListBaseInner<ItemT>(
     dragListId,
     dragListLabel,
     onMoveItemToList,
-    numberOfColumns = 1,
+    numberOfColumns: numberOfColumnsProp = 1,
     overscan = 1,
-    mountOverscanRows = SHADOWLIST_OVERSCAN,
-    mountOverscanRowsLeading = SHADOWLIST_OVERSCAN_LEADING,
+    mountOverscanRows: mountOverscanRowsProp = SHADOWLIST_OVERSCAN,
+    mountOverscanRowsLeading:
+      mountOverscanRowsLeadingProp = SHADOWLIST_OVERSCAN_LEADING,
     getItemSizeSpec,
     measureLookaheadRows = 48,
     persistentKeys,
     nonAnchorKeys,
-    stickyIndices,
+    stickyIndices: stickyIndicesProp,
     renderStickyHeaderOverlay,
     initialScrollIndex,
     scrollIndex: scrollIndexProp,
@@ -209,12 +239,32 @@ function ShadowListBaseInner<ItemT>(
   const traceRenderStartRef = useRenderTraceStart();
 
   /*
+   * Native reads these as whole numbers. JS uses the same whole numbers, or a fraction would
+   * mount rows native never places.
+   */
+  const numberOfColumns = int32Of(numberOfColumnsProp, 1);
+  const mountOverscanRows = int32Of(mountOverscanRowsProp, SHADOWLIST_OVERSCAN);
+  const mountOverscanRowsLeading = int32Of(
+    mountOverscanRowsLeadingProp,
+    SHADOWLIST_OVERSCAN_LEADING
+  );
+  const stickyIndices = useMemo(
+    () =>
+      stickyIndicesProp?.every(Number.isInteger)
+        ? stickyIndicesProp
+        : stickyIndicesProp?.map((index) => int32Of(index, -1)),
+    [stickyIndicesProp]
+  );
+
+  /*
    * initialScrollIndex only counts on mount. scrollIndex scrolls
    * whenever it changes and wins when both are set.
    */
-  const [initialIndex] = useState(initialScrollIndex);
+  const [initialIndex] = useState(
+    initialScrollIndex == null ? undefined : int32Of(initialScrollIndex, -1)
+  );
   const scrollIndex =
-    scrollIndexProp ??
+    (scrollIndexProp == null ? undefined : int32Of(scrollIndexProp, -1)) ??
     (initialIndex != null && initialIndex >= 0 ? initialIndex : -2);
 
   const handleRefresh = useCallback(() => {
@@ -379,13 +429,25 @@ function ShadowListBaseInner<ItemT>(
   const autoHeightRef = useRef(autoHeight);
   autoHeightRef.current = autoHeight;
   const rowHeightsRef = useRef(new Map<string, number>());
+  /*
+   * The tallest mounted row. The rows are only scanned again when that row shrinks or
+   * unmounts.
+   */
+  const tallestRowRef = useRef<{ key: string | null; height: number }>({
+    key: null,
+    height: 0,
+  });
   const [tallestRowHeight, setTallestRowHeight] = useState(0);
   const measureTallestRow = useCallback(() => {
-    let tallest = 0;
-    for (const height of rowHeightsRef.current.values()) {
-      tallest = Math.max(tallest, height);
+    const tallest = { key: null as string | null, height: 0 };
+    for (const [key, height] of rowHeightsRef.current) {
+      if (height > tallest.height) {
+        tallest.key = key;
+        tallest.height = height;
+      }
     }
-    setTallestRowHeight(tallest);
+    tallestRowRef.current = tallest;
+    setTallestRowHeight(tallest.height);
   }, []);
 
   const handleCellLayout = useCallback(
@@ -393,7 +455,13 @@ function ShadowListBaseInner<ItemT>(
       itemSizesRef.current?.set(key, horizontal ? width : height);
       if (autoHeightRef.current) {
         rowHeightsRef.current.set(key, height);
-        measureTallestRow();
+        const tallest = tallestRowRef.current;
+        if (height >= tallest.height) {
+          tallestRowRef.current = { key, height };
+          setTallestRowHeight(height);
+        } else if (key === tallest.key) {
+          measureTallestRow();
+        }
       }
     },
     [horizontal, measureTallestRow]
@@ -402,7 +470,12 @@ function ShadowListBaseInner<ItemT>(
   const handleCellRelease = useCallback(
     (key: string) => {
       itemSizesRef.current?.delete(key);
-      if (rowHeightsRef.current.delete(key)) measureTallestRow();
+      if (
+        rowHeightsRef.current.delete(key) &&
+        key === tallestRowRef.current.key
+      ) {
+        measureTallestRow();
+      }
     },
     [measureTallestRow]
   );
@@ -452,6 +525,7 @@ function ShadowListBaseInner<ItemT>(
   });
 
   const { nativePrefetchRows, handlePrefetchChange } = usePrefetch({
+    source,
     prefetchDataSource,
     prefetchRows,
   });
@@ -669,6 +743,39 @@ function ShadowListBaseInner<ItemT>(
     recordInteraction,
   });
 
+  const scrollInset = useMemo(
+    () =>
+      contentInset
+        ? {
+            top: contentInset.top ?? 0,
+            left: contentInset.left ?? 0,
+            bottom: contentInset.bottom ?? 0,
+            right: contentInset.right ?? 0,
+          }
+        : null,
+    [contentInset]
+  );
+  const scrollHandlers = useMemo(
+    () => ({
+      onScroll: withScrollInset(onScroll, scrollInset),
+      onScrollBeginDrag: withScrollInset(handleScrollBeginDrag, scrollInset),
+      onScrollEndDrag: withScrollInset(onScrollEndDrag, scrollInset),
+      onMomentumScrollBegin: withScrollInset(
+        onMomentumScrollBegin,
+        scrollInset
+      ),
+      onMomentumScrollEnd: withScrollInset(onMomentumScrollEnd, scrollInset),
+    }),
+    [
+      onScroll,
+      handleScrollBeginDrag,
+      onScrollEndDrag,
+      onMomentumScrollBegin,
+      onMomentumScrollEnd,
+      scrollInset,
+    ]
+  );
+
   const nativeDecelerationRate =
     typeof decelerationRate === 'number'
       ? decelerationRate
@@ -719,7 +826,7 @@ function ShadowListBaseInner<ItemT>(
       prefetchRows={nativePrefetchRows}
       onPrefetchChange={handlePrefetchChange}
       /*
-       * An undefined handler drops the JS listener, but the core would still send the event
+       * An undefined handler drops the JS listener, but native would still send the event
        * every frame. These flags turn that work off, leaving one event per frame that Fabric
        * can coalesce.
        */
@@ -771,11 +878,7 @@ function ShadowListBaseInner<ItemT>(
       onStartReached={onStartReached ? handleStartReached : undefined}
       onEndReached={onEndReached ? handleEndReached : undefined}
       onAtEndChange={onAtEndChange ? handleAtEndChange : undefined}
-      onScroll={onScroll}
-      onScrollBeginDrag={handleScrollBeginDrag}
-      onScrollEndDrag={onScrollEndDrag}
-      onMomentumScrollBegin={onMomentumScrollBegin}
-      onMomentumScrollEnd={onMomentumScrollEnd}
+      {...scrollHandlers}
       contentSizeEventEnabled={onContentSizeChange != null}
       onContentSizeChange={
         onContentSizeChange ? handleContentSizeChange : undefined
@@ -819,7 +922,6 @@ function ShadowListBaseInner<ItemT>(
               index={index}
               rowIndex={rowIndex}
               rowKey={rowKey}
-              nativeIndex={reorderEnabled ? index : 0}
               style={cellColumnStyles[columns > 1 ? index % columns : 0]}
               renderItem={renderItemWithExtraData}
               separator={last ? null : separator}
