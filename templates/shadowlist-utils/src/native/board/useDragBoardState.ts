@@ -24,8 +24,8 @@ export interface DragBoardState<ItemT> {
  * Holds a board's columns and applies each move to them. Pass columns and moveItem to
  * Board.List. moveItem keeps its identity across renders and updates every column a move
  * touches in one state change, which a drop between lists needs. onMoveItem hears about each
- * move after it is applied, to save it or play a haptic. It is read when called and doesn't
- * need to be stable. setColumns replaces the columns, for example after a refetch.
+ * move once that state change is queued, before the board renders it, to save it or play a
+ * haptic. It is read when called and doesn't need to be stable. setColumns replaces the columns, for example after a refetch.
  */
 export function useDragBoardState<ItemT>(
   initialColumns:

@@ -1151,8 +1151,8 @@ struct ShadowListKitPassGeometry {
 #pragma mark - Prefetching
 
 /*
- * Tell the prefetch data source about items the measured range brought in that have no cell
- * yet, and the ones that left it unseen.
+ * Tell the prefetch data source about items the measured range brought in that are not
+ * mounted, and the ones that left it unseen.
  */
 - (void)prefetchAround:(const MountPlan&)plan
 {

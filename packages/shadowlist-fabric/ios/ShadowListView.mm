@@ -1114,8 +1114,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 }
 
 /*
- * Runs after every mount, and does nothing unless a scroll to top jump is waiting.
- * Landing here, before the frame renders, keeps the jump from showing a blank frame.
+ * Runs after every mount, before the frame renders. Pins sticky rows and shifts drag rows
+ * the transaction mounted, lands a drag board drop, lands a waiting scroll to top jump
+ * without a blank frame, and announces a page scroll once rows cover the viewport.
  */
 - (void)mountingTransactionDidMount:(const MountingTransaction&)transaction
                withSurfaceTelemetry:(const SurfaceTelemetry&)surfaceTelemetry

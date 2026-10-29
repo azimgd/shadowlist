@@ -104,8 +104,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
-   * items are the ones in the core's measured range, an overscan past the viewport, that have
-   * no cell yet. A prefetched item that leaves the measured range before it shows is cancelled.
+   * items are the ones in the core's measured range, an overscan past the viewport, outside the
+   * mounted ones. Without Sizing the list has already measured each of them through cellForItem
+   * by the time it is prefetched. A prefetched item that leaves the measured range before it
+   * shows is cancelled.
    */
   interface PrefetchDataSource {
     fun prefetchItems(listView: ShadowListKitListView, indices: IntArray)
@@ -190,9 +192,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { field = value; sendSettings() }
 
   /*
-   * Columns of a grid. Item i goes into column i % numberOfColumns and each column stacks its
-   * own items. Section header rows take a column slot like any item. Full width rows are not
-   * supported.
+   * Columns of a grid. Row r, counting section header and footer rows, goes into column
+   * r % numberOfColumns and each column stacks its own rows. Full width rows are not supported.
    */
   var numberOfColumns = 1
     set(value) { field = max(1, value); sendSettings() }
@@ -1058,8 +1059,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
   /*
    * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
    * which keeps the content of a cell that only moved. The range follows the core's
-   * ListDriver::planMount with the padding as insets, run here over the copied frames. A
-   * scroll frame that mounts the same rows makes no JNI call. The core test
+   * ListDriver::planMount with the padding as insets, run here over the copied frames. On a
+   * scroll frame that mounts the same rows this makes no JNI call. The core test
    * list_driver_mount_plan_reaches_into_the_insets holds the rule this matches.
    */
   private fun mountCells() {
@@ -1222,8 +1223,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
   // region Prefetching
 
   /*
-   * Tell the prefetch data source about items the measured range brought in that have no cell
-   * yet, and the ones that left it unseen. One JNI call per mount pass, none on band frames.
+   * Tell the prefetch data source about items the measured range brought in that are not
+   * mounted, and the ones that left it unseen. One JNI call per mount pass, none on band frames.
    */
   private fun prefetchAround(low: Int, high: Int) {
     val prefetch = prefetchDataSource ?: return

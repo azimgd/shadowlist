@@ -30,7 +30,8 @@ namespace facebook::react {
  * after a mount it calls needsTick, and while that is true tick on every display frame. A tick
  * sends the next paced step of the mounted range and the viewability reports whose
  * minimumViewTime passed. One driver is made with the list's first state and shared by every
- * copy, like ShadowListLiveScroll. A tick never waits on a commit because its own lock guards it.
+ * copy, like ShadowListLiveScroll. A tick takes the driver's own lock, not the core's. It waits only
+ * while beginCommit, a report or endCommit holds that lock, not for the whole commit.
  */
 class ShadowListMountDriver final {
 public:

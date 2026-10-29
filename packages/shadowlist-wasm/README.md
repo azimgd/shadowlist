@@ -81,8 +81,10 @@ with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`
 - The list needs a size from its styles. Only the scroll axis scrolls, and the scrollbar gutter stays reserved.
   `contentCrossSize` makes the content that wide (or tall, for a horizontal list) and lets the browser scroll across
   too, as a grid's rows need. `crossOffset` reads that position, and `didScroll` fires for either axis.
-- Masonry is round robin: item `i` goes in column `i % numberOfColumns`.
-- The core loads on its own when a list connects before `loadShadowListKit` was called.
+- Masonry is round robin: item `i` goes in column `i % numberOfColumns`, and each column stacks its own items.
+- A list that connects before `loadShadowListKit` was called starts the load itself. Until it resolves, properties,
+  `dataSource`, `registerCell`, `reloadData`, `performBatchUpdates` and `restoreAnchorState` are safe and wait for it.
+  `insertItems`, `deleteItems`, `applyChanges`, `rectForItem` and the scroll commands throw.
 
 The view's own behavior:
 

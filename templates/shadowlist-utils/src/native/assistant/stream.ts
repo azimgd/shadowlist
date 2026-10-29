@@ -3,8 +3,8 @@ import type { AssistantTurn } from './types';
 
 /*
  * Holds turns while they stream. The list data changes once when a reply starts and once
- * when it ends. In between only the streaming row reads from here. A token costs one
- * row render and no list work.
+ * when it ends. In between every mounted reply reads its turn from here on each flush, and
+ * only the streaming row renders again. A flush costs one row render and no list work.
  */
 export interface AssistantStreamStore {
   subscribe: (listener: () => void) => () => void;
