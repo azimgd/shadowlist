@@ -100,7 +100,9 @@ bool RowKeyStore::publish(std::shared_ptr<RowKeysSnapshot> snapshot) {
   if (snapshot->version_ == 0) {
     return false;
   }
-  keys_.put(snapshot->version_, std::move(snapshot));
+  // put's arguments convert the snapshot pointer, in an order the compiler picks.
+  std::uint64_t version = snapshot->version_;
+  keys_.put(version, std::move(snapshot));
   return true;
 }
 
