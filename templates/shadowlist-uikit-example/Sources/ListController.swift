@@ -471,6 +471,7 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
   }
 
   func rowsChanged(_ change: RowChange) {
+    let previousSections = sections
     rebuildSections()
     switch change {
     case .prepend(let count):
@@ -494,7 +495,20 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
         table.layoutIfNeeded()
         table.scrollToRow(at: last, at: .bottom, animated: false)
       }
-    case .append, .update:
+    case .append(let count):
+      // New rows at the end go in with insertRows, which keeps the heights the table measured.
+      let total = controller.rows.count
+      let paths = (total - count..<total).compactMap { indexPath($0) }
+      if !previousSections.isEmpty, previousSections.count == sections.count, paths.count == count,
+        paths.allSatisfy({ $0.row != NSNotFound && $0.section == sections.count - 1 })
+      {
+        UIView.performWithoutAnimation {
+          table.insertRows(at: paths, with: .none)
+        }
+      } else {
+        table.reloadData()
+      }
+    case .update:
       table.reloadData()
     }
     startReachedArmed = true
@@ -597,7 +611,8 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
 
 /*
  * Round robin columns like the core: item i goes into column i % columns. Every frame is
- * worked out up front in prepare, the usual custom layout recipe.
+ * worked out up front in prepare, the usual custom layout recipe, from row heights the layout
+ * cache keeps across reloads.
  */
 final class ColumnsLayout: UICollectionViewLayout {
   unowned var controller: ListController!
@@ -612,9 +627,7 @@ final class ColumnsLayout: UICollectionViewLayout {
     var heights = [CGFloat](repeating: 0, count: columns)
     frames = controller.rows.enumerated().map { index, row in
       let column = index % columns
-      let height = controller.engine.selfSizing
-        ? row.layout(width: width).height
-        : controller.cache.layout(row, width: width).height
+      let height = controller.cache.layout(row, width: width).height
       let frame = CGRect(x: CGFloat(column) * width, y: heights[column], width: width, height: height)
       heights[column] += height
       return frame

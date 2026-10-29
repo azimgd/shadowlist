@@ -62,6 +62,7 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
   private val delay = intent.double("SLBenchDelay", 3.0)
   private val label = intent.getStringExtra("SLBenchLabel") ?: ""
   private val exit = intent.getStringExtra("SLBenchExit") == "1"
+  private val drawDelayMs = intent.double("SLBenchDrawDelay", 0.0)
   private val axes = (intent.getStringExtra("SLBenchAxes") ?: "y").split(',').map { it.trim() }
     .filter { it == "y" || it == "x" || it == "xy" }.ifEmpty { listOf("y") }
 
@@ -256,6 +257,15 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
       probe?.let { put("probe", it.javaClass.simpleName) }
       blank.write(this)
       frameMetrics.write(this, nominal)
+      /*
+       * SLBenchDrawDelay makes the example show each row late. A run that sees no blank then
+       * means the sampler can't see undrawn rows.
+       */
+      if (drawDelayMs > 0) {
+        put("drawDelayMs", drawDelayMs)
+        put("selfTest", if (getDouble("blankAvg") > 0) "pass" else "fail")
+        if (getString("selfTest") == "fail") Log.e(TAG, "self-test failed: rows drawn ${drawDelayMs}ms late reported no blank")
+      }
     }
     emit(result)
     nextRun()
@@ -358,9 +368,11 @@ private class FrameMetricsCollector : Window.OnFrameMetricsAvailableListener {
 }
 
 /*
- * How much of the viewport no row covers, along the list's scroll axis. Rows are the visible
- * children of the list or of its one container child, at least 30 percent of the list's cross
- * size. With a probe, the content blank is the larger of that and the probe's share.
+ * How much of the viewport no row covers, along the list's scroll axis. Rows are visible views
+ * at least 30 percent of the list's cross size. A view group at least as long as the viewport,
+ * like a scroll view's content child or a wrapper around the rows, is not a row: its children
+ * are looked at instead, up to MAX_DEPTH levels into the list. With a probe, the content blank
+ * is the larger of that and the probe's share.
  */
 private class BlankSampler {
   private companion object {
@@ -368,6 +380,7 @@ private class BlankSampler {
      * A frame counts as blank past this share of the viewport.
      */
     const val BLANK_FRAME = 0.02
+    const val MAX_DEPTH = 4
   }
 
   private var sum = 0.0
@@ -384,18 +397,8 @@ private class BlankSampler {
     val group = list as? ViewGroup ?: return
     val along = if (alongX) list.width else list.height
     val cross = if (alongX) list.height else list.width
-    val scroll = if (alongX) list.scrollX else list.scrollY
     spans.clear()
-    for (index in 0 until group.childCount) {
-      val child = group.getChildAt(index)
-      val childCross = if (alongX) child.height else child.width
-      if (child.visibility != View.VISIBLE || child.alpha < 0.01f || childCross < cross * 0.3f) continue
-      val start = if (alongX) child.left + child.translationX else child.top + child.translationY
-      val end = if (alongX) child.right + child.translationX else child.bottom + child.translationY
-      val low = max(0, start.toInt() - scroll)
-      val high = min(along, end.toInt() - scroll)
-      if (high > low) spans.add(low to high)
-    }
+    collect(group, 0f, along, cross, alongX, 0)
     spans.sortBy { it.first }
     var covered = 0
     var end = 0
@@ -415,6 +418,28 @@ private class BlankSampler {
       contentSum += content
       contentMax = max(contentMax, content)
       if (content > BLANK_FRAME) ++contentFrames
+    }
+  }
+
+  /*
+   * origin is where the group's own coordinates start in the viewport, before its scroll.
+   */
+  private fun collect(group: ViewGroup, origin: Float, along: Int, cross: Int, alongX: Boolean, depth: Int) {
+    val base = origin - (if (alongX) group.scrollX else group.scrollY)
+    for (index in 0 until group.childCount) {
+      val child = group.getChildAt(index)
+      if (child.visibility != View.VISIBLE || child.alpha < 0.01f) continue
+      val start = base + if (alongX) child.left + child.translationX else child.top + child.translationY
+      val length = if (alongX) child.width else child.height
+      if (child is ViewGroup && child.childCount > 0 && length >= along && depth < MAX_DEPTH) {
+        collect(child, start, along, cross, alongX, depth + 1)
+        continue
+      }
+      val childCross = if (alongX) child.height else child.width
+      if (childCross < cross * 0.3f) continue
+      val low = max(0, start.toInt())
+      val high = min(along, (start + length).toInt())
+      if (high > low) spans.add(low to high)
     }
   }
 

@@ -181,19 +181,29 @@ void stampFullyMeasured(Container& container, std::size_t count, double mainSize
 
 /*
  * Feed the mounted rows' sizes the way Fabric's layout pass does. Record every size,
- * then reflow once from the first row that changed.
+ * then reflow once from the first row that changed. Returns how many sizes changed.
  */
 template <typename SizeFn>
-void feedRangeMeasurements(Container& container, std::size_t low, std::size_t high, SizeFn sizeOf) {
+std::size_t feedRangeMeasurements(Container& container, std::size_t low, std::size_t high, SizeFn sizeOf) {
   std::size_t lowestChanged = UNDEFINED_INDEX;
+  std::size_t changed = 0;
   for (std::size_t index = low; index <= high; ++index) {
-    if (Virtualizer::applyRowSize(container, index, sizeOf(index)) && index < lowestChanged) {
-      lowestChanged = index;
+    if (Virtualizer::applyRowSize(container, index, sizeOf(index))) {
+      ++changed;
+      lowestChanged = std::min(lowestChanged, index);
     }
   }
   if (lowestChanged != UNDEFINED_INDEX) {
     Virtualizer::commitRowSizes(container, lowestChanged);
   }
+  return changed;
+}
+
+/*
+ * A measured size that differs from the estimate by row, like real content does.
+ */
+double measuredMainSize(std::size_t index, double estimate) {
+  return estimate + static_cast<double>(index % 9) * 3.0;
 }
 
 /*
@@ -201,45 +211,36 @@ void feedRangeMeasurements(Container& container, std::size_t low, std::size_t hi
  */
 
 /*
- * A normal scroll frame on a list where only the visited rows are measured,
- * which is how a large list usually looks.
+ * Slow scroll frames without size feedback, 8pt each, starting at startOffset. Only the
+ * visited rows are measured unless measured is set, which is how a large list usually looks.
  */
-void benchWarmUpdatePartial(const std::vector<std::string>& keys, std::size_t rows) {
-  Container container;
-  Virtualizer::update(container, makeInput(keys, 0.0));
-
-  // Commit the same keys over and over, like a scroll settling.
-  FrameInput input = makeInput(keys, 0.0);
-  input.keysUnchanged = true;
-
-  Timing timing = measure(
-    25, 7,
-    [] {},
-    [&](std::size_t) { Virtualizer::update(container, input); });
-  record("warm top update, partially estimated", rows, timing);
-}
-
-/*
- * The same frame once every row has a real measurement.
- */
-void benchWarmUpdateMeasured(
+void benchScrollFrames(
   const std::vector<std::string>& keys,
   std::size_t rows,
-  double offsetY,
+  double startOffset,
+  bool measured,
   const char* label) {
+  constexpr double STEP = 8.0;
   Container container;
   Virtualizer::update(container, makeInput(keys, 0.0));
-  stampFullyMeasured(container, rows, ROW_HEIGHT);
-  Virtualizer::update(container, makeInput(keys, offsetY));
+  if (measured) {
+    stampFullyMeasured(container, rows, ROW_HEIGHT);
+  }
+  Virtualizer::update(container, makeInput(keys, startOffset));
 
-  FrameInput input = makeInput(keys, offsetY);
-  input.keysUnchanged = true;
-
+  double offset = startOffset;
   Timing timing = measure(
     25, 7,
-    [] {},
-    [&](std::size_t) { Virtualizer::update(container, input); });
-  record(label, rows, timing);
+    [&] { offset = startOffset; },
+    [&](std::size_t) {
+      offset += STEP;
+      FrameInput input = makeInput(keys, offset);
+      input.userScrolled = true;
+      input.scrollPhase = ScrollPhase::Dragging;
+      input.keysUnchanged = true;
+      Virtualizer::update(container, input);
+    });
+  record(label, rows, timing, "us/frame");
 }
 
 /*
@@ -283,9 +284,10 @@ void benchKeyCopy(const std::vector<std::string>& keys, std::size_t rows, const 
 }
 
 /*
- * Snap offsets are read on every layout pass that publishes.
+ * Snap offsets are read on every layout pass that publishes. They are built again after
+ * a geometry change and reused otherwise.
  */
-void benchSnapOffsets(const std::vector<std::string>& keys, std::size_t rows) {
+void benchSnapOffsets(const std::vector<std::string>& keys, std::size_t rows, bool geometryChanged, const char* label) {
   Container container;
   FrameInput input = makeInput(keys, 0.0);
   input.snapToItem = true;
@@ -296,10 +298,13 @@ void benchSnapOffsets(const std::vector<std::string>& keys, std::size_t rows) {
     25, 7,
     [] {},
     [&](std::size_t) {
+      if (geometryChanged) {
+        ++container.geometryVersion;
+      }
       const auto& offsets = container.getSnapOffsets();
       doNotOptimize(offsets);
     });
-  record("generate snap offsets", rows, timing);
+  record(label, rows, timing);
 }
 
 /*
@@ -394,8 +399,9 @@ void benchRowConstruction(std::size_t rows) {
 }
 
 /*
- * Frame loops. These are the numbers a user feels. Each loop is one frame of core work
- * during a fling, including Fabric sending back every mounted row's size.
+ * Frame loops. Each loop is one frame of core work during a fling, including Fabric
+ * sending back every mounted row's size. Only the first screen is measured when the
+ * fling starts. Every row past it is still an estimate.
  */
 
 struct FlingOptions {
@@ -412,12 +418,10 @@ struct FlingOptions {
 };
 
 /*
- * Each frame publishes the new offset, then sends back each mounted row's size one
- * at a time, like ShadowListViewShadowNode::replaceChild.
+ * Each frame publishes the new offset, then sends back the mounted rows' sizes and
+ * reflows once, like the layout pass.
  */
 void benchFling(const std::vector<std::string>& keys, std::size_t rows, const FlingOptions& options) {
-  Container container;
-
   /*
    * Scroll frames reuse the previous keys, as Fabric knows from props identity.
    * The first call skips that flag.
@@ -439,67 +443,77 @@ void benchFling(const std::vector<std::string>& keys, std::size_t rows, const Fl
     return input;
   };
 
-  Virtualizer::update(container, frameInput(options.startOffset, true));
-  stampFullyMeasured(container, rows, options.horizontal ? CARD_WIDTH : ROW_HEIGHT, options.horizontal);
+  double estimate = options.horizontal ? CARD_WIDTH : ROW_HEIGHT;
 
   /*
-   * Count rows mounted and measured over the run. A very fast result can then be told
+   * In a grid the column layout owns the cross axis width. Keep the core's value and
+   * send back only the scroll axis size. A full width would fight the columns.
+   */
+  auto sizeOf = [&](Container& container, std::size_t index) {
+    const Row& row = container.getRowAtIndex(index);
+    double main = measuredMainSize(index, estimate);
+    if (options.horizontal) {
+      return Size{main, options.numberOfColumns > 1 ? row.height : WINDOW_HEIGHT};
+    }
+    return Size{options.numberOfColumns > 1 ? row.width : WINDOW_WIDTH, main};
+  };
+
+  auto feedMounted = [&](Container& container) -> std::size_t {
+    auto visible = container.getMeasuredRange();
+    if (visible.low == UNDEFINED_INDEX) {
+      return 0;
+    }
+    std::size_t low = visible.low;
+    std::size_t high = std::min(visible.high, low + MOUNTED_ROWS * options.numberOfColumns);
+    high = std::min(high, rows - 1);
+    return feedRangeMeasurements(container, low, high, [&](std::size_t index) { return sizeOf(container, index); });
+  };
+
+  /*
+   * Every batch flings over rows it has not seen. A reused container would have them
+   * measured already, making later batches look free. So setup rebuilds it untimed.
+   */
+  std::unique_ptr<Container> container;
+  double offset = options.startOffset;
+  auto reset = [&] {
+    container = std::make_unique<Container>();
+    Virtualizer::update(*container, frameInput(options.startOffset, true));
+    feedMounted(*container);
+    offset = options.startOffset;
+  };
+
+  /*
+   * Count the sizes that changed over the run. A very fast result can then be told
    * apart from a scenario that stopped doing work.
    */
-  std::size_t rowsTouched = 0;
+  std::size_t sizesChanged = 0;
   std::size_t framesRun = 0;
 
-  double offset = options.startOffset;
   Timing timing = measure(
     30, 7,
-    [&] { offset = options.startOffset; },
+    reset,
     [&](std::size_t) {
       offset += options.pixelsPerFrame;
       ++framesRun;
-      Virtualizer::update(container, frameInput(offset, false));
+      Virtualizer::update(*container, frameInput(offset, false));
 
       /*
-       * Send back every mounted row's size, like Fabric's layout pass. During a fling
-       * only the newly shown rows have changed.
+       * Rows measured on an earlier frame report the same size and stop early. The rows
+       * mounted ahead of the fling this frame report sizes that differ from the estimate
+       * and move every row after them.
        */
-      auto visible = container.getMeasuredRange();
-      if (visible.low == UNDEFINED_INDEX) {
-        return;
-      }
-      std::size_t low = visible.low;
-      std::size_t high = visible.high;
-      high = std::min(high, low + MOUNTED_ROWS * options.numberOfColumns);
-      for (std::size_t index = low; index <= high && index < rows; ++index) {
-        /*
-         * In a grid the column layout owns the cross axis width. Keep the core's value
-         * and send back only the scroll axis size. A full width would fight the columns.
-         */
-        const Row& row = container.getRowAtIndex(index);
-        Size measured = options.horizontal
-          ? Size{CARD_WIDTH, WINDOW_HEIGHT}
-          : Size{WINDOW_WIDTH, ROW_HEIGHT};
-        if (options.numberOfColumns > 1) {
-          if (options.horizontal) {
-            measured.height = row.height;
-          } else {
-            measured.width = row.width;
-          }
-        }
-        Virtualizer::updateRowAtIndex(container, index, measured);
-        ++rowsTouched;
-      }
+      sizesChanged += feedMounted(*container);
     });
 
   /*
-   * A fling frame must mount a screen of rows. If it didn't, the timing measured
-   * nothing and isn't a speedup.
+   * A fling frame mounts the rows it scrolls into. Fewer than half of those changing
+   * size means the timing measured nothing and isn't a speedup.
    */
-  std::size_t expectedMounted = options.horizontal
-    ? static_cast<std::size_t>((WINDOW_WIDTH * (1.0 + 2.0 * OVERSCAN)) / CARD_WIDTH)
-    : MOUNTED_ROWS;
-  if (framesRun == 0 || rowsTouched / framesRun < expectedMounted / 2) {
-    std::printf("  !! %s did no meaningful work (%zu rows over %zu frames)\n",
-      options.label, rowsTouched, framesRun);
+  double rowsScrolledInto = static_cast<double>(framesRun) * options.pixelsPerFrame / estimate *
+    static_cast<double>(options.numberOfColumns);
+  if (framesRun == 0 || static_cast<double>(sizesChanged) < rowsScrolledInto / 2.0) {
+    std::printf("  !! %s did no meaningful work (%zu sizes changed over %zu frames)\n",
+      options.label, sizesChanged, framesRun);
   }
   record(options.label, rows, timing, "us/frame");
 }
@@ -709,9 +723,10 @@ int main(int argc, char** argv) {
     std::vector<std::string> shortKeys = slt::keysFor(rows);
     std::vector<std::string> longKeys = makeLongKeys(rows);
 
-    benchWarmUpdatePartial(shortKeys, rows);
-    benchWarmUpdateMeasured(shortKeys, rows, 0.0, "warm top update, fully measured");
-    benchWarmUpdateMeasured(shortKeys, rows, static_cast<double>(rows - 20) * ROW_HEIGHT, "warm deep update, fully measured");
+    double deepOffset = static_cast<double>(rows - 40) * ROW_HEIGHT;
+    benchScrollFrames(shortKeys, rows, 0.0, false, "scroll frame near top, partially estimated");
+    benchScrollFrames(shortKeys, rows, 0.0, true, "scroll frame near top, fully measured");
+    benchScrollFrames(shortKeys, rows, deepOffset, true, "scroll frame deep, fully measured");
 
     benchUnchangedMeasurements(shortKeys, rows, 0, "20 unchanged measurements at start");
     benchUnchangedMeasurements(shortKeys, rows, rows / 2, "20 unchanged measurements at midpoint");
@@ -722,7 +737,8 @@ int main(int argc, char** argv) {
     benchKeyCopy(shortKeys, rows, "copy short keys into new FrameInput", 25);
     benchKeyCopy(longKeys, rows, "copy long keys into new FrameInput", 10);
 
-    benchSnapOffsets(shortKeys, rows);
+    benchSnapOffsets(shortKeys, rows, true, "build snap offsets after a geometry change");
+    benchSnapOffsets(shortKeys, rows, false, "reuse cached snap offsets");
     benchReconcile(shortKeys, rows);
     benchColdUpdate(shortKeys, rows);
     benchRowConstruction(rows);

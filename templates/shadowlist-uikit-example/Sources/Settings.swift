@@ -14,11 +14,13 @@ enum Engine: String, CaseIterable {
    */
   case shadowlistAuto = "sl-auto"
   /*
-   * UITableView with heightForRowAt from the same precomputed layouts.
+   * UITableView with heightForRowAt from the same precomputed layouts. Grids use a
+   * UICollectionView with a custom column layout instead.
    */
   case table = "table"
   /*
-   * UITableView with self-sizing rows and an estimated height.
+   * UITableView with self-sizing rows and an estimated height. Grids use the custom column
+   * layout with each row's height computed once on the main thread.
    */
   case tableAuto = "table-auto"
 
@@ -26,8 +28,8 @@ enum Engine: String, CaseIterable {
     switch self {
     case .shadowlist: return "ShadowListKitListView"
     case .shadowlistAuto: return "ShadowListKitListView (self-sizing)"
-    case .table: return "UITableView"
-    case .tableAuto: return "UITableView (self-sizing)"
+    case .table: return "UITableView, UICollectionView in grids"
+    case .tableAuto: return "UITableView (self-sizing), UICollectionView in grids"
     }
   }
 

@@ -182,6 +182,11 @@ def summary(args):
              "|---|" + "---|" * len(screens)]
     for key in keys:
         lines.append(f"| {key} | " + " | ".join(str(medians[s].get(key, "")) for s in screens) + " |")
+    flags = set()
+    for path in glob.glob(os.path.join(args.dir, "*.flags")):
+        with open(path) as handle:
+            flags.add(handle.read().strip() or "unknown")
+    lines += ["", "React Native engine flags: " + (", ".join(sorted(flags)) or "not recorded")]
     text = "\n".join(lines)
     print(text)
     with open(os.path.join(args.dir, "summary.md"), "w") as handle:

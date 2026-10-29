@@ -49,6 +49,12 @@ object Settings {
   var animate: Boolean = false
     private set
 
+  /*
+   * SLBenchDrawDelay N: every row shows N ms after it is bound, for the bench's self-test.
+   */
+  var drawDelayMs: Long = 0
+    private set
+
   fun read(intent: Intent) {
     route = intent.getStringExtra("SLRoute")
     engine = Engine.of(intent.getStringExtra("SLEngine"))
@@ -56,5 +62,6 @@ object Settings {
     images = intent.getStringExtra("SLImages") != "0"
     padding = intent.getStringExtra("SLPadding")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
     animate = intent.getStringExtra("SLAnimate") == "1"
+    drawDelayMs = intent.getStringExtra("SLBenchDrawDelay")?.toDoubleOrNull()?.toLong()?.coerceAtLeast(0) ?: 0
   }
 }
