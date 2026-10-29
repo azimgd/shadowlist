@@ -6,11 +6,13 @@ export interface ShadowListKitModule {
   HEAP32: Int32Array;
   HEAPF64: Float64Array;
   HEAPU8: Uint8Array;
-  shadowListKitMeasureRow?: (
+  shadowListKitMeasureRows?: (
     handle: number,
-    row: number,
-    crossSize: number
-  ) => number;
+    rows: number,
+    crossSizes: number,
+    count: number,
+    sizes: number
+  ) => void;
   _malloc(bytes: number): number;
   _free(pointer: number): void;
   _ShadowListKitCore_nativeCreate(): number;
@@ -73,10 +75,15 @@ export interface ShadowListKitModule {
     index: number,
     out: number
   ): number;
-  _ShadowListKitCore_nativeFooterStart(
+  _ShadowListKitCore_nativePlanMount(
     handle: number,
-    footerSize: number
-  ): number;
+    offset: number,
+    windowAlong: number,
+    pad: number,
+    leadingInset: number,
+    trailingInset: number,
+    out: number
+  ): void;
   _ShadowListKitCore_nativeOffsetMovedThreshold(): number;
   _ShadowListKitCore_nativeVisibleRange(handle: number, out: number): number;
   _ShadowListKitCore_nativeIndexOfKey(
@@ -137,7 +144,8 @@ export interface ShadowListKitModule {
     previousCount: number,
     nextPacked: number,
     nextEnds: number,
-    nextCount: number
+    nextCount: number,
+    start: number
   ): number;
   _ShadowListKitCore_nativeInsertionIndices(
     indices: number,

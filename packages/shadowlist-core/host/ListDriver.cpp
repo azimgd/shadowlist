@@ -45,6 +45,10 @@ void ListDriver::setMeasureRow(MeasureRow measureRow) {
   measureRow_ = std::move(measureRow);
 }
 
+void ListDriver::setMeasureRows(MeasureRows measureRows) {
+  measureRows_ = std::move(measureRows);
+}
+
 void ListDriver::setSettings(const ListSettings& settings) {
   settings_ = settings;
   settings_.numberOfColumns = std::max<std::size_t>(1, settings.numberOfColumns);
@@ -72,6 +76,10 @@ void ListDriver::recordEdit(KeyEdit edit) {
 
 void ListDriver::reloadKeys(std::vector<std::string> keys) {
   KeySplice splice = keySplice(keys_, keys);
+  reloadKeys(std::move(keys), splice);
+}
+
+void ListDriver::reloadKeys(std::vector<std::string> keys, const KeySplice& splice) {
   if (splice.isEmpty()) {
     return;
   }
@@ -295,17 +303,18 @@ PassResult ListDriver::runPasses(const PassInput& input) {
       break;
     }
   }
-  return finishPasses(offset);
+  return finishPasses(offset, input);
 }
 
 /*
  * Pack the result and hand over the reached flags the passes raised.
  */
-PassResult ListDriver::finishPasses(double offset) {
+PassResult ListDriver::finishPasses(double offset, const PassInput& input) {
   const Container& core = *core_;
   PassResult result;
   result.offset = offset;
   result.contentAlong = getContentAlong();
+  result.footerStart = core.getFooterStart(input.footerSize);
   result.band = core.computeOffsetBand();
   settlingLayouts_ = core.hasPendingCommand() ? settlingLayouts_ + 1 : 0;
   result.settling = settlingLayouts_ > 0 && settlingLayouts_ < MAX_SETTLING_LAYOUTS;
@@ -339,28 +348,67 @@ bool ListDriver::measureRange(double offset) {
   if (!measured) {
     return batch.commit(core);
   }
-  for (std::size_t index = measured->low; index <= measured->high; ++index) {
-    measureIndex(index, batch);
-  }
   // The pinned section header needs its real size even when it sits far above the measured range.
   std::size_t sticky = activeStickyIndex(offset);
-  if (sticky != UNDEFINED_INDEX && (sticky < measured->low || sticky > measured->high)) {
-    measureIndex(sticky, batch);
+  bool stickyOutside = sticky != UNDEFINED_INDEX && (sticky < measured->low || sticky > measured->high);
+  if (!measureRows_) {
+    for (std::size_t index = measured->low; index <= measured->high; ++index) {
+      measureIndex(index, batch);
+    }
+    if (stickyOutside) {
+      measureIndex(sticky, batch);
+    }
+    return batch.commit(core);
+  }
+  measureIndices_.clear();
+  measureCrosses_.clear();
+  for (std::size_t index = measured->low; index <= measured->high; ++index) {
+    collectIndex(index);
+  }
+  if (stickyOutside) {
+    collectIndex(sticky);
+  }
+  if (!measureIndices_.empty()) {
+    measureSizes_.assign(measureIndices_.size(), 0.0);
+    measureRows_(measureIndices_, measureCrosses_, measureSizes_);
+    bool horizontal = settings_.horizontal;
+    for (std::size_t at = 0; at < measureIndices_.size(); ++at) {
+      double along = measureSizes_[at];
+      double cross = measureCrosses_[at];
+      batch.apply(core, measureIndices_[at], horizontal ? Size{along, cross} : Size{cross, along});
+    }
   }
   return batch.commit(core);
 }
 
-void ListDriver::measureIndex(std::size_t index, SizeBatch& batch) {
-  Container& core = *core_;
-  const Row& row = core.revision.rows[index];
+/*
+ * Whether a row has no size yet or its content changed. A remeasured row counts once.
+ */
+bool ListDriver::needsMeasure(std::size_t index) {
+  const Row& row = core_->revision.rows[index];
   bool remeasure = !remeasureKeys_.empty() && remeasureKeys_.erase(row.key) > 0;
-  if ((row.measured && !remeasure) || !measureRow_) {
+  return !row.measured || remeasure;
+}
+
+double ListDriver::crossSizeOf(std::size_t index) const {
+  const Row& row = core_->revision.rows[index];
+  return settings_.numberOfColumns > 1 ? (settings_.horizontal ? row.height : row.width) : windowCross_;
+}
+
+void ListDriver::collectIndex(std::size_t index) {
+  if (needsMeasure(index)) {
+    measureIndices_.push_back(index);
+    measureCrosses_.push_back(crossSizeOf(index));
+  }
+}
+
+void ListDriver::measureIndex(std::size_t index, SizeBatch& batch) {
+  if (!needsMeasure(index) || !measureRow_) {
     return;
   }
-  bool horizontal = settings_.horizontal;
-  double cross = settings_.numberOfColumns > 1 ? (horizontal ? row.height : row.width) : windowCross_;
-  double along = measureRow_(index, row.key, cross);
-  batch.apply(core, index, horizontal ? Size{along, cross} : Size{cross, along});
+  double cross = crossSizeOf(index);
+  double along = measureRow_(index, core_->revision.rows[index].key, cross);
+  batch.apply(*core_, index, settings_.horizontal ? Size{along, cross} : Size{cross, along});
 }
 
 void ListDriver::resetKeepingPosition() {

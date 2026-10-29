@@ -21,10 +21,12 @@
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
 /*
- * Measures a row through the TypeScript core that owns the handle. Only runPasses calls it.
+ * Measures count rows through the TypeScript core that owns the handle, all in one call, and
+ * writes their sizes. Only runPasses calls it.
  */
-EM_JS(double, shadowListKitMeasureRow, (std::uintptr_t handle, int row, double crossSize), {
-  return Module.shadowListKitMeasureRow(handle, row, crossSize);
+EM_JS(void, shadowListKitMeasureRows,
+  (std::uintptr_t handle, const std::int32_t* rows, const double* crossSizes, int count, double* sizes), {
+  Module.shadowListKitMeasureRows(handle, rows, crossSizes, count, sizes);
 });
 
 namespace {
@@ -53,6 +55,7 @@ enum PassSlot {
   PASS_OUT_GEOMETRY,
   PASS_OUT_MEASURED_LOW,
   PASS_OUT_MEASURED_HIGH,
+  PASS_OUT_FOOTER_START,
   PASS_SLOTS,
 };
 
@@ -66,12 +69,25 @@ enum AnchorSlot {
 };
 
 /*
- * The driver behind one list and its pass slots. A measure that calls into the core during
- * runPasses never touches them.
+ * Slots of a mount plan, ShadowListKitCore.PLAN_* in TypeScript.
+ */
+enum PlanSlot {
+  PLAN_LOW = 0,
+  PLAN_HIGH,
+  PLAN_STICKY,
+  PLAN_VIEW_LOW,
+  PLAN_VIEW_HIGH,
+  PLAN_SLOTS,
+};
+
+/*
+ * The driver behind one list, its pass slots and the rows a measure call reads. A measure that
+ * calls into the core during runPasses never touches them.
  */
 struct Peer {
   sl::ListDriver driver;
   double pass[PASS_SLOTS] = {};
+  std::vector<std::int32_t> measureRows;
 };
 
 Peer* peerOf(std::uintptr_t handle) {
@@ -162,6 +178,7 @@ void writePassResult(const sl::ListDriver& driver, const sl::PassResult& result,
   std::optional<sl::MountedRange> measured = driver.getMeasuredRange();
   slots[PASS_OUT_MEASURED_LOW] = measured ? static_cast<double>(measured->low) : -1.0;
   slots[PASS_OUT_MEASURED_HIGH] = measured ? static_cast<double>(measured->high) : -1.0;
+  slots[PASS_OUT_FOOTER_START] = result.footerStart;
 }
 
 void writeRect(const sl::RowRect& rect, double* out) {
@@ -204,8 +221,11 @@ extern "C" {
 std::uintptr_t SHADOWLIST_KIT_WASM(nativeCreate)() {
   auto* peer = new Peer();
   auto handle = reinterpret_cast<std::uintptr_t>(peer);
-  peer->driver.setMeasureRow([handle](std::size_t row, const std::string&, double cross) {
-    return shadowListKitMeasureRow(handle, static_cast<int>(row), cross);
+  peer->driver.setMeasureRows([peer, handle](const std::vector<std::size_t>& indices,
+                                const std::vector<double>& crossSizes, std::vector<double>& sizes) {
+    peer->measureRows.assign(indices.begin(), indices.end());
+    shadowListKitMeasureRows(handle, peer->measureRows.data(), crossSizes.data(), static_cast<int>(indices.size()),
+      sizes.data());
   });
   return handle;
 }
@@ -311,8 +331,17 @@ bool SHADOWLIST_KIT_WASM(nativeRowRect)(std::uintptr_t handle, std::int32_t inde
   return true;
 }
 
-double SHADOWLIST_KIT_WASM(nativeFooterStart)(std::uintptr_t handle, double footerSize) {
-  return peerOf(handle)->driver.getFooterStart(footerSize);
+/*
+ * The core's planMount into out's PLAN_* slots, a missing row as -1.
+ */
+void SHADOWLIST_KIT_WASM(nativePlanMount)(std::uintptr_t handle, double offset, double windowAlong, double pad,
+  double leadingInset, double trailingInset, double* out) {
+  sl::MountPlan plan = peerOf(handle)->driver.planMount(offset, windowAlong, pad, leadingInset, trailingInset);
+  out[PLAN_LOW] = intFromIndex(plan.low);
+  out[PLAN_HIGH] = intFromIndex(plan.high);
+  out[PLAN_STICKY] = intFromIndex(plan.sticky);
+  out[PLAN_VIEW_LOW] = plan.viewLow;
+  out[PLAN_VIEW_HIGH] = plan.viewHigh;
 }
 
 double SHADOWLIST_KIT_WASM(nativeOffsetMovedThreshold)() {
@@ -441,25 +470,28 @@ bool SHADOWLIST_KIT_WASM(nativeRestoreAnchorState)(std::uintptr_t handle, const 
 
 /*
  * The diff of two key lists, packed: the delete count and previous indices, the insert count
- * and next indices, the move count and from, to pairs.
+ * and next indices, the move count and from, to pairs. The lists are the middles of longer ones
+ * from start, and every index moves by start.
  */
 const std::int32_t* SHADOWLIST_KIT_WASM(nativeDiffKeys)(const char* previousPacked, const std::int32_t* previousEnds,
-  std::int32_t previousCount, const char* nextPacked, const std::int32_t* nextEnds, std::int32_t nextCount) {
+  std::int32_t previousCount, const char* nextPacked, const std::int32_t* nextEnds, std::int32_t nextCount,
+  std::int32_t start) {
   sl::KeyDiff diff = sl::diffKeys(
     readPackedKeys(previousPacked, previousEnds, previousCount), readPackedKeys(nextPacked, nextEnds, nextCount));
   std::vector<std::int32_t> packed;
+  packed.reserve(3 + diff.deleted.size() + diff.inserted.size() + diff.moved.size() * 2);
   packed.push_back(static_cast<std::int32_t>(diff.deleted.size()));
   for (std::size_t index : diff.deleted) {
-    packed.push_back(static_cast<std::int32_t>(index));
+    packed.push_back(static_cast<std::int32_t>(index) + start);
   }
   packed.push_back(static_cast<std::int32_t>(diff.inserted.size()));
   for (std::size_t index : diff.inserted) {
-    packed.push_back(static_cast<std::int32_t>(index));
+    packed.push_back(static_cast<std::int32_t>(index) + start);
   }
   packed.push_back(static_cast<std::int32_t>(diff.moved.size()));
   for (const sl::KeyMove& move : diff.moved) {
-    packed.push_back(static_cast<std::int32_t>(move.from));
-    packed.push_back(static_cast<std::int32_t>(move.to));
+    packed.push_back(static_cast<std::int32_t>(move.from) + start);
+    packed.push_back(static_cast<std::int32_t>(move.to) + start);
   }
   return writeInts(packed);
 }

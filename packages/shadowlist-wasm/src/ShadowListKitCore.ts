@@ -6,7 +6,7 @@ let wasmModule: ShadowListKitModule | null = null;
 let loading: Promise<void> | null = null;
 
 /*
- * The core's OFFSET_MOVED_THRESHOLD, read once on load. A scroll frame makes no wasm call.
+ * The core's OFFSET_MOVED_THRESHOLD, read once on load.
  */
 let offsetMovedThreshold = 0;
 
@@ -49,8 +49,14 @@ export function loadShadowListKit(options?: {
   locateFile?: (path: string, scriptDirectory: string) => string;
 }): Promise<void> {
   loading ??= createShadowListKitModule(options).then((loaded) => {
-    loaded.shadowListKitMeasureRow = (handle, row, crossSize) =>
-      cores.get(handle)?.deref()?.measureRow(row, crossSize) ?? 0;
+    loaded.shadowListKitMeasureRows = (
+      handle,
+      rows,
+      crossSizes,
+      count,
+      sizes
+    ) =>
+      cores.get(handle)?.deref()?.measureRowsAt(rows, crossSizes, count, sizes);
     offsetMovedThreshold =
       loaded._ShadowListKitCore_nativeOffsetMovedThreshold();
     wasmModule = loaded;
@@ -169,6 +175,26 @@ function putKey(key: string, at: number): number {
 }
 
 /*
+ * How many keys match at the start of both lists, and at the end without reaching into those.
+ */
+export function unchangedEnds(
+  previous: ReadonlyArray<string>,
+  next: ReadonlyArray<string>
+): { start: number; end: number } {
+  const limit = Math.min(previous.length, next.length);
+  let start = 0;
+  while (start < limit && previous[start] === next[start]) ++start;
+  let end = 0;
+  while (
+    end < limit - start &&
+    previous[previous.length - 1 - end] === next[next.length - 1 - end]
+  ) {
+    ++end;
+  }
+  return { start, end };
+}
+
+/*
  * The shadowlist core behind one list, through the core's ListDriver in C++ compiled to wasm.
  * Every call runs on the main thread. Pass values go in and out through an array this object
  * reuses.
@@ -192,7 +218,18 @@ export class ShadowListKitCore {
   static readonly PASS_OUT_GEOMETRY = 15;
   static readonly PASS_OUT_MEASURED_LOW = 16;
   static readonly PASS_OUT_MEASURED_HIGH = 17;
-  static readonly PASS_SLOTS = 18;
+  static readonly PASS_OUT_FOOTER_START = 18;
+  static readonly PASS_SLOTS = 19;
+
+  /*
+   * Slots of plan, the same as PlanSlot in the wasm side. A missing row is -1.
+   */
+  static readonly PLAN_LOW = 0;
+  static readonly PLAN_HIGH = 1;
+  static readonly PLAN_STICKY = 2;
+  static readonly PLAN_VIEW_LOW = 3;
+  static readonly PLAN_VIEW_HIGH = 4;
+  static readonly PLAN_SLOTS = 5;
 
   /*
    * Values of PASS_PHASE, the same as the core's ScrollPhase.
@@ -225,22 +262,15 @@ export class ShadowListKitCore {
   /*
    * The diff of two key lists through the core's diffKeys, packed: the delete count and
    * previous indices, the insert count and next indices, the move count and from, to pairs.
+   * Only the keys between the unchanged rows at both ends cross. They change nothing in the
+   * diff. A caller that already compared the lists passes how many keys match at each end.
    */
   static diffKeys(
     previous: ReadonlyArray<string>,
-    next: ReadonlyArray<string>
+    next: ReadonlyArray<string>,
+    unchanged: { start: number; end: number } = unchangedEnds(previous, next)
   ): Int32Array {
-    // Only the keys between the unchanged rows at both ends cross. They change nothing in the diff.
-    const limit = Math.min(previous.length, next.length);
-    let start = 0;
-    while (start < limit && previous[start] === next[start]) ++start;
-    let end = 0;
-    while (
-      end < limit - start &&
-      previous[previous.length - 1 - end] === next[next.length - 1 - end]
-    ) {
-      ++end;
-    }
+    const { start, end } = unchanged;
     const previousTo = previous.length - end;
     const nextTo = next.length - end;
     const at = reserve(
@@ -249,24 +279,17 @@ export class ShadowListKitCore {
     );
     const before = pack(previous, start, previousTo, at);
     const after = pack(next, start, nextTo, at + before.taken);
-    const diff = takeInts(
+    return takeInts(
       wasm()._ShadowListKitCore_nativeDiffKeys(
         before.packed,
         before.ends,
         previousTo - start,
         after.packed,
         after.ends,
-        nextTo - start
+        nextTo - start,
+        start
       )
     );
-    // Indices come back inside the middle. Every value but the three counts moves by start.
-    const deletes = diff[0]!;
-    const inserts = diff[1 + deletes]!;
-    const counts = new Set([0, 1 + deletes, 2 + deletes + inserts]);
-    for (let position = 0; position < diff.length; ++position) {
-      if (!counts.has(position)) diff[position]! += start;
-    }
-    return diff;
   }
 
   /*
@@ -318,8 +341,28 @@ export class ShadowListKitCore {
    */
   private readonly passSlots: number;
 
+  /*
+   * The last planMount, see PLAN_*.
+   */
+  readonly plan = new Float64Array(ShadowListKitCore.PLAN_SLOTS);
+
+  /*
+   * What the last updatePrefetch found, items to prefetch and items to cancel, or null for none.
+   */
+  prefetched: number[] | null = null;
+  cancelled: number[] | null = null;
+
+  /*
+   * measure sizes one row. measureRows, when given, sizes every row a pass needs at once into
+   * sizes and is used instead.
+   */
   constructor(
-    private readonly measure: (row: number, crossSize: number) => number
+    private readonly measure: (row: number, crossSize: number) => number,
+    private readonly measureRows?: (
+      rows: ReadonlyArray<number>,
+      crossSizes: ReadonlyArray<number>,
+      sizes: number[]
+    ) => void
   ) {
     this.handle = wasm()._ShadowListKitCore_nativeCreate();
     this.passSlots = wasm()._ShadowListKitCore_nativePassSlots(this.handle);
@@ -328,10 +371,31 @@ export class ShadowListKitCore {
   }
 
   /*
-   * Called by the driver during runPasses for every row in the measured range that has no size yet.
+   * Called by the driver during runPasses with every row in the measured range that has no size
+   * yet: count rows and cross sizes at their heap pointers, the sizes written back to sizesAt.
+   * Measuring can grow the heap. The sizes go into the heap as it is after.
    */
-  measureRow(row: number, crossSize: number): number {
-    return this.measure(row, crossSize);
+  measureRowsAt(
+    rowsAt: number,
+    crossSizesAt: number,
+    count: number,
+    sizesAt: number
+  ): void {
+    const rows = Array.from(
+      wasm().HEAP32.subarray(rowsAt / 4, rowsAt / 4 + count)
+    );
+    const crossSizes = Array.from(
+      wasm().HEAPF64.subarray(crossSizesAt / 8, crossSizesAt / 8 + count)
+    );
+    const sizes = new Array<number>(count).fill(0);
+    if (this.measureRows) {
+      this.measureRows(rows, crossSizes, sizes);
+    } else {
+      for (let at = 0; at < count; ++at) {
+        sizes[at] = this.measure(rows[at]!, crossSizes[at]!);
+      }
+    }
+    wasm().HEAPF64.set(sizes, sizesAt / 8);
   }
 
   /*
@@ -483,8 +547,31 @@ export class ShadowListKitCore {
     return true;
   }
 
-  footerStart(footerSize: number): number {
-    return wasm()._ShadowListKitCore_nativeFooterStart(this.handle, footerSize);
+  /*
+   * The core's planMount into plan: the rows to mount for an offset, padded by pad and the
+   * insets on each end.
+   */
+  planMount(
+    offset: number,
+    windowAlong: number,
+    pad: number,
+    leadingInset: number,
+    trailingInset: number
+  ): Float64Array {
+    const at = reserve(ShadowListKitCore.PLAN_SLOTS * 8);
+    wasm()._ShadowListKitCore_nativePlanMount(
+      this.handle,
+      offset,
+      windowAlong,
+      pad,
+      leadingInset,
+      trailingInset,
+      at
+    );
+    this.plan.set(
+      wasm().HEAPF64.subarray(at / 8, at / 8 + ShadowListKitCore.PLAN_SLOTS)
+    );
+    return this.plan;
   }
 
   /*
@@ -578,12 +665,28 @@ export class ShadowListKitCore {
   }
 
   /*
-   * Prefetch changes, packed: the prefetch count and rows, then the cancel count and rows.
+   * Prefetch changes for the mounted rows into prefetched and cancelled.
    */
-  updatePrefetch(low: number, high: number): Int32Array {
-    return takeInts(
-      wasm()._ShadowListKitCore_nativeUpdatePrefetch(this.handle, low, high)
+  updatePrefetch(low: number, high: number): void {
+    const pointer = wasm()._ShadowListKitCore_nativeUpdatePrefetch(
+      this.handle,
+      low,
+      high
     );
+    // The packed values: their length, the prefetch count and rows, then the cancel count and rows.
+    const heap = wasm().HEAP32;
+    const at = pointer / 4 + 1;
+    const prefetchCount = heap[at]!;
+    const cancelAt = at + 1 + prefetchCount;
+    const cancelCount = heap[cancelAt]!;
+    this.prefetched =
+      prefetchCount > 0
+        ? Array.from(heap.subarray(at + 1, at + 1 + prefetchCount))
+        : null;
+    this.cancelled =
+      cancelCount > 0
+        ? Array.from(heap.subarray(cancelAt + 1, cancelAt + 1 + cancelCount))
+        : null;
   }
 
   /*

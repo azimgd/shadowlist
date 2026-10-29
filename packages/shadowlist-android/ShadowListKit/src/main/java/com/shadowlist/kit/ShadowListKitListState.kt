@@ -63,23 +63,34 @@ internal class ShadowListKitListState {
 
   private val handle: Long = nativeCreate().also { reclaimer.register(this, it) }
   private val tapOut = IntArray(1)
+  private val packer = ShadowListKitKeyPacker()
 
   // region Selection
 
-  fun setMultipleSelection(multiple: Boolean) = nativeSetMultipleSelection(handle, multiple)
-  val selectedCount: Int get() = nativeSelectedCount(handle)
-  fun isSelected(key: String): Boolean = nativeIsSelected(handle, key)
+  /*
+   * Whether any row is selected, read again after every call that changes the selection. A
+   * list with nothing selected answers isSelected without a JNI call.
+   */
+  var hasSelection = false
+    private set
+
+  private fun <T> changingSelection(change: () -> T): T =
+    change().also { hasSelection = nativeSelectedCount(handle) > 0 }
+
+  fun setMultipleSelection(multiple: Boolean) = changingSelection { nativeSetMultipleSelection(handle, multiple) }
+  val selectedCount: Int get() = if (hasSelection) nativeSelectedCount(handle) else 0
+  fun isSelected(key: String): Boolean = hasSelection && nativeIsSelected(handle, key)
 
   /*
    * Select a row. Returns the rows this deselected, the one before under single selection.
    */
-  fun select(key: String): Array<String> = nativeSelect(handle, key)
-  fun deselect(key: String): Boolean = nativeDeselect(handle, key)
+  fun select(key: String): Array<String> = changingSelection { nativeSelect(handle, key) }
+  fun deselect(key: String): Boolean = changingSelection { nativeDeselect(handle, key) }
 
   /*
    * Deselect every row. Returns them.
    */
-  fun clearSelection(): Array<String> = nativeClearSelection(handle)
+  fun clearSelection(): Array<String> = changingSelection { nativeClearSelection(handle) }
 
   /*
    * What a tap did: a TAP_* outcome and the rows it deselected.
@@ -91,7 +102,7 @@ internal class ShadowListKitListState {
    * gets selected, never before a multiple selection toggles it off.
    */
   fun tap(key: String, shouldSelect: ShouldSelect): Tap {
-    val deselected = nativeTap(handle, key, shouldSelect, tapOut) ?: return Tap(TAP_NOTHING, emptyArray())
+    val deselected = changingSelection { nativeTap(handle, key, shouldSelect, tapOut) } ?: return Tap(TAP_NOTHING, emptyArray())
     return Tap(tapOut[0], deselected)
   }
 
@@ -99,18 +110,18 @@ internal class ShadowListKitListState {
    * The data changed. Selected rows whose key is gone drop out.
    */
   fun retainSelection(keys: List<String>) {
-    if (selectedCount == 0) return
-    val (packed, ends) = ShadowListKitCore.packed(keys)
-    nativeRetainSelection(handle, packed, ends)
+    if (!hasSelection) return
+    val ends = packer.pack(keys)
+    changingSelection { nativeRetainSelection(handle, packer.chars, ends) }
   }
 
   /*
    * The rows of keys that are selected, low to high.
    */
   fun selectedRows(keys: List<String>): IntArray {
-    if (selectedCount == 0) return IntArray(0)
-    val (packed, ends) = ShadowListKitCore.packed(keys)
-    return nativeSelectedRows(handle, packed, ends)
+    if (!hasSelection) return IntArray(0)
+    val ends = packer.pack(keys)
+    return nativeSelectedRows(handle, packer.chars, ends)
   }
 
   // endregion
@@ -151,16 +162,16 @@ internal class ShadowListKitListState {
    * Forget every version and keep these, one per item key.
    */
   fun recordContentVersions(itemKeys: List<String>, versions: LongArray) {
-    val (packed, ends) = ShadowListKitCore.packed(itemKeys)
-    nativeRecordContentVersions(handle, packed, ends, versions)
+    val ends = packer.pack(itemKeys)
+    nativeRecordContentVersions(handle, packer.chars, ends, versions)
   }
 
   /*
    * The items whose version changed under the same key, low to high. The new versions are kept.
    */
   fun updateContentVersions(itemKeys: List<String>, versions: LongArray): IntArray {
-    val (packed, ends) = ShadowListKitCore.packed(itemKeys)
-    return nativeUpdateContentVersions(handle, packed, ends, versions)
+    val ends = packer.pack(itemKeys)
+    return nativeUpdateContentVersions(handle, packer.chars, ends, versions)
   }
 
   // endregion

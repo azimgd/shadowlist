@@ -434,6 +434,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
     private set
 
   /*
+   * Where the footer starts along the axis, from the core's last pass.
+   */
+  private var footerStart = 0.0
+
+  /*
    * The last offset seen, to tell the user's scrolling from our own writes.
    */
   private var previousOffset = 0
@@ -666,7 +671,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   private fun sectionCell(row: Int): ShadowListKitListCell {
-    val place = core.placeOfRow(row)
+    val place = placeOfRow(row)
     val section = place shr ShadowListKitCore.ROW_KIND_BITS
     val footer = (place and ShadowListKitCore.ROW_KIND_MASK) == ShadowListKitCore.ROW_FOOTER
     val sections = dataSource as Sections
@@ -729,7 +734,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * Inserts, deletes, moves and reloads made in updates land together in one layout and one
    * animation. Deletes, reloads and move sources are indices in the data before, inserts and
    * move destinations in the data after. A batch that does not add up reloads everything.
-   * completion gets finished once the change animation ended.
+   * completion gets finished once the change is laid out and, with the default item animator,
+   * its animation ended. A custom item animator's animations are not waited for.
    */
   @JvmOverloads
   fun performBatchUpdates(updates: () -> Unit, completion: ((finished: Boolean) -> Unit)? = null) =
@@ -763,6 +769,15 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal fun itemForRow(row: Int): Int {
     val items = data.rowItems ?: return if (row in keys.indices) row else -1
     return if (row in items.indices) items[row] else -1
+  }
+
+  /*
+   * Section shl ShadowListKitCore.ROW_KIND_BITS or a ROW_* kind, or -1, from the places copied
+   * with the sections.
+   */
+  private fun placeOfRow(row: Int): Int {
+    val places = data.rowPlaces ?: return if (row in keys.indices) ShadowListKitCore.ROW_ITEM else -1
+    return if (row in places.indices) places[row] else -1
   }
 
   internal fun rowForItem(item: Int): Int {
@@ -865,7 +880,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       layoutTemplates()
       mountCells()
       stickyPinning.layoutSticky()
-      if (hasHeldRow) drag.applyShifts(false)
+      if (hasHeldRow) drag.update()
       changes.run()
       swipe.layout()
     }
@@ -912,7 +927,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun layoutTemplates() {
     headerView?.let { placeTemplate(it, 0, headerSize) }
-    footerView?.let { placeTemplate(it, core.footerStart(footerSize.toDouble()).roundToInt(), footerSize) }
+    footerView?.let { placeTemplate(it, footerStart.roundToInt(), footerSize) }
   }
 
   private fun placeTemplate(view: View, start: Int, size: Int) {
@@ -971,6 +986,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     reachedStart = reachedStart || pass[ShadowListKitCore.PASS_OUT_REACHED_START] != 0.0
     reachedEnd = reachedEnd || pass[ShadowListKitCore.PASS_OUT_REACHED_END] != 0.0
     frameGeometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]
+    footerStart = pass[ShadowListKitCore.PASS_OUT_FOOTER_START]
     copyMeasured(pass)
     if (pass[ShadowListKitCore.PASS_OUT_SETTLING] != 0.0) scheduleSettleFrame()
   }
@@ -1043,8 +1059,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
    * which keeps the content of a cell that only moved. The range follows the core's
    * ListDriver::planMount with the padding as insets, run here over the copied frames. A
-   * scroll frame makes no JNI call. The core test list_driver_mount_plan_reaches_into_the_insets
-   * holds the rule this matches.
+   * scroll frame that mounts the same rows makes no JNI call. The core test
+   * list_driver_mount_plan_reaches_into_the_insets holds the rule this matches.
    */
   private fun mountCells() {
     if (measuredLow < 0 || keys.isEmpty()) {
@@ -1211,13 +1227,15 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   private fun prefetchAround(low: Int, high: Int) {
     val prefetch = prefetchDataSource ?: return
-    val packed = core.updatePrefetch(low, high)
+    val core = core
+    core.updatePrefetch(low, high)
+    val packed = core.prefetchOut
     val prefetchCount = packed[0]
-    val items = packed.copyOfRange(1, 1 + prefetchCount)
     val cancelCount = packed[1 + prefetchCount]
-    val cancelled = packed.copyOfRange(2 + prefetchCount, 2 + prefetchCount + cancelCount)
-    if (items.isNotEmpty()) prefetch.prefetchItems(this, items)
-    if (cancelled.isNotEmpty()) prefetch.cancelPrefetchingForItems(this, cancelled)
+    if (prefetchCount > 0) prefetch.prefetchItems(this, packed.copyOfRange(1, 1 + prefetchCount))
+    if (cancelCount > 0) {
+      prefetch.cancelPrefetchingForItems(this, packed.copyOfRange(2 + prefetchCount, 2 + prefetchCount + cancelCount))
+    }
   }
 
   // endregion
@@ -1235,7 +1253,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       if (sizing != null) return sizing.sizeForItem(this, item, cross).toDouble()
     } else {
       val sections = dataSource as? Sections
-      val place = core.placeOfRow(row)
+      val place = placeOfRow(row)
       if (sections != null && place >= 0) {
         val section = place shr ShadowListKitCore.ROW_KIND_BITS
         val size = if ((place and ShadowListKitCore.ROW_KIND_MASK) == ShadowListKitCore.ROW_FOOTER) sections.sizeForFooterInSection(this, section, cross)
@@ -1569,7 +1587,15 @@ open class ShadowListKitListView @JvmOverloads constructor(
       // A list without a core has not laid out. Asking would create a peer only to answer null.
       val packed = liveCore?.visibleRange() ?: return null
       if (packed < 0) return null
-      return (packed shr 32).toInt()..(packed and 0xffffffffL).toInt()
+      var low = -1
+      var high = -1
+      for (row in (packed shr 32).toInt()..(packed and 0xffffffffL).toInt()) {
+        val item = itemForRow(row)
+        if (item < 0) continue
+        if (low < 0) low = item
+        high = item
+      }
+      return if (low < 0) null else low..high
     }
 
   /*
@@ -1747,15 +1773,6 @@ open class ShadowListKitListView @JvmOverloads constructor(
     reorderEnabled && !editingState && drag.begin(x, y)
 
   internal val hasHeldRow: Boolean get() = drag.hasHeldRow
-
-  internal fun mountedIndices(): IntArray {
-    val indices = IntArray(mounted.size)
-    var count = 0
-    for (cell in mounted.values) {
-      if (cell.visibility == VISIBLE && cell.row >= 0) indices[count++] = cell.row
-    }
-    return indices.copyOf(count)
-  }
 
   /*
    * The held row was dropped. Move it in the data and keep it where it was let go. Returns

@@ -4,6 +4,7 @@
 #include <shadowlist-core/Virtualizer.hpp>
 #include <shadowlist-core/host/DragReorder.hpp>
 #include <shadowlist-core/host/ListLayout.hpp>
+#include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/MountedRange.hpp>
 #include <shadowlist-core/host/Prefetch.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
@@ -52,6 +53,17 @@ struct ListSettings {
   bool horizontal = false;
   bool snapToItem = false;
   SnapAlignment snapAlignment = SnapAlignment::Start;
+
+  friend bool operator==(const ListSettings& a, const ListSettings& b) {
+    return a.estimatedRowSize == b.estimatedRowSize && a.overscan == b.overscan &&
+      a.startReachedThreshold == b.startReachedThreshold && a.endReachedThreshold == b.endReachedThreshold &&
+      a.numberOfColumns == b.numberOfColumns && a.inverted == b.inverted && a.followAppends == b.followAppends &&
+      a.horizontal == b.horizontal && a.snapToItem == b.snapToItem && a.snapAlignment == b.snapAlignment;
+  }
+
+  friend bool operator!=(const ListSettings& a, const ListSettings& b) {
+    return !(a == b);
+  }
 };
 
 /*
@@ -71,11 +83,13 @@ struct PassInput {
 
 /*
  * What the host applies after a layout: the content size first, then the offset.
- * With settling set, a correction waits for one more report on the next frame.
+ * With settling set, a correction waits for one more report on the next frame. The footer
+ * starts at footerStart along the axis.
  */
 struct PassResult {
   double offset = 0.0;
   double contentAlong = 0.0;
+  double footerStart = 0.0;
   OffsetBand band;
   bool settling = false;
   bool reachedStart = false;
@@ -129,6 +143,16 @@ public:
    */
   using MeasureRow = std::function<double(std::size_t index, const std::string& key, double crossSize)>;
 
+  /*
+   * Measures every row a layout pass needs at once, for a host that measures cheaper in one go,
+   * like a browser laying out once for all the rows it styled. sizes gets one size along the
+   * scroll axis per index.
+   */
+  using MeasureRows = std::function<void(
+    const std::vector<std::size_t>& indices,
+    const std::vector<double>& crossSizes,
+    std::vector<double>& sizes)>;
+
   ListDriver();
 
   /*
@@ -140,6 +164,11 @@ public:
   ListDriver& operator=(ListDriver&&) = delete;
 
   void setMeasureRow(MeasureRow measureRow);
+
+  /*
+   * Used in place of the MeasureRow when set.
+   */
+  void setMeasureRows(MeasureRows measureRows);
   void setSettings(const ListSettings& settings);
 
   /*
@@ -155,6 +184,11 @@ public:
    * at both ends are replaced. An edit at one end then reaches the core as one.
    */
   void reloadKeys(std::vector<std::string> keys);
+
+  /*
+   * reloadKeys with the splice the host already worked out against getKeys().
+   */
+  void reloadKeys(std::vector<std::string> keys, const KeySplice& splice);
 
   /*
    * Replace count keys from start with keys, like a host that compared the new data with
@@ -334,13 +368,24 @@ private:
   FrameInput makeFrameInput(const PassInput& input, double offset, bool firstPass) const;
   bool measureRange(double offset);
   void measureIndex(std::size_t index, SizeBatch& batch);
-  PassResult finishPasses(double offset);
+  bool needsMeasure(std::size_t index);
+  double crossSizeOf(std::size_t index) const;
+  void collectIndex(std::size_t index);
+  PassResult finishPasses(double offset, const PassInput& input);
   double clampOffset(double target, const PassInput& input) const;
   bool overlaps(std::size_t index, double viewLow, double viewHigh) const;
   DragRow dragRowAt(std::size_t index) const;
 
   std::unique_ptr<Container> core_;
   MeasureRow measureRow_;
+  MeasureRows measureRows_;
+
+  /*
+   * The rows a MeasureRows call measures, reused from pass to pass.
+   */
+  std::vector<std::size_t> measureIndices_;
+  std::vector<double> measureCrosses_;
+  std::vector<double> measureSizes_;
   ListSettings settings_;
   std::vector<std::string> keys_;
   std::vector<std::size_t> sticky_;

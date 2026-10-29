@@ -36,6 +36,13 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     private set
   var rowSeparators: BooleanArray? = null
     private set
+
+  /*
+   * The section and kind of every row of a list with sections, as ShadowListKitCore.placeOfRow
+   * packs them, null without sections.
+   */
+  var rowPlaces: IntArray? = null
+    private set
   var itemCount = 0
     private set
 
@@ -51,6 +58,12 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
    */
   private val state get() = list.state
   private var batchPayload: Any? = null
+
+  /*
+   * The two key lists applyChanges diffs, joined for the JNI.
+   */
+  private val previousPacker = ShadowListKitKeyPacker()
+  private val nextPacker = ShadowListKitKeyPacker()
 
   /*
    * Read the sections and every key into next and return the item keys. A list with sections
@@ -115,6 +128,7 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     sectionItemKeys = null
     rowItems = null
     rowSeparators = null
+    rowPlaces = null
     itemCount = count
     list.liveCore?.setSections(count, null, null)
   }
@@ -128,14 +142,16 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   }
 
   /*
-   * The item of every row and whether a separator follows it, copied once per change.
+   * The item of every row, whether a separator follows it and its place, copied once per change.
    */
   private fun readRowItems(rows: Int) {
     val items = IntArray(rows)
     val separators = BooleanArray(rows)
-    list.core.copyRows(items, separators)
+    val places = IntArray(rows)
+    list.core.copyRows(items, separators, places)
     rowItems = items
     rowSeparators = separators
+    rowPlaces = places
   }
 
   fun reloadData() {
@@ -164,11 +180,12 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
 
   /*
    * The core's keySplice over the key list kept here, which needs no copy of the keys into the
-   * core. The core test key_splice_finds_the_changed_middle holds the rule.
+   * core. The core test key_splice_finds_the_changed_middle holds the rule. A caller that already
+   * compared the two lists passes the unchanged rows at both ends.
    */
-  private fun applyRowKeys(next: ArrayList<String>) {
-    val start = commonPrefix(keys, next)
-    val end = commonSuffix(keys, next, start)
+  private fun applyRowKeys(next: ArrayList<String>, knownStart: Int = -1, knownEnd: Int = -1) {
+    val start = if (knownStart >= 0) knownStart else commonPrefix(keys, next)
+    val end = if (knownEnd >= 0) knownEnd else commonSuffix(keys, next, start)
     if (start < keys.size || start < next.size) {
       if (list.animatesChanges) list.changes.capture(deleted = keys.subList(start, keys.size - end), inserted = next.subList(start, next.size - end))
       list.liveCore?.replaceKeys(start, keys.size - start - end, next, start, next.size - end)
@@ -301,8 +318,11 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
    * Take the next keys, then reload the rows of reloadedKeys. Reloaded rows report the change
    * themselves.
    */
-  private fun commitKeyChanges(next: ArrayList<String>, reloadedKeys: Set<String>, payload: Any?, reloadsSectionIndex: Boolean) {
-    applyRowKeys(next)
+  private fun commitKeyChanges(
+    next: ArrayList<String>, reloadedKeys: Set<String>, payload: Any?, reloadsSectionIndex: Boolean,
+    knownStart: Int = -1, knownEnd: Int = -1,
+  ) {
+    applyRowKeys(next, knownStart, knownEnd)
     val rows = rowsOfKeys(reloadedKeys)
     if (rows.isNotEmpty()) reloadRows(rows, payload) else list.structureChanged()
     if (reloadsSectionIndex) list.reloadSectionIndex()
@@ -318,10 +338,13 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   fun applyChanges(): ShadowListKitListChanges {
     // Without a data source readRowKeys leaves the spare list as it was. Nothing is read, the same as reloadData.
     if (list.dataSource == null) return ShadowListKitListChanges(IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
-    val previousItems = sectionItemKeys ?: ArrayList(keys)
+    // readRowKeys fills the spare list. The keys held stay as they are until commitKeyChanges.
+    val previousItems = sectionItemKeys ?: keys
     val next = spareKeys
     val nextItems = readRowKeys(next)
-    val diff = ShadowListKitCore.diffKeys(previousItems, nextItems)
+    val start = commonPrefix(previousItems, nextItems)
+    val end = commonSuffix(previousItems, nextItems, start)
+    val diff = ShadowListKitCore.diffKeys(previousItems, nextItems, start, end, previousPacker, nextPacker)
 
     // Rows that stayed but whose content version changed get reloaded.
     val versioned = list.dataSource as? ContentVersions
@@ -330,7 +353,10 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     val reloadedKeys = HashSet<String>(reloaded.size * 2)
     for (item in reloaded) reloadedKeys.add(nextItems[item])
 
-    commitKeyChanges(next, reloadedKeys, null, reloadsSectionIndex = true)
+    // Without sections the items are the rows, and the diff already found their unchanged ends.
+    val rowsAreItems = previousItems === keys && nextItems === next
+    commitKeyChanges(next, reloadedKeys, null, reloadsSectionIndex = true,
+      knownStart = if (rowsAreItems) start else -1, knownEnd = if (rowsAreItems) end else -1)
 
     var at = 0
     val deleted = IntArray(diff[at]) { diff[at + 1 + it] }

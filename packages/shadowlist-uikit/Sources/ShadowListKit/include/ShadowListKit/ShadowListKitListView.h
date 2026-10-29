@@ -333,7 +333,8 @@ NS_SWIFT_UI_ACTOR
  *   together in one layout and one animation, the way UITableView takes them: deletes, reloads
  *   and move sources are indices in the data before, inserts and move destinations in the data
  *   after. A batch that does not add up reloads everything. completion gets finished once the
- *   change animation ended.
+ *   change is laid out and, with the default item animator, its animation ended. A custom item
+ *   animator's animations are not waited for.
  * - applyChanges reads every key, works out the inserts, deletes and moves against the keys the
  *   list holds, reloads items whose content version changed, and returns what it found.
  * - In a list with sections every change reads the sections and keys again, like reloadData.
