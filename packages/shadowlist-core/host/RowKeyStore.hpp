@@ -4,6 +4,7 @@
 #include <shadowlist-core/Virtualizer.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
 #include <shadowlist-core/host/RowSizeSpec.hpp>
+#include <shadowlist-core/host/SharedKeys.hpp>
 #include <shadowlist-core/host/TreeRows.hpp>
 
 #include <cstddef>
@@ -21,7 +22,9 @@ namespace azimgd::shadowlist {
 
 /*
  * One version of a list's row keys, never changed once published. A plain list holds its keys,
- * a sectioned list its sections and the header rows that stick, a tree its visible rows.
+ * a sectioned list its sections and the header rows that stick, a tree its visible rows. Keys a
+ * version keeps from its base are shared with it, see SharedKeys. keys() stays valid while the
+ * snapshot lives.
  */
 class RowKeysSnapshot final {
 public:
@@ -33,7 +36,7 @@ public:
 
   std::uint64_t getVersion() const { return version_; }
   Kind getKind() const { return kind_; }
-  const std::vector<std::string>& keys() const { return kind_ == Kind::Tree ? tree_.keys() : keys_; }
+  KeyList keys() const { return kind_ == Kind::Tree ? tree_.keys() : keys_.list(); }
   std::size_t size() const { return keys().size(); }
 
   /*
@@ -68,7 +71,7 @@ private:
   std::uint64_t baseVersion_ = 0;
   Kind kind_ = Kind::Plain;
   KeyEdit edit_;
-  std::vector<std::string> keys_;
+  SharedKeys keys_;
   std::vector<std::size_t> stickyRows_;
   ListSections sections_;
   std::vector<std::string> sectionKeys_;

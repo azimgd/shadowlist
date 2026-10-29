@@ -66,7 +66,7 @@ public:
   void endCommit(
     const azimgd::shadowlist::Container& core,
     const ShadowListViewProps& props,
-    const std::vector<std::string>& keys,
+    const azimgd::shadowlist::KeyList& keys,
     const std::vector<std::size_t>& stickyIndices);
 
   /*

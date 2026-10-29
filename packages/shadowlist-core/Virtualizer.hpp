@@ -4,10 +4,12 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Row.hpp>
 #include <shadowlist-core/Error.hpp>
+#include <shadowlist-core/KeyList.hpp>
 #include <shadowlist-core/Operation.hpp>
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -42,10 +44,10 @@ struct FrameInput {
    * instead of copying, since keys are only read during update. Tests fill keys. Read with getKeyList.
    */
   std::vector<std::string> keys;
-  const std::vector<std::string>* keysRef = nullptr;
+  std::optional<KeyList> keysRef;
 
-  const std::vector<std::string>& getKeyList() const {
-    return keysRef != nullptr ? *keysRef : keys;
+  KeyList getKeyList() const {
+    return keysRef ? *keysRef : KeyList(keys);
   }
 
   /*
@@ -216,7 +218,7 @@ public:
    */
   static std::size_t reconcileRows(
     Container& container,
-    const std::vector<std::string>& nextKeys,
+    const KeyList& nextKeys,
     KeyEdit edit = {});
 
   /*
@@ -305,7 +307,7 @@ private:
   static void reconcileFrameKeys(
     Container& container,
     const FrameInput& input,
-    const std::vector<std::string>& inputKeys,
+    const KeyList& inputKeys,
     double inputOffset,
     bool restingAtBottom,
     bool hadRowsBefore,

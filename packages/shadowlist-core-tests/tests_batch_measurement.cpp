@@ -211,7 +211,7 @@ TEST(borrowed_keys_behave_like_owned_keys) {
 
     FrameInput borrowedInput = inputFor(keys, offset);
     borrowedInput.keys.clear();
-    borrowedInput.keysRef = &keys;
+    borrowedInput.keysRef = keys;
     Virtualizer::update(borrowed, borrowedInput);
   }
 

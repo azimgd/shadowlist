@@ -37,7 +37,7 @@ MountedRange MountDriver::currentRange(std::size_t size) const {
   return range;
 }
 
-MountMessage MountDriver::message(const std::vector<std::string>& keys, const MountedRange& range) const {
+MountMessage MountDriver::message(const KeyList& keys, const MountedRange& range) const {
   MountMessage message;
   message.lowKey = keys[range.low];
   message.highKey = keys[range.high];
@@ -56,7 +56,7 @@ std::optional<MountMessage> MountDriver::send(MountMessage message) {
   return message;
 }
 
-std::optional<MountMessage> MountDriver::process(const std::vector<std::string>& keys, const IndexOfKey& indexOfKey) {
+std::optional<MountMessage> MountDriver::process(const KeyList& keys, const IndexOfKey& indexOfKey) {
   // A report waits until the renderer applied the range in flight. It is the newest by then.
   if (pending_) {
     return std::nullopt;
@@ -101,7 +101,7 @@ std::optional<MountMessage> MountDriver::process(const std::vector<std::string>&
  * The next step toward the target from the applied range. Before the first report the range is
  * the renderer's own and takes no steps.
  */
-void MountDriver::prepareStep(const std::vector<std::string>& keys, const IndexOfKey& indexOfKey) {
+void MountDriver::prepareStep(const KeyList& keys, const IndexOfKey& indexOfKey) {
   step_.reset();
   if (!target_ || basis_.sequence == 0) {
     return;

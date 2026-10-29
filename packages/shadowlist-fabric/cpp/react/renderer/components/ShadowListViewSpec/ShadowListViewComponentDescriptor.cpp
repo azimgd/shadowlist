@@ -179,8 +179,9 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    * copying, since props never change and outlive this call.
    */
   auto keysSnapshot = rowKeysSnapshot(geometryCache.get(), shadowlistViewProps);
-  const std::vector<std::string>& rowKeys = keysSnapshot ? keysSnapshot->keys() : shadowlistViewProps.rowKeys;
-  input.keysRef = &rowKeys;
+  azimgd::shadowlist::KeyList rowKeys =
+    keysSnapshot ? keysSnapshot->keys() : azimgd::shadowlist::KeyList(shadowlistViewProps.rowKeys);
+  input.keysRef = rowKeys;
   bool keysChanged;
   if (keysSnapshot) {
     const auto& previous = geometryCache->keysSnapshot;

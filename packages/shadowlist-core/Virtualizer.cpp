@@ -67,7 +67,7 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
   // The keys may be borrowed from the caller. They are only valid during this call.
-  const std::vector<std::string>& inputKeys = input.getKeyList();
+  KeyList inputKeys = input.getKeyList();
 
   SHADOWLIST_LOG("update: keys=%zu prevRows=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d total=%.1f dirtyFrom=%zd enabled=%d corrected=%d coreOff=%.1f",
     inputKeys.size(), container.revision.rows.size(),
@@ -189,7 +189,7 @@ namespace {
  * Whether the keys went from before to after by exactly the change the hint names, with every
  * other row keeping its order. A sort that also moved other rows is not the drop.
  */
-bool keysMakeDropChange(const std::vector<Row>& before, const std::vector<std::string>& after, const DropHint& hint) {
+bool keysMakeDropChange(const std::vector<Row>& before, const KeyList& after, const DropHint& hint) {
   std::size_t expected = before.size();
   if (hint.kind == DropHint::Kind::Removed) {
     expected -= expected > 0 ? 1 : 0;
@@ -363,7 +363,7 @@ bool Virtualizer::applyInvertedBottomPin(
 void Virtualizer::reconcileFrameKeys(
   Container& container,
   const FrameInput& input,
-  const std::vector<std::string>& inputKeys,
+  const KeyList& inputKeys,
   double inputOffset,
   bool restingAtBottom,
   bool hadRowsBefore,
@@ -411,19 +411,21 @@ void Virtualizer::reconcileFrameKeys(
      * which the reconcile then takes without comparing the keys again.
      */
     const std::vector<Row>& rows = container.revision.rows;
-    std::size_t count = inputKeys.size();
-    std::size_t first = 0;
-    while (first < count && rows[first].key == inputKeys[first]) {
-      ++first;
-    }
-    if (first < count) {
-      std::size_t end = count;
-      while (end - 1 > first && rows[end - 1].key == inputKeys[end - 1]) {
-        --end;
+    inputKeys.visit([&](auto keyAt) {
+      std::size_t count = inputKeys.size();
+      std::size_t first = 0;
+      while (first < count && rows[first].key == keyAt(first)) {
+        ++first;
       }
-      keysChanged = true;
-      keyEdit = KeyEdit{KeyEditKind::Splice, 0, first, end - first, end - first};
-    }
+      if (first < count) {
+        std::size_t end = count;
+        while (end - 1 > first && rows[end - 1].key == keyAt(end - 1)) {
+          --end;
+        }
+        keysChanged = true;
+        keyEdit = KeyEdit{KeyEditKind::Splice, 0, first, end - first, end - first};
+      }
+    });
   }
   if (keysChanged) {
     // New keys end the opening settle.

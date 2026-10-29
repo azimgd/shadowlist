@@ -14,6 +14,7 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
+#include <shadowlist-core/host/RowKeyStore.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -148,7 +149,7 @@ std::vector<std::string> makeLongKeys(std::size_t count) {
  */
 FrameInput makeInput(const std::vector<std::string>& keys, double offsetY) {
   FrameInput input;
-  input.keysRef = &keys;
+  input.keysRef = keys;
   input.offsetY = offsetY;
   input.windowWidth = WINDOW_WIDTH;
   input.windowHeight = WINDOW_HEIGHT;
@@ -281,6 +282,65 @@ void benchKeyCopy(const std::vector<std::string>& keys, std::size_t rows, const 
       doNotOptimize(input.keys);
     });
   record(label, rows, timing);
+}
+
+/*
+ * A key store edit the way Fabric sends one: a version spliced from the last, then committed,
+ * which drops the versions no commit can name. Includes making the new key. Each batch starts
+ * from a new store, which drops the last batch's keys untimed.
+ */
+void benchKeyStoreSplice(const std::vector<std::string>& keys, std::size_t rows, const char* label, int where) {
+  std::unique_ptr<RowKeyStore> store;
+  std::uint64_t version = 1;
+  Timing timing = measure(
+    25, 7,
+    [&] {
+      store = std::make_unique<RowKeyStore>();
+      store->setKeys(++version, keys);
+      store->adopted(version);
+    },
+    [&](std::size_t op) {
+      std::size_t size = store->snapshot(version)->size();
+      std::size_t start = where < 0 ? 0 : where > 0 ? size : size / 2;
+      std::size_t deleted = where == 0 ? 1 : 0;
+      std::vector<std::string> inserted{"message-0123456789abcdef-0123456789abcdef-new-" + std::to_string(op)};
+      store->spliceKeys(version + 1, version, start, deleted, std::move(inserted));
+      store->adopted(++version);
+    });
+  record(label, rows, timing);
+}
+
+/*
+ * Expanding a tree row and collapsing it again, alternately.
+ */
+void benchKeyStoreTree(const std::vector<std::string>& keys, std::size_t rows) {
+  std::unique_ptr<RowKeyStore> store;
+  std::uint64_t version = 1;
+  std::size_t row = rows / 2;
+  Timing timing = measure(
+    25, 7,
+    [&] {
+      std::vector<TreeRow> tree(keys.size());
+      for (std::size_t index = 0; index < keys.size(); ++index) {
+        tree[index] = {keys[index], 0, true, false};
+      }
+      store = std::make_unique<RowKeyStore>();
+      store->resetTree(++version, std::move(tree));
+      store->adopted(version);
+    },
+    [&](std::size_t op) {
+      if (op % 2 == 0) {
+        std::vector<TreeRow> children;
+        for (std::size_t child = 0; child < 4; ++child) {
+          children.push_back({keys[row] + "-child-" + std::to_string(child), 1, false, false});
+        }
+        store->expandTree(version + 1, version, row, std::move(children));
+      } else {
+        store->collapseTree(version + 1, version, row);
+      }
+      store->adopted(++version);
+    });
+  record("key store expand/collapse a tree row (long keys)", rows, timing);
 }
 
 /*
@@ -736,6 +796,10 @@ int main(int argc, char** argv) {
 
     benchKeyCopy(shortKeys, rows, "copy short keys into new FrameInput", 25);
     benchKeyCopy(longKeys, rows, "copy long keys into new FrameInput", 10);
+    benchKeyStoreSplice(longKeys, rows, "key store append one key (long keys)", 1);
+    benchKeyStoreSplice(longKeys, rows, "key store prepend one key (long keys)", -1);
+    benchKeyStoreSplice(longKeys, rows, "key store replace a middle key (long keys)", 0);
+    benchKeyStoreTree(longKeys, rows);
 
     benchSnapOffsets(shortKeys, rows, true, "build snap offsets after a geometry change");
     benchSnapOffsets(shortKeys, rows, false, "reuse cached snap offsets");

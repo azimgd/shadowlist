@@ -1,7 +1,6 @@
 #include <shadowlist-core/host/RowKeyStore.hpp>
 
 #include <algorithm>
-#include <iterator>
 #include <utility>
 
 namespace azimgd::shadowlist {
@@ -20,7 +19,7 @@ KeyEdit keyEditOf(std::size_t size, std::size_t start, std::size_t deleted, std:
 }
 
 std::size_t RowKeysSnapshot::indexOfKey(const std::string& key, std::size_t hint) const {
-  const std::vector<std::string>& rows = keys();
+  KeyList rows = keys();
   if (hint != UNDEFINED_INDEX && !rows.empty()) {
     std::size_t center = std::min(hint, rows.size() - 1);
     if (rows[center] == key) {
@@ -113,7 +112,7 @@ std::shared_ptr<const RowKeysSnapshot> RowKeyStore::baseOf(std::uint64_t baseVer
 bool RowKeyStore::setKeys(std::uint64_t version, std::vector<std::string> keys) {
   auto snapshot = std::make_shared<RowKeysSnapshot>();
   snapshot->version_ = version;
-  snapshot->keys_ = std::move(keys);
+  snapshot->keys_ = SharedKeys(std::move(keys));
   std::lock_guard<std::mutex> lock(mutex_);
   return publish(std::move(snapshot));
 }
@@ -132,16 +131,11 @@ bool RowKeyStore::spliceKeys(
   if (!base || start > base->keys_.size() || deleteCount > base->keys_.size() - start) {
     return false;
   }
-  const auto& previous = base->keys_;
   auto snapshot = std::make_shared<RowKeysSnapshot>();
   snapshot->version_ = version;
   snapshot->baseVersion_ = baseVersion;
-  snapshot->edit_ = keyEditOf(previous.size(), start, deleteCount, inserted.size());
-  auto& keys = snapshot->keys_;
-  keys.reserve(previous.size() - deleteCount + inserted.size());
-  keys.insert(keys.end(), previous.begin(), previous.begin() + static_cast<std::ptrdiff_t>(start));
-  keys.insert(keys.end(), std::make_move_iterator(inserted.begin()), std::make_move_iterator(inserted.end()));
-  keys.insert(keys.end(), previous.begin() + static_cast<std::ptrdiff_t>(start + deleteCount), previous.end());
+  snapshot->edit_ = keyEditOf(base->keys_.size(), start, deleteCount, inserted.size());
+  snapshot->keys_ = base->keys_.splice(start, deleteCount, std::move(inserted));
   std::lock_guard<std::mutex> lock(mutex_);
   return publish(std::move(snapshot));
 }
@@ -167,8 +161,8 @@ bool RowKeyStore::setSections(std::uint64_t version, std::uint64_t baseVersion, 
   }
   snapshot->sections_.setSections(std::move(specs));
   const ListSections& sections = snapshot->sections_;
-  auto& keys = snapshot->keys_;
-  keys.reserve(sections.getRowCount());
+  SharedKeys::Builder keys(base ? base->keys_ : SharedKeys(), sections.getRowCount());
+  std::vector<std::string> sectionRows;
 
   std::size_t nextItemKey = 0;
   for (std::size_t section = 0; section < count; ++section) {
@@ -179,18 +173,22 @@ bool RowKeyStore::setSections(std::uint64_t version, std::uint64_t baseVersion, 
           base->sections_.rowCountInSection(from) != rows || base->sectionKeys_[from] != update.sectionKeys[section]) {
         return false;
       }
-      auto first = base->keys_.begin() + static_cast<std::ptrdiff_t>(base->sections_.rowStartOfSection(from));
-      keys.insert(keys.end(), first, first + static_cast<std::ptrdiff_t>(rows));
+      keys.append(base->sections_.rowStartOfSection(from), rows);
       continue;
     }
     std::size_t items = update.itemCounts[section];
     if (nextItemKey + items > update.itemKeys.size()) {
       return false;
     }
+    sectionRows.clear();
     sections.appendSectionRowKeys(
-      section, update.sectionKeys[section], update.itemKeys.data() + nextItemKey, update.qualifyItems, keys);
+      section, update.sectionKeys[section], update.itemKeys.data() + nextItemKey, update.qualifyItems, sectionRows);
+    for (std::string& key : sectionRows) {
+      keys.append(std::move(key));
+    }
     nextItemKey += items;
   }
+  snapshot->keys_ = keys.finish();
   if (update.stickyHeaders && update.hasHeader) {
     snapshot->stickyRows_ = sections.headerRows();
   }

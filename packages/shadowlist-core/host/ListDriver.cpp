@@ -239,7 +239,7 @@ void ListDriver::markRemeasure(const std::vector<std::size_t>& indices) {
 
 FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, bool firstPass) const {
   FrameInput frame;
-  frame.keysRef = &keys_;
+  frame.keysRef = keys_;
   frame.keysUnchanged = !keysChanged_;
   frame.keyEdit = keysChanged_ ? pendingEdit_ : KeyEdit{};
   double cellCross = input.windowCross / static_cast<double>(settings_.numberOfColumns);

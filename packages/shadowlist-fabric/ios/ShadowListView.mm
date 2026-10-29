@@ -1170,26 +1170,38 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 }
 
 /*
- * The row keys the props name: the key store's snapshot, or rowKeys without a store.
+ * The key store snapshot the props name, the last one found while the store misses, or null
+ * for a list without a store.
  */
-- (const std::vector<std::string>&)currentRowKeys
+- (const azimgd::shadowlist::RowKeysSnapshot *)currentRowKeysSnapshot
 {
-  static const std::vector<std::string> none;
   if (!_props) {
-    return none;
+    return nullptr;
   }
   const auto& props = *std::static_pointer_cast<const ShadowListViewProps>(_props);
-  if (props.keysStore > 0 && props.keysVersion > 0) {
-    if (auto store = facebook::react::shadowlist::findRowKeyStore(static_cast<std::int64_t>(props.keysStore))) {
-      if (auto snapshot = store->snapshot(static_cast<std::uint64_t>(props.keysVersion))) {
-        _rowKeysSnapshot = snapshot;
-      }
-    }
-    if (_rowKeysSnapshot) {
-      return _rowKeysSnapshot->keys();
+  if (props.keysStore <= 0 || props.keysVersion <= 0) {
+    return nullptr;
+  }
+  if (auto store = facebook::react::shadowlist::findRowKeyStore(static_cast<std::int64_t>(props.keysStore))) {
+    if (auto snapshot = store->snapshot(static_cast<std::uint64_t>(props.keysVersion))) {
+      _rowKeysSnapshot = snapshot;
     }
   }
-  return props.rowKeys;
+  return _rowKeysSnapshot.get();
+}
+
+/*
+ * The row keys the props name: the key store's snapshot, or rowKeys without a store.
+ */
+- (azimgd::shadowlist::KeyList)currentRowKeys
+{
+  if (const auto *snapshot = [self currentRowKeysSnapshot]) {
+    return snapshot->keys();
+  }
+  if (!_props) {
+    return {};
+  }
+  return std::static_pointer_cast<const ShadowListViewProps>(_props)->rowKeys;
 }
 
 /*
@@ -1198,10 +1210,10 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
  */
 - (std::size_t)rowIndexOfKey:(const std::string&)key
 {
-  const auto& keys = [self currentRowKeys];
-  if (_rowKeysSnapshot && &keys == &_rowKeysSnapshot->keys()) {
-    return _rowKeysSnapshot->indexOfKey(key);
+  if (const auto *snapshot = [self currentRowKeysSnapshot]) {
+    return snapshot->indexOfKey(key);
   }
+  azimgd::shadowlist::KeyList keys = [self currentRowKeys];
   if (_pageKeyIndicesProps != _props) {
     // The first row with a key wins, like a search from the start.
     _pageKeyIndices.clear();

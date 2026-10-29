@@ -14,17 +14,18 @@ std::uint8_t flagsOf(const TreeRow& row) {
 }
 
 void TreeRows::reset(std::vector<TreeRow> rows) {
-  keys_.clear();
+  std::vector<std::string> keys;
   depths_.clear();
   flags_.clear();
-  keys_.reserve(rows.size());
+  keys.reserve(rows.size());
   depths_.reserve(rows.size());
   flags_.reserve(rows.size());
   for (TreeRow& row : rows) {
     depths_.push_back(row.depth);
     flags_.push_back(flagsOf(row));
-    keys_.push_back(std::move(row.key));
+    keys.push_back(std::move(row.key));
   }
+  keys_ = SharedKeys(std::move(keys));
 }
 
 TreeRow TreeRows::rowAt(std::size_t row) const {
@@ -85,23 +86,22 @@ void TreeRows::spliceFrom(const TreeRows& base, std::size_t start, std::size_t e
   auto first = static_cast<std::ptrdiff_t>(start);
   auto last = static_cast<std::ptrdiff_t>(end);
   std::size_t count = start + inserted.size() + (base.size() - end);
-  keys_.clear();
+  std::vector<std::string> keys;
   depths_.clear();
   flags_.clear();
-  keys_.reserve(count);
+  keys.reserve(inserted.size());
   depths_.reserve(count);
   flags_.reserve(count);
-  keys_.insert(keys_.end(), base.keys_.begin(), base.keys_.begin() + first);
   depths_.insert(depths_.end(), base.depths_.begin(), base.depths_.begin() + first);
   flags_.insert(flags_.end(), base.flags_.begin(), base.flags_.begin() + first);
   for (TreeRow& row : inserted) {
     depths_.push_back(row.depth);
     flags_.push_back(flagsOf(row));
-    keys_.push_back(std::move(row.key));
+    keys.push_back(std::move(row.key));
   }
-  keys_.insert(keys_.end(), base.keys_.begin() + last, base.keys_.end());
   depths_.insert(depths_.end(), base.depths_.begin() + last, base.depths_.end());
   flags_.insert(flags_.end(), base.flags_.begin() + last, base.flags_.end());
+  keys_ = base.keys_.splice(start, end - start, std::move(keys));
 }
 
 }

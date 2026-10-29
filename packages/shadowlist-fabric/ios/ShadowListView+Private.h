@@ -274,7 +274,7 @@ static inline BOOL SLFrameTraceEnabled(void)
   BOOL _pageAnnouncementPending;
   facebook::react::Props::Shared _pageKeyIndicesProps;
   std::unordered_map<std::string, NSInteger> _pageKeyIndices;
-  // The key store snapshot currentRowKeys last read, which keeps its keys alive.
+  // The key store snapshot currentRowKeysSnapshot last found, which keeps its keys alive.
   std::shared_ptr<const azimgd::shadowlist::RowKeysSnapshot> _rowKeysSnapshot;
 #if TARGET_OS_OSX
   BOOL _macDragEnded;

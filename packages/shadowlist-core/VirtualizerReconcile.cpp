@@ -26,15 +26,17 @@ void reserveKeyMap(Revision& revision, std::size_t size) {
 bool keysMatchRows(
   const std::vector<Row>& rows,
   std::size_t rowFirst,
-  const std::vector<std::string>& keys,
+  const KeyList& keys,
   std::size_t first,
   std::size_t count) {
-  for (std::size_t position = 0; position < count; ++position) {
-    if (rows[rowFirst + position].key != keys[first + position]) {
-      return false;
+  return keys.visit([&](auto keyAt) {
+    for (std::size_t position = 0; position < count; ++position) {
+      if (rows[rowFirst + position].key != keyAt(first + position)) {
+        return false;
+      }
     }
-  }
-  return true;
+    return true;
+  });
 }
 
 /*
@@ -44,7 +46,7 @@ bool keysMatchRows(
 bool keysMatchRows(
   const std::vector<Row>& rows,
   std::size_t rowFirst,
-  const std::vector<std::string>& keys,
+  const KeyList& keys,
   std::size_t first,
   std::size_t count,
   bool vouched) {
@@ -80,17 +82,19 @@ struct KeyEnds {
   std::size_t suffix = 0;
 };
 
-KeyEnds commonEnds(const std::vector<Row>& rows, const std::vector<std::string>& nextKeys) {
-  KeyEnds ends;
-  std::size_t shorter = std::min(rows.size(), nextKeys.size());
-  while (ends.prefix < shorter && rows[ends.prefix].key == nextKeys[ends.prefix]) {
-    ++ends.prefix;
-  }
-  while (ends.suffix < shorter - ends.prefix &&
-         rows[rows.size() - 1 - ends.suffix].key == nextKeys[nextKeys.size() - 1 - ends.suffix]) {
-    ++ends.suffix;
-  }
-  return ends;
+KeyEnds commonEnds(const std::vector<Row>& rows, const KeyList& nextKeys) {
+  return nextKeys.visit([&](auto keyAt) {
+    KeyEnds ends;
+    std::size_t shorter = std::min(rows.size(), nextKeys.size());
+    while (ends.prefix < shorter && rows[ends.prefix].key == keyAt(ends.prefix)) {
+      ++ends.prefix;
+    }
+    while (ends.suffix < shorter - ends.prefix &&
+           rows[rows.size() - 1 - ends.suffix].key == keyAt(nextKeys.size() - 1 - ends.suffix)) {
+      ++ends.suffix;
+    }
+    return ends;
+  });
 }
 
 /*
@@ -100,7 +104,7 @@ KeyEnds commonEnds(const std::vector<Row>& rows, const std::vector<std::string>&
  */
 bool spliceEnds(
   const std::vector<Row>& rows,
-  const std::vector<std::string>& nextKeys,
+  const KeyList& nextKeys,
   const KeyEdit& edit,
   KeyEnds& ends) {
   std::size_t previousCount = rows.size();
@@ -138,7 +142,7 @@ void eraseRowKeys(Revision& revision, std::size_t first, std::size_t count) {
  */
 bool reconcileAppend(
   Container& container,
-  const std::vector<std::string>& nextKeys,
+  const KeyList& nextKeys,
   const KeyEdit& edit,
   const KeyEnds* ends) {
   Revision& revision = container.revision;
@@ -171,7 +175,7 @@ bool reconcileAppend(
  */
 bool reconcilePrepend(
   Container& container,
-  const std::vector<std::string>& nextKeys,
+  const KeyList& nextKeys,
   const KeyEdit& edit,
   const KeyEnds* ends) {
   Revision& revision = container.revision;
@@ -209,7 +213,7 @@ bool reconcilePrepend(
  */
 bool reconcileTrimEnd(
   Container& container,
-  const std::vector<std::string>& nextKeys,
+  const KeyList& nextKeys,
   const KeyEdit& edit,
   const KeyEnds* ends) {
   Revision& revision = container.revision;
@@ -234,7 +238,7 @@ bool reconcileTrimEnd(
  */
 bool reconcileTrimStart(
   Container& container,
-  const std::vector<std::string>& nextKeys,
+  const KeyList& nextKeys,
   const KeyEdit& edit,
   const KeyEnds* ends) {
   Revision& revision = container.revision;
@@ -265,7 +269,7 @@ bool reconcileTrimStart(
  */
 bool reconcileSplice(
   Container& container,
-  const std::vector<std::string>& nextKeys,
+  const KeyList& nextKeys,
   const KeyEnds& ends,
   std::size_t& survivorCount) {
   Revision& revision = container.revision;
@@ -380,7 +384,7 @@ bool reconcileSplice(
  * Duplicate keys need this: only the first copy of a key takes over the old row.
  * Returns how many old rows survived.
  */
-std::size_t reconcileRebuilding(Container& container, const std::vector<std::string>& nextKeys) {
+std::size_t reconcileRebuilding(Container& container, const KeyList& nextKeys) {
   std::vector<Row>& previousRows = container.revision.rows;
 
   /*
@@ -450,7 +454,7 @@ std::size_t reconcileRebuilding(Container& container, const std::vector<std::str
  * in the new keys. Old rows no key took over lose their entries at the end.
  * Returns how many old rows survived.
  */
-std::size_t reconcileMatching(Container& container, const std::vector<std::string>& nextKeys) {
+std::size_t reconcileMatching(Container& container, const KeyList& nextKeys) {
   Revision& revision = container.revision;
   std::vector<Row>& previousRows = revision.rows;
   auto& map = revision.rowIndexByKey;
@@ -501,7 +505,7 @@ std::size_t reconcileMatching(Container& container, const std::vector<std::strin
 
 std::size_t Virtualizer::reconcileRows(
   Container& container,
-  const std::vector<std::string>& nextKeys,
+  const KeyList& nextKeys,
   KeyEdit edit) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
