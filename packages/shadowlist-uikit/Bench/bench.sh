@@ -80,7 +80,7 @@ run_one() {
     timeout "$limit" xcrun devicectl device process launch --console --terminate-existing --device "$UDID" "$bundle" -- "${args[@]}" > "$log" 2>&1
   fi
   local lines
-  lines="$(grep -o '\[SLBENCH\] {.*}' "$log" | sed 's/^\[SLBENCH\] //')"
+  lines="$(grep -o '\[SLBENCH\] {.*}' "$log" | sed 's/^\[SLBENCH\] //' | awk '!seen[$0]++')"
   if [[ -z "$lines" ]]; then
     echo "!! $engine $screen $count run $run: no result (see $log)"
     return
