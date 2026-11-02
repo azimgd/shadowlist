@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### shadowlist-utils
+
+- `Form.Row` sets its label in the label colour instead of the secondary one, so a row reads as a settings list sets it: what it is in the primary ink, its value (`Form.Value`) in the secondary. A label and its value in the same gray read as one faint line.
+
 ### ShadowList (React Native)
 
 - `followAppends` keeps the end of an inverted list in view as rows grow in place, like a streaming reply, not only as rows are appended. A row inserted at the end is followed too.
