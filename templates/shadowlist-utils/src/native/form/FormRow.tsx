@@ -18,9 +18,10 @@ export interface FormRowProps {
 }
 
 /*
- * One label-and-value row. The label leads and the control sits at the trailing edge,
- * whatever it is. Every value in a form lines up on one edge. Large text stacks the label
- * over the control.
+ * One label-and-value row. The label leads in the label colour and the control sits at the
+ * trailing edge, whatever it is, a value in the secondary colour: what the row is reads as the
+ * row's title, as a settings list sets it. Every value in a form lines up on one edge. Large
+ * text stacks the label over the control.
  */
 export const FormRow = ({
   label,
@@ -66,7 +67,7 @@ const useStyles = createStyles(({ colors, typography, spacing, grouped }) =>
     },
     label: {
       ...typography.body,
-      color: colors.secondaryLabel,
+      color: colors.label,
       flexShrink: 0,
       maxWidth: '50%',
     },
