@@ -179,6 +179,11 @@ public:
    */
   bool followAppends = false;
 
+  /*
+   * How close to the bottom an inverted list still counts as at the bottom.
+   */
+  double invertedFollowBand = INVERTED_FOLLOW_BAND;
+
   bool horizontal = false;
 
   std::size_t numberOfColumns = 1;

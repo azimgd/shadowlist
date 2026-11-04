@@ -78,6 +78,11 @@ struct FrameInput {
    * When off, appends keep the visible rows in place like any other insert.
    */
   bool followAppends = false;
+
+  /*
+   * How close to the bottom of an inverted list still counts as at the bottom, in the host's units.
+   */
+  double invertedFollowBand = INVERTED_FOLLOW_BAND;
   bool horizontal = false;
   std::size_t numberOfColumns = 1;
 
