@@ -511,7 +511,8 @@ function ShadowListBaseInner<ItemT>(
     });
 
   const keySelectionEnabled =
-    enableSelectionOnKeyPress && Platform.OS === 'macos';
+    enableSelectionOnKeyPress &&
+    (Platform.OS === 'macos' || (Platform.OS as string) === 'tty');
   const keySelectionProps = useKeySelection({
     enabled: keySelectionEnabled,
     source,

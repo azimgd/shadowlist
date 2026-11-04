@@ -1,0 +1,30 @@
+{
+  "//": "What tsx resolves at run time, as a consumer's bundler aliases: react-native to the platform in the sibling ream checkout, and react to the one copy the platform runs on.",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "react-native": [
+        "../../../../ream/packages/react-native-tty/src/index.ts"
+      ],
+      "react-native-tty/native": [
+        "../../../../ream/packages/react-native-tty/src/native.ts"
+      ],
+      "react-native-tty/host": [
+        "../../../../ream/packages/react-native-tty/src/host.ts"
+      ],
+      "react": [
+        "../../../../ream/packages/react-native-tty/node_modules/react"
+      ],
+      "react/*": [
+        "../../../../ream/packages/react-native-tty/node_modules/react/*"
+      ]
+    }
+  },
+  "include": [
+    ".",
+    "../src",
+    "../../shadowlist-fabric/src",
+    "../../../../ream/packages/react-native-tty/src"
+  ]
+}

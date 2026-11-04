@@ -1,0 +1,48 @@
+{
+  "name": "shadowlist-tty",
+  "version": "0.9.0",
+  "private": true,
+  "description": "ShadowList for terminals: the shared C++ core through a Node-API addon, behind the same ShadowList, SectionList and TreeList as React Native.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build-addon.mjs",
+    "test": "yarn run test:addon && yarn run test:list",
+    "test:addon": "node --import tsx --test test/ShadowListKitCore.test.ts",
+    "test:list": "TSX_TSCONFIG_PATH=test/tsconfig.json node --import tsx --test test/*.test.tsx",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "keywords": [
+    "list",
+    "virtualized-list",
+    "terminal",
+    "tty",
+    "node-api"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/azimgd/shadowlist.git",
+    "directory": "packages/shadowlist-tty"
+  },
+  "author": "azimgd <me@azimgd.com> (https://github.com/azimgd)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/azimgd/shadowlist/issues"
+  },
+  "homepage": "https://github.com/azimgd/shadowlist#readme",
+  "peerDependencies": {
+    "react": ">=19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.2"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "extends": "../shadowlist-fabric/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "types": ["node"],
+    "paths": {
+      "react": ["../shadowlist-fabric/node_modules/@types/react"],
+      "react/*": ["../shadowlist-fabric/node_modules/@types/react/*"],
+      "react-native": ["../shadowlist-fabric/node_modules/react-native"]
+    }
+  },
+  "include": ["src", "test/*.ts", "test/*.tsx"]
+}

@@ -93,6 +93,23 @@ jobs:
       - name: Run wasm tests
         run: yarn test:wasm
 
+  # The list running on react-native-tty needs the ream checkout, which CI has no access to.
+  # `yarn test:tty` runs that part too, from a checkout next to it.
+  test-tty:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Build the addon
+        run: yarn build:tty
+
+      - name: Run the addon tests
+        run: yarn workspace shadowlist-tty run test:addon
+
   build-library:
     runs-on: ubuntu-latest
     steps:

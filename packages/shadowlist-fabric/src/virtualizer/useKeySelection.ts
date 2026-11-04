@@ -1,10 +1,13 @@
 import { useCallback, useMemo, useRef, type ComponentRef } from 'react';
+import { Platform } from 'react-native';
 import ShadowListView, { Commands } from '../ShadowListViewNativeComponent';
 import type { RowSelection } from './CellRenderer';
 import {
+  PAGING_SELECTION_KEYS,
   SELECTION_KEYS,
   needsScrollIntoView,
   nextSelectableIndex,
+  pagedSelectableIndex,
 } from './keySelection';
 import type { RowSource } from './rowSource';
 import type { MountedRange } from './useMountedRange';
@@ -37,9 +40,10 @@ export interface KeySelectionProps {
 }
 
 /*
- * Keyboard selection on macOS. A click gives the list the keyboard. Up and Down select the row
- * above or below and scroll it into view, skipping rows that can't be selected. Return or
- * Space activates the selected row.
+ * Keyboard selection on macOS and in a terminal. A click gives the list the keyboard. Up and Down
+ * select the row above or below and scroll it into view, skipping rows that can't be selected.
+ * Return or Space activates the selected row. A terminal also pages with PageUp, PageDown, Home
+ * and End.
  */
 export function useKeySelection<ItemT>({
   enabled,
@@ -62,6 +66,16 @@ export function useKeySelection<ItemT>({
       const current =
         selectedKey === undefined ? -1 : source.rows.indexOfKey(selectedKey);
       const { key } = event.nativeEvent;
+      const moveTo = (next: number, viewPosition: number) => {
+        const nextKey = source.rows.keyAt(next);
+        if (nextKey === undefined) return;
+        selection.selectOnly(nextKey);
+        const view = viewRef.current;
+        if (view && needsScrollIntoView(next, visibleRangeRef.current)) {
+          seedAroundIndex(next, viewPosition);
+          Commands.scrollToRow(view, next, viewPosition, 0, false);
+        }
+      };
       if (key === 'ArrowUp' || key === 'ArrowDown') {
         const step = key === 'ArrowUp' ? -1 : 1;
         const next = nextSelectableIndex(
@@ -70,15 +84,22 @@ export function useKeySelection<ItemT>({
           source.rows.count,
           canSelectIndex
         );
-        const nextKey = source.rows.keyAt(next);
-        if (nextKey === undefined) return;
-        selection.selectOnly(nextKey);
-        const view = viewRef.current;
-        if (view && needsScrollIntoView(next, visibleRangeRef.current)) {
-          const viewPosition = step > 0 ? 1 : 0;
-          seedAroundIndex(next, viewPosition);
-          Commands.scrollToRow(view, next, viewPosition, 0, false);
-        }
+        moveTo(next, step > 0 ? 1 : 0);
+        return;
+      }
+      if (key !== 'Enter' && key !== ' ') {
+        const visible = visibleRangeRef.current;
+        const page = visible ? visible.high - visible.low + 1 : 1;
+        moveTo(
+          pagedSelectableIndex(
+            key,
+            current,
+            page,
+            source.rows.count,
+            canSelectIndex
+          ),
+          key === 'PageDown' || key === 'End' ? 1 : 0
+        );
         return;
       }
       const item = source.rows.itemAt(current);
@@ -107,7 +128,8 @@ export function useKeySelection<ItemT>({
         ? {
             focusable: true,
             enableFocusRing: false,
-            keyDownEvents: SELECTION_KEYS,
+            keyDownEvents:
+              Platform.OS === 'macos' ? SELECTION_KEYS : PAGING_SELECTION_KEYS,
             onKeyDown: handleKeyDown,
             onTouchStart: handleTouchStart,
           }

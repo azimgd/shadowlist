@@ -44,6 +44,7 @@ const EXAMPLES_TSCONFIG = 'templates/shadowlist-fabric-example/tsconfig.json';
  */
 function requiredLines() {
   const fabric = json('packages/shadowlist-fabric/package.json');
+  const tty = json('packages/shadowlist-tty/package.json');
   const utils = json('templates/shadowlist-utils/package.json');
   const kitBuild = 'packages/shadowlist-android/ShadowListKit/build.gradle.kts';
   const kitProperties =
@@ -67,6 +68,16 @@ function requiredLines() {
   return [
     ...peers('packages/shadowlist-fabric/README.md'),
     ...peers('templates/shadowlist-utils/README.md'),
+    {
+      file: 'packages/shadowlist-tty/README.md',
+      text: `| \`react\` | \`${tty.peerDependencies.react}\``,
+      what: 'react requirement (shadowlist-tty peer range)',
+    },
+    {
+      file: 'packages/shadowlist-tty/README.md',
+      text: `| Node | \`${tty.engines.node}\``,
+      what: 'Node requirement (shadowlist-tty engines)',
+    },
     {
       file: 'templates/shadowlist-utils/README.md',
       text: `| \`shadowlist\` | \`${utils.peerDependencies.shadowlist}\``,
