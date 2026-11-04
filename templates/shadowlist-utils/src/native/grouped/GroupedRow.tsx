@@ -1,5 +1,13 @@
-import { memo, useCallback, useMemo, type ReactNode } from 'react';
 import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from 'react';
+import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +21,14 @@ import { ChevronIcon } from '../icons';
 import { pressRippleFor } from '../internal/pressRipple';
 import { createStyles, useTheme } from '../theme';
 import { GroupedActions, type GroupedActionsProps } from './GroupedActions';
+
+/*
+ * A press held this long may be a menu on its way on iOS, where a finger lifted as the menu commits
+ * ends the touch before the system says the menu is coming. It waits MENU_WAIT_MS to hear. A quick
+ * tap opens at once.
+ */
+const MENU_POSSIBLE_AFTER_MS = 250;
+const MENU_WAIT_MS = 150;
 
 export interface GroupedRowProps extends Pick<
   GroupedActionsProps,
@@ -38,7 +54,8 @@ export interface GroupedRowProps extends Pick<
  * A card row that leads somewhere: a title over a subtitle, then a chevron unless the theme's
  * grouped.chevron turns it off. Swipe actions or a menu put it in Grouped.Actions. At
  * accessibility text sizes the title wraps to three lines and the subtitle to at least three,
- * instead of truncating.
+ * instead of truncating. A hold that opens the menu is not a press, even when the finger lifts
+ * before the system has cancelled the touch (MENU_WAIT_MS).
  */
 export const GroupedRow = memo(
   ({
@@ -81,6 +98,41 @@ export const GroupedRow = memo(
       },
       [onLongPress]
     );
+    const isMenuHoldRef = useRef(false);
+    const pressedAtRef = useRef(0);
+    const waitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const stopWaiting = useCallback(() => {
+      if (waitRef.current !== null) {
+        clearTimeout(waitRef.current);
+        waitRef.current = null;
+      }
+    }, []);
+    useEffect(() => stopWaiting, [stopWaiting]);
+    const handlePressIn = useCallback(() => {
+      stopWaiting();
+      isMenuHoldRef.current = false;
+      pressedAtRef.current = Date.now();
+    }, [stopWaiting]);
+    const handleMenuWillShow = useCallback(() => {
+      isMenuHoldRef.current = true;
+      stopWaiting();
+    }, [stopWaiting]);
+    const handlePress = useCallback(() => {
+      if (isMenuHoldRef.current) {
+        return;
+      }
+      if (
+        Platform.OS !== 'ios' ||
+        Date.now() - pressedAtRef.current < MENU_POSSIBLE_AFTER_MS
+      ) {
+        onPress?.();
+        return;
+      }
+      waitRef.current = setTimeout(() => {
+        waitRef.current = null;
+        onPress?.();
+      }, MENU_WAIT_MS);
+    }, [onPress]);
     const row = (
       <Pressable
         testID={testID}
@@ -92,7 +144,8 @@ export const GroupedRow = memo(
         accessibilityActions={accessibilityActions}
         onAccessibilityAction={handleAccessibilityAction}
         disabled={disabled}
-        onPress={onPress}
+        onPressIn={contextMenu ? handlePressIn : undefined}
+        onPress={contextMenu && onPress ? handlePress : onPress}
         onLongPress={onLongPress}
         android_ripple={ripple}
         style={({ pressed }) => [
@@ -134,6 +187,7 @@ export const GroupedRow = memo(
         leadingSwipeActions={leadingSwipeActions}
         trailingSwipeActions={trailingSwipeActions}
         contextMenu={contextMenu}
+        onContextMenuWillShow={handleMenuWillShow}
       >
         {row}
       </GroupedActions>

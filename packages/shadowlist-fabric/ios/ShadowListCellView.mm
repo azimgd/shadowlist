@@ -650,9 +650,11 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 #pragma mark - Context menu
 
 /*
- * The menu showing cancels the press under the hold: UIKit cancels the touch for React Native's
- * touch handler itself. The row does not cancel it as well. On iOS 26 that cancelled one touch
- * twice, and the handler's touch registry assertion aborted a debug build.
+ * UIKit cancels the touch under the hold for React Native's touch handler itself, but a beat after
+ * the menu commits: a finger lifted in that gap ends the touch as a press, under a menu that still
+ * shows. The row does not cancel the touch as well. On iOS 26 that cancelled one touch twice, and
+ * the handler's touch registry assertion aborted a debug build. It says the menu is coming
+ * (onContextMenuWillShow), and a press inside drops that release.
  */
 - (UIContextMenuConfiguration *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
                         configurationForMenuAtLocation:(CGPoint)location
@@ -696,6 +698,15 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
                                                   actionProvider:^UIMenu *(NSArray<UIMenuElement *> *) {
                                                     return menu;
                                                   }];
+}
+
+- (void)contextMenuInteraction:(UIContextMenuInteraction *)interaction
+    willDisplayMenuForConfiguration:(UIContextMenuConfiguration *)configuration
+                           animator:(id<UIContextMenuInteractionAnimating>)animator
+{
+  if (_eventEmitter) {
+    std::static_pointer_cast<const ShadowListCellViewEventEmitter>(_eventEmitter)->onContextMenuWillShow({});
+  }
 }
 
 #else

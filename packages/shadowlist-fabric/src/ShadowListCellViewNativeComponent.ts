@@ -43,6 +43,9 @@ interface NativeProps extends ViewProps {
   contextMenuActions?: ReadonlyArray<NativeMenuAction>;
   readonly onSwipeAction?: CodegenTypes.DirectEventHandler<OnSwipeAction>;
   readonly onContextMenuAction?: CodegenTypes.DirectEventHandler<OnContextMenuAction>;
+  readonly onContextMenuWillShow?: CodegenTypes.DirectEventHandler<
+    Readonly<{}>
+  >;
 }
 
 type ShadowListCellViewComponentType = ReturnType<
