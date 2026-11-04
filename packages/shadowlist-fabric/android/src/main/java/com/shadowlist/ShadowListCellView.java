@@ -739,18 +739,24 @@ public class ShadowListCellView extends ViewGroup {
   @Nullable private ReadableArray mContextMenuActions = null;
 
   /*
-   * Long presses on a cell outside a list. A list watches for them itself.
+   * Long presses on a cell outside a list. A list watches for them itself, for every cell in it.
    */
   @Nullable private GestureDetector mMenuGestureDetector = null;
 
   /*
-   * A cell outside a list watches its own touches for the long press. Claiming the down keeps
-   * the rest of the gesture coming here. A lift or a parent's scroll then cancels the hold.
+   * A cell inside a list, a row or an ItemActionsView in one, tells the list a touch came down
+   * on it. A cell outside a list watches its own touches for the long press. Claiming the down
+   * keeps the rest of the gesture coming here. A lift or a parent's scroll then cancels the hold.
    * React reads touches at its root and still gets them.
    */
   @Override
   public boolean dispatchTouchEvent(MotionEvent event) {
-    boolean watchesMenu = actionCount(mContextMenuActions) > 0 && listView() == null;
+    boolean hasMenu = actionCount(mContextMenuActions) > 0;
+    ShadowListView list = hasMenu ? listView() : null;
+    boolean watchesMenu = hasMenu && list == null;
+    if (list != null && event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+      list.menuCellTouched(this);
+    }
     if (watchesMenu) {
       if (mMenuGestureDetector == null) {
         mMenuGestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
