@@ -8,6 +8,8 @@
 
 ### ShadowList (React Native)
 
+- iOS: `ItemActionsView` takes `onContextMenuWillShow`, and `Grouped.Row` drops the press of a hold that opened its menu. UIKit cancels the touch a beat after the menu commits, so a finger lifted as the menu appeared opened the row under it too. A press held past 250ms on such a row now waits 150ms to hear of a menu before it opens.
+- Android: long pressing a row's `ItemActionsView`, or a cell with a menu anywhere inside a row, opens its menu. The list only asked the row cell it found under the finger, which has no actions when the menu is on a cell inside it, and a cell in a list leaves long presses to the list, so nothing opened and the release pressed the row. Cells with a menu now tell the list a touch came down on them and the innermost one opens. A row of a list inside a row wins over the row around it, as on iOS, so one long press no longer opens two menus.
 - `followAppends` keeps the end of an inverted list in view as rows grow in place, like a streaming reply, not only as rows are appended. A row inserted at the end is followed too.
 - `onAtEndChange(atEnd)` reports a reader who scrolled an inverted list away from its end and back.
 - `ItemActionsView` gives a view outside a list the swipe actions and menu of a list row.

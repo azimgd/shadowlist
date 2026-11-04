@@ -11,6 +11,7 @@ export interface GroupedActionsProps {
   leadingSwipeActions?: SwipeActionsConfiguration<undefined> | null;
   trailingSwipeActions?: SwipeActionsConfiguration<undefined> | null;
   contextMenu?: ContextMenu<undefined> | null;
+  onContextMenuWillShow?: () => void;
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
 }
@@ -41,6 +42,7 @@ export const GroupedActions = ({
   leadingSwipeActions,
   trailingSwipeActions,
   contextMenu,
+  onContextMenuWillShow,
   children,
   style,
 }: GroupedActionsProps) => {
@@ -58,6 +60,7 @@ export const GroupedActions = ({
       leadingSwipeActions={leading}
       trailingSwipeActions={trailing}
       contextMenu={contextMenu}
+      onContextMenuWillShow={onContextMenuWillShow}
       style={style}
     >
       {children}

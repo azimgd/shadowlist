@@ -9,6 +9,7 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.FrameLayout;
 import android.widget.OverScroller;
 
@@ -130,6 +131,12 @@ public class ShadowListView extends FrameLayout {
    * A long press on a row shows its context menu, unless it belongs to drag to reorder.
    */
   private final GestureDetector mMenuGestureDetector;
+
+  /*
+   * The innermost cell with a menu that this touch came down on, the row or an ItemActionsView
+   * inside it. Null when it came down on none, or on a row of a list inside this one with a menu.
+   */
+  @Nullable private ShadowListCellView mTouchedMenuCell = null;
   /*
    * Grid columns from props, which drags move rows across.
    */
@@ -795,6 +802,7 @@ public class ShadowListView extends FrameLayout {
     if (action == MotionEvent.ACTION_DOWN) {
       // Read before the inner scroll view sees the touch and stops the fling.
       mTouchStoppedFling = mSettling;
+      mTouchedMenuCell = null;
       closeSwipedRowOutside(event);
     }
     mDragController.trackGesture(event);
@@ -802,9 +810,12 @@ public class ShadowListView extends FrameLayout {
       mMenuGestureDetector.onTouchEvent(event);
     }
     boolean handled = super.dispatchTouchEvent(event);
-    if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) && mSwipeClosingTouch) {
-      mSwipeClosingTouch = false;
-      NativeGestureUtil.notifyNativeGestureEnded(this, event);
+    if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+      mTouchedMenuCell = null;
+      if (mSwipeClosingTouch) {
+        mSwipeClosingTouch = false;
+        NativeGestureUtil.notifyNativeGestureEnded(this, event);
+      }
     }
     return handled;
   }
@@ -1141,18 +1152,31 @@ public class ShadowListView extends FrameLayout {
   // region Context menu
 
   /*
-   * Show the context menu of the row under a long press. Drag to reorder owns the long press
-   * when it is on. Its rows show no menu, and neither does a touch that stopped a fling.
+   * A touch came down on a cell with a menu inside this list. Cells are told outermost first, so
+   * the innermost one is left, and a list around this one gives the long press up, as on iOS,
+   * where the innermost menu wins.
+   */
+  void menuCellTouched(ShadowListCellView cell) {
+    mTouchedMenuCell = cell;
+    for (ViewParent parent = getParent(); parent != null; parent = parent.getParent()) {
+      if (parent instanceof ShadowListView) {
+        ((ShadowListView) parent).mTouchedMenuCell = null;
+      }
+    }
+  }
+
+  /*
+   * Show the context menu of the cell under a long press. Drag to reorder owns the long press
+   * when it is on. Its rows show no menu, and neither does a touch that stopped a fling. A cell
+   * that left the window during the hold has nothing to anchor a menu to.
    */
   private void showRowMenu(MotionEvent event) {
     if (mSwipedRow != null || mSwipeClosingTouch || mTouchStoppedFling || mDragController.isEnabled()) {
       return;
     }
-    float contentX = event.getX() + mScrollView.getScrollX();
-    float contentY = event.getY() + mScrollView.getScrollY();
-    ShadowListCellView row = mDragController.cellViewAtContentPoint(contentX, contentY);
-    if (row != null) {
-      row.showRowMenu(event);
+    ShadowListCellView cell = mTouchedMenuCell;
+    if (cell != null && cell.isAttachedToWindow()) {
+      cell.showRowMenu(event);
     }
   }
 
