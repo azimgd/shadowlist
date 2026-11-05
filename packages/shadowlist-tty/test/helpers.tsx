@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
 import { AppRegistry } from 'react-native';
 import { after } from 'node:test';
-import { createTestHost, type TestHost } from 'react-native-tty/host';
-import { setShadowListAddonPath } from '../src';
-
-setShadowListAddonPath(
-  new URL('../build/shadowlist_tty.node', import.meta.url).pathname
-);
+import {
+  createTestHost,
+  type InputEvent,
+  type TestHost,
+} from 'react-native-tty/host';
+import '../src';
 
 /*
  * AppRegistry as the platform has it. tsc reads react-native's own types, which know no host.
@@ -40,7 +40,7 @@ export async function renderApp(
   return host;
 }
 
-export function wheelEvent(deltaY: number, deltaX = 0): object {
+export function wheelEvent(deltaY: number, deltaX = 0): InputEvent {
   return {
     type: 'wheel',
     x: 1,

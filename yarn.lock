@@ -4989,7 +4989,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"esbuild@npm:~0.28.0":
+"esbuild@npm:^0.28.2":
   version: 0.28.2
   resolution: "esbuild@npm:0.28.2"
   dependencies:
@@ -5714,7 +5714,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fsevents@npm:^2.3.2, fsevents@npm:~2.3.3":
+"fsevents@npm:^2.3.2":
   version: 2.3.3
   resolution: "fsevents@npm:2.3.3"
   dependencies:
@@ -5724,7 +5724,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fsevents@patch:fsevents@npm%3A^2.3.2#optional!builtin<compat/fsevents>, fsevents@patch:fsevents@npm%3A~2.3.3#optional!builtin<compat/fsevents>":
+"fsevents@patch:fsevents@npm%3A^2.3.2#optional!builtin<compat/fsevents>":
   version: 2.3.3
   resolution: "fsevents@patch:fsevents@npm%3A2.3.3#optional!builtin<compat/fsevents>::version=2.3.3&hash=df0bf1"
   dependencies:
@@ -8993,6 +8993,12 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-tty@link:../../../ream/packages/react-native-tty::locator=shadowlist-tty%40workspace%3Apackages%2Fshadowlist-tty":
+  version: 0.0.0-use.local
+  resolution: "react-native-tty@link:../../../ream/packages/react-native-tty::locator=shadowlist-tty%40workspace%3Apackages%2Fshadowlist-tty"
+  languageName: node
+  linkType: soft
+
 "react-native-worklets@npm:0.9.1":
   version: 0.9.1
   resolution: "react-native-worklets@npm:0.9.1"
@@ -9639,10 +9645,12 @@ __metadata:
   resolution: "shadowlist-tty@workspace:packages/shadowlist-tty"
   dependencies:
     "@types/node": "npm:^22.20.4"
-    tsx: "npm:^4.23.15"
+    esbuild: "npm:^0.28.2"
+    react-native-tty: "link:../../../ream/packages/react-native-tty"
     typescript: "npm:^6.0.2"
   peerDependencies:
-    react: ">=19.2.0"
+    react: 19.2.3
+    react-native-tty: "*"
   languageName: unknown
   linkType: soft
 
@@ -10209,21 +10217,6 @@ __metadata:
   peerDependencies:
     typescript: ">=4.8.4"
   checksum: 10c0/767849383c114e7f1971fa976b20e73ac28fd0c70d8d65c0004790bf4d8f89888c7e4cf6d5949f9c1beae9bc3c64835bef77bbe27fddf45a3c7b60cebcf85c8c
-  languageName: node
-  linkType: hard
-
-"tsx@npm:^4.23.15":
-  version: 4.23.15
-  resolution: "tsx@npm:4.23.15"
-  dependencies:
-    esbuild: "npm:~0.28.0"
-    fsevents: "npm:~2.3.3"
-  dependenciesMeta:
-    fsevents:
-      optional: true
-  bin:
-    tsx: dist/cli.mjs
-  checksum: 10c0/3c5fc53e578da87d3a63565286b1ecbb0e01b9bb646daec1957294ef890d14f22cc67bb4b09b5daffab0e7ce0217b1e7645393feb0f524b1ddf26ae9595d7e75
   languageName: node
   linkType: hard
 

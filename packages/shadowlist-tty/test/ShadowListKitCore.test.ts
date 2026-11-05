@@ -2,18 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   PHASE_IDLE,
-  setShadowListAddonPath,
   ShadowListKitCore,
   shadowListStoreModule,
 } from '../src/ShadowListKitCore';
 
 /*
  * The addon alone, no platform: it loads, the store keeps versions and a selection, and a driver
- * lays out a large list while measuring few rows. CI runs this where the ream checkout is absent.
+ * lays out a large list while measuring few rows.
  */
-setShadowListAddonPath(
-  new URL('../build/shadowlist_tty.node', import.meta.url).pathname
-);
 
 const SETTINGS = {
   overscan: 1,

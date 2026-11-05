@@ -1,4 +1,3 @@
-import path from 'node:path';
 import type { ShadowListStoreModule } from '../../shadowlist-fabric/src/virtualizer/nativeStore';
 
 /*
@@ -6,8 +5,6 @@ import type { ShadowListStoreModule } from '../../shadowlist-fabric/src/virtuali
  * a thin hop into the core's ListDriver. The pass array is reused, so a layout allocates nothing
  * here.
  */
-
-const ADDON_NAME = 'shadowlist_tty.node';
 
 /*
  * What the addon's driver object holds. The first argument of every function is the driver.
@@ -63,7 +60,6 @@ interface DriverFunctions {
     driver: unknown,
     offset: number
   ): { key: string; offset: number } | null;
-  restoreAnchorState(driver: unknown, key: string, offset: number): boolean;
   updatePrefetch(
     driver: unknown,
     low: number,
@@ -91,24 +87,17 @@ interface Addon {
   driver: DriverFunctions;
 }
 
-let addonPath: string | null = null;
 let addon: Addon | null = null;
-
-/*
- * Where the addon is. Without a call it is read from beside the running script, where a bundle
- * keeps it. Takes effect on the first list.
- */
-export function setShadowListAddonPath(location: string): void {
-  addonPath = location;
-}
 
 function loadAddon(): Addon {
   if (addon === null) {
     const location =
-      addonPath ??
-      path.join(path.dirname(process.argv[1] ?? process.cwd()), ADDON_NAME);
+      process.env.SHADOWLIST_TTY_ADDON ??
+      decodeURIComponent(
+        new URL('../build/shadowlist_tty.node', import.meta.url).pathname
+      );
     const loaded = { exports: {} };
-    process.dlopen(loaded, path.resolve(location));
+    process.dlopen(loaded, location);
     addon = loaded.exports as Addon;
   }
   return addon;
@@ -371,10 +360,6 @@ export class ShadowListKitCore {
 
   getAnchorState(offset: number): { key: string; offset: number } | null {
     return this.functions.getAnchorState(this.driver, offset);
-  }
-
-  restoreAnchorState(key: string, offset: number): boolean {
-    return this.functions.restoreAnchorState(this.driver, key, offset);
   }
 
   updatePrefetch(

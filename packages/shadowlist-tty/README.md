@@ -1,6 +1,6 @@
 # ShadowList for terminals
 
-`ShadowList`, `SectionList` and `TreeList` in a terminal, with the same props and `ShadowListCommands` as React Native.
+`ShadowList`, `SectionList` and `TreeList` in a terminal, with the same props and `ShadowListCommands` as React Native, and everything else of [shadowlist](../shadowlist-fabric/README.md)'s index.
 React renders the rows, and the shared C++ core, reached through a Node-API addon, decides which rows mount and where
 they sit. Rows are ordinary `react-native-tty` views. A 100,000 row list mounts what is near the window.
 
@@ -10,7 +10,7 @@ they sit. Rows are ordinary `react-native-tty` views. A 100,000 row list mounts 
 
 | Dependency | Version |
 | --- | --- |
-| `react` | `>=19.2.0` |
+| `react` | `19.2.3` |
 | Node | `>=22` |
 | `react-native-tty` | From the ream repo, aliased as `react-native` by the consumer |
 | CMake and a C++20 compiler | To build the addon |
@@ -19,8 +19,7 @@ they sit. Rows are ordinary `react-native-tty` views. A 100,000 row list mounts 
 yarn build:tty
 ```
 
-`build/shadowlist_tty.node` is built against the headers of the Node that runs the command, or with
-`node packages/shadowlist-tty/scripts/build-addon.mjs` from outside this repo. It is ignored by git.
+`build/shadowlist_tty.node` is built against the headers of the Node that runs the command. It is ignored by git.
 
 ## Usage
 
@@ -65,9 +64,9 @@ await build({
 });
 ```
 
-Copy `build/shadowlist_tty.node` next to the bundle, where it is read from by default: the directory of `process.argv[1]`.
-Elsewhere, call `setShadowListAddonPath(path)` before the first list renders. The addon is loaded with `process.dlopen`,
-so it does not go through the bundler.
+Set `SHADOWLIST_TTY_ADDON` to where `build/shadowlist_tty.node` is before the first list renders, as `SHADOWGRID_TTY_ADDON`
+is for the grid. Unbundled, it is read from this package's `build/`. The addon is loaded with `process.dlopen`, so it does
+not go through the bundler.
 
 ## In a terminal
 
@@ -87,8 +86,9 @@ most once per frame.
 
 | Prop or command | In a terminal |
 | --- | --- |
-| `DraggableList`, `reorderEnabled` | Not exported, and inert on `ShadowList`. |
-| Swipe actions, `contextMenuForItem` | Inert. |
+| `DraggableList`, `reorderEnabled` | `DraggableList` is a `ShadowList`, and `reorderEnabled` is inert. |
+| Swipe actions, `contextMenuForItem`, `ItemActionsView` | Inert. `ItemActionsView` draws its children. |
+| `KeyboardView`, `useKeyboardAnimation` | No soft keyboard. `KeyboardView` is a plain view and the animation stays at 0. |
 | `onRefresh` | No pull to start one. `refreshing` still holds new data until it turns false. |
 | `getItemSizeSpec`, `nonAnchorKeys` | Inert. Rows are measured when they mount. |
 | `scrollEventThrottle`, `decelerationRate`, `bounces` | Inert. There is no momentum. |
@@ -102,15 +102,7 @@ most once per frame.
 yarn test:tty
 ```
 
-| Script | What it runs |
-| --- | --- |
-| `test:addon` | The addon alone, with no platform. CI runs this one. |
-| `test:list` | Lists mounted in a `react-native-tty` test host. |
-
-`test:list` needs the ream repo next to this one, at `../ream`, with its dependencies installed. `test/tsconfig.json`
-points `tsx` at `packages/react-native-tty` and at the `react` it runs on, the way a consumer's bundler aliases them.
-`tsc` reads `react-native`'s own types instead, and `src/react-native-tty.d.ts` repeats what is used of the platform, so
-`yarn typecheck` needs no ream checkout.
+[test/run.mjs](test/run.mjs) bundles each test with esbuild as a consumer would, with `react-native` aliased to `../ream/packages/react-native-tty`, and runs it in that platform's test host. `react-native-tty`'s dependencies have to be installed in the `ream` checkout, which `yarn typecheck` reads as well. `ream.pin` names the commit CI checks it out at.
 
 ## How it fits together
 

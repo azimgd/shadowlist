@@ -412,10 +412,10 @@ test('a press in a row reaches the row at its scrolled place', async () => {
   host.send(wheelEvent(6));
   await host.settle();
   const click = {
-    type: 'pointer',
+    type: 'pointer' as const,
     x: 1,
     y: 1,
-    button: 'left',
+    button: 'left' as const,
     shiftKey: false,
     ctrlKey: false,
     altKey: false,

@@ -1,0 +1,30 @@
+name: Checkout the app
+description: Check out the app beside this repo at the commit in ream.pin, for shadowlist-tty's react-native-tty
+
+inputs:
+  directory:
+    description: Where this repo is checked out
+    default: shadowlist
+  token:
+    description: A token that can read azimgd/getream (needed while it is private)
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    # A pin file is a 40-character hash on a line of its own. Anything after # is a comment.
+    - name: Read the pin
+      id: pins
+      shell: bash
+      run: |
+        commit=$(sed 's/#.*$//' "${{ inputs.directory }}/ream.pin" | grep -Eo '^[0-9a-f]{40}$' | head -1)
+        test -n "$commit" || { echo "::error::ream.pin holds no commit"; exit 1; }
+        echo "ream=$commit" >> "$GITHUB_OUTPUT"
+
+    - name: Checkout the app
+      uses: actions/checkout@v4
+      with:
+        repository: azimgd/getream
+        ref: ${{ steps.pins.outputs.ream }}
+        path: ream
+        token: ${{ inputs.token }}

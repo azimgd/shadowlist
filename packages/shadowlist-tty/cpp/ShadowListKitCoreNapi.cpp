@@ -654,13 +654,6 @@ napi_value getAnchorState(const Args& args) {
   return object;
 }
 
-napi_value restoreAnchorState(const Args& args) {
-  sl::AnchorState anchor;
-  anchor.key = args.string(1);
-  anchor.offset = args.number(2);
-  return boolValue(args.env, args.peer().driver.restoreAnchorState(anchor));
-}
-
 /*
  * The rows to prefetch and to cancel now that low to high are mounted, or null when none changed.
  */
@@ -752,7 +745,6 @@ const Entry DRIVER_ENTRIES[] = {
   {"scrollToEnd", scrollToEnd},
   {"nearestSnapOffset", nearestSnapOffset},
   {"getAnchorState", getAnchorState},
-  {"restoreAnchorState", restoreAnchorState},
   {"updatePrefetch", updatePrefetch},
   {"updateViewability", updateViewability},
 };

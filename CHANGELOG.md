@@ -4,7 +4,7 @@
 
 ### ShadowList for terminals
 
-- `shadowlist-tty` runs `ShadowList`, `SectionList` and `TreeList` in a terminal through `react-native-tty`, with the same props and `ShadowListCommands`. The Fabric JS loads unchanged on the view managers it registers, and a Node-API addon holds the shared C++ core. A 100,000 row list mounts what is near the window. `DraggableList`, swipe actions and context menus are not there yet.
+- `shadowlist-tty` runs `ShadowList`, `SectionList` and `TreeList` in a terminal through `react-native-tty`, with the same props and `ShadowListCommands`. The Fabric JS loads unchanged on the view managers it registers, and a Node-API addon holds the shared C++ core. A 100,000 row list mounts what is near the window. Everything else of the index is there too: `DraggableList` is a `ShadowList`, and swipe actions, context menus and the soft keyboard are inert.
 
 ### ShadowList core
 

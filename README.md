@@ -194,7 +194,7 @@ The web example documents its flags in [its package README](packages/shadowlist-
 | `yarn build:wasm` | Builds `shadowlist-wasm` into its `dist/` with Emscripten |
 | `yarn test:wasm` | Node tests for `shadowlist-wasm`, after `yarn build:wasm` |
 | `yarn build:tty` | Builds the `shadowlist-tty` addon with CMake |
-| `yarn test:tty` | Builds the addon, then Node tests for `shadowlist-tty`. The list tests need the ream checkout next to this one |
+| `yarn test:tty` | Builds the addon, then Node tests for `shadowlist-tty`. They need the ream checkout next to this one |
 | `yarn build` | Vendors the core into the package and builds it with bob |
 | `yarn clean` | Removes the package's build output |
 | `yarn format` | Prettier over the repo. `format:check` only checks. |
