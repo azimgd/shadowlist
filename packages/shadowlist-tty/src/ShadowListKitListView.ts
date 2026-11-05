@@ -1,6 +1,7 @@
 import {
   registerNativeModule,
   registerViewManager,
+  type NativeChild,
   type NativeView,
   type PointerEvent,
   type WheelEvent,
@@ -22,37 +23,6 @@ import {
 
 const CELL_VIEW = 'ShadowListCellView';
 
-/*
- * What a child of the view is, past what NativeView promises. A native view that places its own
- * children, as this list does, goes through react-native-tty's node: Yoga holds where the row is,
- * so measure and pointer coordinates in it stay right after the next layout, and syncLayout moves
- * it for the paint already running.
- */
-interface ChildNode {
-  readonly type: string;
-  readonly props: Record<string, any>;
-  readonly width: number;
-  readonly height: number;
-  readonly left: number;
-  readonly top: number;
-  style: Record<string, unknown>;
-  readonly yoga: {
-    setPosition(edge: number, value: number): void;
-  } | null;
-  syncLayout(parentX: number, parentY: number, events: (() => void)[]): void;
-}
-
-interface ListNode extends NativeView {
-  readonly children: ChildNode[];
-  style: Record<string, unknown>;
-}
-
-/*
- * Yoga's Edge.Left and Edge.Top. Its enums belong to the platform's copy of Yoga.
- */
-const EDGE_LEFT = 0;
-const EDGE_TOP = 1;
-
 const OFFSCREEN = -100000;
 
 /*
@@ -64,27 +34,20 @@ const MAX_PASSES_PER_PAINT = 4;
  * How often a report held back for minimumViewTime is looked at.
  */
 const VIEWABILITY_POLL_MS = 50;
-const NO_EVENTS: (() => void)[] = [];
-
-interface Placement {
-  x: number;
-  y: number;
-}
 
 /*
  * The children of a list by what they are.
  */
 interface ListChildren {
-  cells: Map<string, ChildNode>;
-  header: ChildNode | null;
-  footer: ChildNode | null;
-  empty: ChildNode | null;
-  overlay: ChildNode | null;
+  cells: Map<string, NativeChild>;
+  header: NativeChild | null;
+  footer: NativeChild | null;
+  empty: NativeChild | null;
+  overlay: NativeChild | null;
 }
 
 class ListViewController {
   private readonly core = new ShadowListKitCore();
-  private readonly placements = new WeakMap<ChildNode, Placement>();
   private offset = 0;
   private content = 0;
   private footerStart = 0;
@@ -123,7 +86,7 @@ class ListViewController {
   private sentSequence = 0;
   private sentGeneration = 0;
 
-  constructor(private readonly view: ListNode) {}
+  constructor(private readonly view: NativeView) {}
 
   destroy(): void {
     if (this.viewabilityTimer !== null) clearTimeout(this.viewabilityTimer);
@@ -131,7 +94,7 @@ class ListViewController {
 
   update(props: Record<string, any>, previous: Record<string, any>): void {
     // The core's rows reach past the view. Rows are clipped to it.
-    this.view.style = { ...this.view.style, overflow: 'hidden' };
+    this.view.setStyle({ overflow: 'hidden' });
     if (
       !this.hasSettings ||
       props.overscan !== previous.overscan ||
@@ -346,7 +309,7 @@ class ListViewController {
     return result;
   }
 
-  private sizeOf(node: ChildNode | null, horizontal: boolean): number {
+  private sizeOf(node: NativeChild | null, horizontal: boolean): number {
     if (!node) return 0;
     return horizontal ? node.width : node.height;
   }
@@ -493,14 +456,14 @@ class ListViewController {
     for (const [key, cell] of children.cells) {
       const index = this.core.indexOfKey(key);
       if (index < 0 || index >= count) {
-        this.placeChild(cell, OFFSCREEN, OFFSCREEN);
+        cell.place(OFFSCREEN, OFFSCREEN);
         continue;
       }
       const rect = this.core.getRowRect(index);
       if (horizontal) {
-        this.placeChild(cell, rect.x - offset, rect.y);
+        cell.place(rect.x - offset, rect.y);
       } else {
-        this.placeChild(cell, rect.x, rect.y - offset);
+        cell.place(rect.x, rect.y - offset);
       }
     }
     const { props } = this.view;
@@ -551,41 +514,16 @@ class ListViewController {
   /*
    * A pinned template comes before the rows in the tree, and they scroll under it.
    */
-  private paintAbove(node: ChildNode): void {
-    if (node.style.zIndex === undefined) {
-      node.style = { ...node.style, zIndex: 1 };
-    }
+  private paintAbove(node: NativeChild): void {
+    node.setStyle({ zIndex: 1 });
   }
 
   private placeAlong(
-    node: ChildNode,
+    node: NativeChild,
     along: number,
     horizontal: boolean
   ): void {
-    this.placeChild(node, horizontal ? along : 0, horizontal ? 0 : along);
-  }
-
-  /*
-   * Moves a child so it sits at x and y in the view. A child in the flow, as a template is, has its
-   * Yoga position added to where the flow put it. What this leaves in Yoga holds at the next
-   * layout, and the sync moves the subtree for this paint.
-   */
-  private placeChild(node: ChildNode, left: number, top: number): void {
-    const { yoga } = node;
-    if (!yoga) return;
-    // A row's estimate can be a fraction of a cell, which has no place to show.
-    const x = Math.round(left);
-    const y = Math.round(top);
-    const previous = this.placements.get(node) ?? { x: 0, y: 0 };
-    const nextX = x - (node.left - previous.x);
-    const nextY = y - (node.top - previous.y);
-    if (nextX !== previous.x || nextY !== previous.y) {
-      yoga.setPosition(EDGE_LEFT, nextX);
-      yoga.setPosition(EDGE_TOP, nextY);
-      this.placements.set(node, { x: nextX, y: nextY });
-    }
-    const { frame } = this.view;
-    node.syncLayout(frame.x + x - node.left, frame.y + y - node.top, NO_EVENTS);
+    node.place(horizontal ? along : 0, horizontal ? 0 : along);
   }
 
   // endregion
@@ -829,7 +767,7 @@ function controllerOf(view: NativeView): ListViewController {
  */
 registerViewManager('ShadowListView', {
   create(view) {
-    controllers.set(view, new ListViewController(view as ListNode));
+    controllers.set(view, new ListViewController(view));
   },
   update(view, props, previous) {
     controllerOf(view).update(props, previous);

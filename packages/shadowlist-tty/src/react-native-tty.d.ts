@@ -18,10 +18,20 @@ declare module 'react-native-tty/native' {
     deltaX: number;
     deltaY: number;
   }
+  export interface NativeChild {
+    readonly type: string;
+    readonly props: Record<string, any>;
+    readonly width: number;
+    readonly height: number;
+    place(x: number, y: number): void;
+    setStyle(patch: Record<string, unknown>): void;
+  }
   export interface NativeView {
     readonly tag: number;
     readonly props: Record<string, any>;
     readonly frame: { x: number; y: number; width: number; height: number };
+    readonly children: ReadonlyArray<NativeChild>;
+    setStyle(patch: Record<string, unknown>): void;
     invalidate(): void;
     dispatchEvent(name: string, nativeEvent: unknown): void;
     focus(): void;

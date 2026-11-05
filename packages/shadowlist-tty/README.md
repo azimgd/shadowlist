@@ -123,6 +123,3 @@ platforms is here:
 | `cpp/ShadowListKitCoreNapi.cpp` | Hops into `ListDriver`, and the `ShadowListStore` functions over `RowKeyStore` and `ListSelection`. |
 | `src/ShadowListKitCore.ts` | The addon's loader and one list's core. |
 | `src/ShadowListKitListView.ts` | The three view managers. On each paint: runs the core, moves the children, sends the events. |
-
-`ShadowListKitListView.ts` reads `children`, `yoga` and `syncLayout` from the node behind a `NativeView`, which
-`react-native-tty/native` does not promise: no native view there places its children yet.
