@@ -139,6 +139,10 @@ final class ShadowListDragController {
    */
   private final WeakHashMap<View, float[]> mShiftTargets = new WeakHashMap<>();
   private final int[] mLocation = new int[2];
+  /*
+   * The number of the last drag event this list sent, see dispatchDragEvent.
+   */
+  private double mLastDragEventSequence = 0;
 
   /*
    * React Native's horizontal scroll view keeps pagingEnabled private. The board reads it to
@@ -1681,11 +1685,17 @@ final class ShadowListDragController {
     if (state == null) {
       return;
     }
-    double sequence = 1;
+    /*
+     * Past the mounted state's number and past the last one sent. The mounted state can be behind
+     * this list's newest, and a number already used would never reach JS.
+     */
+    double mounted = 0;
     ReadableMap currentStateData = state.getStateData();
     if (currentStateData != null && currentStateData.hasKey("dragEventSequence")) {
-      sequence = currentStateData.getDouble("dragEventSequence") + 1;
+      mounted = currentStateData.getDouble("dragEventSequence");
     }
+    double sequence = Math.max(mounted, mLastDragEventSequence) + 1;
+    mLastDragEventSequence = sequence;
     // Like every host update, the event carries the live offset and the latest scroll command.
     mView.dispatchDragEvent(type, sourceKey, destinationKey, destinationListId, destinationIndex, sequence);
   }

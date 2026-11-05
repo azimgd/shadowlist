@@ -5,6 +5,7 @@
 
 #include "TestFramework.hpp"
 
+#include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/host/DragReorder.hpp>
 
 #include <string>
@@ -45,6 +46,27 @@ DragReorder dragRow3To(double touchContent) {
  * A host that looks keys up by index leaves DragRow keys empty and hands updateInsertion a
  * lookup. The drop spot gets the same key either way.
  */
+/*
+ * Android builds a host update on the state the view last mounted. A scroll frame between a pickup
+ * and that pickup's mount commits a state with the previous drop in it, as the log of a real drag
+ * showed: 2 the drop, 3 the pickup, 2 again from the frame. Sent again, the drop moves the rows back.
+ */
+TEST(drag_event_from_an_older_state_does_not_fire_again) {
+  Container container;
+  CHECK(container.takeDragEventSequence(0.0));
+  CHECK(container.takeDragEventSequence(1.0));
+  CHECK(container.takeDragEventSequence(2.0));
+  CHECK(!container.takeDragEventSequence(2.0));
+
+  CHECK(container.takeDragEventSequence(3.0));
+  CHECK(!container.takeDragEventSequence(2.0));
+  CHECK(!container.takeDragEventSequence(3.0));
+
+  // The next real event goes past every number seen, whatever the older state said.
+  CHECK(container.takeDragEventSequence(4.0));
+  CHECK(!container.takeDragEventSequence(3.0));
+}
+
 TEST(drag_insertion_reads_keys_through_the_lookup) {
   DragReorder drag;
   drag.begin(3, "k3", 300.0, 100.0, 350.0);

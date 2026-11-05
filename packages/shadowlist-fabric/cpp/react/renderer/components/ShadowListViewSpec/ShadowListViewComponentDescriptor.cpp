@@ -83,15 +83,15 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
 
   /*
    * Tell JS when a drag starts or ends. The platform view bumps the sequence only on pick
-   * up and drop, since finger tracking stays native. Fire once per new sequence.
+   * up and drop, since finger tracking stays native. Fire once per new sequence, never for an
+   * older state, see takeDragEventSequence.
    * A drop also tells the core what it did to this list's keys, see DropHint: a row moved
    * within the list, or left it for another list of the drag board. A row landing here from
    * another list comes as DRAG_EVENT_LAND, which JS does not hear. The core keeps the offset
    * when the data change lands.
    */
   azimgd::shadowlist::DropHint dropHint;
-  if (shadowlistViewStateData.dragEventSequence_ != containerManager->previousDragEventSequence) {
-    containerManager->previousDragEventSequence = shadowlistViewStateData.dragEventSequence_;
+  if (containerManager->takeDragEventSequence(shadowlistViewStateData.dragEventSequence_)) {
     const std::string& dragSourceKey = shadowlistViewStateData.dragSourceKey_;
     const std::string& dragDestinationKey = shadowlistViewStateData.dragDestinationKey_;
     switch (static_cast<int>(shadowlistViewStateData.dragEventType_)) {
