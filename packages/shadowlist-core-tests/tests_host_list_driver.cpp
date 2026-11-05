@@ -517,6 +517,24 @@ TEST(list_driver_row_rect_spans_the_cross_axis) {
   CHECK_EQ(rect.height, rowHeight(2));
 }
 
+TEST(list_driver_drag_reaches_the_last_and_first_slot_through_the_content_edge) {
+  Host host(3);
+  host.settle();
+  std::vector<std::size_t> mounted{0, 1, 2};
+
+  host.driver.dragBegin(0, host.driver.getLeadingAt(0) + 5.0, 0.0);
+  host.driver.placeHeld(0, 100000.0, 0.0);
+  host.driver.dragUpdateInsertion(mounted);
+  CHECK_EQ(host.driver.getDragInsertionIndex(), std::size_t{2});
+  host.driver.dragEnd();
+
+  host.driver.dragBegin(2, host.driver.getLeadingAt(2) + 5.0, 0.0);
+  host.driver.placeHeld(2, -100000.0, 0.0);
+  host.driver.dragUpdateInsertion(mounted);
+  CHECK_EQ(host.driver.getDragInsertionIndex(), std::size_t{0});
+  host.driver.dragEnd();
+}
+
 TEST(list_driver_drag_moves_the_drop_slot_and_skips_the_held_row) {
   Host host(100);
   host.settle();

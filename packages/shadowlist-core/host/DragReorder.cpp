@@ -126,10 +126,19 @@ double dragHeldLeading(double touchContent, double grabOffset, double extent, do
 namespace {
 
 /*
- * Shared by the array form and the session. row(position) gives index, leading and extent.
+ * Shared by the array form and the session. row(position) gives index, leading and extent. A row
+ * is passed when the center is past its midpoint, or when the held row has stopped at the content
+ * edge on that row's side (atStart, atEnd), which is as far as a center can go: exactly the midpoint
+ * of a last row of the held row's size, and short of a smaller one's.
  */
 template <typename RowAt>
-std::size_t insertionPosition(std::size_t count, std::size_t originIndex, double center, RowAt row) {
+std::size_t insertionPosition(
+  std::size_t count,
+  std::size_t originIndex,
+  double center,
+  bool atStart,
+  bool atEnd,
+  RowAt row) {
   std::size_t insertion = originIndex;
   std::size_t position = UNDEFINED_INDEX;
   for (std::size_t current = 0; current < count; ++current) {
@@ -141,8 +150,8 @@ std::size_t insertionPosition(std::size_t count, std::size_t originIndex, double
       continue;
     }
     double midpoint = leading + extent / 2.0;
-    if ((index > originIndex && center > midpoint && index > insertion) ||
-        (index < originIndex && center < midpoint && index < insertion)) {
+    if ((index > originIndex && (center > midpoint || atEnd) && index > insertion) ||
+        (index < originIndex && (center < midpoint || atStart) && index < insertion)) {
       insertion = index;
       position = current;
     }
@@ -557,7 +566,7 @@ std::size_t dragInsertionIndex(
     leading = leadings[current];
     extent = extents[current];
   };
-  return insertionPosition(count, originIndex, center, rowAt);
+  return insertionPosition(count, originIndex, center, false, false, rowAt);
 }
 
 double dragShift(std::size_t originIndex, std::size_t insertionIndex, double draggedExtent, std::size_t index) {
@@ -576,6 +585,8 @@ double dragShift(std::size_t originIndex, std::size_t insertionIndex, double dra
 void DragReorder::begin(std::size_t index, std::string key, double restingLeading, double extent, double touchContent) {
   foreign_ = false;
   heldAway_ = false;
+  heldAtStart_ = false;
+  heldAtEnd_ = false;
   columns_ = 1;
   crossGrabOffset_ = 0.0;
   crossLeading_ = 0.0;
@@ -635,6 +646,10 @@ DragOffset DragReorder::placeRow(
 double DragReorder::place(double touchContent, double restingLeading, double extent, double contentSize) {
   leading_ = dragHeldLeading(touchContent, grabOffset_, extent, contentSize);
   center_ = leading_ + extent / 2.0;
+  // Only an edge it moved to. A row resting on one has nothing past it to reach, sized or not.
+  double lastLeading = std::max(0.0, contentSize - extent);
+  heldAtStart_ = lastLeading > 0.0 && restingLeading > 0.0 && leading_ <= 0.0;
+  heldAtEnd_ = lastLeading > restingLeading && leading_ >= lastLeading;
   return leading_ - restingLeading;
 }
 
@@ -696,7 +711,7 @@ std::size_t DragReorder::locateInsertion(const std::vector<DragRow>& rows) {
     leading = rows[current].leading;
     extent = rows[current].extent;
   };
-  std::size_t position = insertionPosition(rows.size(), originIndex_, center_, rowAt);
+  std::size_t position = insertionPosition(rows.size(), originIndex_, center_, heldAtStart_, heldAtEnd_, rowAt);
   if (position == UNDEFINED_INDEX) {
     // Nothing passed. The drop names the held row itself and nothing moves.
     insertionIndex_ = originIndex_;
