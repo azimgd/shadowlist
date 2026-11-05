@@ -318,6 +318,16 @@ void SLDragSelectionFeedback(void)
   // We scroll ourselves near the edges. Stop the scroll view from following the finger.
   _scrollView.scrollEnabled = NO;
 
+#if !TARGET_OS_OSX
+  /*
+   * The hold is a drag now, not a press on the row. Nothing else cancels the touch: the press
+   * recognizer sits inside React Native's surface, which never gives way to one, so a finger lifted
+   * before it left the row's press area would fire the row. Unlike under a context menu, UIKit
+   * sends the touch handler no cancel of its own here, so this does not cancel it twice.
+   */
+  SLCancelReactTouches(self);
+#endif
+
   // Lift the row with a shadow so it looks picked up.
   SLRaiseSubview(_contentView, view, 4.0);
   // The row now sits above the sticky views. The next pin raises them again.

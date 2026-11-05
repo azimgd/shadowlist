@@ -222,9 +222,23 @@ public:
   std::vector<std::size_t> stickyIndices;
 
   /*
-   * Previous drag event number sent to JS, to fire each drag event once. -1 means none yet.
+   * Newest drag event number sent to JS. -1 means none yet.
    */
   double previousDragEventSequence = -1.0;
+
+  /*
+   * Whether a state's drag event still has to go to JS, once for each number. The number stands
+   * for the state it came with, and Android can commit a state older than one already seen: a
+   * host update there is built on the state the view last mounted, so a scroll frame right after
+   * a pickup brings back the previous drop's number and keys. Only a number past the newest fires.
+   */
+  bool takeDragEventSequence(double sequence) {
+    if (sequence <= previousDragEventSequence) {
+      return false;
+    }
+    previousDragEventSequence = sequence;
+    return true;
+  }
 
   /*
    * Scroll requests. resolveScroll turns each into an operation and clears it.
