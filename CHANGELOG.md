@@ -8,6 +8,7 @@
 
 ### ShadowList (React Native)
 
+- iOS: a row lifted for a drag and released without leaving its press area no longer presses the row. The lift now cancels the touch React Native holds, as a scroll or a swipe does. A plain tap still presses it.
 - Android: a drag no longer sends the previous drop again. A host update on Android is built on the state the view last mounted, so a scroll frame between a pickup and its mount, which any row held near the list's edge sends, brought back the previous drop's event, and `onMoveItem` undid that drop while the row was still held. The core now fires only a sequence past the newest it has seen, on every host, and the Android list numbers its events past its own last one, or the real drop that followed would have shared the pickup's number.
 - Dragging a row to the content's edge drops it in the first or last slot. The held row stops with its edge on the content's, where its center could only reach the midpoint of an end row of its own size and fell short of a smaller one's, so the end slots could not be reached and two rows could not swap.
 - iOS: `ItemActionsView` takes `onContextMenuWillShow`, and `Grouped.Row` drops the press of a hold that opened its menu. UIKit cancels the touch a beat after the menu commits, so a finger lifted as the menu appeared opened the row under it too. A press held past 250ms on such a row now waits 150ms to hear of a menu before it opens.
