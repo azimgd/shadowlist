@@ -121,6 +121,127 @@ TEST(drag_held_row_stays_inside_the_content) {
   CHECK_EQ(dragHeldLeading(100.0, 50.0, 100.0, 60.0), 0.0);
 }
 
+namespace {
+
+/*
+ * Rows of these extents, stacked from 0, the held one left out, like the hosts do.
+ */
+std::vector<DragRow> stackedRows(const std::vector<double>& extents, std::size_t held) {
+  std::vector<DragRow> rows;
+  double leading = 0.0;
+  for (std::size_t index = 0; index < extents.size(); ++index) {
+    if (index != held) {
+      rows.push_back({index, "k" + std::to_string(index), leading, extents[index]});
+    }
+    leading += extents[index];
+  }
+  return rows;
+}
+
+/*
+ * Pick a row of a list exactly as long as its rows up by its middle, move the finger to touch.
+ */
+std::size_t droppedAt(const std::vector<double>& extents, std::size_t held, double touch) {
+  double leading = 0.0;
+  double content = 0.0;
+  for (std::size_t index = 0; index < extents.size(); ++index) {
+    if (index < held) {
+      leading += extents[index];
+    }
+    content += extents[index];
+  }
+  DragReorder drag;
+  drag.begin(held, "k" + std::to_string(held), leading, extents[held], leading + extents[held] / 2.0);
+  drag.place(touch, leading, extents[held], content);
+  drag.updateInsertion(stackedRows(extents, held));
+  return drag.getInsertionIndex();
+}
+
+}
+
+/*
+ * The held row stops with its edge on the content's, where its center can only reach the midpoint
+ * of a last row of its own size, and is short of a smaller one's. Reaching that edge is the drop.
+ */
+TEST(drag_two_rows_of_a_size_swap) {
+  CHECK_EQ(droppedAt({100.0, 100.0}, 0, 5000.0), std::size_t{1});
+  CHECK_EQ(droppedAt({100.0, 100.0}, 1, -5000.0), std::size_t{0});
+}
+
+TEST(drag_reaches_the_first_and_last_slot_of_a_list) {
+  CHECK_EQ(droppedAt({100.0, 100.0, 100.0, 100.0}, 1, 5000.0), std::size_t{3});
+  CHECK_EQ(droppedAt({100.0, 100.0, 100.0, 100.0}, 2, -5000.0), std::size_t{0});
+  CHECK_EQ(dragRow3To(5000.0).getInsertionIndex(), std::size_t{9});
+  CHECK_EQ(dragRow3To(-5000.0).getInsertionIndex(), std::size_t{0});
+  // The finger only just reaching the edge is enough.
+  CHECK_EQ(droppedAt({100.0, 100.0}, 0, 150.0), std::size_t{1});
+  CHECK_EQ(droppedAt({100.0, 100.0}, 1, 50.0), std::size_t{0});
+}
+
+TEST(drag_a_taller_row_reaches_past_a_shorter_last_or_first_row) {
+  // Its center stops at 70 and 50, short of the other row's midpoint.
+  CHECK_EQ(droppedAt({100.0, 20.0}, 0, 5000.0), std::size_t{1});
+  CHECK_EQ(droppedAt({20.0, 100.0}, 1, -5000.0), std::size_t{0});
+  // Only at the edge: nothing passed yet, and it stays.
+  CHECK_EQ(droppedAt({100.0, 20.0}, 0, 69.0), std::size_t{0});
+  CHECK_EQ(droppedAt({20.0, 100.0}, 1, 71.0), std::size_t{1});
+}
+
+TEST(drag_a_row_at_the_edge_it_started_at_stays) {
+  CHECK_EQ(droppedAt({100.0, 100.0}, 0, -5000.0), std::size_t{0});
+  CHECK_EQ(droppedAt({100.0, 100.0}, 1, 5000.0), std::size_t{1});
+  CHECK_EQ(droppedAt({100.0, 100.0}, 0, 50.0), std::size_t{0});
+  CHECK_EQ(droppedAt({100.0, 100.0}, 1, 150.0), std::size_t{1});
+  // Rows with no size around it: picking it up where it rests moves nothing past them.
+  CHECK_EQ(droppedAt({0.0, 100.0, 100.0}, 1, 50.0), std::size_t{1});
+  CHECK_EQ(droppedAt({100.0, 100.0, 0.0}, 1, 150.0), std::size_t{1});
+  // A row that really moved to the edge does go past one.
+  CHECK_EQ(droppedAt({100.0, 100.0, 0.0}, 0, 5000.0), std::size_t{2});
+}
+
+TEST(drag_with_no_room_to_move_has_no_edge_to_reach) {
+  // Content no longer than the row, or not measured yet: only the midpoints count, as they did.
+  CHECK_EQ(droppedAt({100.0, 0.0}, 0, 5000.0), std::size_t{0});
+  DragReorder drag;
+  drag.begin(3, "k3", 300.0, 100.0, 350.0);
+  drag.place(5000.0, 300.0, 100.0, 0.0);
+  drag.updateInsertion(rowsWithout(3));
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{1});
+}
+
+TEST(drag_coming_back_off_the_edge_goes_by_midpoints_again) {
+  std::vector<DragRow> rows = rowsWithout(3);
+  DragReorder drag;
+  drag.begin(3, "k3", 300.0, 100.0, 350.0);
+  drag.place(5000.0, 300.0, 100.0, 1000.0);
+  drag.updateInsertion(rows);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{9});
+  CHECK_EQ(drag.getLeading(), 900.0);
+  CHECK_EQ(drag.shiftFor(9), -100.0);
+  // One point in from the edge is a center of 949, short of row 9's midpoint at 950.
+  drag.place(949.0, 300.0, 100.0, 1000.0);
+  drag.updateInsertion(rows);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{8});
+  CHECK_EQ(drag.shiftFor(9), 0.0);
+  // And a new pickup forgets it.
+  drag.begin(3, "k3", 300.0, 100.0, 350.0);
+  drag.updateInsertion(rows);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{3});
+}
+
+TEST(drag_past_the_rows_into_a_footer_is_still_by_midpoints) {
+  // A 50 footer: its top is short of the content's end, and the last row is passed on the way.
+  std::vector<DragRow> rows = stackedRows({100.0, 100.0}, 0);
+  DragReorder drag;
+  drag.begin(0, "k0", 0.0, 100.0, 50.0);
+  drag.place(100.0, 0.0, 100.0, 250.0);
+  drag.updateInsertion(rows);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{0});
+  drag.place(151.0, 0.0, 100.0, 250.0);
+  drag.updateInsertion(rows);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{1});
+}
+
 TEST(drag_follows_a_moved_origin) {
   DragReorder drag;
   drag.begin(3, "k3", 300.0, 100.0, 350.0);

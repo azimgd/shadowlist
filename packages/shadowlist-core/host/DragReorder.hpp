@@ -538,6 +538,9 @@ private:
   void storeOffsets(const std::vector<DragRow>& rows, Relayout relayout);
 
   bool heldAway_ = false;
+  // The held row was moved to a content edge, where its center can pass no more midpoints.
+  bool heldAtStart_ = false;
+  bool heldAtEnd_ = false;
   bool foreign_ = false;
 
   std::size_t originIndex_ = UNDEFINED_INDEX;
