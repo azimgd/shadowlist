@@ -1,6 +1,7 @@
 #pragma once
 
 #import <ShadowListKit/ShadowListKitListView.h>
+#import "ShadowListKitCoreBridge.h"
 #import "ShadowListKitListCell+Private.h"
 
 #include <shadowlist-core/host/KeyDiff.hpp>
@@ -26,18 +27,6 @@ NS_ASSUME_NONNULL_BEGIN
  * transform is set on it.
  */
 void ShadowListKitPlace(UIView *view, CGRect frame);
-
-/*
- * Convert between keys the core holds and strings. A nil string becomes an empty key, and bytes
- * that are not UTF-8 become an empty string.
- */
-NSString *ShadowListKitString(const std::string& value);
-std::string ShadowListKitStdString(NSString *_Nullable string);
-
-/*
- * The indices in a set, low to high.
- */
-std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
 
 /*
  * Each category file of the list defines one of these and ShadowListKitListView.mm refers to
