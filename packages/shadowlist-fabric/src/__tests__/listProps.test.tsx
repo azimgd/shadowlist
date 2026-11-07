@@ -14,6 +14,7 @@ import ItemActionsView from '../ItemActionsView';
 import {
   needsScrollIntoView,
   nextSelectableIndex,
+  pagedSelectableIndex,
 } from '../virtualizer/keySelection';
 import { setShadowListStoreModule } from '../virtualizer/nativeStore';
 import { createFakeStoreModule } from '../__fixtures__/shadowListStore';
@@ -104,6 +105,39 @@ afterEach(async () => {
   mockRenders.list = [];
   mockRenders.cells = [];
   Platform.OS = originalOS;
+});
+
+describe('pagedSelectableIndex', () => {
+  const all = () => true;
+
+  it('moves a page, and stops at the ends', () => {
+    expect(pagedSelectableIndex('PageDown', 3, 5, 100, all)).toBe(8);
+    expect(pagedSelectableIndex('PageDown', 98, 5, 100, all)).toBe(99);
+    expect(pagedSelectableIndex('PageUp', 8, 5, 100, all)).toBe(3);
+    expect(pagedSelectableIndex('PageUp', 2, 5, 100, all)).toBe(0);
+    expect(pagedSelectableIndex('Home', 50, 5, 100, all)).toBe(0);
+    expect(pagedSelectableIndex('End', 50, 5, 100, all)).toBe(99);
+  });
+
+  it('starts from the top with nothing selected', () => {
+    expect(pagedSelectableIndex('PageDown', -1, 5, 100, all)).toBe(5);
+    expect(pagedSelectableIndex('End', -1, 5, 100, all)).toBe(99);
+  });
+
+  it('skips rows that cannot be selected, toward the far end', () => {
+    const notFive = (index: number) => index !== 5;
+    expect(pagedSelectableIndex('PageDown', 0, 5, 100, notFive)).toBe(6);
+    expect(pagedSelectableIndex('PageUp', 10, 5, 100, notFive)).toBe(4);
+    expect(pagedSelectableIndex('Home', 9, 5, 10, (index) => index > 2)).toBe(
+      3
+    );
+    expect(pagedSelectableIndex('End', 0, 5, 10, (index) => index < 7)).toBe(6);
+  });
+
+  it('answers -1 with no row to go to', () => {
+    expect(pagedSelectableIndex('End', 0, 5, 0, all)).toBe(-1);
+    expect(pagedSelectableIndex('Enter', 0, 5, 10, all)).toBe(-1);
+  });
 });
 
 describe('nextSelectableIndex', () => {

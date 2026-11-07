@@ -119,6 +119,13 @@ document.body.append(list);
 list.reloadData();
 ```
 
+## Terminal
+
+[`shadowlist-tty`](packages/shadowlist-tty) is `ShadowList`, `SectionList` and `TreeList` on `react-native-tty`, with the
+core in a Node-API addon and the same props and commands as React Native.
+
+See more: [ShadowList for terminals](packages/shadowlist-tty/README.md)
+
 ## Repo layout
 
 | Path | Contents |
@@ -130,6 +137,7 @@ list.reloadData();
 | `packages/shadowlist-uikit` | UIKit list |
 | `packages/shadowlist-android` | Android list |
 | `packages/shadowlist-wasm` | Web list, on the core in WebAssembly |
+| `packages/shadowlist-tty` | Terminal list, on the core through a Node-API addon |
 | `templates/shadowlist-utils` | List helpers, hooks and React Native list kits |
 | `templates/shadowlist-fabric-example` | React Native example app for iOS and Android |
 | `templates/shadowlist-macos-example` | React Native macOS example app |
@@ -180,11 +188,13 @@ The web example documents its flags in [its package README](packages/shadowlist-
 | Command | What it does |
 | --- | --- |
 | `yarn lint` | ESLint over the repo |
-| `yarn typecheck` | TypeScript for the library, the utils, the example apps and `shadowlist-wasm` |
+| `yarn typecheck` | TypeScript for the library, the utils, the example apps, `shadowlist-wasm` and `shadowlist-tty` |
 | `yarn test` | Jest for `shadowlist` and `shadowlist-utils` |
 | `yarn test:core` | Builds `packages/shadowlist-core-tests` with CMake and runs it with ctest |
 | `yarn build:wasm` | Builds `shadowlist-wasm` into its `dist/` with Emscripten |
 | `yarn test:wasm` | Node tests for `shadowlist-wasm`, after `yarn build:wasm` |
+| `yarn build:tty` | Builds the `shadowlist-tty` addon with CMake |
+| `yarn test:tty` | Builds the addon, then Node tests for `shadowlist-tty`. They need the ream checkout next to this one |
 | `yarn build` | Vendors the core into the package and builds it with bob |
 | `yarn clean` | Removes the package's build output |
 | `yarn format` | Prettier over the repo. `format:check` only checks. |

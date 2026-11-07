@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### ShadowList for terminals
+
+- `shadowlist-tty` runs `ShadowList`, `SectionList` and `TreeList` in a terminal through `react-native-tty`, with the same props and `ShadowListCommands`. The Fabric JS loads unchanged on the view managers it registers, and a Node-API addon holds the shared C++ core. A 100,000 row list mounts what is near the window. Everything else of the index is there too: `DraggableList` is a `ShadowList`, and swipe actions, context menus and the soft keyboard are inert.
+
+### ShadowList core
+
+- `ListSettings::invertedFollowBand` is how close to the bottom an inverted list still counts as at it. It defaults to the 24 points every host had, and a host in other units sets its own.
+
+### ShadowList (React Native)
+
+- `enableSelectionOnKeyPress` also works on `Platform.OS` `tty`, where PageUp, PageDown, Home and End move the selection too. macOS takes the same keys as before.
+
 ### shadowlist-utils
 
 - `Form.Row` sets its label in the label colour instead of the secondary one, so a row reads as a settings list sets it: what it is in the primary ink, its value (`Form.Value`) in the secondary. A label and its value in the same gray read as one faint line.

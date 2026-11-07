@@ -11,14 +11,31 @@ on:
       - checks_requested
 
 jobs:
+  # `yarn typecheck` reads react-native-tty from the app at ../ream, at the commit in ream.pin.
   lint:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shadowlist
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: shadowlist
+
+      - name: Checkout the app at its pin
+        uses: ./shadowlist/.github/actions/checkout-deps
+        with:
+          token: ${{ secrets.SIBLING_REPOS_TOKEN || github.token }}
 
       - name: Setup
-        uses: ./.github/actions/setup
+        uses: ./shadowlist/.github/actions/setup
+        with:
+          working-directory: shadowlist
+
+      - name: Install react-native-tty's dependencies
+        working-directory: ream
+        run: yarn workspaces focus react-native-tty
 
       - name: Lint files
         run: yarn lint
@@ -92,6 +109,35 @@ jobs:
 
       - name: Run wasm tests
         run: yarn test:wasm
+
+  # The addon builds with the node that runs it, and the tests bundle react-native-tty from the app.
+  test-tty:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shadowlist
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: shadowlist
+
+      - name: Checkout the app at its pin
+        uses: ./shadowlist/.github/actions/checkout-deps
+        with:
+          token: ${{ secrets.SIBLING_REPOS_TOKEN || github.token }}
+
+      - name: Setup
+        uses: ./shadowlist/.github/actions/setup
+        with:
+          working-directory: shadowlist
+
+      - name: Install react-native-tty's dependencies
+        working-directory: ream
+        run: yarn workspaces focus react-native-tty
+
+      - name: Build the addon and run the terminal list's tests
+        run: yarn test:tty
 
   build-library:
     runs-on: ubuntu-latest

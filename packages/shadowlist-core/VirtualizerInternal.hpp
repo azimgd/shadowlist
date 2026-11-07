@@ -40,10 +40,10 @@ inline void correctOffset(Container& container, double offset) {
 }
 
 /*
- * True when an inverted list sits within INVERTED_FOLLOW_BAND of its bottom.
+ * True when an inverted list sits within followBand of its bottom.
  */
-inline bool atInvertedBottom(double offset, double total, double window) {
-  return offset >= std::max(0.0, total - window) - INVERTED_FOLLOW_BAND;
+inline bool atInvertedBottom(double offset, double total, double window, double followBand) {
+  return offset >= std::max(0.0, total - window) - followBand;
 }
 
 /*

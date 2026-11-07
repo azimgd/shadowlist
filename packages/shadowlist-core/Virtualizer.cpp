@@ -138,6 +138,7 @@ void Virtualizer::applyFrameInput(Container& container, const FrameInput& input)
 
   container.inverted = input.inverted;
   container.followAppends = input.followAppends;
+  container.invertedFollowBand = input.invertedFollowBand;
   container.horizontal = input.horizontal;
   container.numberOfColumns = input.numberOfColumns;
   container.overscan = input.overscan;
@@ -337,7 +338,7 @@ bool Virtualizer::applyInvertedBottomPin(
                                                : container.revision.contentHeight;
     double bottomWindow = container.horizontal ? container.revision.windowWidth
                                                 : container.revision.windowHeight;
-    bool atBottom = atInvertedBottom(inputOffset, bottomTotal, bottomWindow);
+    bool atBottom = atInvertedBottom(inputOffset, bottomTotal, bottomWindow, container.invertedFollowBand);
     // Content that fits the window has no bottom to leave. A bounce must not release it.
     bool scrollable = bottomTotal > bottomWindow;
 

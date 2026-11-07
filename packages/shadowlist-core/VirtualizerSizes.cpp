@@ -271,7 +271,7 @@ void Virtualizer::applyWindowSizeChange(Container& container, double previousWin
   // Judge against the old window, or a big shrink would look like the reader scrolled away.
   double total = container.horizontal ? container.revision.contentWidth : container.revision.contentHeight;
   double offset = scrollAxisOffset(container);
-  if (!atInvertedBottom(offset, total, previousWindowSize)) {
+  if (!atInvertedBottom(offset, total, previousWindowSize, container.invertedFollowBand)) {
     return;
   }
 

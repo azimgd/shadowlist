@@ -471,7 +471,7 @@ OffsetBand Container::computeOffsetBand() const {
 
   // The inverted bottom pin flips where it starts counting as at the bottom.
   if (inverted) {
-    addFlip(maxOffset - INVERTED_FOLLOW_BAND);
+    addFlip(maxOffset - invertedFollowBand);
   }
 
   OffsetBand band;

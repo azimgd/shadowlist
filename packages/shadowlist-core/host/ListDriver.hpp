@@ -50,6 +50,12 @@ struct ListSettings {
   std::size_t numberOfColumns = 1;
   bool inverted = false;
   bool followAppends = false;
+
+  /*
+   * How close to the bottom an inverted list still counts as at the bottom. Scale it with the
+   * host's units along with estimatedRowSize: a terminal counts in cells.
+   */
+  double invertedFollowBand = INVERTED_FOLLOW_BAND;
   bool horizontal = false;
   bool snapToItem = false;
   SnapAlignment snapAlignment = SnapAlignment::Start;
@@ -58,7 +64,7 @@ struct ListSettings {
     return a.estimatedRowSize == b.estimatedRowSize && a.overscan == b.overscan &&
       a.startReachedThreshold == b.startReachedThreshold && a.endReachedThreshold == b.endReachedThreshold &&
       a.numberOfColumns == b.numberOfColumns && a.inverted == b.inverted && a.followAppends == b.followAppends &&
-      a.horizontal == b.horizontal && a.snapToItem == b.snapToItem && a.snapAlignment == b.snapAlignment;
+      a.invertedFollowBand == b.invertedFollowBand && a.horizontal == b.horizontal && a.snapToItem == b.snapToItem && a.snapAlignment == b.snapAlignment;
   }
 
   friend bool operator!=(const ListSettings& a, const ListSettings& b) {

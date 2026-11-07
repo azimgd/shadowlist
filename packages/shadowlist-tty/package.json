@@ -1,0 +1,49 @@
+{
+  "name": "shadowlist-tty",
+  "version": "0.0.1",
+  "private": true,
+  "description": "ShadowList for terminals: the shared C++ core through a Node-API addon, behind the same ShadowList, SectionList and TreeList as React Native.",
+  "main": "./src/index.tsx",
+  "exports": {
+    ".": "./src/index.tsx",
+    "./shadowlist_tty.node": "./build/shadowlist_tty.node",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "cmake -S . -B build && cmake --build build",
+    "test": "node test/run.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "keywords": [
+    "list",
+    "virtualized-list",
+    "terminal",
+    "tty",
+    "node-api"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/azimgd/shadowlist.git",
+    "directory": "packages/shadowlist-tty"
+  },
+  "author": "azimgd <me@azimgd.com> (https://github.com/azimgd)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/azimgd/shadowlist/issues"
+  },
+  "homepage": "https://github.com/azimgd/shadowlist#readme",
+  "peerDependencies": {
+    "react": "19.2.3",
+    "react-native-tty": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "esbuild": "^0.28.2",
+    "react-native-tty": "link:../../../ream/packages/react-native-tty",
+    "typescript": "^6.0.2"
+  },
+  "type": "module"
+}

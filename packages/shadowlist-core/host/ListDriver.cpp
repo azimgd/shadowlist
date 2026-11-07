@@ -268,6 +268,7 @@ FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, boo
   frame.footerSize = input.footerSize;
   frame.inverted = settings_.inverted;
   frame.followAppends = settings_.followAppends;
+  frame.invertedFollowBand = settings_.invertedFollowBand;
   frame.horizontal = settings_.horizontal;
   frame.numberOfColumns = settings_.numberOfColumns;
   frame.overscan = settings_.overscan;

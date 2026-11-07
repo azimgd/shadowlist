@@ -25,6 +25,7 @@ constexpr double OFFSET_ARRIVED_THRESHOLD = 1.0;
  * How close to the bottom of an inverted list still counts as at the bottom for the bottom pin.
  * Wide on purpose: a stray touch, a bounce or a keyboard resize moves a few points, and
  * treating that as scrolling away would drop the reader off the stream. Real drags go much further.
+ * This is the default, in points. A host in other units sets ListSettings::invertedFollowBand.
  */
 constexpr double INVERTED_FOLLOW_BAND = 24.0;
 
