@@ -25,12 +25,16 @@ import ShadowListKit
  *            the start, separators and a regroup that keeps the visible rows still
  *   animate  the feed with animatesChanges: delete a shown post and add one, log the animation
  *   a11y     what VoiceOver sees: the row count, a far row, scrolling it to visible, a page
- *            scroll through the scroll bar, the selected rows and a post's move actions
+ *            scroll through the scroll bar, the selected rows and a post's move and swipe actions
+ *   swipe    trackpad swipes across posts, sent as wheel events: a slow swipe past half the
+ *            buttons and a short one, a fling, the leading side, a click on an action, a click
+ *            elsewhere, a scroll, Escape, a mouse wheel, a full swipe that deletes, the menu of a
+ *            post without its own and the swipe actions accessibility runs
  *
  * -SLShot scrolls a little first, which shows the overlay scrollers in the picture. With keys,
- * menu, reorder or sections it shoots the end state instead: a selection with a hovered item, an
- * open menu's outline, a lifted post with its shadow over the gap it opened, or a pinned section
- * header over the rows scrolled under it.
+ * menu, reorder, sections or swipe it shoots the end state instead: a selection with a hovered
+ * item, an open menu's outline, a lifted post with its shadow over the gap it opened, a pinned
+ * section header over the rows scrolled under it, or a post swiped open over its actions.
  */
 enum Scenario {
   static func start(_ screen: NSView & ListScreen) {
@@ -78,6 +82,10 @@ enum Scenario {
     }
     if name == "a11y", let feed = screen as? FeedScreen {
       after(1.5) { checkAccessibility(feed) }
+      return
+    }
+    if name == "swipe", let feed = screen as? FeedScreen {
+      after(1.5) { checkSwipe(feed) }
       return
     }
     after(1.5) {
@@ -649,7 +657,7 @@ enum Scenario {
   /*
    * The UIKit example's checks of what VoiceOver sees, through the Mac's accessibility calls: the
    * row count, a far row that is not mounted, its index, a page scrolled through the scroll bar,
-   * then scrolling the far row to visible, selecting it and its move actions.
+   * then scrolling the far row to visible, selecting it and its move and swipe actions.
    */
   private static func checkAccessibility(_ screen: FeedScreen) {
     let list = screen.list
@@ -676,8 +684,162 @@ enum Scenario {
     result["elementIsCellAfterScroll"] = element.accessibilityChildren()?.first is ShadowListKitListCell
     element.setAccessibilitySelected(true)
     result["selectedRows"] = (list.accessibilitySelectedRows() ?? []).compactMap { ($0 as? NSAccessibilityElement)?.accessibilityIndex() }
-    result["moveActions"] = (element.accessibilityCustomActions() ?? []).map { $0.name }
+    let actions = (element.accessibilityCustomActions() ?? []).map { $0.name }
+    result["moveActions"] = actions.filter { $0.hasPrefix("Move ") }
+    result["swipeActions"] = actions.filter { !$0.hasPrefix("Move ") }
     finish(result)
+  }
+
+  /*
+   * Two finger swipes on the feed as the trackpad sends them, one event a frame, with the
+   * settle running on the list's display link between steps. The last swipe stays open for the
+   * picture.
+   */
+  private static func checkSwipe(_ screen: FeedScreen) {
+    let list = screen.list
+    var result: [String: Any] = ["scenario": "swipe", "engine": "shadowlist", "screen": "FeedScreen"]
+    var checks: [String: Bool] = [:]
+    func center(_ index: Int) -> CGPoint {
+      guard let cell = list.cellForItem(at: index) else { return .zero }
+      let frame = list.convert(cell.frame, from: cell.superview)
+      return CGPoint(x: frame.midX, y: frame.midY)
+    }
+    func swipe(_ index: Int, _ deltas: [CGFloat]) {
+      let point = center(index)
+      list.shadowListKit_swipeWheelDelta(.zero, phase: .began, momentumPhase: [], at: point)
+      for delta in deltas {
+        list.shadowListKit_swipeWheelDelta(CGPoint(x: delta, y: 0), phase: .changed, momentumPhase: [], at: point)
+      }
+      list.shadowListKit_swipeWheelDelta(.zero, phase: .ended, momentumPhase: [], at: point)
+    }
+    func shown() -> [String] {
+      (list.shadowListKit_swipeActionsView?.subviews ?? []).compactMap { $0.isHidden ? nil : ($0 as? NSButton)?.title }
+    }
+    func shownWidth() -> CGFloat {
+      (list.shadowListKit_swipeActionsView?.subviews ?? []).filter { !$0.isHidden }.reduce(0) { $0 + $1.frame.width }
+    }
+    func click(_ point: CGPoint) {
+      list.shadowListKit_mouseDown(at: point)
+      list.shadowListKit_mouseUp(at: point)
+    }
+    let settle: [() -> Void] = Array(repeating: {}, count: 24)
+    var keys: [String] = []
+    var steps: [() -> Void] = [
+      {
+        list.scrollToStart(animated: false)
+        list.shadowListKit_clickItem(at: 0, modifierFlags: [], clickCount: 1)
+        swipe(1, Array(repeating: -2, count: 50))
+        checks["followsTheFingers"] = list.shadowListKit_swipedIndex == 1 && abs(list.shadowListKit_swipeOffset + 100) < 1
+      },
+    ]
+    steps += settle
+    steps += [
+      {
+        result["openOffset"] = Double(list.shadowListKit_swipeOffset)
+        checks["slowSwipeOpens"] = list.shadowListKit_swipedIndex == 1 && abs(list.shadowListKit_swipeOffset + shownWidth()) < 0.5
+        checks["trailingButtons"] = shown() == ["Delete", "Flag"]
+        // Flag sits inside Delete, at the outer edge.
+        click(CGPoint(x: list.bounds.width + list.shadowListKit_swipeOffset + 10, y: center(1).y))
+        checks["clickPerforms"] = screen.flagged == [screen.keys[1]]
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        checks["actionCloses"] = list.shadowListKit_swipedIndex == NSNotFound
+        swipe(3, Array(repeating: -2, count: 10))
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        checks["shortSwipeCloses"] = list.shadowListKit_swipedIndex == NSNotFound
+        swipe(3, [-14, -14, -14])
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        checks["flingOpens"] = list.shadowListKit_swipedIndex == 3 && abs(list.shadowListKit_swipeOffset + shownWidth()) < 0.5
+        list.shadowListKit_clickItem(at: 5, modifierFlags: [], clickCount: 1)
+        checks["clickElsewhereKeepsSelection"] = Array(list.selectedIndices) == [0]
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        checks["clickElsewhereCloses"] = list.shadowListKit_swipedIndex == NSNotFound
+        swipe(2, Array(repeating: 2, count: 50))
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        checks["leadingOpens"] = list.shadowListKit_swipedIndex == 2 && list.shadowListKit_swipeOffset > 0 && shown() == ["Pin"]
+        list.shadowListKit_pressKey("\u{1B}", keyCode: 53, modifierFlags: [])
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        checks["escapeCloses"] = list.shadowListKit_swipedIndex == NSNotFound && Array(list.selectedIndices) == [0]
+        swipe(3, [-14, -14, -14])
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        list.shadowListKit_scrollWheelDelta(.zero, phase: .began, momentumPhase: [])
+        list.shadowListKit_scrollWheelDelta(CGPoint(x: 0, y: -10), phase: .changed, momentumPhase: [])
+        list.shadowListKit_scrollWheelDelta(.zero, phase: .ended, momentumPhase: [])
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        checks["scrollCloses"] = list.shadowListKit_swipedIndex == NSNotFound
+        list.scrollToStart(animated: false)
+        let point = center(3)
+        for _ in 0..<6 {
+          list.shadowListKit_swipeWheelDelta(CGPoint(x: -20, y: 0), phase: [], momentumPhase: [], at: point)
+        }
+        checks["mouseWheelNeverSwipes"] = list.shadowListKit_swipedIndex == NSNotFound
+        keys = screen.keys
+        list.shadowListKit_swipeItem(at: 4, distance: -list.bounds.width, velocity: 0)
+        checks["fullSwipeDeletes"] = screen.keys.count == keys.count - 1 && !screen.keys.contains(keys[4])
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        checks["deletedClosed"] = list.shadowListKit_swipedIndex == NSNotFound
+        screen.showsMenus = false
+        let menu = list.shadowListKit_menuForItem(at: 3, modifierFlags: [])
+        let titles = menu?.items.map { $0.isSeparatorItem ? "-" : $0.title } ?? []
+        result["menuFallback"] = titles
+        let red = menu?.items.first?.attributedTitle?.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+        checks["menuFallback"] = titles == ["Delete", "Flag", "-", "Pin"] && red == .systemRed
+        if let menu {
+          NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: menu)
+        }
+        screen.showsMenus = true
+        let row = list.accessibilityRows()?[3] as? NSAccessibilityElement
+        let names = (row?.accessibilityCustomActions() ?? []).map(\.name)
+        result["accessibilityActions"] = names
+        checks["accessibilityActions"] = Array(names.prefix(3)) == ["Delete", "Flag", "Pin"]
+        // Left open for the picture.
+        swipe(1, Array(repeating: -2, count: 50))
+      }
+    ]
+    steps += settle
+    steps += [
+      {
+        result["checks"] = checks
+        result["pass"] = checks.values.allSatisfy { $0 }
+        finish(result, shoot: screen)
+      }
+    ]
+    run(steps)
   }
 
   /*
@@ -706,7 +868,8 @@ enum Scenario {
   }
 
   /*
-   * The window's content as its layers draw it, at the backing scale.
+   * The window's content as its layers show it, at the backing scale. The presentation layers
+   * show what animations hold, like a swiped post moved over its actions.
    */
   private static func shoot(_ screen: NSView, to path: String) {
     let scale = screen.window?.backingScaleFactor ?? 2
@@ -718,7 +881,7 @@ enum Scenario {
     // Layers draw top down in a flipped view. The bitmap's origin is at its bottom.
     context.cgContext.translateBy(x: 0, y: size.height * scale)
     context.cgContext.scaleBy(x: scale, y: -scale)
-    screen.layer?.render(in: context.cgContext)
+    (screen.layer?.presentation() ?? screen.layer)?.render(in: context.cgContext)
     try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: path))
     print("[SLSHOT] \(path)")
     fflush(stdout)

@@ -13,7 +13,8 @@ protocol ListScreen: AnyObject {
 
 /*
  * Posts with heights from layouts typeset ahead, separators between them. The list scrolls by
- * itself, and a post dragged with the mouse moves.
+ * itself, a post dragged with the mouse moves and a post swiped on the trackpad shows its
+ * actions.
  */
 final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
   let list = ShadowListKitListView()
@@ -23,6 +24,9 @@ final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, Sha
   private var previousIndex = -1
   private(set) var activated: [Int] = []
   private(set) var moves: [[Int]] = []
+  private(set) var pinned: Set<String> = []
+  private(set) var flagged: Set<String> = []
+  var showsMenus = true
 
   var keys: [String] { posts.map(\.key) }
 
@@ -121,7 +125,52 @@ final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, Sha
     posts[index].name
   }
 
+  /*
+   * A post's leading side pins it, its trailing side deletes or flags it. A full swipe performs
+   * the first action of the side.
+   */
+  func listView(_ listView: ShadowListKitListView, leadingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
+    let key = posts[index].key
+    let isPinned = pinned.contains(key)
+    let pin = ShadowListKitSwipeAction(style: .normal, title: isPinned ? "Unpin" : "Pin") { [weak self] _, done in
+      if isPinned {
+        self?.pinned.remove(key)
+      } else {
+        self?.pinned.insert(key)
+      }
+      done(true)
+    }
+    pin.image = NSImage(systemSymbolName: isPinned ? "pin.slash.fill" : "pin.fill", accessibilityDescription: nil)
+    pin.backgroundColor = .systemBlue
+    return ShadowListKitSwipeActionsConfiguration(actions: [pin])
+  }
+
+  func listView(_ listView: ShadowListKitListView, trailingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
+    let key = posts[index].key
+    let delete = ShadowListKitSwipeAction(style: .destructive, title: "Delete") { [weak self] _, done in
+      guard let self, let at = self.posts.firstIndex(where: { $0.key == key }) else { return done(false) }
+      self.posts.remove(at: at)
+      self.list.deleteItems(at: IndexSet(integer: at))
+      done(true)
+    }
+    delete.image = NSImage(systemSymbolName: "trash.fill", accessibilityDescription: nil)
+    let flag = ShadowListKitSwipeAction(style: .normal, title: flagged.contains(key) ? "Unflag" : "Flag") { [weak self] _, done in
+      guard let self else { return done(false) }
+      if self.flagged.remove(key) == nil {
+        self.flagged.insert(key)
+      }
+      done(true)
+    }
+    flag.image = NSImage(systemSymbolName: "flag.fill", accessibilityDescription: nil)
+    flag.backgroundColor = .systemOrange
+    return ShadowListKitSwipeActionsConfiguration(actions: [delete, flag])
+  }
+
+  /*
+   * With showsMenus off a post shows its swipe actions as its menu.
+   */
   func listView(_ listView: ShadowListKitListView, contextMenuForItemAt index: Int) -> NSMenu? {
+    guard showsMenus else { return nil }
     let menu = NSMenu(title: posts[index].key)
     menu.addItem(withTitle: "Open", action: nil, keyEquivalent: "")
     menu.addItem(withTitle: "Copy Name", action: nil, keyEquivalent: "")
