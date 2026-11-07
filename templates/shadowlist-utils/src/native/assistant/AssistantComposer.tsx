@@ -339,6 +339,16 @@ export const AssistantComposer = forwardRef<
   }
 );
 
+const COMPOSER_MIN_HEIGHT = 36;
+
+/*
+ * The padding above and below one line of `lineHeight` in COMPOSER_MIN_HEIGHT, never under
+ * `least`.
+ */
+function composerPadding(lineHeight: number, least: number): number {
+  return Math.max(least, Math.floor((COMPOSER_MIN_HEIGHT - lineHeight) / 2));
+}
+
 const useStyles = createStyles((theme) =>
   StyleSheet.create({
     container: {
@@ -373,14 +383,25 @@ const useStyles = createStyles((theme) =>
       paddingHorizontal: theme.spacing.sm,
       paddingBottom: theme.spacing.sm,
     },
+    /*
+     * A multiline field draws from its top, so one line sits in the middle of the field's least
+     * height only when the padding above and below takes up the rest: 7 points over the phone's
+     * 22-point line, 10 over the Mac's 16. A fixed 4 left the Mac's line against the top edge.
+     */
     input: {
       color: theme.colors.label,
       ...theme.typography.body,
-      minHeight: 36,
+      minHeight: COMPOSER_MIN_HEIGHT,
       maxHeight: 140,
       paddingHorizontal: theme.spacing.md,
-      paddingTop: theme.spacing.xs,
-      paddingBottom: theme.spacing.xs,
+      paddingTop: composerPadding(
+        theme.typography.body.lineHeight,
+        theme.spacing.xs
+      ),
+      paddingBottom: composerPadding(
+        theme.typography.body.lineHeight,
+        theme.spacing.xs
+      ),
       margin: 0,
     },
     toolbar: {
