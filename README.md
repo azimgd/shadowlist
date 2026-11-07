@@ -128,6 +128,7 @@ list.reloadData();
 | `packages/shadowlist-core-bench` | Core microbenchmarks, device metrics |
 | `packages/shadowlist-fabric` | React Native Fabric package |
 | `packages/shadowlist-uikit` | UIKit list |
+| `packages/shadowlist-appkit` | AppKit list, in progress |
 | `packages/shadowlist-android` | Android list |
 | `packages/shadowlist-wasm` | Web list, on the core in WebAssembly |
 | `templates/shadowlist-utils` | List helpers, hooks and React Native list kits |

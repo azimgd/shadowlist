@@ -1,6 +1,6 @@
 # Code style
 
-One rule set for `shadowlist-core`, `shadowlist-fabric`, `shadowlist-uikit`, `shadowlist-android`, `shadowlist-wasm` and the apps in `templates/`. Where a language has its own idiom the table says so. Everything else is the same in every language.
+One rule set for `shadowlist-core`, `shadowlist-fabric`, `shadowlist-uikit`, `shadowlist-appkit`, `shadowlist-android`, `shadowlist-wasm` and the apps in `templates/`. Where a language has its own idiom the table says so. Everything else is the same in every language.
 
 ## Naming
 
@@ -17,13 +17,13 @@ One rule set for `shadowlist-core`, `shadowlist-fabric`, `shadowlist-uikit`, `sh
 
 Class prefixes say which package a type lives in. Objective-C has one global namespace and the prefixes must never collide.
 
-| Package                                  | Prefix                                                                                                                                                           |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shadowlist-fabric`                      | `ShadowList` for classes, `SL` for file-local helpers, macros and constants (`SL_SCROLL_TO_TOP_DURATION`)                                                        |
-| `shadowlist-uikit`, `shadowlist-android` | `ShadowListKit` for everything, including the Bench apps and constants (`SHADOWLIST_KIT_LIFT_DURATION`)                                                          |
-| `shadowlist-wasm`                        | `ShadowListKit` for classes and the wasm exports (`ShadowListKitCore_nativeRunPasses`)                                                                           |
-| `shadowlist-core`                        | namespace `azimgd::shadowlist`, no prefix. File-local helpers go in an anonymous namespace. Macros take `SHADOWLIST_` (`SHADOWLIST_LOG`, `SHADOWLIST_DEBUG_LOG`) |
-| Runtime flags                            | `SL` + `PascalCase` (`-SLRoute`, `-SLEngine`, `-SLBench`, `SLCount`). One name on every platform. Never renamed                                                  |
+| Package                                                       | Prefix                                                                                                                                                           |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shadowlist-fabric`                                           | `ShadowList` for classes, `SL` for file-local helpers, macros and constants (`SL_SCROLL_TO_TOP_DURATION`)                                                        |
+| `shadowlist-uikit`, `shadowlist-appkit`, `shadowlist-android` | `ShadowListKit` for everything, including the Bench apps and constants (`SHADOWLIST_KIT_LIFT_DURATION`)                                                          |
+| `shadowlist-wasm`                                             | `ShadowListKit` for classes and the wasm exports (`ShadowListKitCore_nativeRunPasses`)                                                                           |
+| `shadowlist-core`                                             | namespace `azimgd::shadowlist`, no prefix. File-local helpers go in an anonymous namespace. Macros take `SHADOWLIST_` (`SHADOWLIST_LOG`, `SHADOWLIST_DEBUG_LOG`) |
+| Runtime flags                                                 | `SL` + `PascalCase` (`-SLRoute`, `-SLEngine`, `-SLBench`, `SLCount`). One name on every platform. Never renamed                                                  |
 
 One word per concept in every language: `previous` (not `prev`, `old`, `last`), `current`, `index`, `count`, `offset`, `low` / `high` for an inclusive index range, `delete` (not `remove`), `anchor` for what MVCP holds in place, and `xDp` / `xPx` for units. The plural is always `indices`, never `indexes`. Framework parameter names (`oldProps`, `oldScrollX`) and trace log keys stay as they are. A leading `_` marks an unused JS binding, and names local to a macro take a prefix such as `slt_a`. Visible means any pixel on screen, viewable means past the threshold, and measured means the core's measured range (visible plus overscan). `window` is the viewport size only, never a range of rows.
 

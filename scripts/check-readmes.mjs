@@ -48,10 +48,8 @@ function requiredLines() {
   const kitBuild = 'packages/shadowlist-android/ShadowListKit/build.gradle.kts';
   const kitProperties =
     'packages/shadowlist-android/ShadowListKit/gradle.properties';
-  const iosMinimum = capture(
-    'Package.swift',
-    /platforms: \[\.iOS\(\.v(\d+)\)\]/
-  );
+  const iosMinimum = capture('Package.swift', /platforms: \[\.iOS\(\.v(\d+)\)/);
+  const macMinimum = capture('Package.swift', /\.macOS\(\.v(\d+)\)/);
   const androidMinimum = capture(kitBuild, /minSdk = (\d+)/);
   const javaMinimum = capture(
     kitBuild,
@@ -81,6 +79,11 @@ function requiredLines() {
       file: 'packages/shadowlist-uikit/README.md',
       text: `from: "${fabric.version}"`,
       what: 'SwiftPM install version',
+    },
+    {
+      file: 'packages/shadowlist-appkit/README.md',
+      text: macMinimum && `| macOS | ${macMinimum} or newer |`,
+      what: 'macOS requirement (Package.swift)',
     },
     {
       file: 'packages/shadowlist-android/README.md',

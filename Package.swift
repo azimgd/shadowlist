@@ -4,12 +4,14 @@ import PackageDescription
 
 /*
  * The core includes itself as <shadowlist-core/...>, which resolves from the packages folder.
+ * The AppKit kit links the platform neutral files of the UIKit kit, which compile once in each.
  */
 let package = Package(
   name: "ShadowListKit",
-  platforms: [.iOS(.v16)],
+  platforms: [.iOS(.v16), .macOS(.v14)],
   products: [
-    .library(name: "ShadowListKit", targets: ["ShadowListKit"])
+    .library(name: "ShadowListKit", targets: ["ShadowListKit"]),
+    .library(name: "ShadowListKitAppKit", targets: ["ShadowListKitAppKit"]),
   ],
   targets: [
     .target(
@@ -26,6 +28,14 @@ let package = Package(
       name: "ShadowListKit",
       dependencies: ["ShadowListCore"],
       path: "packages/shadowlist-uikit/Sources/ShadowListKit",
+      cxxSettings: [
+        .headerSearchPath("../../..")
+      ]
+    ),
+    .target(
+      name: "ShadowListKitAppKit",
+      dependencies: ["ShadowListCore"],
+      path: "packages/shadowlist-appkit/Sources/ShadowListKit",
       cxxSettings: [
         .headerSearchPath("../../..")
       ]
