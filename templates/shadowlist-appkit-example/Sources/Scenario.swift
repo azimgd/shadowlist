@@ -11,18 +11,33 @@ import ShadowListKit
  *   jump     scrollToItem to a far item, measure where it lands against the top of the viewport
  *   driven   -SLRoute Driven: a host drags both axes, rows are prepended mid drag, then it
  *            settles, rests and jumps. Logs the shift, the corrections, blank frames and the landing
+ *   wheel    trackpad gestures with momentum, a bounce off each end, a mouse wheel, a gesture
+ *            across the axis and animated commands, sent as wheel events. Logs where each landed
+ *
+ * -SLShot scrolls a little first, which shows the overlay scrollers in the picture.
  */
 enum Scenario {
   static func start(_ screen: NSView & ListScreen) {
     print("[SLWINDOW] \(screen.window?.windowNumber ?? -1)")
     fflush(stdout)
     if let path = Settings.shotPath {
-      after(1.5) { shoot(screen, to: path) }
+      after(1.5) {
+        if let driven = screen as? DrivenScreen {
+          driven.scroll(to: CGPoint(x: 160, y: 900))
+        } else {
+          screen.list.contentOffset = CGPoint(x: 0, y: 900)
+        }
+        after(0.2) { shoot(screen, to: path) }
+      }
       return
     }
     guard let name = Settings.scenario else { return }
     if name == "driven", let driven = screen as? DrivenScreen {
       after(1.5) { checkDriven(driven) }
+      return
+    }
+    if name == "wheel" {
+      after(1.5) { checkWheel(screen.list) }
       return
     }
     after(1.5) {
@@ -127,6 +142,130 @@ enum Scenario {
         finish(result)
       }
     }
+  }
+
+  /*
+   * One step of a scripted wheel run: a wheel event, a check, or a frame of waiting.
+   */
+  private enum WheelStep {
+    case event(CGPoint, NSEvent.Phase, NSEvent.Phase)
+    case run(() -> Void)
+    case wait
+  }
+
+  /*
+   * A trackpad gesture with momentum along y: deltas the way NSEvent reports them, negative
+   * moving toward the end.
+   */
+  private static func gesture(_ dragDelta: CGFloat, drags: Int, momentum: [CGFloat], across: CGFloat = 0) -> [WheelStep] {
+    var steps: [WheelStep] = [.event(.zero, .began, [])]
+    steps += (0..<drags).map { _ in .event(CGPoint(x: across, y: dragDelta), .changed, []) }
+    steps.append(.event(.zero, .ended, []))
+    for (index, delta) in momentum.enumerated() {
+      steps.append(.event(CGPoint(x: 0, y: delta), [], index == 0 ? .began : .changed))
+    }
+    steps.append(.event(.zero, [], .ended))
+    return steps
+  }
+
+  private static func waiting(_ seconds: Double) -> [WheelStep] {
+    Array(repeating: .wait, count: Int(seconds * 60))
+  }
+
+  /*
+   * Wheel events one frame apart on the feed, with the list's own display link running between
+   * them. Every gesture's landing is checked against the deltas sent, and every bounce against
+   * the edge it left.
+   */
+  private static func checkWheel(_ list: ShadowListKitListView) {
+    var result: [String: Any] = ["scenario": "wheel", "engine": "shadowlist", "screen": "FeedScreen"]
+    var start: CGFloat = 0
+    var deepest: CGFloat = 0
+    let decay: [CGFloat] = (0..<24).map { (-40 * pow(0.85, CGFloat($0))).rounded() }
+    let travel = 12 * 25 + decay.reduce(0) { $0 - $1 }
+    var steps: [WheelStep] = []
+
+    steps.append(.run { start = list.contentOffset.y })
+    steps += gesture(-25, drags: 12, momentum: decay)
+    steps += waiting(0.3)
+    steps.append(
+      .run {
+        result["gestureTravel"] = Double(list.contentOffset.y - start)
+        result["gestureExpected"] = Double(travel)
+        result["gestureIdle"] = list.scrollPhase == .idle
+      })
+
+    steps.append(.run { list.scrollToStart(animated: false) })
+    steps += gesture(40, drags: 10, momentum: [])
+    steps.append(.run { result["startPulledPast"] = Double(-list.contentOffset.y) })
+    steps += waiting(0.6)
+    steps.append(
+      .run {
+        result["startBounceReturned"] = abs(list.contentOffset.y) < 0.01
+        // Momentum carries the list into its end from a little way up.
+        list.scrollToEnd(animated: false)
+        list.contentOffset = CGPoint(x: 0, y: list.contentOffset.y - 150)
+        deepest = list.contentOffset.y
+      })
+    steps += gesture(-10, drags: 2, momentum: Array(repeating: -40, count: 20)).map { step in
+      if case .event = step {
+        return [step, .run { deepest = max(deepest, list.contentOffset.y) }]
+      }
+      return [step]
+    }.flatMap { $0 }
+    steps += waiting(0.6)
+    steps.append(
+      .run {
+        let end = list.contentSize.height - list.bounds.height
+        result["endBounceDepth"] = Double(deepest - end)
+        result["endBounceLimit"] = Double(list.bounds.height * 0.12)
+        result["endBounceReturned"] = abs(list.contentOffset.y - end) < 0.5
+        list.scrollToItem(at: 40, viewPosition: 0, animated: false)
+        start = list.contentOffset.y
+        mouseWheel(list, lines: -3)
+        result["mouseWheelTravel"] = Double(list.contentOffset.y - start)
+        start = list.contentOffset.y
+      })
+    steps += gesture(-30, drags: 6, momentum: [-30, -20], across: -60)
+    steps.append(.run { result["crossAxisTravel"] = Double(list.contentOffset.y - start) })
+    steps += waiting(0.2)
+    steps.append(.run { list.scrollToItem(at: 300, viewPosition: 0, animated: true) })
+    steps += waiting(0.6)
+    steps.append(
+      .run {
+        let rows = visibleRows(list)
+        let screen = list.superview as? ListScreen
+        result["animatedLanded"] = screen.flatMap { rows[$0.keys[300]] }.map { Double($0) } ?? NSNull()
+      })
+
+    var index = 0
+    Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { timer in
+      guard index < steps.count else {
+        timer.invalidate()
+        finish(result)
+        return
+      }
+      switch steps[index] {
+      case .event(let delta, let phase, let momentum):
+        list.shadowListKit_scrollWheelDelta(delta, phase: phase, momentumPhase: momentum)
+      case .run(let work):
+        work()
+      case .wait:
+        break
+      }
+      index += 1
+    }
+  }
+
+  /*
+   * A mouse wheel's notches, the way a wheel without precise deltas sends them.
+   */
+  private static func mouseWheel(_ list: ShadowListKitListView, lines: Int32) {
+    guard let event = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: lines, wheel2: 0, wheel3: 0),
+      let wheel = NSEvent(cgEvent: event)
+    else { return }
+    list.scrollWheel(with: wheel)
+    list.layoutSubtreeIfNeeded()
   }
 
   /*

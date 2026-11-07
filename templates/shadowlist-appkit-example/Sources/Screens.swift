@@ -95,15 +95,19 @@ final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, Sha
 }
 
 /*
- * A host that moves a driven list the way a two axis grid does. The wheel scrolls both axes:
- * down the rows through the list's contentOffset and scrollPhase, sideways by shifting every
- * row's tiles. Offsets the list asks for land at once. Some rows are taller, as wrapped cells
- * would make them.
+ * A host that moves a driven list the way a two axis grid does. A two axis scroll engine takes
+ * the wheel: down the rows through the list's contentOffset and scrollPhase, sideways by
+ * shifting every row's tiles. Overlay scrollers show both axes. Offsets the list asks for land at
+ * once, in the engine too. Some rows are taller, as wrapped cells would make them.
  */
-final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
+final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate,
+  ShadowListKitScrollEngineDelegate, ShadowListKitScrollerViewDelegate
+{
   static let columnCount = 40
 
   let list = ShadowListKitListView()
+  let scrollers = ShadowListKitScrollerView()
+  private(set) lazy var engine = ShadowListKitScrollEngine(view: self)
   private(set) var rows: [String]
   private(set) var columnOffset: CGFloat = 0
   private(set) var corrections = 0
@@ -122,6 +126,12 @@ final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, S
     list.delegate = self
     list.autoresizingMask = [.width, .height]
     addSubview(list)
+    engine.axes = [.horizontal, .vertical]
+    engine.delegate = self
+    scrollers.axes = [.horizontal, .vertical]
+    scrollers.delegate = self
+    scrollers.autoresizingMask = [.width, .height]
+    addSubview(scrollers)
     list.reloadData()
   }
 
@@ -132,6 +142,13 @@ final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, S
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     list.frame = bounds
+    scrollers.frame = bounds
+  }
+
+  var contentSize: CGSize {
+    CGSize(
+      width: GridRowCell.numberWidth + CGFloat(DrivenScreen.columnCount) * GridRowCell.columnWidth,
+      height: list.contentSize.height)
   }
 
   var maxColumnOffset: CGFloat {
@@ -143,27 +160,54 @@ final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, S
   }
 
   /*
-   * Move both axes, the way the grid's own scroll engine would each frame.
+   * Move both axes inside the content, the way the scripted drags do.
    */
   func scroll(to point: CGPoint) {
-    columnOffset = min(max(0, point.x), maxColumnOffset)
-    list.contentOffset = CGPoint(x: 0, y: min(max(0, point.y), maxRowOffset))
+    move(to: CGPoint(x: min(max(0, point.x), maxColumnOffset), y: min(max(0, point.y), maxRowOffset)))
+  }
+
+  /*
+   * Put the rows and the tiles at an offset, past the edges while the engine rubber bands.
+   */
+  private func move(to point: CGPoint) {
+    columnOffset = point.x
+    list.contentOffset = CGPoint(x: 0, y: point.y)
     for case let cell as GridRowCell in list.visibleCells {
       cell.shift = columnOffset
     }
+    syncScrolling()
+  }
+
+  private func syncScrolling() {
+    let offset = CGPoint(x: columnOffset, y: list.contentOffset.y)
+    engine.viewportSize = bounds.size
+    engine.contentSize = contentSize
+    engine.offset = offset
+    scrollers.contentSize = contentSize
+    scrollers.offset = offset
   }
 
   override func scrollWheel(with event: NSEvent) {
-    switch (event.phase, event.momentumPhase) {
-    case (.began, _), (.mayBegin, _): list.scrollPhase = .dragging
-    case (_, .began): list.scrollPhase = .settling
-    default: break
+    if !engine.handleScrollWheel(event) {
+      super.scrollWheel(with: event)
     }
-    let scale: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 16
-    scroll(to: CGPoint(x: columnOffset - event.scrollingDeltaX * scale, y: list.contentOffset.y - event.scrollingDeltaY * scale))
-    if event.phase == .ended || event.phase == .cancelled || event.momentumPhase == .ended || event.momentumPhase == .cancelled {
-      list.scrollPhase = .idle
-    }
+  }
+
+  func scrollEngine(_ engine: ShadowListKitScrollEngine, didScrollTo offset: CGPoint) {
+    move(to: offset)
+  }
+
+  func scrollEngine(_ engine: ShadowListKitScrollEngine, didChange phase: ShadowListKitScrollPhase) {
+    list.scrollPhase = phase
+  }
+
+  func scrollerView(_ scrollerView: ShadowListKitScrollerView, didScrollTo offset: CGPoint) {
+    engine.stopScrolling()
+    scroll(to: offset)
+  }
+
+  func listViewDidLayOut(_ listView: ShadowListKitListView) {
+    syncScrolling()
   }
 
   func prependRows() {
@@ -200,6 +244,7 @@ final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, S
   func listView(_ listView: ShadowListKitListView, didCorrectOffset contentOffset: CGPoint) {
     corrections += 1
     listView.contentOffset = contentOffset
+    engine.offset = CGPoint(x: columnOffset, y: contentOffset.y)
   }
 
   func listView(_ listView: ShadowListKitListView, willDisplay cell: ShadowListKitListCell, at index: Int) {
