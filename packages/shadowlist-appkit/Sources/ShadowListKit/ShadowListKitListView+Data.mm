@@ -425,6 +425,7 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   }
   [self restorePendingAnchor];
   [self invalidateFrame];
+  [self rowsChangedForAccessibility];
 }
 
 /*

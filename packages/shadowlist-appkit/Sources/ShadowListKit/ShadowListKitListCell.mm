@@ -1,4 +1,5 @@
 #import "Internal/ShadowListKitListCell+Private.h"
+#import "Internal/ShadowListKitListView+Private.h"
 
 @implementation ShadowListKitListCell
 
@@ -10,6 +11,8 @@
     _row = NSNotFound;
     self.wantsLayer = YES;
     self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawOnSetNeedsDisplay;
+    self.accessibilityElement = YES;
+    self.accessibilityRole = NSAccessibilityCellRole;
   }
   return self;
 }
@@ -34,6 +37,28 @@
 
 - (void)prepareForReuse
 {
+}
+
+#pragma mark - Accessibility
+
+/*
+ * A shown cell is the cell of its row's accessibility element, in the list's one column.
+ */
+- (id)accessibilityParent
+{
+  ShadowListKitListView *list = (ShadowListKitListView *)self.superview.superview;
+  id parent = [list isKindOfClass:[ShadowListKitListView class]] ? [list accessibilityParentOfCell:self] : nil;
+  return parent ?: [super accessibilityParent];
+}
+
+- (NSRange)accessibilityRowIndexRange
+{
+  return _row != NSNotFound ? NSMakeRange((NSUInteger)_row, 1) : NSMakeRange(0, 0);
+}
+
+- (NSRange)accessibilityColumnIndexRange
+{
+  return NSMakeRange(0, 1);
 }
 
 /*

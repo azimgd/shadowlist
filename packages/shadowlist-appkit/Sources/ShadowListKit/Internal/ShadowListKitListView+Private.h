@@ -22,6 +22,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class ShadowListKitChangeAnimator;
+@class ShadowListKitRowAccessibilityElement;
 
 /*
  * Place a view at a frame with the layer's implicit animations off.
@@ -35,6 +36,7 @@ void ShadowListKitPlace(NSView *view, CGRect frame);
  * would be left out.
  */
 extern "C" {
+extern const char ShadowListKitListViewAccessibilityLink;
 extern const char ShadowListKitListViewActionsLink;
 extern const char ShadowListKitListViewCommandsLink;
 extern const char ShadowListKitListViewDataLink;
@@ -46,6 +48,8 @@ extern const char ShadowListKitListViewSelectionLink;
 
 /*
  * State and helpers the list shares with its categories.
+ * _contentView holds the cells and the header and footer views. Its bounds origin is the
+ * content offset.
  * _mounted holds the mounted cells by key. A cell follows its key across inserts above it.
  * _sections maps the rows the core places to items, section headers and footers.
  * _windowAlong and _windowCross are the geometry the core last ran with. offset is the scroll
@@ -81,6 +85,11 @@ extern const char ShadowListKitListViewSelectionLink;
  * _dragPressed is a mouse press on an item that can move, at _dragStart, which lifts it once
  * the mouse drags it far enough. _dragLink scrolls near the edges, _dragKeyMonitor holds the
  * keys while a row is held and _dragFeedback spaces the haptic ticks of the drop spot.
+ * _rowElements holds the rows' accessibility elements by key, kept while accessibility holds
+ * them. _accessibilityHidden is set while a host hides the list from accessibility.
+ * _accessibilityRowCount is the row count accessibility last heard of, and
+ * _accessibilitySelectionPending a selection change waiting to be posted.
+ * _accessibilityNotificationHandler hears every notification the list posts, for tests.
  */
 @interface ShadowListKitListView () {
  @package
@@ -90,6 +99,7 @@ extern const char ShadowListKitListViewSelectionLink;
   __weak id<ShadowListKitListViewDelegate> _delegate;
   BOOL _horizontal;
 
+  NSView *_contentView;
   std::unordered_map<std::string, ShadowListKitListCell *> _mounted;
 
   CGFloat _windowAlong;
@@ -140,6 +150,12 @@ extern const char ShadowListKitListViewSelectionLink;
   CADisplayLink *_dragLink;
   id _dragKeyMonitor;
   azimgd::shadowlist::DragFeedback _dragFeedback;
+
+  NSMapTable<NSString *, ShadowListKitRowAccessibilityElement *> *_rowElements;
+  BOOL _accessibilityHidden;
+  std::size_t _accessibilityRowCount;
+  BOOL _accessibilitySelectionPending;
+  void (^_accessibilityNotificationHandler)(NSAccessibilityNotificationName, NSDictionary *_Nullable);
 }
 
 - (CGFloat)along:(CGPoint)point;
@@ -178,8 +194,8 @@ extern const char ShadowListKitListViewSelectionLink;
 @end
 
 /*
- * Data changes. structureChanged runs after every change: sticky rows follow the sections and
- * a waiting saved position lands.
+ * Data changes. structureChanged runs after every change: sticky rows follow the sections, a
+ * waiting saved position lands and accessibility hears a new row count.
  */
 @interface ShadowListKitListView (Data)
 
@@ -225,6 +241,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * updateHover hovers the item under the pointer again, after a layout pass moved the content.
  * updateEmphasis follows the window's key state and first responder. itemIndexOfKey: is the item
  * of a key, or NSNotFound. revealRow: scrolls a row into view at the nearest edge.
+ * shouldSelectRow: asks the delegate whether a row's item can be selected. userSelectOnlyKeys:
+ * selects exactly some keys for the reader, with delegate calls.
  */
 @interface ShadowListKitListView (Selection)
 
@@ -235,6 +253,26 @@ extern const char ShadowListKitListViewSelectionLink;
 - (void)updateEmphasis;
 - (NSInteger)itemIndexOfKey:(const std::string&)key;
 - (void)revealRow:(std::size_t)row;
+- (BOOL)shouldSelectRow:(std::size_t)row;
+- (void)userSelectOnlyKeys:(const std::vector<std::string>&)keys;
+
+@end
+
+/*
+ * Every row as an accessibility element, mounted or not. accessibilityElementForRow: is the
+ * element of a row, made on first use. focusAccessibilityRowForKey: scrolls a row into view and
+ * points accessibility at it. selectionChangedForAccessibility posts one selection change for
+ * all made in a turn. rowsChangedForAccessibility posts a new row count after a data change.
+ * accessibilityParentOfCell: is the element of a mounted cell's row, or nil for a cell that is
+ * not mounted.
+ */
+@interface ShadowListKitListView (Accessibility)
+
+- (ShadowListKitRowAccessibilityElement *)accessibilityElementForRow:(std::size_t)row;
+- (void)focusAccessibilityRowForKey:(NSString *)key;
+- (nullable id)accessibilityParentOfCell:(ShadowListKitListCell *)cell;
+- (void)selectionChangedForAccessibility;
+- (void)rowsChangedForAccessibility;
 
 @end
 
@@ -244,7 +282,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * releaseDragPress drops a held row and returns whether the press was the list's. updateDrag
  * places the held row under the mouse and slides the others, after every layout pass too.
  * endDrag: lets go of the held row, moving it in the data with commit. resetDragLookOfCell:
- * takes a recycled cell's drag translation and shadow off.
+ * takes a recycled cell's drag translation and shadow off. itemsForDropOfRow:atRow:from:to: maps
+ * a drop to the items the delegate moves, NO when nothing would move.
  */
 @interface ShadowListKitListView (Drag)
 
@@ -254,6 +293,7 @@ extern const char ShadowListKitListViewSelectionLink;
 - (void)updateDrag;
 - (void)endDrag:(BOOL)commit;
 - (void)resetDragLookOfCell:(ShadowListKitListCell *)cell;
+- (BOOL)itemsForDropOfRow:(std::size_t)fromRow atRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to;
 
 @end
 

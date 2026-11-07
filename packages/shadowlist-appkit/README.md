@@ -4,8 +4,8 @@ ShadowListKit for AppKit is the Mac counterpart of [ShadowListKit for UIKit](../
 with the same class names and selectors on the shared C++ core. It is in progress: it has the list
 view with its data changes, sections with sticky headers, header and footer views, scroll
 commands, saved position and separators, its scrolling, selection with the mouse and the keyboard,
-context menus, drag reorder, change animations, the text layout and the model classes.
-Accessibility comes next.
+context menus, drag reorder, change animations, accessibility, the text layout and the model
+classes.
 
 `ShadowListKitListView` is a flipped, layer backed `NSView` that owns its scroll position, with no
 `NSScrollView`. Its cells sit in a content view moved by `contentOffset`. With `scrollDriven` a host
@@ -90,6 +90,22 @@ pool once its fade ends. `itemAnimator` takes another animator with the same cal
 kit, and `performBatchUpdates:completion:` finishes after the default animator's animation. A
 driven list animates the same way and reports its corrections as before. Off, the default, the
 list has no animator state and adds no work to a layout pass.
+
+## Accessibility
+
+The list is a table of one column to VoiceOver, the way `NSTableView` shows itself. Every row is a
+row element, mounted or not, so the row count and reading order cover the whole list, and section
+header and footer rows are rows in their place. A mounted row holds its cell, which takes the cell
+role, and frames where the cell shows. A row not mounted frames where the core places it. Scrolling
+a row to visible scrolls it into view at the nearest edge. Setting the selected rows selects the
+way a click does, with the delegate's calls, and fires `NSAccessibilitySelectedRowsChangedNotification`
+once a turn. A data change that changes the row count fires `NSAccessibilityRowCountChangedNotification`.
+Each scroller track that can scroll is a scroll bar whose value runs from 0 to 1: setting it
+scrolls there and incrementing it scrolls a page, after which the list announces the rows shown.
+With `reorderEnabled` an item the delegate lets move has Move up and Move down actions, and Move
+left and Move right across a grid's columns, which move it the way a drop would. The UIKit kit has
+no such actions yet. A host that gives its own elements, like a grid over a driven list, sets
+`accessibilityElement` to `NO` on the list, which hides it and its rows.
 
 ## Install
 

@@ -4,6 +4,10 @@
 #import <QuartzCore/QuartzCore.h>
 
 #include <shadowlist-core/host/ScrollPhysics.hpp>
+#include <shadowlist-core/host/ScrollTarget.hpp>
+
+#include <algorithm>
+#include <cmath>
 
 using namespace azimgd::shadowlist;
 
@@ -29,6 +33,90 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   ShadowListKitThumbAxisHorizontal,
 };
 
+@interface ShadowListKitScrollerView (AccessibilitySteps)
+- (BOOL)canScrollAccessibilityAxis:(BOOL)horizontal;
+- (double)accessibilityValueOfAxis:(BOOL)horizontal;
+- (void)setAccessibilityValue:(double)value ofAxis:(BOOL)horizontal;
+- (BOOL)pageAccessibilityAxis:(BOOL)horizontal direction:(int)direction;
+- (NSRect)accessibilityTrackOfAxis:(BOOL)horizontal;
+@end
+
+#pragma mark - Scroll bar accessibility element
+
+/*
+ * One track to accessibility: a scroll bar whose value is the offset from 0 at the start to 1 at
+ * the end. Incrementing it scrolls a page toward the end.
+ */
+@interface ShadowListKitScrollBarAccessibilityElement : NSAccessibilityElement
+@property (nonatomic, weak) ShadowListKitScrollerView *scrollerView;
+@property (nonatomic) BOOL horizontal;
+@end
+
+@implementation ShadowListKitScrollBarAccessibilityElement
+
+- (NSAccessibilityRole)accessibilityRole
+{
+  return NSAccessibilityScrollBarRole;
+}
+
+- (id)accessibilityParent
+{
+  return NSAccessibilityUnignoredAncestor(_scrollerView);
+}
+
+- (NSAccessibilityOrientation)accessibilityOrientation
+{
+  return _horizontal ? NSAccessibilityOrientationHorizontal : NSAccessibilityOrientationVertical;
+}
+
+- (NSRect)accessibilityFrame
+{
+  ShadowListKitScrollerView *view = _scrollerView;
+  return view ? NSAccessibilityFrameInView(view, [view accessibilityTrackOfAxis:_horizontal]) : NSZeroRect;
+}
+
+- (id)accessibilityValue
+{
+  return @([_scrollerView accessibilityValueOfAxis:_horizontal]);
+}
+
+- (void)setAccessibilityValue:(id)value
+{
+  if ([value respondsToSelector:@selector(doubleValue)]) {
+    [_scrollerView setAccessibilityValue:[value doubleValue] ofAxis:_horizontal];
+  }
+}
+
+- (id)accessibilityMinValue
+{
+  return @0;
+}
+
+- (id)accessibilityMaxValue
+{
+  return @1;
+}
+
+- (BOOL)isAccessibilitySelectorAllowed:(SEL)selector
+{
+  if (selector == @selector(setAccessibilityValue:)) {
+    return YES;
+  }
+  return [super isAccessibilitySelectorAllowed:selector];
+}
+
+- (BOOL)accessibilityPerformIncrement
+{
+  return [_scrollerView pageAccessibilityAxis:_horizontal direction:1];
+}
+
+- (BOOL)accessibilityPerformDecrement
+{
+  return [_scrollerView pageAccessibilityAxis:_horizontal direction:-1];
+}
+
+@end
+
 @implementation ShadowListKitScrollerView {
   CALayer *_verticalThumb;
   CALayer *_horizontalThumb;
@@ -42,6 +130,12 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
    * The scroller style scripted checks set, or -1 for the system's.
    */
   NSInteger _scrollerStyle;
+
+  /*
+   * The tracks as accessibility elements, made on first use.
+   */
+  ShadowListKitScrollBarAccessibilityElement *_verticalElement;
+  ShadowListKitScrollBarAccessibilityElement *_horizontalElement;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -109,6 +203,12 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   _offset = offset;
   [self updateThumbs];
   [self flashScrollers];
+  if (_verticalElement) {
+    NSAccessibilityPostNotification(_verticalElement, NSAccessibilityValueChangedNotification);
+  }
+  if (_horizontalElement) {
+    NSAccessibilityPostNotification(_horizontalElement, NSAccessibilityValueChangedNotification);
+  }
 }
 
 - (void)setScrollerInsets:(NSEdgeInsets)scrollerInsets
@@ -378,6 +478,119 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   if (!CGPointEqualToPoint(offset, _offset)) {
     [_delegate scrollerView:self didScrollToOffset:offset];
   }
+}
+
+#pragma mark - Accessibility
+
+/*
+ * The tracks that can scroll, each a scroll bar. The view itself is not an element.
+ */
+- (NSArray *)accessibilityChildren
+{
+  NSMutableArray *children = [NSMutableArray arrayWithCapacity:2];
+  if ([self canScrollAccessibilityAxis:NO]) {
+    if (!_verticalElement) {
+      _verticalElement = [ShadowListKitScrollBarAccessibilityElement new];
+      _verticalElement.scrollerView = self;
+    }
+    [children addObject:_verticalElement];
+  }
+  if ([self canScrollAccessibilityAxis:YES]) {
+    if (!_horizontalElement) {
+      _horizontalElement = [ShadowListKitScrollBarAccessibilityElement new];
+      _horizontalElement.scrollerView = self;
+      _horizontalElement.horizontal = YES;
+    }
+    [children addObject:_horizontalElement];
+  }
+  return children;
+}
+
+- (id)accessibilityHitTest:(NSPoint)point
+{
+  NSRect screen = NSMakeRect(point.x, point.y, 0, 0);
+  NSPoint local = self.window ? [self convertRect:[self.window convertRectFromScreen:screen] fromView:nil].origin : NSZeroPoint;
+  NSArray *children = self.accessibilityChildren;
+  ShadowListKitThumbAxis axis = [self thumbAt:local];
+  for (ShadowListKitScrollBarAccessibilityElement *element in children) {
+    if ((axis == ShadowListKitThumbAxisHorizontal) == element.horizontal && axis != ShadowListKitThumbAxisNone) {
+      return element;
+    }
+  }
+  return NSAccessibilityUnignoredAncestor(self);
+}
+
+- (BOOL)canScrollAccessibilityAxis:(BOOL)horizontal
+{
+  if (self.hidden || (_axes & (horizontal ? ShadowListKitScrollAxesHorizontal : ShadowListKitScrollAxesVertical)) == 0) {
+    return NO;
+  }
+  CGFloat content = horizontal ? _contentSize.width : _contentSize.height;
+  return content - [self trackLength:horizontal] >= 0.5;
+}
+
+- (double)maxOffsetOfAxis:(BOOL)horizontal
+{
+  CGFloat content = horizontal ? _contentSize.width : _contentSize.height;
+  return std::max(0.0, (double)(content - [self trackLength:horizontal]));
+}
+
+- (double)accessibilityValueOfAxis:(BOOL)horizontal
+{
+  double max = [self maxOffsetOfAxis:horizontal];
+  double offset = horizontal ? _offset.x : _offset.y;
+  return max > 0 ? std::min(std::max(offset / max, 0.0), 1.0) : 0;
+}
+
+- (void)setAccessibilityValue:(double)value ofAxis:(BOOL)horizontal
+{
+  double offset = std::min(std::max(value, 0.0), 1.0) * [self maxOffsetOfAxis:horizontal];
+  [self scrollForAccessibilityTo:offset horizontal:horizontal];
+}
+
+/*
+ * A page toward the end for a positive direction, the way the list's page keys move.
+ */
+- (BOOL)pageAccessibilityAxis:(BOOL)horizontal direction:(int)direction
+{
+  double offset = horizontal ? _offset.x : _offset.y;
+  double target = pageScrollTarget(offset, [self trackLength:horizontal], [self maxOffsetOfAxis:horizontal], direction);
+  if (std::fabs(target - offset) < OFFSET_ARRIVED_THRESHOLD) {
+    return NO;
+  }
+  [self scrollForAccessibilityTo:target horizontal:horizontal];
+  return YES;
+}
+
+- (void)scrollForAccessibilityTo:(double)target horizontal:(BOOL)horizontal
+{
+  CGPoint offset = _offset;
+  if (horizontal) {
+    offset.x = (CGFloat)target;
+  } else {
+    offset.y = (CGFloat)target;
+  }
+  if (CGPointEqualToPoint(offset, _offset)) {
+    return;
+  }
+  id<ShadowListKitScrollerViewDelegate> delegate = _delegate;
+  [delegate scrollerView:self didScrollToOffset:offset];
+  if ([delegate respondsToSelector:@selector(scrollerViewDidScrollForAccessibility:)]) {
+    [delegate scrollerViewDidScrollForAccessibility:self];
+  }
+}
+
+/*
+ * The strip a track takes the pointer in, along the whole track.
+ */
+- (NSRect)accessibilityTrackOfAxis:(BOOL)horizontal
+{
+  NSSize size = self.bounds.size;
+  CGFloat depth = SHADOWLIST_KIT_THUMB_GRAB_DEPTH;
+  if (horizontal) {
+    return NSMakeRect(_scrollerInsets.left, size.height - _scrollerInsets.bottom - depth, [self trackLength:YES], depth);
+  }
+  return NSMakeRect(size.width - _scrollerInsets.right - depth, _scrollerInsets.top, depth, [self trackLength:NO]);
 }
 
 @end

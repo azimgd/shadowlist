@@ -17,6 +17,7 @@ using namespace azimgd::shadowlist;
  * Keeps every category file linked into apps that link the kit as a static library without -ObjC.
  */
 __attribute__((used)) static const char *const ShadowListKitListViewCategoryLinks[] = {
+  &ShadowListKitListViewAccessibilityLink,
   &ShadowListKitListViewActionsLink,
   &ShadowListKitListViewCommandsLink,
   &ShadowListKitListViewDataLink,
@@ -57,8 +58,6 @@ struct ShadowListKitPassGeometry {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
 @implementation ShadowListKitListView {
-  ShadowListKitContentView *_contentView;
-
   NSUInteger _mountGeneration;
 
   /*

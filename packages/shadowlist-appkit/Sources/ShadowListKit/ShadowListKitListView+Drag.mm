@@ -417,14 +417,18 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   _driver.dragEnd();
   NSInteger fromItem = NSNotFound;
   NSInteger toItem = NSNotFound;
-  BOOL moves = commit && from != UNDEFINED_INDEX && to != UNDEFINED_INDEX && from != to &&
-    [self itemsForDragFromRow:from toRow:to from:&fromItem to:&toItem] &&
-    [_delegate respondsToSelector:@selector(listView:moveItemAtIndex:toIndex:)];
-  if (moves) {
+  if (commit && [self itemsForDropOfRow:from atRow:to from:&fromItem to:&toItem]) {
     [self commitMoveOfCell:cell from:fromItem to:toItem];
   }
   [self dropCell:cell];
   [self updateHover];
+}
+
+- (BOOL)itemsForDropOfRow:(std::size_t)fromRow atRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to
+{
+  return fromRow != UNDEFINED_INDEX && toRow != UNDEFINED_INDEX && fromRow != toRow &&
+    [self itemsForDragFromRow:fromRow toRow:toRow from:from to:to] &&
+    [_delegate respondsToSelector:@selector(listView:moveItemAtIndex:toIndex:)];
 }
 
 /*

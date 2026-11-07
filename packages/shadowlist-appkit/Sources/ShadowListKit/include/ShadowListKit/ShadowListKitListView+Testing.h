@@ -76,6 +76,16 @@ FOUNDATION_EXPORT NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventP
 
 @end
 
+/*
+ * Hears every accessibility notification the list posts, with its user info, as it is posted.
+ * A selection change is posted once the turn it was made in ends.
+ */
+@interface ShadowListKitListView (AccessibilityTesting)
+
+@property (nonatomic, copy, nullable) void (^shadowListKit_accessibilityNotificationHandler)(NSAccessibilityNotificationName name, NSDictionary *_Nullable userInfo);
+
+@end
+
 @interface ShadowListKitScrollEngine (Testing)
 
 - (void)shadowListKit_runFramesFor:(NSTimeInterval)duration;

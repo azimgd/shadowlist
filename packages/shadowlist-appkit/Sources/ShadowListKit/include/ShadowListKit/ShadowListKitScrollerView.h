@@ -16,6 +16,14 @@ NS_SWIFT_UI_ACTOR
  */
 - (void)scrollerView:(ShadowListKitScrollerView *)scrollerView didScrollToOffset:(CGPoint)offset NS_SWIFT_NAME(scrollerView(_:didScrollTo:));
 
+@optional
+
+/*
+ * An assistive app moved a scroller by a page or to a value, after
+ * scrollerView:didScrollToOffset:.
+ */
+- (void)scrollerViewDidScrollForAccessibility:(ShadowListKitScrollerView *)scrollerView;
+
 @end
 
 /*
@@ -30,6 +38,8 @@ NS_SWIFT_UI_ACTOR
  * - Only the tracks take the mouse. Everything else goes to the views below.
  * - scrollerInsets keeps the tracks off the view's edges, like under a header. The track along
  *   each axis is the view's size less the insets, and the content shows that much at a time.
+ * - Each track that can scroll is a scroll bar to accessibility, with the offset as a value from
+ *   0 to 1. An assistive app sets the value or steps it a page at a time.
  */
 NS_SWIFT_UI_ACTOR
 @interface ShadowListKitScrollerView : NSView

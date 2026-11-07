@@ -371,6 +371,15 @@ NS_SWIFT_UI_ACTOR
  * title cells show a header in the headline font over the window background and a footer in
  * the small system font, both in the secondary label color, and follow the list's appearance.
  *
+ * Accessibility: the list is a table of one column, the way NSTableView shows itself. Every row
+ * is a row element, mounted or not, section titles included, and a mounted row holds its cell,
+ * an element with the cell role. The header view comes before the rows and the footer view
+ * after them, then the scroll bars. Scrolling a row to visible scrolls it into view. An assistive
+ * app selects rows the way the reader does, and with reorderEnabled moves an item a step through
+ * its row's actions. Selection changes, the row count and pages scrolled through a scroll bar are
+ * posted. A host that gives its own elements, like a grid over a driven list, sets
+ * accessibilityElement to NO, which hides the list and its rows.
+ *
  * Saving the position: anchorState is the item at the viewport start by key, and
  * restoreAnchorState: lands that item the same distance in again, now or once a reload brings
  * its key. The list saves it with the window's state restoration when it has an identifier.

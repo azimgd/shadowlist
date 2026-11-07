@@ -46,7 +46,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   }
   std::string key = _driver.getKeyAt((std::size_t)row);
   std::vector<std::string> deselected;
-  _selection.select(key, deselected);
+  BOOL added = _selection.select(key, deselected);
   _selection.setAnchor(key);
   for (const std::string& previous : deselected) {
     [[self mountedCellForKey:previous] setSelected:NO animated:animated];
@@ -54,6 +54,9 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   ShadowListKitListCell *cell = [self mountedCellForKey:key];
   if (cell && !cell.isSelected) {
     [cell setSelected:YES animated:animated];
+  }
+  if (added || !deselected.empty()) {
+    [self selectionChangedForAccessibility];
   }
 }
 
@@ -66,6 +69,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   std::string key = _driver.getKeyAt((std::size_t)row);
   if (_selection.deselect(key)) {
     [[self mountedCellForKey:key] setSelected:NO animated:animated];
+    [self selectionChangedForAccessibility];
   }
 }
 
@@ -75,6 +79,9 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   _selection.clear(deselected);
   for (const std::string& key : deselected) {
     [[self mountedCellForKey:key] setSelected:NO animated:NO];
+  }
+  if (!deselected.empty()) {
+    [self selectionChangedForAccessibility];
   }
 }
 
@@ -230,8 +237,38 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   [self userDeselected:deselected];
 }
 
+/*
+ * Select exactly these keys, the way an assistive app sets the selected rows. The last one
+ * becomes the anchor.
+ */
+- (void)userSelectOnlyKeys:(const std::vector<std::string>&)keys
+{
+  std::unordered_set<std::string> wanted(keys.begin(), keys.end());
+  std::vector<std::string> deselected;
+  for (const std::string& key : std::vector<std::string>(_selection.getKeys())) {
+    if (wanted.count(key) == 0 && _selection.deselect(key)) {
+      deselected.push_back(key);
+    }
+  }
+  std::vector<std::string> added;
+  std::vector<std::string> ignored;
+  for (const std::string& key : keys) {
+    if (!_selection.contains(key) && _selection.select(key, ignored)) {
+      added.push_back(key);
+    }
+  }
+  if (!keys.empty()) {
+    _selection.setAnchor(keys.back());
+  }
+  [self userDeselected:deselected];
+  for (const std::string& key : added) {
+    [self userSelected:key];
+  }
+}
+
 - (void)userSelected:(const std::string&)key
 {
+  [self selectionChangedForAccessibility];
   ShadowListKitListCell *cell = [self mountedCellForKey:key];
   if (cell && !cell.isSelected) {
     [cell setSelected:YES animated:YES];
@@ -244,6 +281,9 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 
 - (void)userDeselected:(const std::vector<std::string>&)keys
 {
+  if (!keys.empty()) {
+    [self selectionChangedForAccessibility];
+  }
   BOOL notifies = [_delegate respondsToSelector:@selector(listView:didDeselectItemAtIndex:)];
   for (const std::string& key : keys) {
     ShadowListKitListCell *cell = [self mountedCellForKey:key];
