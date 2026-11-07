@@ -335,10 +335,15 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 /*
  * A click selects when the mouse goes down and highlights the item until it goes up. A
  * Control-click shows the menu. Without selection the click goes to the next responder, unless
- * it pressed an item that can move.
+ * it pressed an item that can move. A click while an item is swiped open only performs an
+ * action or closes it.
  */
 - (void)mouseDown:(NSEvent *)event
 {
+  if ([self swipeOwnsClickAtPoint:[self convertPoint:event.locationInWindow fromView:nil]]) {
+    _dragPressed = NO;
+    return;
+  }
   BOOL pressed = [self pressForDragWithEvent:event];
   if (!_allowsSelection) {
     if (!pressed) {
@@ -915,13 +920,17 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 }
 
 /*
- * Escape puts a held row back, or deselects all. With nothing selected it goes on up the
- * responder chain.
+ * Escape puts a held row back, closes a swiped item, or deselects all. With nothing selected it
+ * goes on up the responder chain.
  */
 - (void)cancelOperation:(id)sender
 {
   if ([self hasHeldRow]) {
     [self endDrag:NO];
+    return;
+  }
+  if ([self isSwipeOpen]) {
+    [self closeSwipeAnimated:YES];
     return;
   }
   if (_selection.isEmpty()) {

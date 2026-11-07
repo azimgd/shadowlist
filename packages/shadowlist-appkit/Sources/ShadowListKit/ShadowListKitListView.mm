@@ -192,8 +192,12 @@ struct ShadowListKitPassGeometry {
 {
   [_settleLink invalidate];
   [_dragLink invalidate];
+  [_swipeLink invalidate];
   if (_dragKeyMonitor) {
     [NSEvent removeMonitor:_dragKeyMonitor];
+  }
+  if (_swipeKeyMonitor) {
+    [NSEvent removeMonitor:_swipeKeyMonitor];
   }
   CGColorRelease(_separatorCGColor);
 }
@@ -217,6 +221,7 @@ struct ShadowListKitPassGeometry {
 - (void)setDelegate:(id<ShadowListKitListViewDelegate>)delegate
 {
   _delegate = delegate;
+  [self updateSwipesItems];
 }
 
 - (id<ShadowListKitListViewDelegate>)delegate
@@ -654,6 +659,7 @@ struct ShadowListKitPassGeometry {
   if (scrollPhase == ShadowListKitScrollPhaseDragging) {
     _driver.cancelLanding();
     [self unhighlight];
+    [self closeSwipeAnimated:YES];
     [self updateHover];
     if ([_delegate respondsToSelector:@selector(listViewWillBeginDragging:)]) {
       [_delegate listViewWillBeginDragging:self];
@@ -759,6 +765,7 @@ struct ShadowListKitPassGeometry {
   if (cell.isMenuTarget) {
     [self endMenuTarget];
   }
+  [self swipeCellWillRecycle:cell];
   [self resetDragLookOfCell:cell];
   if (index != NSNotFound && [_delegate respondsToSelector:@selector(listView:didEndDisplayingCell:atIndex:)]) {
     [_delegate listView:self didEndDisplayingCell:cell atIndex:index];
@@ -881,6 +888,7 @@ struct ShadowListKitPassGeometry {
       [self updateDrag];
     }
     [_changes run];
+    [self layoutSwipe];
   }
   _passGeometry.valid = false;
   _inLayoutPass = NO;
@@ -1212,8 +1220,8 @@ struct ShadowListKitPassGeometry {
         ++entry;
         continue;
       }
-      // A deleted row's cell fades out first, then goes back to the pool.
-      if (![_changes fadeOutKey:entry->first cell:entry->second]) {
+      // A deleted row's cell fades out first, then goes back to the pool. One swiped out does not.
+      if ([self isSwipedOutCell:entry->second] || ![_changes fadeOutKey:entry->first cell:entry->second]) {
         [self recycleCell:entry->second];
       }
       entry = _mounted.erase(entry);

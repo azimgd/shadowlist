@@ -123,9 +123,12 @@ extern "C" const char ShadowListKitListViewScrollingLink = 0;
   }
 }
 
+/*
+ * A trackpad gesture across the axis may swipe an item.
+ */
 - (BOOL)claimsScrollWheel:(NSEvent *)event
 {
-  return NO;
+  return [self swipeWithScrollWheel:event];
 }
 
 @end

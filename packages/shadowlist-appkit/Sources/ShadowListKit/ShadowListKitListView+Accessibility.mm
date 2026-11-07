@@ -1,4 +1,5 @@
 #import "Internal/ShadowListKitListView+Private.h"
+#import "Internal/ShadowListKitSwipeActionsView.h"
 
 #import <ShadowListKit/ShadowListKitListView+Testing.h>
 
@@ -105,9 +106,16 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   return [super isAccessibilitySelectorAllowed:selector];
 }
 
+/*
+ * The item's swipe actions, then the moves.
+ */
 - (NSArray<NSAccessibilityCustomAction *> *)accessibilityCustomActions
 {
-  return [_list accessibilityMoveActionsForKey:_key];
+  std::size_t row = [self row];
+  NSInteger item = row == UNDEFINED_INDEX ? NSNotFound : [_list itemForRow:(NSInteger)row];
+  NSArray<NSAccessibilityCustomAction *> *swipes = [_list accessibilitySwipeActionsForItem:item];
+  NSArray<NSAccessibilityCustomAction *> *moves = [_list accessibilityMoveActionsForKey:_key];
+  return swipes.count > 0 ? [swipes arrayByAddingObjectsFromArray:moves] : moves;
 }
 
 - (NSArray<NSAccessibilityActionName> *)accessibilityActionNames
@@ -261,7 +269,8 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 
 /*
  * A point over a mounted row is its cell's element, or the row's. The pinned row covers the
- * rows under it, and cells fading out after a delete are left out.
+ * rows under it, and cells fading out after a delete are left out. The buttons of a swiped
+ * item show where it moved away from.
  */
 - (id)accessibilityHitTest:(NSPoint)point
 {
@@ -274,6 +283,12 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
     return [_scrollers accessibilityHitTest:point];
   }
   NSPoint content = [_contentView convertPoint:local fromView:self];
+  if (_swipeActionsView) {
+    NSButton *button = [_swipeActionsView buttonAtPoint:[_swipeActionsView convertPoint:local fromView:self]];
+    if (button) {
+      return [button accessibilityHitTest:point] ?: button;
+    }
+  }
   ShadowListKitListCell *cell = nil;
   NSView *templates[] = {_headerView, _footerView};
   for (NSView *view : templates) {

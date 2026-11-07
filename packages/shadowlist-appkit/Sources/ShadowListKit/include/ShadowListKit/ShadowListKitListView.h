@@ -200,8 +200,19 @@ NS_SWIFT_UI_ACTOR
 - (nullable NSString *)listView:(ShadowListKitListView *)listView typeSelectStringForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:typeSelectStringForItemAt:));
 
 /*
+ * Actions behind an item swiped from its leading or trailing side, or nil for none.
+ */
+- (nullable ShadowListKitSwipeActionsConfiguration *)listView:(ShadowListKitListView *)listView
+                  leadingSwipeActionsForItemAtIndex:(NSInteger)index
+    NS_SWIFT_NAME(listView(_:leadingSwipeActionsForItemAt:));
+- (nullable ShadowListKitSwipeActionsConfiguration *)listView:(ShadowListKitListView *)listView
+                 trailingSwipeActionsForItemAtIndex:(NSInteger)index
+    NS_SWIFT_NAME(listView(_:trailingSwipeActionsForItemAt:));
+
+/*
  * The menu for a right click or a Control-click on an item, or the menu key on the keyboard's
- * item, or nil for none. clickedIndex is the item while the menu is open.
+ * item, or nil for none. With none, an item with swipe actions shows them as a menu.
+ * clickedIndex is the item while the menu is open.
  */
 - (nullable NSMenu *)listView:(ShadowListKitListView *)listView contextMenuForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contextMenuForItemAt:));
 
@@ -360,10 +371,19 @@ NS_SWIFT_UI_ACTOR
  * Without allowsSelection the list takes no first responder, mouse and key events go to the
  * next responder and no cell is hovered, the way a host that selects by itself wants it.
  *
+ * Swipe actions, the way NSTableView shows row actions: a two finger swipe across the scroll
+ * axis on a trackpad moves an item with actions from the delegate and shows their buttons
+ * behind it. A mouse wheel never swipes. The item rests open past half its buttons or when
+ * flung, and a full swipe performs the side's first action. A click on a button performs its
+ * action. A click anywhere else, scrolling, Escape or picking up a row closes the item, and so
+ * does closeSwipeActionsAnimated:. A swipe across the axis on an item without actions on that
+ * side goes to the next responder.
+ *
  * Menus: a right click or a Control-click on an item shows the delegate's
- * listView:contextMenuForItemAtIndex: menu, with or without allowsSelection. While it is open the
- * item is clickedIndex and its cell the menuTarget, drawn with an outline. clickedIndex is also
- * the item a mouse press is on until the mouse goes up.
+ * listView:contextMenuForItemAtIndex: menu, with or without allowsSelection. An item without
+ * one shows its trailing then its leading swipe actions as a menu. While it is open the item is
+ * clickedIndex and its cell the menuTarget, drawn with an outline. clickedIndex is also the item
+ * a mouse press is on until the mouse goes up.
  *
  * Sections: see the data source. sectionForItemAtIndex:, firstItemIndexInSection:,
  * rectForHeaderInSection:, rectForFooterInSection: and scrollToSection:animated: work in
@@ -375,9 +395,9 @@ NS_SWIFT_UI_ACTOR
  * is a row element, mounted or not, section titles included, and a mounted row holds its cell,
  * an element with the cell role. The header view comes before the rows and the footer view
  * after them, then the scroll bars. Scrolling a row to visible scrolls it into view. An assistive
- * app selects rows the way the reader does, and with reorderEnabled moves an item a step through
- * its row's actions. Selection changes, the row count and pages scrolled through a scroll bar are
- * posted. A host that gives its own elements, like a grid over a driven list, sets
+ * app selects rows the way the reader does, runs an item's swipe actions through its row's
+ * actions and with reorderEnabled moves an item a step through them. Selection changes, the row
+ * count and pages scrolled through a scroll bar are posted. A host that gives its own elements, like a grid over a driven list, sets
  * accessibilityElement to NO, which hides the list and its rows.
  *
  * Saving the position: anchorState is the item at the viewport start by key, and
@@ -470,6 +490,7 @@ NS_SWIFT_UI_ACTOR
 
 - (void)selectItemAtIndex:(NSInteger)index animated:(BOOL)animated;
 - (void)deselectItemAtIndex:(NSInteger)index animated:(BOOL)animated;
+- (void)closeSwipeActionsAnimated:(BOOL)animated;
 
 - (nullable __kindof ShadowListKitListCell *)cellForItemAtIndex:(NSInteger)index;
 @property (nonatomic, readonly) NSArray<__kindof ShadowListKitListCell *> *visibleCells;

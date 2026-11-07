@@ -229,6 +229,7 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   }
   [self stopScrolling];
   [self unhighlight];
+  [self closeSwipeAnimated:YES];
   CGPoint content = [self contentPointOf:location];
   _driver.dragBegin((std::size_t)cell.row, [self along:content], [self cross:content]);
   _heldCell = cell;

@@ -14,6 +14,7 @@
 #include <shadowlist-core/host/ListSections.hpp>
 #include <shadowlist-core/host/ListSelection.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
+#include <shadowlist-core/host/SwipeReveal.hpp>
 
 #include <string>
 #include <unordered_map>
@@ -23,6 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class ShadowListKitChangeAnimator;
 @class ShadowListKitRowAccessibilityElement;
+@class ShadowListKitSwipeActionsView;
 
 /*
  * Place a view at a frame with the layer's implicit animations off.
@@ -85,6 +87,14 @@ extern const char ShadowListKitListViewSelectionLink;
  * _dragPressed is a mouse press on an item that can move, at _dragStart, which lifts it once
  * the mouse drags it far enough. _dragLink scrolls near the edges, _dragKeyMonitor holds the
  * keys while a row is held and _dragFeedback spaces the haptic ticks of the drop spot.
+ * _swipeCell is the row swiped open and _swipeActionsView its actions, _swipeOffset how far the
+ * row shows moved across the axis and _swipe where it follows and rests. _swipesItems is whether
+ * the delegate gives swipe actions at all. _swipeTracking is a trackpad gesture moving the row,
+ * which has moved it _swipeTranslation at _swipeVelocity, its last event at _swipeTime.
+ * _swipePassing is a gesture across the axis the list leaves to the next responder, and
+ * _swipeMomentum the momentum after a swipe the list takes. _swipeLink animates the row to
+ * _swipeRest from _swipeSettleFrom, _swipeSettleElapsed into the animation. _swipeKeyMonitor
+ * holds Escape while a row is open.
  * _rowElements holds the rows' accessibility elements by key, kept while accessibility holds
  * them. _accessibilityHidden is set while a host hides the list from accessibility.
  * _accessibilityRowCount is the row count accessibility last heard of, and
@@ -150,6 +160,24 @@ extern const char ShadowListKitListViewSelectionLink;
   CADisplayLink *_dragLink;
   id _dragKeyMonitor;
   azimgd::shadowlist::DragFeedback _dragFeedback;
+
+  ShadowListKitListCell *_swipeCell;
+  ShadowListKitSwipeActionsView *_swipeActionsView;
+  azimgd::shadowlist::SwipeReveal _swipe;
+  CGFloat _swipeOffset;
+  BOOL _swipesItems;
+  BOOL _swipeTracking;
+  BOOL _swipePassing;
+  BOOL _swipeMomentum;
+  CGFloat _swipeTranslation;
+  CGFloat _swipeVelocity;
+  NSTimeInterval _swipeTime;
+  CADisplayLink *_swipeLink;
+  azimgd::shadowlist::SwipeRest _swipeRest;
+  CGFloat _swipeSettleFrom;
+  double _swipeSettleElapsed;
+  CFTimeInterval _swipeFrameTime;
+  id _swipeKeyMonitor;
 
   NSMapTable<NSString *, ShadowListKitRowAccessibilityElement *> *_rowElements;
   BOOL _accessibilityHidden;
@@ -298,12 +326,29 @@ extern const char ShadowListKitListViewSelectionLink;
 @end
 
 /*
- * Context menus. menuForCell: is the delegate's menu for an item. showMenuForRow: opens it on a
- * row from the keyboard. endMenuTarget takes the outline and clickedIndex off the item once
- * the menu closes.
+ * Swipe actions and context menus. updateSwipesItems reads whether the delegate gives swipe
+ * actions. swipeWithScrollWheel: moves a row with a trackpad gesture across the axis the engine
+ * passed on and returns whether the list takes the event. isSwipeOpen says whether a row is
+ * open, and isSwipedOutCell: whether a cell slid all the way out. closeSwipeAnimated: closes it.
+ * swipeOwnsClickAtPoint: takes a click while a row is open: on an action it performs it,
+ * anywhere else it closes the row. layoutSwipe keeps the actions under the swiped row after a
+ * layout pass. swipeCellWillRecycle: drops the swipe of a cell going back to the pool.
+ * accessibilitySwipeActionsForItem: is an item's swipe actions as accessibility actions.
+ * menuForCell: is the delegate's menu for an item, or a menu of its swipe actions.
+ * showMenuForRow: opens it on a row from the keyboard. endMenuTarget takes the outline and
+ * clickedIndex off the item once the menu closes.
  */
 @interface ShadowListKitListView (Actions)
 
+- (void)updateSwipesItems;
+- (BOOL)swipeWithScrollWheel:(NSEvent *)event;
+- (BOOL)isSwipeOpen;
+- (BOOL)isSwipedOutCell:(ShadowListKitListCell *)cell;
+- (void)closeSwipeAnimated:(BOOL)animated;
+- (BOOL)swipeOwnsClickAtPoint:(NSPoint)point;
+- (void)layoutSwipe;
+- (void)swipeCellWillRecycle:(ShadowListKitListCell *)cell;
+- (NSArray<NSAccessibilityCustomAction *> *)accessibilitySwipeActionsForItem:(NSInteger)item;
 - (nullable NSMenu *)menuForCell:(ShadowListKitListCell *)cell;
 - (void)showMenuForRow:(std::size_t)row;
 - (void)endMenuTarget;

@@ -44,12 +44,26 @@ FOUNDATION_EXPORT NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventP
 /*
  * The menu a right click on a shown item gets, or a Control-click with the Control flag, asked
  * through the item's cell. The outline drawn over the menu target while a menu is open, or nil.
+ * A swipe moves a shown item's row distance points across the axis and lets go with velocity,
+ * the way UIKit's kit does. A swipe wheel event goes through scrollWheel: with the pointer at a
+ * point in the list's coordinates, laid out after. Settle frames run at once instead of on the
+ * display link. swipedIndex is the item whose actions are open, or NSNotFound, swipeOffset how
+ * far its row shows moved and swipeActionsView the view of its buttons.
  */
 @interface ShadowListKitListView (ActionsTesting)
 
 @property (nonatomic, readonly, nullable) CALayer *shadowListKit_menuOutline;
+@property (nonatomic, readonly) NSInteger shadowListKit_swipedIndex;
+@property (nonatomic, readonly) CGFloat shadowListKit_swipeOffset;
+@property (nonatomic, readonly, nullable) NSView *shadowListKit_swipeActionsView;
 
 - (nullable NSMenu *)shadowListKit_menuForItemAtIndex:(NSInteger)index modifierFlags:(NSEventModifierFlags)flags;
+- (void)shadowListKit_swipeItemAtIndex:(NSInteger)index distance:(CGFloat)distance velocity:(CGFloat)velocity;
+- (void)shadowListKit_swipeWheelDelta:(CGPoint)delta
+                                phase:(NSEventPhase)phase
+                        momentumPhase:(NSEventPhase)momentumPhase
+                              atPoint:(CGPoint)point;
+- (void)shadowListKit_runSwipeFramesFor:(NSTimeInterval)duration;
 
 @end
 
