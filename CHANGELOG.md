@@ -32,6 +32,10 @@
 
 ### ShadowListKit (iOS and Android)
 
+- Android: `Sizing.exactSizeForItem` gives an item a size with its fraction of a pixel, and rows sit on whole pixels rounded from the exact sum of the sizes before them.
+- Android: a view that owns the scrolling can host the list. `scrollGestureEnabled` turns off its touch scrolling, `adjustOffsetBy(delta)` moves its offset by a fractional delta and a subclass's `didLayOut()` runs after every layout pass.
+- Android: a host library builds the kit's native library against its own copy of the core with `SHADOWLIST_KIT_CORE_DIR` and adds definitions with `SHADOWLIST_KIT_COMPILE_DEFINITIONS`.
+- iOS: the swipe action, swipe configuration, anchor state and list changes classes live in `ShadowListKitListModels.h`, which `ShadowListKitListView.h` imports. The API is the same.
 - `followAppends` also keeps items growing at the end in view.
 - Android keeps the selection, the batch `performBatchUpdates` collects and the content versions in the core's `ListSelection`, `BatchCollector` and `ContentVersions` through the JNI, beside the core and outliving it. UIKit takes its batches from `BatchCollector` too.
 - The default change animation duration is the core's `CHANGE_DURATION_MS` in both kits. On Android `ShadowListKitDefaultItemAnimator.CHANGE_DURATION_MS` is a `val` read from the core instead of a `const val`, still 250 ms.
@@ -42,8 +46,22 @@
 - Items are prefetched before their cells are made: a pass measures the rows about to show, reports prefetching and cancels, and only then builds the remaining cells. Without `prefetchDataSource` nothing changes.
 - Android TalkBack's "Moved to" announcement waits for the row to land in the target list, like VoiceOver, and stays silent after the landing timeout.
 
+### ShadowListKit for AppKit
+
+- New `packages/shadowlist-appkit` package: `ShadowListKitListView` for the Mac, a flipped, layer backed `NSView` that owns its scroll position, with the UIKit kit's class names, selectors and data source. Swift Package Manager product `ShadowListKitAppKit`, and the `ShadowListKit` pod on macOS 14.
+- Keys, measurement through cells or `listView:sizeForItemAtIndex:crossSize:`, reloads, inserts, deletes, moves, batches, `applyChanges`, inverted lists, grids, horizontal lists, sections with sticky headers, sticky items, header and footer views, separators, prefetching, snapping, saved positions with window state restoration and scroll commands.
+- `ShadowListKitScrollEngine` scrolls a view that owns its scroll position from trackpad gestures and the mouse wheel, on one axis or two, and `ShadowListKitScrollerView` draws overlay scrollers over it. The list uses both.
+- `scrollDriven` lets a host such as a two axis grid move the list: the host sets `contentOffset` and `scrollPhase`, and the list reports the offsets it wants to `listView:didCorrectOffset:`. `listViewDidLayOut:` follows every layout pass.
+- Selection with the mouse and the keyboard the way `NSTableView` selects, with `listView:didActivateItemAtIndex:`, type select through `listView:typeSelectStringForItemAtIndex:`, hover, emphasis and context menus with `clickedIndex` and the cell's `menuTarget`.
+- Drag reorder with the mouse, change animations with `animatesChanges` and `itemAnimator`, and swipe actions on a two finger trackpad swipe. An item without its own menu shows its swipe actions as one.
+- Accessibility as a table of one column with every item a row, scroll bars that page, the swipe actions as custom actions and Move actions with `reorderEnabled`. `accessibilityElement` set to `NO` hides the list for a host with its own elements.
+- `ShadowListKitTextLayout` and `ShadowListKitTextView` with `NSFont`, on the UIKit kit's CoreText code.
+- `templates/shadowlist-appkit-example` runs the kit with scripted checks through `-SLScenario`.
+
 ### Core (C++)
 
+- `host/ScrollPhysics` scrolls a view on one or two axes from scroll wheel events: trackpad gestures that rubber band past the edges, the momentum after them, a mouse wheel by lines, animations to an offset, snapping at rest and the scroller thumb geometry.
+- `host/ListSelection` keeps an anchor and selects a range from it with `setAnchor` and `selectRange`, the way a Shift-click extends a selection on the Mac. The anchor follows its key and drops with its row.
 - Scroll command and prop indices are `std::size_t` with `UNDEFINED_INDEX` for none: `ScrollCommand::index`, `ScrollPatch::commandIndex`, `Container::requestScrollToRow` and `commandTargetOffset`. `SCROLL_TO_END_INDEX` and `SCROLL_TO_OFFSET_INDEX` are `std::size_t` sentinels. The platforms still carry -3 and -4 in a double and convert with `scrollCommandIndexFromDouble` and `scrollCommandIndexToDouble`.
 - `prefetchWindow` is `prefetchRange`, and the debug log macro `SL_LOG` is `SHADOWLIST_LOG`.
 - `KeyEdit` has a `Splice` kind with `start`, `deleted` and `inserted`, which every `ListDriver` edit hands to the core through `keyEditOf`. `endEdit` is gone. `ListDriver::reloadKeys` takes the splice.
