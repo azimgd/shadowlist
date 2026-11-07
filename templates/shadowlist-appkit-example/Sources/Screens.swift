@@ -13,7 +13,7 @@ protocol ListScreen: AnyObject {
 
 /*
  * Posts with heights from layouts typeset ahead, separators between them. The list scrolls by
- * itself.
+ * itself, and a post dragged with the mouse moves.
  */
 final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
   let list = ShadowListKitListView()
@@ -22,6 +22,7 @@ final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, Sha
   private var nextIndex: Int
   private var previousIndex = -1
   private(set) var activated: [Int] = []
+  private(set) var moves: [[Int]] = []
 
   var keys: [String] { posts.map(\.key) }
 
@@ -33,6 +34,7 @@ final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, Sha
     super.init(frame: .zero)
     list.showsSeparators = true
     list.allowsMultipleSelection = true
+    list.reorderEnabled = true
     list.separatorInsetStart = FeedLayout.padding + FeedLayout.avatar + FeedLayout.gap
     list.register(FeedCell.self, forCellReuseIdentifier: "post")
     list.dataSource = self
@@ -95,6 +97,11 @@ final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, Sha
     let cell = listView.dequeueReusableCell(withIdentifier: "post") as! FeedCell
     cell.configure(posts[index], layout: layout(at: index, width: listView.contentSize.width))
     return cell
+  }
+
+  func listView(_ listView: ShadowListKitListView, moveItemAt sourceIndex: Int, to destinationIndex: Int) {
+    moves.append([sourceIndex, destinationIndex])
+    posts.insert(posts.remove(at: sourceIndex), at: destinationIndex)
   }
 
   func listView(_ listView: ShadowListKitListView, didActivateItemAt index: Int) {

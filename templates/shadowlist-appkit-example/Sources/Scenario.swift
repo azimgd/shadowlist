@@ -18,10 +18,12 @@ import ShadowListKit
  *            pointer's hover. Logs each check
  *   menu     a right click and a Control-click on items: the menu, clickedIndex, the menu target
  *            and its outline, and their end when the menu closes
+ *   reorder  a press dragged short of the slop and past it, the drop spot as the mouse moves, a
+ *            drop, the edge scroll on the display link with the row under the mouse, and Escape
  *
- * -SLShot scrolls a little first, which shows the overlay scrollers in the picture. With keys
- * or menu it shoots the end state instead: a selection with a hovered item, or an open menu's
- * outline.
+ * -SLShot scrolls a little first, which shows the overlay scrollers in the picture. With keys,
+ * menu or reorder it shoots the end state instead: a selection with a hovered item, an open
+ * menu's outline, or a lifted post with its shadow over the gap it opened.
  */
 enum Scenario {
   static func start(_ screen: NSView & ListScreen) {
@@ -53,6 +55,10 @@ enum Scenario {
     }
     if name == "menu", let feed = screen as? FeedScreen {
       after(1.5) { checkMenu(feed) }
+      return
+    }
+    if name == "reorder", let feed = screen as? FeedScreen {
+      after(1.5) { checkReorder(feed) }
       return
     }
     after(1.5) {
@@ -400,6 +406,87 @@ enum Scenario {
         checks["controlClickMenu"] = menu?.title == screen.keys[0] && list.clickedIndex == 0
       },
       {
+        result["checks"] = checks
+        result["pass"] = checks.values.allSatisfy { $0 }
+        finish(result, shoot: screen)
+      },
+    ]
+    run(steps)
+  }
+
+  /*
+   * Drags with the mouse's events on the feed, one step a frame. The edge scroll runs on the
+   * list's own display link for a few frames. The last drag stays lifted for the picture.
+   */
+  private static func checkReorder(_ screen: FeedScreen) {
+    let list = screen.list
+    var result: [String: Any] = ["scenario": "reorder", "engine": "shadowlist", "screen": "FeedScreen"]
+    var checks: [String: Bool] = [:]
+    var keys: [String] = []
+    var start = CGPoint.zero
+    var edge = CGPoint.zero
+    var offset: CGFloat = 0
+    func center(_ index: Int) -> CGPoint {
+      guard let cell = list.cellForItem(at: index) else { return .zero }
+      let frame = list.convert(cell.frame, from: cell.superview)
+      return CGPoint(x: frame.midX, y: frame.midY)
+    }
+    func shownMidY(_ index: Int) -> CGFloat {
+      guard let layer = list.cellForItem(at: index)?.layer else { return .nan }
+      return layer.frame.midY - list.contentOffset.y
+    }
+    var steps: [() -> Void] = [
+      {
+        list.scrollToStart(animated: false)
+        keys = screen.keys
+        start = center(2)
+        list.shadowListKit_mouseDown(at: start)
+        list.shadowListKit_mouseDrag(to: CGPoint(x: start.x, y: start.y + 2))
+        checks["belowSlopNoLift"] = list.shadowListKit_heldIndex == NSNotFound
+        list.shadowListKit_mouseDrag(to: CGPoint(x: start.x, y: start.y + 4))
+        checks["liftsPastSlop"] = list.shadowListKit_heldIndex == 2 && (list.cellForItem(at: 2)?.layer?.shadowOpacity ?? 0) > 0
+      },
+      {
+        let target = center(5)
+        list.shadowListKit_mouseDrag(to: CGPoint(x: target.x, y: target.y + 2))
+        result["dropIndex"] = list.shadowListKit_dropIndex
+        checks["dropSpotFollows"] = list.shadowListKit_dropIndex == 5
+        checks["rowsMakeRoom"] = (3...5).allSatisfy { list.cellForItem(at: $0)?.layer.map { $0.transform.m42 < 0 } == true }
+        checks["heldUnderMouse"] = abs(shownMidY(2) - (target.y + 2)) < 0.5
+      },
+      {
+        list.shadowListKit_mouseUp(at: center(5))
+        checks["dropMoves"] = screen.moves == [[2, 5]] && screen.keys[5] == keys[2]
+      },
+      {
+        keys = screen.keys
+        start = center(1)
+        edge = CGPoint(x: start.x, y: list.bounds.height - 12)
+        offset = list.contentOffset.y
+        list.shadowListKit_mouseDown(at: start)
+        list.shadowListKit_mouseDrag(to: edge)
+      },
+    ]
+    steps += Array(repeating: {}, count: 20)
+    steps += [
+      {
+        result["autoScrollTravel"] = Double(list.contentOffset.y - offset)
+        checks["autoScroll"] = list.contentOffset.y - offset > 40
+        checks["heldStaysUnderMouse"] = abs(shownMidY(1) - edge.y) < 0.5 && list.shadowListKit_heldIndex == 1
+        list.shadowListKit_pressKey("\u{1B}", keyCode: 53, modifierFlags: [])
+        checks["escapePutsBack"] = list.shadowListKit_heldIndex == NSNotFound
+      },
+      {
+        list.shadowListKit_mouseUp(at: edge)
+        checks["escapeMovesNothing"] = screen.keys == keys && screen.moves.count == 1
+        list.scrollToStart(animated: false)
+      },
+      {
+        // Left lifted for the picture.
+        start = center(1)
+        let target = center(3)
+        list.shadowListKit_mouseDown(at: start)
+        list.shadowListKit_mouseDrag(to: CGPoint(x: start.x + 6, y: target.y + 8))
         result["checks"] = checks
         result["pass"] = checks.values.allSatisfy { $0 }
         finish(result, shoot: screen)
