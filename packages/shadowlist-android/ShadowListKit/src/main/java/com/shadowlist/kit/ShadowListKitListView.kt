@@ -67,6 +67,14 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   interface Sizing {
     fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int
+
+    /*
+     * The size with its fraction of a pixel, like 21dp at a density of 2.625. The list reads this
+     * one and places each row at the pixel rounded from the exact sum of the sizes before it.
+     * Thousands of rows then end where their exact sizes add up to. Defaults to sizeForItem.
+     */
+    fun exactSizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Double =
+      sizeForItem(listView, index, crossSize).toDouble()
   }
 
   /*
@@ -241,6 +249,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
   var reorderEnabled = false
 
   /*
+   * The list's own touch scrolling, flings, edge pulls and nested scrolling. Off, the list takes
+   * no touch to scroll and a view around it owns the gesture and moves the list through
+   * scrollTo, scrollToItem and adjustOffsetBy. Taps, swipe actions and reordering stay. On by
+   * default.
+   */
+  var scrollGestureEnabled = true
+    set(value) {
+      field = value
+      if (!value) {
+        gesture.abandon()
+        gesture.stop()
+      }
+    }
+
+  /*
    * Animate insertItems, deleteItems, reloadData, batches and applyChanges through itemAnimator:
    * inserted items fade in, deleted items fade out and items that stay slide from where they were
    * to where they are. The visible content stays anchored the same as without animations. Off by
@@ -387,6 +410,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var mountedHigh = -1
   private var mountedSticky = -1
   private var mountedGeometry = -1.0
+  private var mountedFraction = 0.0
   private var mountedStructure = 0
   private var structureVersion = 0
 
@@ -446,6 +470,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var previousOffset = 0
   private var userScrolled = false
 
+  /*
+   * What the core's last offset had past the whole pixel the list scrolled to. Rows are placed
+   * that much further along, the same as at the core's exact offset.
+   */
+  private var offsetFraction = 0.0
+
   private var inLayoutPass = false
   private var settleScheduled = false
   private var reachedStart = false
@@ -500,13 +530,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   internal val offset: Int get() = if (horizontal) scrollX else scrollY
 
+  /*
+   * The offset the rows are placed at, with the fraction of a pixel the core's last pass left.
+   */
+  internal val exactOffset: Double get() = offset + offsetFraction
+
   internal val maxOffset: Int get() = max(0, contentAlong - windowAlong)
 
   /*
    * A point in the list's own coordinates as a position in the content the core places rows
    * in, along and across the scroll axis.
    */
-  internal fun contentAlongAt(x: Float, y: Float): Float = along(x, y) + offset - leadingPadding
+  internal fun contentAlongAt(x: Float, y: Float): Float = along(x, y) + exactOffset.toFloat() - leadingPadding
   internal fun contentCrossAt(x: Float, y: Float): Float = cross(x, y) - crossPadding
 
   /*
@@ -878,7 +913,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val geometryChanged = readGeometry()
     trackUserScroll()
     if (windowAlong > 0 && windowCross > 0) {
-      if (needsFrame || geometryChanged || !inBand(offset)) runPasses()
+      if (needsFrame || geometryChanged || !inBand(exactOffset)) runPasses()
       layoutTemplates()
       mountCells()
       stickyPinning.layoutSticky()
@@ -888,9 +923,17 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
     inLayoutPass = false
     dispatchReached()
+    didLayOut()
   }
 
-  private fun inBand(value: Int): Boolean = bandLow <= value && value <= bandHigh
+  /*
+   * Called after every layout pass, once the rows it measured and the cells it mounted are in
+   * place and before the frame is drawn. A subclass reconciles views of its own with the rows
+   * here. A data change in response waits for a later pass. A host posts it to run after this one.
+   */
+  protected open fun didLayOut() {}
+
+  private fun inBand(value: Double): Boolean = bandLow <= value && value <= bandHigh
 
   /*
    * Read the viewport and template sizes. Returns whether any changed since the last pass.
@@ -951,7 +994,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   private fun runPasses() {
     val pass = core.pass
-    pass[ShadowListKitCore.PASS_OFFSET] = offset.toDouble()
+    pass[ShadowListKitCore.PASS_OFFSET] = exactOffset
     pass[ShadowListKitCore.PASS_WINDOW_ALONG] = windowAlong.toDouble()
     pass[ShadowListKitCore.PASS_WINDOW_CROSS] = windowCross.toDouble()
     pass[ShadowListKitCore.PASS_HEADER_SIZE] = headerSize.toDouble()
@@ -975,19 +1018,23 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   private fun applyPassResult(pass: DoubleArray) {
     contentAlong = pass[ShadowListKitCore.PASS_OUT_CONTENT].roundToInt()
-    val target = pass[ShadowListKitCore.PASS_OUT_OFFSET].roundToInt()
+    val exactTarget = pass[ShadowListKitCore.PASS_OUT_OFFSET]
+    val target = exactTarget.roundToInt()
     /*
      * Content that shrank under a resting view clamps it to the new end, like a scroll view's
      * content size write. The core runs again on the clamped offset before the frame is drawn.
      */
     if (target > maxOffset && !gesture.isTracking && !clampingPass) {
       writeOffset(maxOffset)
+      offsetFraction = 0.0
       clampingPass = true
       runPasses()
       clampingPass = false
       return
     }
     if (target != offset) writeOffset(target)
+    // Sizes with fractions correct by fractions. The scroll position only moves by whole pixels.
+    offsetFraction = exactTarget - target
     bandLow = pass[ShadowListKitCore.PASS_OUT_BAND_LOW]
     bandHigh = pass[ShadowListKitCore.PASS_OUT_BAND_HIGH]
     reachedStart = reachedStart || pass[ShadowListKitCore.PASS_OUT_REACHED_START] != 0.0
@@ -1076,8 +1123,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
     // Rows under the padding show when clipToPadding is off. They are mounted too.
     val pad = windowAlong * mountOverscan
-    val viewLow = offset - pad - leadingPadding
-    val viewHigh = offset + windowAlong + pad + trailingPadding
+    val viewLow = exactOffset - pad - leadingPadding
+    val viewHigh = exactOffset + windowAlong + pad + trailingPadding
     var low = -1
     var high = -1
     for (index in measuredLow..measuredHigh) {
@@ -1085,7 +1132,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       if (low < 0) low = index
       high = index
     }
-    val sticky = stickyPinning.activeStickyIndex(offset.toDouble())
+    val sticky = stickyPinning.activeStickyIndex(exactOffset)
     if (!mountNeeded(low, high, sticky)) return
     recordMount(low, high, sticky)
     mountPlan(low, high, sticky, viewLow, viewHigh)
@@ -1094,17 +1141,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Whether anything the last mount pass covered changed: the rows, the pinned header, the
-   * geometry or the data. A drag mounts every pass.
+   * geometry, the offset's fraction or the data. A drag mounts every pass.
    */
   private fun mountNeeded(low: Int, high: Int, sticky: Int): Boolean =
-    low != mountedLow || high != mountedHigh || sticky != mountedSticky ||
-      measuredGeometry != mountedGeometry || structureVersion != mountedStructure || hasHeldRow
+    low != mountedLow || high != mountedHigh || sticky != mountedSticky || measuredGeometry != mountedGeometry ||
+      offsetFraction != mountedFraction || structureVersion != mountedStructure || hasHeldRow
 
   private fun recordMount(low: Int, high: Int, sticky: Int) {
     mountedLow = low
     mountedHigh = high
     mountedSticky = sticky
     mountedGeometry = measuredGeometry
+    mountedFraction = offsetFraction
     mountedStructure = structureVersion
   }
 
@@ -1194,13 +1242,17 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   /*
-   * Place a view at a frame. A view that only moved is offset without a layout.
+   * Place a view at a frame. Edges round to whole pixels from the exact frame and offset. Rows
+   * meet without gaps and keep their place on screen when the core moves them and the offset
+   * together. A view that only moved is offset without a layout.
    */
   internal fun placeView(view: View, x: Double, y: Double, w: Double, h: Double) {
-    val left = x.roundToInt() + paddingLeft
-    val top = y.roundToInt() + paddingTop
-    val right = (x + w).roundToInt() + paddingLeft
-    val bottom = (y + h).roundToInt() + paddingTop
+    val shiftX = if (horizontal) offsetFraction else 0.0
+    val shiftY = if (horizontal) 0.0 else offsetFraction
+    val left = (x - shiftX).roundToInt() + paddingLeft
+    val top = (y - shiftY).roundToInt() + paddingTop
+    val right = (x + w - shiftX).roundToInt() + paddingLeft
+    val bottom = (y + h - shiftY).roundToInt() + paddingTop
     val width = right - left
     val height = bottom - top
     if (view.isLayoutRequested || view.width != width || view.height != height) {
@@ -1266,7 +1318,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val item = itemForRow(row)
     if (item >= 0) {
       val sizing = dataSource as? Sizing
-      if (sizing != null) return sizing.sizeForItem(this, item, cross).toDouble()
+      if (sizing != null) return sizing.exactSizeForItem(this, item, cross)
     } else {
       val sections = dataSource as? Sections
       val place = placeOfRow(row)
@@ -1471,9 +1523,13 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * A touch that closed an open row never reaches the rows. The list keeps it to scroll.
    */
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean =
-    gesture.intercept(event) || swipe.closingTouch
+    (scrollGestureEnabled && gesture.intercept(event)) || swipe.closingTouch
 
-  override fun onTouchEvent(event: MotionEvent): Boolean = gesture.touch(event)
+  /*
+   * Without scrollGestureEnabled a touch no row took goes back to the parent.
+   */
+  override fun onTouchEvent(event: MotionEvent): Boolean =
+    if (scrollGestureEnabled) gesture.touch(event) else super.onTouchEvent(event)
 
   override fun computeScroll() = gesture.computeScroll()
 
@@ -1641,7 +1697,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     get() {
       val current = coreOrNull ?: return pendingAnchor
       val out = DoubleArray(1)
-      val key = current.anchorState(offset.toDouble(), out) ?: return pendingAnchor
+      val key = current.anchorState(exactOffset, out) ?: return pendingAnchor
       return ShadowListKitAnchorState(key, out[0].toFloat())
     }
 
@@ -1745,6 +1801,22 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
     stopScrolling()
     core.scrollToEnd()
+    runCommandNow()
+  }
+
+  /*
+   * Move the offset by delta pixels, fractions included, and lay out now. scrollTo holds the
+   * offset inside the content size first, which counts estimates for rows not measured yet. Here
+   * the layout pass measures the rows at the new offset and then holds it inside the content
+   * they make. For a view that moves the list itself, like one that keeps a window of rows and
+   * corrects the offset after it moves the window.
+   */
+  fun adjustOffsetBy(delta: Double) {
+    if (delta == 0.0) return
+    val target = exactOffset + delta
+    val whole = target.roundToInt()
+    offsetFraction = target - whole
+    if (whole != offset) writeOffset(whole)
     runCommandNow()
   }
 

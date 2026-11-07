@@ -64,7 +64,7 @@ has full signatures and defaults.
 | Area | API | Notes |
 | --- | --- | --- |
 | Data source | `DataSource`: `numberOfItems`, `keyForItem`, `cellForItem`, `reconfigureCell` | `reconfigureCell` updates a shown cell for a payload reload. Return `false` to reload the item in full. |
-| Sizing | `Sizing`: `sizeForItem` | Optional. Without it every item is measured once through its cell. |
+| Sizing | `Sizing`: `sizeForItem`, `exactSizeForItem` | Optional. Without it every item is measured once through its cell. `exactSizeForItem` gives a size with its fraction of a pixel, like 21dp at a density of 2.625, and defaults to `sizeForItem`. |
 | Sections | `Sections`: `numberOfSections`, `numberOfItemsInSection`, `keyForSection`, `titleForHeaderInSection`, `titleForFooterInSection`, `cellForHeaderInSection`, `sizeForHeaderInSection`, `sectionIndexTitles` | A title, an empty one too, gives a section a header or footer, shown in a plain cell unless a cell is given. The section key defaults to the key of its first item. |
 | Content versions | `ContentVersions`: `contentVersionForItem` | A revision or hash. `applyChanges` reloads items whose value changed. |
 | Delegate | `willDisplayCell`, `didEndDisplayingCell`, `didSelectItem`, `didDeselectItem`, `shouldSelectItem`, `shouldHighlightItem`, `canMoveItem`, `moveItem`, `didReachStart`, `didReachEnd`, `didScroll`, `didEndScrolling` | Every method has a default. |
@@ -79,9 +79,14 @@ has full signatures and defaults.
 | Pull to refresh | `refreshEnabled`, `refreshing`, delegate `didBeginRefreshing` | Draws its own spinner, without a SwipeRefreshLayout dependency. Works in horizontal lists too. |
 | Separators | `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`, `separatorThickness`, delegate `showsSeparatorAfterItem`, `addItemDecoration` | Only between items of one section. `ShadowListKitItemDecoration` draws below or above the rows, like RecyclerView's ItemDecoration without item offsets. |
 | Queries | `cellForItem`, `visibleCells`, `visibleRange`, `rectForItem`, `contentSize`, `numberOfSections`, `sectionForItem`, `firstItemIndexInSection`, `rectForHeaderInSection`, `rectForFooterInSection` | `visibleRange` runs low to high, null before the first layout. Section header and footer rows do not count. |
-| Scrolling | `scrollToItem(index, viewPosition, animated)`, `scrollToSection`, `scrollToStart`, `scrollToEnd` | `viewPosition` goes from 0 at the viewport start to 1 at the end. The core keeps correcting until the item lands. |
+| Scrolling | `scrollToItem(index, viewPosition, animated)`, `scrollToSection`, `scrollToStart`, `scrollToEnd`, `adjustOffsetBy(delta)`, `scrollGestureEnabled` | `viewPosition` goes from 0 at the viewport start to 1 at the end. The core keeps correcting until the item lands. See [Hosting the list](#hosting-the-list) for the last two. |
 | Saved position | `anchorState`, `restoreAnchorState` | The key at the viewport start and the distance into it. Lands now or once a reload brings the key. Saved in `onSaveInstanceState` when the list has an id. |
 | Accessibility | `CollectionInfo` for all rows, `CollectionItemInfo` per cell | Page scrolls and scroll to position reach rows that are not mounted, which lets TalkBack move past the mounted rows. |
+
+Rows sit on whole pixels rounded from the exact sum of the sizes before them, and the offset
+keeps the fraction of a pixel the core's corrections leave. Rows of a fractional size meet without
+gaps, end where their sizes add up to and stay still when the core moves them and the offset
+together.
 
 Masonry is round robin by row: row `r`, counting section header and footer rows, goes in column
 `r % numberOfColumns`, and each column stacks its own rows. Full width rows in a grid are not supported.
@@ -92,7 +97,28 @@ These combinations do nothing:
 - `sectionIndexTitles` in a horizontal list.
 - `followAppends` without `inverted`.
 
-## Building the kit in a host library
+## Hosting the list
+
+A view that owns the scrolling, like a spreadsheet grid that pans on two axes, can put the list
+inside itself and drive it:
+
+- `scrollGestureEnabled = false` turns off the list's touch scrolling, flings, edge pulls and
+  nested scrolling. The list takes no drag and a touch no row took goes back to the parent. The
+  host moves the list with `scrollTo`, `scrollToItem` and `adjustOffsetBy`. Taps, swipe actions and
+  reordering stay with their own switches.
+- `adjustOffsetBy(delta: Double)` moves the offset by `delta` pixels, fractions included, and lays
+  out right away. `scrollTo` holds the offset inside the content size, which counts estimates for
+  rows not measured yet. This one leaves that to the layout pass, which measures the rows at the
+  new offset first.
+- A subclass overrides `didLayOut()`, which runs after every layout pass once the rows it measured
+  and the cells it mounted are in place, before the frame is drawn.
+- `performBatchUpdates` that deletes rows at one end and inserts rows at the other keeps the
+  visible rows where they are on screen by key, in the layout pass that follows.
+- `importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS` hides the list
+  and its cells from TalkBack when the host gives its own accessibility nodes. The list does not
+  change it.
+
+### Building the kit in a host library
 
 `ShadowListKit/src/main/cpp/CMakeLists.txt` builds `libshadowlistkit.so`. A host's CMake can add
 it with `add_subdirectory` and set two variables first:

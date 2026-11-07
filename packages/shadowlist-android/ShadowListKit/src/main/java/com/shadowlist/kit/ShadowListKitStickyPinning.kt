@@ -94,14 +94,14 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
    */
   fun layoutSticky() {
     if (stickyRows.isEmpty()) return
-    val position = activeStickyPosition(list.offset.toDouble())
+    val position = activeStickyPosition(list.exactOffset)
     val active = if (position >= 0) stickyRows[position] else -1
     val cell = list.mountedCell(active)
     val previous = stickyCell
     if (previous != null && previous !== cell) unpinCell(previous)
     stickyCell = cell
     if (cell == null) return
-    val pinned = stickyLeading(position, list.offset.toDouble())
+    val pinned = stickyLeading(position, list.exactOffset)
     val extent = stickyFrames[position * 2 + 1]
     val cross = list.windowCross.toDouble()
     if (list.horizontal) list.placeView(cell, pinned, 0.0, extent, cross) else list.placeView(cell, 0.0, pinned, cross, extent)
