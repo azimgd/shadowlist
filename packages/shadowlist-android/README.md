@@ -133,3 +133,8 @@ set(SHADOWLIST_KIT_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/shadowlist-core)
 set(SHADOWLIST_KIT_COMPILE_DEFINITIONS "azimgd=host_kit_azimgd")
 add_subdirectory(vendor/shadowlistkit/cpp shadowlistkit)
 ```
+
+## Tests
+
+`./gradlew :ShadowListKit:connectedDebugAndroidTest` runs the kit's tests on a connected device or
+emulator. They load the native core.
