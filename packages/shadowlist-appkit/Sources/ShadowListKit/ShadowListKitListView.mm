@@ -1,4 +1,5 @@
 #import "Internal/ShadowListKitListView+Private.h"
+#import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListModels+Private.h"
 #import "Internal/ShadowListKitListSupport.h"
 
@@ -161,6 +162,7 @@ struct ShadowListKitPassGeometry {
   [self addSubview:_contentView];
   _cellClasses = [NSMutableDictionary new];
   _reusePool = [NSMutableDictionary new];
+  _itemAnimator = [ShadowListKitDefaultItemAnimator new];
   _numberOfColumns = 1;
   _estimatedItemSize = 120;
   _overscan = 1;
@@ -538,6 +540,34 @@ struct ShadowListKitPassGeometry {
   [self invalidateFrame];
 }
 
+- (BOOL)animatesChanges
+{
+  return _animatesChanges;
+}
+
+/*
+ * The change animator exists while animations are on. Cells fading out finish on their own.
+ */
+- (void)setAnimatesChanges:(BOOL)animatesChanges
+{
+  _animatesChanges = animatesChanges;
+  if (animatesChanges && !_changes) {
+    _changes = [[ShadowListKitChangeAnimator alloc] initWithList:self];
+  } else if (!animatesChanges) {
+    _changes = nil;
+  }
+}
+
+- (id<ShadowListKitItemAnimator>)itemAnimator
+{
+  return _itemAnimator;
+}
+
+- (void)setItemAnimator:(id<ShadowListKitItemAnimator>)itemAnimator
+{
+  _itemAnimator = itemAnimator ?: [ShadowListKitDefaultItemAnimator new];
+}
+
 /*
  * Without selection the list takes no first responder and hovers nothing.
  */
@@ -851,6 +881,7 @@ struct ShadowListKitPassGeometry {
     if ([self hasHeldRow]) {
       [self updateDrag];
     }
+    [_changes run];
   }
   _passGeometry.valid = false;
   _inLayoutPass = NO;
@@ -1182,7 +1213,10 @@ struct ShadowListKitPassGeometry {
         ++entry;
         continue;
       }
-      [self recycleCell:entry->second];
+      // A deleted row's cell fades out first, then goes back to the pool.
+      if (![_changes fadeOutKey:entry->first cell:entry->second]) {
+        [self recycleCell:entry->second];
+      }
       entry = _mounted.erase(entry);
     } else {
       ++entry;

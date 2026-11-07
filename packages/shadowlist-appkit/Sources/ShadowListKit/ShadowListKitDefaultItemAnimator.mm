@@ -10,8 +10,9 @@
 static const NSTimeInterval SHADOWLIST_KIT_CHANGE_DURATION = azimgd::shadowlist::CHANGE_DURATION_MS / 1000.0;
 
 /*
- * The cell's layers animate with explicit animations only. The model values stay where the list
- * placed them.
+ * The cell's layers animate with explicit animations of their opacity and position only. The
+ * model values stay where the list placed them, and a slide adds to the frame the list gives the
+ * cell, a pinned row's included. The transform stays the drag's.
  */
 @implementation ShadowListKitDefaultItemAnimator
 
@@ -57,9 +58,9 @@ static const NSTimeInterval SHADOWLIST_KIT_CHANGE_DURATION = azimgd::shadowlist:
   if (offset.x == 0 && offset.y == 0) {
     return;
   }
-  NSValue *from = [NSValue valueWithCATransform3D:CATransform3DMakeTranslation(offset.x, offset.y, 0)];
-  NSValue *to = [NSValue valueWithCATransform3D:CATransform3DIdentity];
-  CABasicAnimation *slide = [self animationOf:@"transform" from:from to:to];
+  NSValue *from = [NSValue valueWithPoint:NSMakePoint(offset.x, offset.y)];
+  NSValue *to = [NSValue valueWithPoint:NSZeroPoint];
+  CABasicAnimation *slide = [self animationOf:@"position" from:from to:to];
   slide.additive = YES;
   [cell.layer addAnimation:slide forKey:@"shadowListKitMove"];
 }

@@ -4,8 +4,8 @@ ShadowListKit for AppKit is the Mac counterpart of [ShadowListKit for UIKit](../
 with the same class names and selectors on the shared C++ core. It is in progress: it has the list
 view with its data changes, sections with sticky headers, header and footer views, scroll
 commands, saved position and separators, its scrolling, selection with the mouse and the keyboard,
-context menus, drag reorder, the text layout and the model classes. Change animations and
-accessibility come next.
+context menus, drag reorder, change animations, the text layout and the model classes.
+Accessibility comes next.
 
 `ShadowListKitListView` is a flipped, layer backed `NSView` that owns its scroll position, with no
 `NSScrollView`. Its cells sit in a content view moved by `contentOffset`. With `scrollDriven` a host
@@ -78,6 +78,18 @@ Force Touch trackpad. Escape puts the row back. The drop calls the delegate's
 same calls as the UIKit kit. It works in grids and without `allowsSelection`, and in a list with
 sections an item stays in its own section. A driven list scrolls near the edges through
 `listView:didCorrectOffset:` like its other offsets. The drag math is the core's `host/DragReorder`.
+
+## Change animations
+
+With `animatesChanges` inserted items fade in, deleted items fade out where they were and items that
+stay slide from where they showed, the same changes the UIKit kit animates with the core's
+`host/ChangeAnimation`. `ShadowListKitDefaultItemAnimator` adds explicit Core Animation animations
+of a cell layer's opacity and position, additive for a slide, which leaves the frame the list gives
+a cell and the transform a drag shifts it by to the list. A deleted item's cell goes back to the
+pool once its fade ends. `itemAnimator` takes another animator with the same calls as the UIKit
+kit, and `performBatchUpdates:completion:` finishes after the default animator's animation. A
+driven list animates the same way and reports its corrections as before. Off, the default, the
+list has no animator state and adds no work to a layout pass.
 
 ## Install
 

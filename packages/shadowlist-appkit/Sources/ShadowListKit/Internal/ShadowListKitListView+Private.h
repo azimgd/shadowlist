@@ -21,6 +21,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class ShadowListKitChangeAnimator;
+
 /*
  * Place a view at a frame with the layer's implicit animations off.
  */
@@ -56,6 +58,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * _headerView and _footerView are the views before the first row and after the last.
  * _stickyIndices and _stickySectionHeaders pick the rows that pin, and _stickyCell is the cell
  * pinned now.
+ * _changes animates data changes and _itemAnimator runs its animations. _changes exists only
+ * while animatesChanges is set, which leaves a list without animations no work for them.
  * _pendingAnchor is a saved position waiting for its key. contentOffsetAt: is the content offset
  * of an offset along the axis. invalidateFrame runs the core on the next layout pass.
  * _structureVersion counts data changes, and a mount pass runs again after one. _inLayout is set
@@ -96,6 +100,10 @@ extern const char ShadowListKitListViewSelectionLink;
   NSIndexSet *_stickyIndices;
   BOOL _stickySectionHeaders;
   ShadowListKitListCell *_stickyCell;
+
+  BOOL _animatesChanges;
+  ShadowListKitChangeAnimator *_changes;
+  id<ShadowListKitItemAnimator> _itemAnimator;
 
   ShadowListKitAnchorState *_pendingAnchor;
 

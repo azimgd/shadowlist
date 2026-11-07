@@ -1,4 +1,5 @@
 #import "Internal/ShadowListKitListView+Private.h"
+#import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListModels+Private.h"
 
 #include <shadowlist-core/host/KeyDiff.hpp>
@@ -133,11 +134,14 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
 }
 
 /*
- * The core's reloadKeys with the splice worked out once.
+ * The core's reloadKeys with the splice worked out once, which the change animation reads too.
  */
 - (void)reloadDriverKeys:(std::vector<std::string>)keys
 {
   KeySplice splice = keySplice(_driver.getKeys(), keys);
+  if (_animatesChanges) {
+    [self captureSplice:splice to:keys];
+  }
   _driver.reloadKeys(std::move(keys), splice);
 }
 
@@ -161,6 +165,9 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   for (std::size_t index : inserted) {
     keys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)index]));
   }
+  if (_animatesChanges) {
+    [_changes captureDeleted:{} inserted:keys];
+  }
   _driver.insertKeys(std::move(inserted), std::move(keys));
   _sections.setPlain(_driver.getKeyCount());
   [self structureChanged];
@@ -183,6 +190,14 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   std::vector<std::size_t> deleted = deletionIndices(ShadowListKitIndices(indices), _driver.getKeyCount());
   if (deleted.empty()) {
     return;
+  }
+  if (_animatesChanges) {
+    std::vector<std::string> deletedKeys;
+    deletedKeys.reserve(deleted.size());
+    for (std::size_t index : deleted) {
+      deletedKeys.push_back(_driver.getKeyAt(index));
+    }
+    [_changes captureDeleted:deletedKeys inserted:{}];
   }
   _driver.deleteKeys(std::move(deleted));
   _sections.setPlain(_driver.getKeyCount());
@@ -260,11 +275,15 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   if (!completion) {
     return;
   }
-  // Completion follows the layout of the change.
+  // The change animation runs after the next layout. Completion follows it.
+  NSTimeInterval wait = 0;
+  if (_animatesChanges && self.window && [_itemAnimator isKindOfClass:[ShadowListKitDefaultItemAnimator class]]) {
+    wait = ((ShadowListKitDefaultItemAnimator *)_itemAnimator).duration;
+  }
   if (self.window) {
     [self layoutSubtreeIfNeeded];
   }
-  dispatch_async(dispatch_get_main_queue(), ^{
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     completion(YES);
   });
 }
@@ -379,6 +398,19 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   }
   return [[ShadowListKitListChanges alloc] initWithDeleted:deleted inserted:inserted movedFrom:movedFrom movedTo:movedTo
                                         reloaded:reloaded];
+}
+
+/*
+ * The keys a reload deletes and inserts, for the change animation: the changed middle between the
+ * unchanged rows at both ends. A key on both sides moved.
+ */
+- (void)captureSplice:(const KeySplice&)splice to:(const std::vector<std::string>&)next
+{
+  const std::vector<std::string>& previous = _driver.getKeys();
+  auto deletedFrom = previous.begin() + (std::ptrdiff_t)splice.start;
+  auto insertedFrom = next.begin() + (std::ptrdiff_t)splice.start;
+  [_changes captureDeleted:std::vector<std::string>(deletedFrom, deletedFrom + (std::ptrdiff_t)splice.deleted)
+                  inserted:std::vector<std::string>(insertedFrom, insertedFrom + (std::ptrdiff_t)splice.inserted)];
 }
 
 /*

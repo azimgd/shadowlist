@@ -285,6 +285,10 @@ NS_SWIFT_UI_ACTOR
  *   drags it, without a hold, and the other items slide aside. The list scrolls while the
  *   item is held near an edge and Escape puts it back. Works in grids too, and in a list with
  *   sections an item stays in its own section.
+ * - animatesChanges: animate insertItemsAtIndices:, deleteItemsAtIndices: and reloadData.
+ *   Inserted items fade in, deleted items fade out and items that stay slide from where they
+ *   were to where they are. The visible content stays anchored the same as without animations.
+ *   Off by default, which costs nothing.
  * - stickyIndices: items that stick to the top of the viewport once scrolled past.
  *   stickySectionHeaders does the same for every section header. The next one pushes a pinned
  *   row up, and a pinned row stays in its place while the list rubber bands past the start.
@@ -324,7 +328,8 @@ NS_SWIFT_UI_ACTOR
  *   together in one layout, the way NSTableView takes them between beginUpdates and endUpdates:
  *   deletes, reloads and move sources are indices in the data before, inserts and move
  *   destinations in the data after. A batch that does not add up reloads everything. completion
- *   gets finished once the change is laid out.
+ *   gets finished once the change is laid out and, with the default item animator, its
+ *   animation ended. A custom item animator's animations are not waited for.
  * - applyChanges reads every key, works out the inserts, deletes and moves against the keys the
  *   list holds, reloads items whose content version changed, and returns what it found.
  * - In a list with sections every change reads the sections and keys again, like reloadData.
@@ -332,7 +337,8 @@ NS_SWIFT_UI_ACTOR
  * Separators: showsSeparators draws lines between items over the trailing edge of each item's
  * cell. The insets are along the cross axis from its start and end, and the thickness defaults
  * to one device pixel. The color follows the list's appearance. Prefetching:
- * prefetchDataSource hears which items come next.
+ * prefetchDataSource hears which items come next. Animations: itemAnimator animates the changes
+ * of animatesChanges.
  *
  * Selection, the way NSTableView selects with the mouse and the keyboard while allowsSelection
  * is set, the default:
@@ -397,12 +403,14 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL snapToItem;
 @property (nonatomic) ShadowListKitSnapAlignment snapAlignment;
 @property (nonatomic) BOOL reorderEnabled;
+@property (nonatomic) BOOL animatesChanges;
 @property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
 @property (nonatomic) BOOL stickySectionHeaders;
 @property (nonatomic, strong, nullable) NSView *headerView;
 @property (nonatomic, strong, nullable) NSView *footerView;
 
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
+@property (nonatomic, strong, null_resettable) id<ShadowListKitItemAnimator> itemAnimator;
 
 @property (nonatomic) BOOL allowsSelection;
 @property (nonatomic) BOOL allowsMultipleSelection;

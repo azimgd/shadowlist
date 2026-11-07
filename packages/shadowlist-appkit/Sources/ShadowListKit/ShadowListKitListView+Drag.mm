@@ -437,8 +437,12 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   for (auto& entry : _mounted) {
     ShadowListKitSetTransform(entry.second.layer, CATransform3DIdentity, 0);
   }
+  // The drop animates the rows itself.
+  BOOL animates = _animatesChanges;
+  _animatesChanges = NO;
   [self reloadData];
   [self layoutSubtreeIfNeeded];
+  _animatesChanges = animates;
   CGRect resting = cell.layer.frame;
   CATransform3D transform = [self dragTransformOfCell:cell x:CGRectGetMidX(shown) - CGRectGetMidX(resting)
                                                     y:CGRectGetMidY(shown) - CGRectGetMidY(resting)
