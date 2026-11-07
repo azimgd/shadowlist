@@ -24,6 +24,8 @@ import ShadowListKit
  *            scroll to a section, its header pinned and pushed by the next one, overscroll past
  *            the start, separators and a regroup that keeps the visible rows still
  *   animate  the feed with animatesChanges: delete a shown post and add one, log the animation
+ *   a11y     what VoiceOver sees: the row count, a far row, scrolling it to visible, a page
+ *            scroll through the scroll bar, the selected rows and a post's move actions
  *
  * -SLShot scrolls a little first, which shows the overlay scrollers in the picture. With keys,
  * menu, reorder or sections it shoots the end state instead: a selection with a hovered item, an
@@ -72,6 +74,10 @@ enum Scenario {
     }
     if name == "animate", let feed = screen as? FeedScreen {
       after(1.5) { checkAnimation(feed) }
+      return
+    }
+    if name == "a11y", let feed = screen as? FeedScreen {
+      after(1.5) { checkAccessibility(feed) }
       return
     }
     after(1.5) {
@@ -638,6 +644,40 @@ enum Scenario {
         finish(["scenario": "animate", "during": during, "settled": settled, "firstRowMoved": Double(topAfter - topBefore)])
       }
     }
+  }
+
+  /*
+   * The UIKit example's checks of what VoiceOver sees, through the Mac's accessibility calls: the
+   * row count, a far row that is not mounted, its index, a page scrolled through the scroll bar,
+   * then scrolling the far row to visible, selecting it and its move actions.
+   */
+  private static func checkAccessibility(_ screen: FeedScreen) {
+    let list = screen.list
+    let rows = (list.accessibilityRows() ?? []).compactMap { $0 as? NSAccessibilityElement }
+    let target = 500
+    guard rows.count > target else {
+      finish(["scenario": "a11y", "elementCount": rows.count])
+      return
+    }
+    let element = rows[target]
+    var result: [String: Any] = ["scenario": "a11y", "elementCount": rows.count]
+    result["role"] = list.accessibilityRole()?.rawValue ?? ""
+    result["rowCount"] = list.accessibilityRowCount()
+    result["elementIsCell"] = element.accessibilityChildren()?.first is ShadowListKitListCell
+    result["elementOnScreen"] = NSLocationInRange(target, list.visibleRange)
+    result["indexOfElement"] = element.accessibilityIndex()
+    let bar = list.shadowListKit_scrollerView.accessibilityChildren()?.first as? NSAccessibilityElement
+    let before = list.contentOffset.y
+    result["scrollHandled"] = bar?.accessibilityPerformIncrement() ?? false
+    result["pageScrolledBy"] = Double(list.contentOffset.y - before)
+    result["scrollBarValue"] = bar?.accessibilityValue() as? Double ?? -1
+    _ = element.perform(NSSelectorFromString("accessibilityPerformAction:"), with: "AXScrollToVisible")
+    result["scrolledToVisible"] = NSLocationInRange(target, list.visibleRange)
+    result["elementIsCellAfterScroll"] = element.accessibilityChildren()?.first is ShadowListKitListCell
+    element.setAccessibilitySelected(true)
+    result["selectedRows"] = (list.accessibilitySelectedRows() ?? []).compactMap { ($0 as? NSAccessibilityElement)?.accessibilityIndex() }
+    result["moveActions"] = (element.accessibilityCustomActions() ?? []).map { $0.name }
+    finish(result)
   }
 
   /*
