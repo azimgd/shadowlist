@@ -1,0 +1,51 @@
+name: ShadowListKitAppKitExample
+options:
+  bundleIdPrefix: shadowlist
+  deploymentTarget:
+    macOS: '14.0'
+  createIntermediateGroups: true
+settings:
+  base:
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: '-'
+    SWIFT_VERSION: '5.0'
+    CLANG_CXX_LANGUAGE_STANDARD: c++20
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  ShadowListKit:
+    type: framework.static
+    platform: macOS
+    sources:
+      - path: ../../packages/shadowlist-appkit/Sources/ShadowListKit/include/ShadowListKit
+        headerVisibility: public
+      - path: ../../packages/shadowlist-appkit/Sources/ShadowListKit/Internal
+        headerVisibility: project
+      - path: ../../packages/shadowlist-appkit/Sources/ShadowListKit
+        includes: ['*.mm']
+      - path: ../../packages/shadowlist-core
+        includes: ['*.cpp', 'host/*.cpp']
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: shadowlist.kit.appkit
+        DEFINES_MODULE: YES
+        HEADER_SEARCH_PATHS: ['$(SRCROOT)/../../packages']
+        CLANG_ENABLE_OBJC_ARC: YES
+        GENERATE_INFOPLIST_FILE: YES
+  ShadowListKitAppKitExample:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    dependencies:
+      - target: ShadowListKit
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: SL AppKit
+        NSPrincipalClass: NSApplication
+        NSHighResolutionCapable: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: shadowlist.appkit.example
+        # No -ObjC: the kit's category files must stay linked through their link symbols.
+        OTHER_LDFLAGS: ['-lc++']

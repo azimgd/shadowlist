@@ -135,6 +135,7 @@ list.reloadData();
 | `templates/shadowlist-fabric-example` | React Native example app for iOS and Android |
 | `templates/shadowlist-macos-example` | React Native macOS example app |
 | `templates/shadowlist-uikit-example` | UIKit example app |
+| `templates/shadowlist-appkit-example` | AppKit example app |
 | `templates/shadowlist-android-example` | Android example app |
 | `templates/shadowlist-web-example` | Web example app |
 | `docs` | Code style |
@@ -150,6 +151,7 @@ Run `yarn install` at the repo root first.
 | React Native Android | `yarn workspace shadowlist-example android` |
 | React Native macOS | `yarn workspace shadowlist-macos-example pods && yarn workspace shadowlist-macos-example macos` |
 | UIKit | `cd templates/shadowlist-uikit-example && ./build.sh sim <simulator-udid>` (or `./build.sh device any`) |
+| AppKit | `cd templates/shadowlist-appkit-example && ./build.sh mac` |
 | Android | `cd templates/shadowlist-android-example && ./gradlew :app:assembleRelease` |
 | Web | `cd templates/shadowlist-web-example && npm run build && npm start` |
 

@@ -37,3 +37,7 @@ each kit.
 ```sh
 cd packages/shadowlist-appkit && swift test
 ```
+
+The demo app in [templates/shadowlist-appkit-example](../../templates/shadowlist-appkit-example)
+runs scripted checks with `-SLScenario`: `prepend`, `append` and `jump` on the feed, and `driven`
+with `-SLRoute Driven`, a host that moves a list on two axes the way a grid does.
