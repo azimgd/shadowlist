@@ -15,7 +15,7 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 
 /*
  * The saved position and the scroll commands. A command runs in the layout pass right away. An
- * animated command does the same.
+ * animated command eases toward its estimated target and lands through the core when it arrives.
  */
 @implementation ShadowListKitListView (Commands)
 
@@ -106,6 +106,12 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   if (row >= _driver.getKeyCount()) {
     return;
   }
+  if (animated && !self.scrollDriven && row < _driver.getRowCount()) {
+    // Animate to the estimate, then let the core land exactly when the animation ends.
+    double target = _driver.animatedTargetOffset(row, viewPosition, _windowAlong, [self maxOffset]);
+    [self animateToOffset:target landing:{ScrollLanding::Target::Row, row, viewPosition}];
+    return;
+  }
   [self stopScrolling];
   _driver.scrollToRow(row, viewPosition);
   [self runCommandNow];
@@ -114,6 +120,11 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 
 - (void)scrollToStartAnimated:(BOOL)animated
 {
+  if (animated && !self.scrollDriven) {
+    // The header shows at the very start, which landing on row 0 would scroll past.
+    [self animateToOffset:0 landing:{ScrollLanding::Target::Start, 0, 0}];
+    return;
+  }
   [self stopScrolling];
   _driver.scrollToStart();
   [self runCommandNow];
@@ -122,12 +133,19 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 
 - (void)scrollToEndAnimated:(BOOL)animated
 {
+  if (animated && !self.scrollDriven) {
+    [self animateToOffset:[self maxOffset] landing:{ScrollLanding::Target::End, 0, 0}];
+    return;
+  }
   [self stopScrolling];
   _driver.scrollToEnd();
   [self runCommandNow];
   [self endCommandAnimated:animated];
 }
 
+/*
+ * A driven list's command moved at once. An animated one still reports its end.
+ */
 - (void)endCommandAnimated:(BOOL)animated
 {
   if (animated && [_delegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
@@ -137,14 +155,13 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 }
 
 /*
- * Stop momentum and cancel a landing. Otherwise the wheel's momentum keeps writing the offset
- * over a command that runs now. A driven list's host stops its own.
+ * Stop momentum, a spring back and any animated command still on its way. Otherwise they keep
+ * writing the offset over a command that runs now. A driven list's host stops its own.
  */
 - (void)stopScrolling
 {
-  if (!self.scrollDriven && self.scrollPhase == ShadowListKitScrollPhaseSettling) {
-    _ignoresMomentum = YES;
-    self.scrollPhase = ShadowListKitScrollPhaseIdle;
+  if (!self.scrollDriven) {
+    [_engine stopScrolling];
   }
   _driver.cancelLanding();
 }

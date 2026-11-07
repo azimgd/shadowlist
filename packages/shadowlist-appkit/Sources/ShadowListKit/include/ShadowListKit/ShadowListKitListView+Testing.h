@@ -1,5 +1,6 @@
 #pragma once
 
+#import <ShadowListKit/ShadowListKitListView.h>
 #import <ShadowListKit/ShadowListKitScrollEngine.h>
 #import <ShadowListKit/ShadowListKitScrollerView.h>
 
@@ -12,6 +13,19 @@ NS_ASSUME_NONNULL_BEGIN
  * them.
  */
 FOUNDATION_EXPORT NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventPhase phase, NSEventPhase momentumPhase);
+
+/*
+ * The list's scrollers, a wheel event sent through scrollWheel: and laid out, and frames of its
+ * engine with a layout each.
+ */
+@interface ShadowListKitListView (Testing)
+
+@property (nonatomic, readonly) ShadowListKitScrollerView *shadowListKit_scrollerView;
+
+- (void)shadowListKit_scrollWheelDelta:(CGPoint)delta phase:(NSEventPhase)phase momentumPhase:(NSEventPhase)momentumPhase;
+- (void)shadowListKit_runScrollFramesFor:(NSTimeInterval)duration;
+
+@end
 
 @interface ShadowListKitScrollEngine (Testing)
 

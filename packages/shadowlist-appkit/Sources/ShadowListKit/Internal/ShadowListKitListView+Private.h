@@ -1,6 +1,8 @@
 #pragma once
 
 #import <ShadowListKit/ShadowListKitListView.h>
+#import <ShadowListKit/ShadowListKitScrollEngine.h>
+#import <ShadowListKit/ShadowListKitScrollerView.h>
 #import "ShadowListKitCoreBridge.h"
 #import "ShadowListKitListCell+Private.h"
 
@@ -29,6 +31,7 @@ void ShadowListKitPlace(NSView *view, CGRect frame);
 extern "C" {
 extern const char ShadowListKitListViewCommandsLink;
 extern const char ShadowListKitListViewDataLink;
+extern const char ShadowListKitListViewScrollingLink;
 extern const char ShadowListKitListViewSectionsLink;
 }
 
@@ -51,8 +54,8 @@ extern const char ShadowListKitListViewSectionsLink;
  * data source gives sizes, read again on every reload. _batch holds the changes
  * performBatchUpdates:completion: collects until its block returns, and _batchPayload the
  * payload of the last reload in it. _contentVersions is the content version of every item
- * applyChanges saw, by key. _ignoresMomentum drops the momentum of a wheel gesture a scroll command
- * stopped until it ends.
+ * applyChanges saw, by key. _engine scrolls the list and _scrollers shows where it is, both
+ * unused while the list is driven.
  */
 @interface ShadowListKitListView () {
  @package
@@ -75,7 +78,8 @@ extern const char ShadowListKitListViewSectionsLink;
   azimgd::shadowlist::BatchCollector _batch;
   id _batchPayload;
   azimgd::shadowlist::ContentVersions _contentVersions;
-  BOOL _ignoresMomentum;
+  ShadowListKitScrollEngine *_engine;
+  ShadowListKitScrollerView *_scrollers;
 }
 
 - (CGFloat)along:(CGPoint)point;
@@ -92,6 +96,23 @@ extern const char ShadowListKitListViewSectionsLink;
 - (NSIndexSet *)itemsOfRows:(const std::vector<std::size_t>&)rows;
 - (CGPoint)contentOffsetAt:(double)offset;
 - (void)invalidateFrame;
+
+@end
+
+/*
+ * Scrolling by the wheel, the scrollers and animations. setUpScrolling makes the engine and the
+ * scrollers. scrollGeometryChanged hands them the sizes and the offset after a layout pass or an
+ * offset change. animateToOffset:landing: animates to an offset along the axis and lands the
+ * landing's command through the core when it arrives. claimsScrollWheel: is asked about a wheel
+ * event the engine passed on: a gesture across the list's axis or a mouse wheel that moved
+ * nothing. Returning NO sends it to the next responder.
+ */
+@interface ShadowListKitListView (Scrolling) <ShadowListKitScrollEngineDelegate, ShadowListKitScrollerViewDelegate>
+
+- (void)setUpScrolling;
+- (void)scrollGeometryChanged;
+- (void)animateToOffset:(double)offset landing:(azimgd::shadowlist::ScrollLanding)landing;
+- (BOOL)claimsScrollWheel:(NSEvent *)event;
 
 @end
 
@@ -120,12 +141,13 @@ extern const char ShadowListKitListViewSectionsLink;
  * row, which can be a section header. stopScrolling stops momentum and cancels a landing.
  * restorePendingAnchor lands a waiting saved position once its key is there.
  * invalidateRestorableStateIfSettled tells the window the saved position changed once the list
- * rests.
+ * rests. runCommandNow lays the list out at once for a command the core took.
  */
 @interface ShadowListKitListView (Commands)
 
 - (void)scrollToRow:(std::size_t)row viewPosition:(CGFloat)viewPosition animated:(BOOL)animated;
 - (void)stopScrolling;
+- (void)runCommandNow;
 - (void)restorePendingAnchor;
 - (void)invalidateRestorableStateIfSettled;
 

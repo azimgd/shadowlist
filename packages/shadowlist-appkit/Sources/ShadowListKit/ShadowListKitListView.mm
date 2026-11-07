@@ -18,13 +18,9 @@ using namespace azimgd::shadowlist;
 __attribute__((used)) static const char *const ShadowListKitListViewCategoryLinks[] = {
   &ShadowListKitListViewCommandsLink,
   &ShadowListKitListViewDataLink,
+  &ShadowListKitListViewScrollingLink,
   &ShadowListKitListViewSectionsLink,
 };
-
-/*
- * How far one line of a scroll wheel without precise deltas scrolls, in points.
- */
-static const CGFloat SHADOWLIST_KIT_WHEEL_LINE = 16;
 
 void ShadowListKitPlace(NSView *view, CGRect frame)
 {
@@ -179,6 +175,7 @@ struct ShadowListKitPassGeometry {
   _driver.setPrefetchRows([weakSelf](const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel) {
     [weakSelf reportPrefetchRows:prefetch cancel:cancel];
   });
+  [self setUpScrolling];
 }
 
 - (void)dealloc
@@ -349,6 +346,7 @@ struct ShadowListKitPassGeometry {
   if (_passGeometry.valid) {
     [self readPassGeometry];
   }
+  [self scrollGeometryChanged];
   if (!_inLayoutPass) {
     self.needsLayout = YES;
   }
@@ -358,10 +356,16 @@ struct ShadowListKitPassGeometry {
 }
 
 /*
- * The offset lands at once. listViewDidEndScrollingAnimation: follows an animated one.
+ * An animated offset eases there and listViewDidEndScrollingAnimation: follows when it arrives. A
+ * driven list's offset lands at once.
  */
 - (void)setContentOffset:(CGPoint)contentOffset animated:(BOOL)animated
 {
+  if (animated && !_scrollDriven) {
+    [self animateToOffset:[self along:contentOffset] + [self leadingInset] landing:ScrollLanding{}];
+    return;
+  }
+  [self stopScrolling];
   self.contentOffset = contentOffset;
   if (animated && [_delegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
     [_delegate listViewDidEndScrollingAnimation:self];
@@ -435,6 +439,8 @@ struct ShadowListKitPassGeometry {
 - (void)setHorizontal:(BOOL)horizontal
 {
   _horizontal = horizontal;
+  _engine.axes = horizontal ? ShadowListKitScrollAxesHorizontal : ShadowListKitScrollAxesVertical;
+  _scrollers.axes = _engine.axes;
   [self invalidateFrame];
 }
 
@@ -447,6 +453,18 @@ struct ShadowListKitPassGeometry {
 - (void)setEstimatedItemSize:(CGFloat)estimatedItemSize
 {
   _estimatedItemSize = estimatedItemSize;
+  [self invalidateFrame];
+}
+
+- (void)setSnapToItem:(BOOL)snapToItem
+{
+  _snapToItem = snapToItem;
+  [self invalidateFrame];
+}
+
+- (void)setSnapAlignment:(ShadowListKitSnapAlignment)snapAlignment
+{
+  _snapAlignment = snapAlignment;
   [self invalidateFrame];
 }
 
@@ -489,6 +507,7 @@ struct ShadowListKitPassGeometry {
   [self stopScrolling];
   _scrollDriven = scrollDriven;
   self.scrollPhase = ShadowListKitScrollPhaseIdle;
+  [self scrollGeometryChanged];
 }
 
 /*
@@ -554,6 +573,8 @@ struct ShadowListKitPassGeometry {
   settings.inverted = _inverted;
   settings.followAppends = _followAppends;
   settings.horizontal = _horizontal;
+  settings.snapToItem = _snapToItem;
+  settings.snapAlignment = static_cast<SnapAlignment>(_snapAlignment);
   return settings;
 }
 
@@ -714,6 +735,7 @@ struct ShadowListKitPassGeometry {
   }
   _passGeometry.valid = false;
   _inLayoutPass = NO;
+  [self scrollGeometryChanged];
   [self dispatchReached];
   if ([_delegate respondsToSelector:@selector(listViewDidLayOut:)]) {
     [_delegate listViewDidLayOut:self];
@@ -1214,50 +1236,6 @@ struct ShadowListKitPassGeometry {
     if ([_delegate respondsToSelector:@selector(listViewDidReachEnd:)]) {
       [_delegate listViewDidReachEnd:self];
     }
-  }
-}
-
-#pragma mark - Scroll events
-
-/*
- * The wheel moves the offset by its deltas within the content. A trackpad gesture drags and its
- * momentum settles. A driven list leaves the wheel to the next responder.
- */
-- (void)scrollWheel:(NSEvent *)event
-{
-  if (_scrollDriven || !_scrollEnabled) {
-    [super scrollWheel:event];
-    return;
-  }
-  NSEventPhase phase = event.phase;
-  NSEventPhase momentum = event.momentumPhase;
-  if (phase == NSEventPhaseBegan || phase == NSEventPhaseMayBegin) {
-    _ignoresMomentum = NO;
-    self.scrollPhase = ShadowListKitScrollPhaseDragging;
-  }
-  if (momentum != NSEventPhaseNone && _ignoresMomentum) {
-    return;
-  }
-  if (momentum == NSEventPhaseBegan) {
-    self.scrollPhase = ShadowListKitScrollPhaseSettling;
-  }
-  CGFloat deltaAlong = _horizontal ? event.scrollingDeltaX : event.scrollingDeltaY;
-  if (_horizontal && deltaAlong == 0 && !event.hasPreciseScrollingDeltas) {
-    deltaAlong = event.scrollingDeltaY;
-  }
-  if (!event.hasPreciseScrollingDeltas) {
-    deltaAlong *= SHADOWLIST_KIT_WHEEL_LINE;
-  }
-  double current = [self offset];
-  double target = std::clamp(current - deltaAlong, 0.0, (double)[self maxOffset]);
-  if (std::fabs(target - current) >= 0.01) {
-    [self writeOffset:target byUser:YES];
-  }
-  if (phase == NSEventPhaseEnded || phase == NSEventPhaseCancelled || momentum == NSEventPhaseEnded ||
-      momentum == NSEventPhaseCancelled) {
-    self.scrollPhase = ShadowListKitScrollPhaseIdle;
-  } else if (phase == NSEventPhaseNone && momentum == NSEventPhaseNone) {
-    [self invalidateRestorableStateIfSettled];
   }
 }
 

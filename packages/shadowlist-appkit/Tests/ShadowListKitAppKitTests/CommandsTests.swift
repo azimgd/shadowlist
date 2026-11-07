@@ -24,7 +24,7 @@ final class CommandsTests: XCTestCase {
       XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 3000)), 0, accuracy: 0.5, "estimate \(estimate)")
 
       list.scrollToItem(at: 1200, viewPosition: 1, animated: true)
-      harness.layout()
+      harness.runScrollFrames()
       let rect = list.rectForItem(at: 1200)
       XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 1200)) + rect.height, 480, accuracy: 0.5, "estimate \(estimate)")
 

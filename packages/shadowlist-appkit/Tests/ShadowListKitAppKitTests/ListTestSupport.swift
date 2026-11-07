@@ -154,6 +154,14 @@ final class ListHarness {
     }
   }
 
+  /*
+   * Run the scroll engine's frames, a layout each, then settle.
+   */
+  func runScrollFrames(for duration: TimeInterval = 0.5) {
+    list.shadowListKit_runScrollFrames(for: duration)
+    layout()
+  }
+
   func resize(width: CGFloat) {
     var frame = window.frame
     frame.size.width = width

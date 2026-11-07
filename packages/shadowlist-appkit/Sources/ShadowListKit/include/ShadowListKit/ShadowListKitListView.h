@@ -223,8 +223,11 @@ NS_SWIFT_UI_ACTOR
  * that stays inside the core's offset band does no core work at all.
  *
  * The list is a flipped, layer backed view that owns its scroll position: no NSScrollView. Its
- * cells sit in a content view moved by contentOffset. The list scrolls by itself with the scroll
- * wheel. A trackpad's momentum events settle it.
+ * cells sit in a content view moved by contentOffset. A ShadowListKitScrollEngine scrolls it with
+ * the scroll wheel the way a scroll view does: trackpad gestures rubber band past the edges and
+ * their momentum settles, a mouse wheel scrolls by lines. A gesture across the list's axis goes
+ * to the next responder whole, momentum included, and so does a mouse wheel at an edge.
+ * ShadowListKitScrollerView draws overlay scrollers over it.
  *
  * Layout:
  * - inverted: a chat style list that opens at its end and keeps the end in view while the
@@ -239,6 +242,8 @@ NS_SWIFT_UI_ACTOR
  * - mountOverscan: how far past the viewport cells are mounted, in viewport sizes. Default 0.5.
  * - startReachedThreshold, endReachedThreshold: distances to an edge, in viewport sizes, that
  *   fire the reached callbacks. Default 1.
+ * - snapToItem, snapAlignment: rest the scroll position on the item edge snapAlignment names
+ *   once a gesture's momentum or a mouse wheel ends.
  *
  * Scrolling:
  * - contentOffset: the content point at the top left of the viewport. contentInset pads the
@@ -249,8 +254,10 @@ NS_SWIFT_UI_ACTOR
  *   the next responder.
  * - scrollPhase, isTracking, isDragging, isDecelerating: what moves the offset now.
  * - scrollDriven: a host moves the list. The host sets contentOffset and scrollPhase, the list
- *   never moves itself and wheel events go to the next responder. An offset the list wants is
- *   reported to the delegate's listView:didCorrectOffset:, which sets it.
+ *   never moves itself, shows no scrollers and wheel events go to the next responder. An offset
+ *   the list wants is reported to the delegate's listView:didCorrectOffset:, which sets it.
+ * - setContentOffset:animated: eases to the offset and listViewDidEndScrollingAnimation: follows
+ *   when it arrives. A gesture or another command cuts it short without the call.
  *
  * Data:
  * - reloadData reads the item count and keys again. Items keep their sizes and cells by key,
@@ -294,7 +301,9 @@ NS_SWIFT_UI_ACTOR
  *   yet. The section rects use the same space.
  * - scrollToItemAtIndex:viewPosition:animated: brings an item into view. viewPosition is where
  *   it rests in the viewport, from 0 at the start to 1 at the end. The core keeps correcting
- *   until the item lands, even across estimates. An animated scroll command moves at once.
+ *   until the item lands, even across estimates. An animated scroll command eases toward the
+ *   item's estimated place, then the core lands it exactly and
+ *   listViewDidEndScrollingAnimation: follows. A driven list's command moves at once.
  */
 @interface ShadowListKitListView : NSView
 
@@ -310,6 +319,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) CGFloat mountOverscan;
 @property (nonatomic) CGFloat startReachedThreshold;
 @property (nonatomic) CGFloat endReachedThreshold;
+@property (nonatomic) BOOL snapToItem;
+@property (nonatomic) ShadowListKitSnapAlignment snapAlignment;
 
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
 
