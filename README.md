@@ -1,6 +1,6 @@
 # ShadowList
 
-Virtualized lists for React Native, UIKit, Android views and the web, on a shared C++ core.
+Virtualized lists for React Native, UIKit, AppKit, Android views and the web, on a shared C++ core.
 
 An **item** is your data, a **row** is a layout entry (including section headers/footers), a **cell** is its mounted
 view, and a **key** is its stable identity across updates. Sizes, cells, selection and the scroll position follow
@@ -69,6 +69,43 @@ final class FeedController: UIViewController, ShadowListKitListViewDataSource {
 
 See more: [ShadowListKit for UIKit](packages/shadowlist-uikit/README.md)
 
+## AppKit
+
+ShadowListKit for AppKit is the Mac package: ShadowListKitListView, a flipped NSView with a data source like
+NSTableView's and the UIKit kit's class names and selectors. It scrolls itself with the trackpad and the mouse
+wheel, or a host such as a two axis grid drives it. Install it with Swift Package Manager (the ShadowListKitAppKit
+product) or CocoaPods.
+
+```swift
+import ShadowListKitAppKit
+
+final class FeedController: NSViewController, ShadowListKitListViewDataSource {
+  private let list = ShadowListKitListView()
+  private var posts: [Post] = []
+
+  override func loadView() {
+    view = NSView()
+    list.autoresizingMask = [.width, .height]
+    list.dataSource = self
+    list.register(PostCell.self, forCellReuseIdentifier: "post")
+    view.addSubview(list)
+    list.reloadData()
+  }
+
+  func numberOfItems(in listView: ShadowListKitListView) -> Int { posts.count }
+
+  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { posts[index].id }
+
+  func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
+    let cell = listView.dequeueReusableCell(withIdentifier: "post") as! PostCell
+    cell.configure(posts[index])
+    return cell
+  }
+}
+```
+
+See more: [ShadowListKit for AppKit](packages/shadowlist-appkit/README.md)
+
 ## Android
 
 ShadowListKit is the Android package: ShadowListKitListView, a ViewGroup with a data source.
@@ -128,7 +165,7 @@ list.reloadData();
 | `packages/shadowlist-core-bench` | Core microbenchmarks, device metrics |
 | `packages/shadowlist-fabric` | React Native Fabric package |
 | `packages/shadowlist-uikit` | UIKit list |
-| `packages/shadowlist-appkit` | AppKit list, in progress |
+| `packages/shadowlist-appkit` | AppKit list |
 | `packages/shadowlist-android` | Android list |
 | `packages/shadowlist-wasm` | Web list, on the core in WebAssembly |
 | `templates/shadowlist-utils` | List helpers, hooks and React Native list kits |
@@ -164,6 +201,7 @@ The C++ core can log every layout pass with an `[SL]` prefix. It is off by defau
 | React Native iOS and macOS | `SHADOWLIST_DEBUG_LOG=1 pod install`, then rebuild. The lines show in the Xcode console. |
 | React Native Android | `arguments "-DSHADOWLIST_DEBUG_LOG=1"` in the app's `externalNativeBuild.cmake` block, then rebuild. |
 | UIKit | The example's `build.sh` with `SHADOWLIST_DEBUG_LOG=1`. |
+| AppKit | The example's `build.sh` with `SHADOWLIST_DEBUG_LOG=1`. |
 | Android | Build the module with `-PshadowlistDebugLog`. |
 
 On Android read it with `adb logcat -s SL`.
