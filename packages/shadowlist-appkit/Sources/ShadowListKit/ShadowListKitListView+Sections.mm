@@ -1,5 +1,7 @@
 #import "Internal/ShadowListKitListView+Private.h"
 
+#include <vector>
+
 using namespace azimgd::shadowlist;
 
 /*
@@ -12,7 +14,8 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
 
 /*
- * Sections over the rows: item and row indices, the section queries and scrolling.
+ * Sections over the rows: item and row indices, the section queries and scrolling, a drop
+ * inside its section and sticky rows.
  */
 @implementation ShadowListKitListView (Sections)
 
@@ -98,6 +101,12 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
   *from = (NSInteger)fromItem;
   *to = (NSInteger)toItem;
   return fromItem != toItem;
+}
+
+- (void)updateStickyRows
+{
+  std::vector<std::size_t> items = _stickyIndices.count > 0 ? ShadowListKitIndices(_stickyIndices) : std::vector<std::size_t>();
+  _driver.setStickyIndices(_sections.stickyRows(items, _stickySectionHeaders));
 }
 
 @end

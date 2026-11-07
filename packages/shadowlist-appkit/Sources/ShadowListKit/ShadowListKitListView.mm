@@ -78,7 +78,10 @@ struct ShadowListKitPassGeometry {
   OffsetBand _band;
   BOOL _needsFrame;
 
+  CGFloat _headerSize;
+  CGFloat _footerSize;
   CGFloat _contentAlong;
+  double _footerStart;
 
   /*
    * The settings the core runs with, sent again only when one changed.
@@ -478,6 +481,63 @@ struct ShadowListKitPassGeometry {
   [self invalidateFrame];
 }
 
+- (NSIndexSet *)stickyIndices
+{
+  return _stickyIndices;
+}
+
+- (void)setStickyIndices:(NSIndexSet *)stickyIndices
+{
+  _stickyIndices = [stickyIndices copy];
+  [self updateStickyRows];
+  [self invalidateFrame];
+}
+
+- (BOOL)stickySectionHeaders
+{
+  return _stickySectionHeaders;
+}
+
+- (void)setStickySectionHeaders:(BOOL)stickySectionHeaders
+{
+  _stickySectionHeaders = stickySectionHeaders;
+  [self updateStickyRows];
+  [self invalidateFrame];
+}
+
+- (NSView *)headerView
+{
+  return _headerView;
+}
+
+/*
+ * The header and footer views sit in the content under every row.
+ */
+- (void)setHeaderView:(NSView *)headerView
+{
+  [_headerView removeFromSuperview];
+  _headerView = headerView;
+  if (headerView) {
+    [_contentView addSubview:headerView positioned:NSWindowBelow relativeTo:nil];
+  }
+  [self invalidateFrame];
+}
+
+- (NSView *)footerView
+{
+  return _footerView;
+}
+
+- (void)setFooterView:(NSView *)footerView
+{
+  [_footerView removeFromSuperview];
+  _footerView = footerView;
+  if (footerView) {
+    [_contentView addSubview:footerView positioned:NSWindowBelow relativeTo:nil];
+  }
+  [self invalidateFrame];
+}
+
 /*
  * Without selection the list takes no first responder and hovers nothing.
  */
@@ -655,6 +715,9 @@ struct ShadowListKitPassGeometry {
   cell.index = NSNotFound;
   cell.row = NSNotFound;
   cell.separatorLayer.hidden = YES;
+  if (cell == _stickyCell) {
+    _stickyCell = nil;
+  }
   if (cell.isHighlighted) {
     [cell setHighlighted:NO animated:NO];
   }
@@ -782,7 +845,9 @@ struct ShadowListKitPassGeometry {
       }
     }
     [self readPassGeometry];
+    [self layoutTemplates];
     [self mountCells];
+    [self layoutSticky];
     if ([self hasHeldRow]) {
       [self updateDrag];
     }
@@ -801,8 +866,8 @@ struct ShadowListKitPassGeometry {
 }
 
 /*
- * Read the viewport size. Returns whether it changed since the last pass. A new cross size drops
- * every size and keeps the first visible row, live resizing included.
+ * Read the viewport and template sizes. Returns whether any changed since the last pass. A new
+ * cross size drops every size and keeps the first visible row, live resizing included.
  */
 - (BOOL)readGeometry
 {
@@ -813,9 +878,13 @@ struct ShadowListKitPassGeometry {
   if (cross != _windowCross && _windowCross > 0) {
     [self resetKeepingPosition];
   }
-  BOOL changed = along != _windowAlong || cross != _windowCross;
+  CGFloat header = [self templateSize:_headerView cross:cross];
+  CGFloat footer = [self templateSize:_footerView cross:cross];
+  BOOL changed = along != _windowAlong || cross != _windowCross || header != _headerSize || footer != _footerSize;
   _windowAlong = along;
   _windowCross = cross;
+  _headerSize = header;
+  _footerSize = footer;
   return changed;
 }
 
@@ -829,6 +898,40 @@ struct ShadowListKitPassGeometry {
     _userScrolled = YES;
   }
   _previousOffset = current;
+}
+
+/*
+ * A header or footer view's size along the axis: its frame's, or what it fits while that is empty.
+ */
+- (CGFloat)templateSize:(NSView *)view cross:(CGFloat)cross
+{
+  if (!view) {
+    return 0;
+  }
+  NSSize size = view.frame.size;
+  CGFloat along = _horizontal ? size.width : size.height;
+  if (along > 0) {
+    return along;
+  }
+  NSSize fits = view.fittingSize;
+  if ([view respondsToSelector:@selector(sizeThatFits:)]) {
+    fits = [(id)view sizeThatFits:_horizontal ? NSMakeSize(CGFLOAT_MAX, cross) : NSMakeSize(cross, CGFLOAT_MAX)];
+  }
+  return _horizontal ? fits.width : fits.height;
+}
+
+- (void)layoutTemplates
+{
+  if (_headerView) {
+    CGRect frame = _horizontal ? [self displayRect:0 y:0 width:_headerSize height:_windowCross]
+                               : [self displayRect:0 y:0 width:_windowCross height:_headerSize];
+    ShadowListKitPlace(_headerView, frame);
+  }
+  if (_footerView) {
+    CGRect frame = _horizontal ? [self displayRect:_footerStart y:0 width:_footerSize height:_windowCross]
+                               : [self displayRect:0 y:_footerStart width:_windowCross height:_footerSize];
+    ShadowListKitPlace(_footerView, frame);
+  }
 }
 
 /*
@@ -847,6 +950,8 @@ struct ShadowListKitPassGeometry {
   input.offset = [self offset];
   input.windowAlong = _windowAlong;
   input.windowCross = _windowCross;
+  input.headerSize = _headerSize;
+  input.footerSize = _footerSize;
   input.phase = static_cast<ScrollPhase>(_scrollPhase);
   input.userScrolled = _userScrolled;
   input.tracking = self.isTracking;
@@ -897,6 +1002,7 @@ struct ShadowListKitPassGeometry {
     [self writeOffset:result.offset byUser:NO];
   }
   _band = result.band;
+  _footerStart = result.footerStart;
   _reachedStart = _reachedStart || result.reachedStart;
   _reachedEnd = _reachedEnd || result.reachedEnd;
   if (result.settling) {
@@ -1198,6 +1304,65 @@ struct ShadowListKitPassGeometry {
   return _horizontal ? fits.width : fits.height;
 }
 
+#pragma mark - Sticky
+
+/*
+ * Pin the active section header and put the one it replaced back in its row. A pinned row
+ * sits over the rows and under a held one. Its frame pins it and leaves the transform a drag
+ * shifts it by.
+ */
+- (void)layoutSticky
+{
+  if (!_driver.hasSticky()) {
+    if (_stickyCell) {
+      [self unpinCell:_stickyCell];
+      _stickyCell = nil;
+    }
+    return;
+  }
+  double offset = [self offset];
+  std::size_t active = _driver.activeStickyIndex(offset);
+  ShadowListKitListCell *cell = active != UNDEFINED_INDEX ? [self mountedCellAtIndex:active] : nil;
+  // A held sticky item follows the mouse from its own row.
+  if (cell == _heldCell) {
+    cell = nil;
+  }
+  if (_stickyCell && _stickyCell != cell) {
+    [self unpinCell:_stickyCell];
+  }
+  _stickyCell = cell;
+  if (!cell) {
+    return;
+  }
+  RowRect rect = _driver.getRowRect(active);
+  double pinned = _driver.stickyLeading(active, offset);
+  if (_horizontal) {
+    rect.x = pinned;
+  } else {
+    rect.y = pinned;
+  }
+  ShadowListKitPlace(cell, [self displayRect:rect.x y:rect.y width:rect.width height:rect.height]);
+  if (cell.layer.zPosition != 1) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    cell.layer.zPosition = 1;
+    [CATransaction commit];
+  }
+}
+
+- (void)unpinCell:(ShadowListKitListCell *)cell
+{
+  if (cell.row != NSNotFound && (std::size_t)cell.row < _driver.getRowCount()) {
+    ShadowListKitPlace(cell, [self rowRect:(std::size_t)cell.row]);
+  }
+  if (cell != _heldCell) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    cell.layer.zPosition = 0;
+    [CATransaction commit];
+  }
+}
+
 #pragma mark - Separators
 
 /*
@@ -1345,11 +1510,15 @@ struct ShadowListKitPassGeometry {
 }
 
 /*
- * The shown item cell at a point in the list's coordinates, or nil.
+ * The shown item cell at a point in the list's coordinates, or nil. A pinned header covers the
+ * items under it.
  */
 - (ShadowListKitListCell *)itemCellAtPoint:(NSPoint)point
 {
   NSPoint content = [_contentView convertPoint:point fromView:self];
+  if (_stickyCell && !_stickyCell.hidden && NSPointInRect(content, _stickyCell.frame)) {
+    return _stickyCell.index != NSNotFound && _stickyCell.mountGeneration != 0 ? _stickyCell : nil;
+  }
   for (auto& entry : _mounted) {
     ShadowListKitListCell *cell = entry.second;
     if (!cell.hidden && cell.index != NSNotFound && cell.mountGeneration != 0 && NSPointInRect(content, cell.frame)) {

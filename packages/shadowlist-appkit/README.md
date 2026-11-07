@@ -2,9 +2,10 @@
 
 ShadowListKit for AppKit is the Mac counterpart of [ShadowListKit for UIKit](../shadowlist-uikit/README.md),
 with the same class names and selectors on the shared C++ core. It is in progress: it has the list
-view with its data changes, sections, scroll commands, saved position and separators, its
-scrolling, selection with the mouse and the keyboard, context menus, drag reorder, the text layout
-and the model classes. Sticky rows, change animations and accessibility come next.
+view with its data changes, sections with sticky headers, header and footer views, scroll
+commands, saved position and separators, its scrolling, selection with the mouse and the keyboard,
+context menus, drag reorder, the text layout and the model classes. Change animations and
+accessibility come next.
 
 `ShadowListKitListView` is a flipped, layer backed `NSView` that owns its scroll position, with no
 `NSScrollView`. Its cells sit in a content view moved by `contentOffset`. With `scrollDriven` a host
@@ -53,6 +54,18 @@ A right click, a Control-click or the menu key shows the delegate's
 list draws an outline around it. A host that selects by itself, like a grid over a driven list,
 turns `allowsSelection` off: the list then takes no first responder, tracks no pointer and passes
 mouse and key events on.
+
+## Sections
+
+Sections come from the same data source calls as the UIKit kit. A section with only a title shows
+it in a built-in cell: the headline font over the window background for a header, the small system
+font for a footer, both in the secondary label color and redrawn when the appearance changes.
+`stickySectionHeaders` pins the header of the section at the top, `stickyIndices` pins items, and
+the next pinned row pushes the current one up, with the core's `ListDriver` placing them. Pinned
+rows sit over the other rows and under a held one, follow a driven list's offset, go with the
+content while it rubber bands past the start and stay pinned past the end. `headerView` and
+`footerView` sit before the first row and after the last, and the item rects and scroll commands
+count them. There is no section index on the Mac.
 
 ## Drag reorder
 

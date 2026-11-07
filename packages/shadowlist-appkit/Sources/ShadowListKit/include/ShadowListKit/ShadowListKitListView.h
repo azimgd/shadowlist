@@ -285,6 +285,12 @@ NS_SWIFT_UI_ACTOR
  *   drags it, without a hold, and the other items slide aside. The list scrolls while the
  *   item is held near an edge and Escape puts it back. Works in grids too, and in a list with
  *   sections an item stays in its own section.
+ * - stickyIndices: items that stick to the top of the viewport once scrolled past.
+ *   stickySectionHeaders does the same for every section header. The next one pushes a pinned
+ *   row up, and a pinned row stays in its place while the list rubber bands past the start.
+ * - headerView, footerView: views before the first item and after the last. Their size along
+ *   the scroll axis is their frame's, or while that is empty their sizeThatFits: for views that
+ *   answer it, their fittingSize otherwise. Set needsLayout on the list after one changes size.
  *
  * Scrolling:
  * - contentOffset: the content point at the top left of the viewport. contentInset pads the
@@ -355,7 +361,9 @@ NS_SWIFT_UI_ACTOR
  *
  * Sections: see the data source. sectionForItemAtIndex:, firstItemIndexInSection:,
  * rectForHeaderInSection:, rectForFooterInSection: and scrollToSection:animated: work in
- * sections. A grid places section header rows in a column slot like any item.
+ * sections. A grid places section header rows in a column slot like any item. The built-in
+ * title cells show a header in the headline font over the window background and a footer in
+ * the small system font, both in the secondary label color, and follow the list's appearance.
  *
  * Saving the position: anchorState is the item at the viewport start by key, and
  * restoreAnchorState: lands that item the same distance in again, now or once a reload brings
@@ -364,7 +372,7 @@ NS_SWIFT_UI_ACTOR
  * Geometry:
  * - visibleRange: the items overlapping the viewport, low to high.
  * - rectForItemAtIndex: the item's frame in content coordinates: from the start of the content,
- *   without the content insets or the scroll offset. Estimated when the item was not measured
+ *   headerView included, without the content insets or the scroll offset. Estimated when the item was not measured
  *   yet. The section rects use the same space.
  * - scrollToItemAtIndex:viewPosition:animated: brings an item into view. viewPosition is where
  *   it rests in the viewport, from 0 at the start to 1 at the end. The core keeps correcting
@@ -389,6 +397,10 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) BOOL snapToItem;
 @property (nonatomic) ShadowListKitSnapAlignment snapAlignment;
 @property (nonatomic) BOOL reorderEnabled;
+@property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
+@property (nonatomic) BOOL stickySectionHeaders;
+@property (nonatomic, strong, nullable) NSView *headerView;
+@property (nonatomic, strong, nullable) NSView *footerView;
 
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
 

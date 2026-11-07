@@ -33,7 +33,7 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
     _label = [NSTextField wrappingLabelWithString:@""];
     _label.textColor = NSColor.secondaryLabelColor;
     _label.font = _footer ? [NSFont systemFontOfSize:NSFont.smallSystemFontSize]
-                          : [NSFont systemFontOfSize:NSFont.systemFontSize weight:NSFontWeightSemibold];
+                          : [NSFont preferredFontForTextStyle:NSFontTextStyleHeadline options:@{}];
     _label.translatesAutoresizingMaskIntoConstraints = YES;
     [self addSubview:_label];
   }
@@ -47,6 +47,10 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
   return NSMakeSize(size.width, MAX(28, ceil(text.height) + 12));
 }
 
+/*
+ * A header is opaque, which hides the rows under it while it is pinned. AppKit resolves the
+ * color for the cell's appearance here.
+ */
 - (void)updateLayer
 {
   self.layer.backgroundColor = _footer ? nil : NSColor.windowBackgroundColor.CGColor;

@@ -382,11 +382,15 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
 }
 
 /*
- * The data changed. A waiting saved position lands once its row is there.
+ * The data changed. Sticky rows follow the sections and a waiting saved position lands once its
+ * row is there.
  */
 - (void)structureChanged
 {
   ++_structureVersion;
+  if (_stickyIndices.count > 0 || _stickySectionHeaders) {
+    [self updateStickyRows];
+  }
   [self restorePendingAnchor];
   [self invalidateFrame];
 }

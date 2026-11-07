@@ -53,6 +53,9 @@ extern const char ShadowListKitListViewSelectionLink;
  * reuse pool. settleFrame runs the layout pass the settle display link waited for.
  * mountedCellAtIndex: is the mounted cell of a row, or nil. mountedCellForKey: is the mounted
  * cell of a key, or nil. itemsOfRows: is the items among rows.
+ * _headerView and _footerView are the views before the first row and after the last.
+ * _stickyIndices and _stickySectionHeaders pick the rows that pin, and _stickyCell is the cell
+ * pinned now.
  * _pendingAnchor is a saved position waiting for its key. contentOffsetAt: is the content offset
  * of an offset along the axis. invalidateFrame runs the core on the next layout pass.
  * _structureVersion counts data changes, and a mount pass runs again after one. _inLayout is set
@@ -87,6 +90,12 @@ extern const char ShadowListKitListViewSelectionLink;
 
   CGFloat _windowAlong;
   CGFloat _windowCross;
+
+  NSView *_headerView;
+  NSView *_footerView;
+  NSIndexSet *_stickyIndices;
+  BOOL _stickySectionHeaders;
+  ShadowListKitListCell *_stickyCell;
 
   ShadowListKitAnchorState *_pendingAnchor;
 
@@ -161,7 +170,8 @@ extern const char ShadowListKitListViewSelectionLink;
 @end
 
 /*
- * Data changes. structureChanged runs after every change: a waiting saved position lands.
+ * Data changes. structureChanged runs after every change: sticky rows follow the sections and
+ * a waiting saved position lands.
  */
 @interface ShadowListKitListView (Data)
 
@@ -172,12 +182,14 @@ extern const char ShadowListKitListViewSelectionLink;
 /*
  * Sections over the rows. itemForRow: and rowForItem: convert indices, NSNotFound when there is
  * none. itemsForDragFromRow:toRow:from:to: maps a drop of a held row to items.
+ * updateStickyRows hands the core the pinned rows.
  */
 @interface ShadowListKitListView (Sections)
 
 - (NSInteger)itemForRow:(NSInteger)row;
 - (NSInteger)rowForItem:(NSInteger)item;
 - (BOOL)itemsForDragFromRow:(std::size_t)fromRow toRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to;
+- (void)updateStickyRows;
 
 @end
 
