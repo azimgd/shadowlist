@@ -6,6 +6,9 @@
 #import "ShadowListKitCoreBridge.h"
 #import "ShadowListKitListCell+Private.h"
 
+#import <QuartzCore/QuartzCore.h>
+
+#include <shadowlist-core/host/DragReorder.hpp>
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
@@ -33,6 +36,7 @@ extern "C" {
 extern const char ShadowListKitListViewActionsLink;
 extern const char ShadowListKitListViewCommandsLink;
 extern const char ShadowListKitListViewDataLink;
+extern const char ShadowListKitListViewDragLink;
 extern const char ShadowListKitListViewScrollingLink;
 extern const char ShadowListKitListViewSectionsLink;
 extern const char ShadowListKitListViewSelectionLink;
@@ -66,6 +70,10 @@ extern const char ShadowListKitListViewSelectionLink;
  * key of clickedIndex while _hasClickedKey. _menuCell is the cell whose menu is open and
  * _menuOutline the outline drawn over it. _typeSelectBuffer holds the characters typed since
  * _typeSelectTime, the time of the last one.
+ * _heldCell is the cell of the held row and _dragTouch the mouse in the list's coordinates.
+ * _dragPressed is a mouse press on an item that can move, at _dragStart, which lifts it once
+ * the mouse drags it far enough. _dragLink scrolls near the edges, _dragKeyMonitor holds the
+ * keys while a row is held and _dragFeedback spaces the haptic ticks of the drop spot.
  */
 @interface ShadowListKitListView () {
  @package
@@ -106,6 +114,15 @@ extern const char ShadowListKitListViewSelectionLink;
   CALayer *_menuOutline;
   NSString *_typeSelectBuffer;
   NSTimeInterval _typeSelectTime;
+
+  BOOL _reorderEnabled;
+  ShadowListKitListCell *_heldCell;
+  CGPoint _dragTouch;
+  CGPoint _dragStart;
+  BOOL _dragPressed;
+  CADisplayLink *_dragLink;
+  id _dragKeyMonitor;
+  azimgd::shadowlist::DragFeedback _dragFeedback;
 }
 
 - (CGFloat)along:(CGPoint)point;
@@ -154,12 +171,13 @@ extern const char ShadowListKitListViewSelectionLink;
 
 /*
  * Sections over the rows. itemForRow: and rowForItem: convert indices, NSNotFound when there is
- * none.
+ * none. itemsForDragFromRow:toRow:from:to: maps a drop of a held row to items.
  */
 @interface ShadowListKitListView (Sections)
 
 - (NSInteger)itemForRow:(NSInteger)row;
 - (NSInteger)rowForItem:(NSInteger)item;
+- (BOOL)itemsForDragFromRow:(std::size_t)fromRow toRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to;
 
 @end
 
@@ -197,6 +215,25 @@ extern const char ShadowListKitListViewSelectionLink;
 - (void)updateEmphasis;
 - (NSInteger)itemIndexOfKey:(const std::string&)key;
 - (void)revealRow:(std::size_t)row;
+
+@end
+
+/*
+ * Drag to reorder with the mouse. hasHeldRow says whether a row is held. pressForDragWithEvent:
+ * starts a press on an item that can move and returns whether the list took it.
+ * releaseDragPress drops a held row and returns whether the press was the list's. updateDrag
+ * places the held row under the mouse and slides the others, after every layout pass too.
+ * endDrag: lets go of the held row, moving it in the data with commit. resetDragLookOfCell:
+ * takes a recycled cell's drag translation and shadow off.
+ */
+@interface ShadowListKitListView (Drag)
+
+- (BOOL)hasHeldRow;
+- (BOOL)pressForDragWithEvent:(NSEvent *)event;
+- (BOOL)releaseDragPress;
+- (void)updateDrag;
+- (void)endDrag:(BOOL)commit;
+- (void)resetDragLookOfCell:(ShadowListKitListCell *)cell;
 
 @end
 

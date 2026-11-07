@@ -53,6 +53,29 @@ FOUNDATION_EXPORT NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventP
 
 @end
 
+/*
+ * Drive a drag without a mouse, for scripted checks. Points are in the list's coordinates. The
+ * first three pick a row up at once, move it and drop it, the way UIKit's kit does. The mouse
+ * calls send a press, a drag and a release through mouseDown:, mouseDragged: and mouseUp:, laid
+ * out after each, which lift the row only past the drag slop. Auto scroll runs frames of the
+ * display link at once. heldIndex is the held item and dropIndex the item it would drop at, or
+ * NSNotFound without a held row.
+ */
+@interface ShadowListKitListView (DragTesting)
+
+@property (nonatomic, readonly) NSInteger shadowListKit_heldIndex;
+@property (nonatomic, readonly) NSInteger shadowListKit_dropIndex;
+
+- (void)shadowListKit_beginDragAtPoint:(CGPoint)point;
+- (void)shadowListKit_moveDragToPoint:(CGPoint)point;
+- (void)shadowListKit_endDrag;
+- (void)shadowListKit_mouseDownAtPoint:(CGPoint)point;
+- (void)shadowListKit_mouseDragToPoint:(CGPoint)point;
+- (void)shadowListKit_mouseUpAtPoint:(CGPoint)point;
+- (void)shadowListKit_runDragFramesFor:(NSTimeInterval)duration;
+
+@end
+
 @interface ShadowListKitScrollEngine (Testing)
 
 - (void)shadowListKit_runFramesFor:(NSTimeInterval)duration;

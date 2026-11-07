@@ -84,5 +84,21 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
   [self scrollToRow:row viewPosition:0 animated:animated];
 }
 
+/*
+ * Map the drop of a held row to item indices. In a list with sections a row stays in its own
+ * section and a drop outside goes to the nearest end of it.
+ */
+- (BOOL)itemsForDragFromRow:(std::size_t)fromRow toRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to
+{
+  std::size_t fromItem = _sections.itemForRow(fromRow);
+  std::size_t toItem = _sections.itemForDrop(fromRow, toRow);
+  if (fromItem == UNDEFINED_INDEX || toItem == UNDEFINED_INDEX) {
+    return NO;
+  }
+  *from = (NSInteger)fromItem;
+  *to = (NSInteger)toItem;
+  return fromItem != toItem;
+}
+
 @end
 #pragma clang diagnostic pop

@@ -3,8 +3,8 @@
 ShadowListKit for AppKit is the Mac counterpart of [ShadowListKit for UIKit](../shadowlist-uikit/README.md),
 with the same class names and selectors on the shared C++ core. It is in progress: it has the list
 view with its data changes, sections, scroll commands, saved position and separators, its
-scrolling, selection with the mouse and the keyboard, context menus, the text layout and the model
-classes. Drag reorder, sticky rows, change animations and accessibility come next.
+scrolling, selection with the mouse and the keyboard, context menus, drag reorder, the text layout
+and the model classes. Sticky rows, change animations and accessibility come next.
 
 `ShadowListKitListView` is a flipped, layer backed `NSView` that owns its scroll position, with no
 `NSScrollView`. Its cells sit in a content view moved by `contentOffset`. With `scrollDriven` a host
@@ -53,6 +53,18 @@ A right click, a Control-click or the menu key shows the delegate's
 list draws an outline around it. A host that selects by itself, like a grid over a driven list,
 turns `allowsSelection` off: the list then takes no first responder, tracks no pointer and passes
 mouse and key events on.
+
+## Drag reorder
+
+With `reorderEnabled` an item lifts as soon as the mouse drags it 3 points, without the hold a
+finger needs on iOS. A shorter press stays a click. The held row follows the mouse a little bigger
+and with a shadow, the other rows slide aside to open the gap, and the list scrolls within 90
+points of an edge at up to 960 points a second. The trackpad ticks as the drop spot moves, with a
+Force Touch trackpad. Escape puts the row back. The drop calls the delegate's
+`listView:moveItemAtIndex:toIndex:`, after `listView:canMoveItemAtIndex:` allowed the pickup, the
+same calls as the UIKit kit. It works in grids and without `allowsSelection`, and in a list with
+sections an item stays in its own section. A driven list scrolls near the edges through
+`listView:didCorrectOffset:` like its other offsets. The drag math is the core's `host/DragReorder`.
 
 ## Install
 

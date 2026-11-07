@@ -19,6 +19,7 @@ __attribute__((used)) static const char *const ShadowListKitListViewCategoryLink
   &ShadowListKitListViewActionsLink,
   &ShadowListKitListViewCommandsLink,
   &ShadowListKitListViewDataLink,
+  &ShadowListKitListViewDragLink,
   &ShadowListKitListViewScrollingLink,
   &ShadowListKitListViewSectionsLink,
   &ShadowListKitListViewSelectionLink,
@@ -130,6 +131,7 @@ struct ShadowListKitPassGeometry {
 @dynamic anchorState;
 @dynamic selectedIndices;
 @dynamic clickedIndex;
+@dynamic reorderEnabled;
 
 - (instancetype)initWithFrame:(NSRect)frame
 {
@@ -185,6 +187,10 @@ struct ShadowListKitPassGeometry {
 - (void)dealloc
 {
   [_settleLink invalidate];
+  [_dragLink invalidate];
+  if (_dragKeyMonitor) {
+    [NSEvent removeMonitor:_dragKeyMonitor];
+  }
   CGColorRelease(_separatorCGColor);
 }
 
@@ -661,6 +667,7 @@ struct ShadowListKitPassGeometry {
   if (cell.isMenuTarget) {
     [self endMenuTarget];
   }
+  [self resetDragLookOfCell:cell];
   if (index != NSNotFound && [_delegate respondsToSelector:@selector(listView:didEndDisplayingCell:atIndex:)]) {
     [_delegate listView:self didEndDisplayingCell:cell atIndex:index];
   }
@@ -776,6 +783,9 @@ struct ShadowListKitPassGeometry {
     }
     [self readPassGeometry];
     [self mountCells];
+    if ([self hasHeldRow]) {
+      [self updateDrag];
+    }
   }
   _passGeometry.valid = false;
   _inLayoutPass = NO;
@@ -986,13 +996,13 @@ struct ShadowListKitPassGeometry {
 
 /*
  * Whether anything the last mount pass covered changed: the rows, the pinned header, the
- * geometry, the data or the pixel shift.
+ * geometry, the data or the pixel shift. A drag mounts every pass.
  */
 - (BOOL)mountNeeded:(const MountPlan&)plan
 {
   return plan.low != _mountedLow || plan.high != _mountedHigh || plan.sticky != _mountedSticky ||
     _driver.getGeometryVersion() != _mountedGeometry || _structureVersion != _mountedStructure ||
-    [self pixelShift] != _mountedShift;
+    [self pixelShift] != _mountedShift || [self hasHeldRow];
 }
 
 - (void)recordMount:(const MountPlan&)plan
@@ -1015,6 +1025,11 @@ struct ShadowListKitPassGeometry {
   }
   if (plan.sticky != UNDEFINED_INDEX) {
     [self mountRow:plan.sticky generation:generation];
+  }
+  // The held row stays mounted wherever the mouse takes it.
+  std::size_t held = _driver.getHeldIndex();
+  if (held != UNDEFINED_INDEX) {
+    [self mountRow:held generation:generation];
   }
   [self recycleStaleCells:generation];
 }

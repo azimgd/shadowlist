@@ -289,17 +289,21 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 
 - (BOOL)acceptsFirstMouse:(NSEvent *)event
 {
-  return _allowsSelection;
+  return _allowsSelection || _reorderEnabled;
 }
 
 /*
  * A click selects when the mouse goes down and highlights the item until it goes up. A
- * Control-click shows the menu. Without selection the click goes to the next responder.
+ * Control-click shows the menu. Without selection the click goes to the next responder, unless
+ * it pressed an item that can move.
  */
 - (void)mouseDown:(NSEvent *)event
 {
+  BOOL pressed = [self pressForDragWithEvent:event];
   if (!_allowsSelection) {
-    [super mouseDown:event];
+    if (!pressed) {
+      [super mouseDown:event];
+    }
     return;
   }
   NSEventModifierFlags flags = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
@@ -340,10 +344,16 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   }
 }
 
+/*
+ * The mouse going up drops a held row.
+ */
 - (void)mouseUp:(NSEvent *)event
 {
+  BOOL pressed = [self releaseDragPress];
   if (!_allowsSelection) {
-    [super mouseUp:event];
+    if (!pressed) {
+      [super mouseUp:event];
+    }
     return;
   }
   [self unhighlight];
@@ -432,12 +442,12 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 }
 
 /*
- * Hover the item under the pointer. Nothing is hovered while the list scrolls.
+ * Hover the item under the pointer. Nothing is hovered while the list scrolls or holds a row.
  */
 - (void)updateHover
 {
   ShadowListKitListCell *cell = nil;
-  if (_hoverActive && _allowsSelection && self.scrollPhase == ShadowListKitScrollPhaseIdle) {
+  if (_hoverActive && _allowsSelection && self.scrollPhase == ShadowListKitScrollPhaseIdle && ![self hasHeldRow]) {
     cell = [self itemCellAtPoint:_hoverPoint];
   }
   ShadowListKitListCell *previous = _hoveredCell;
@@ -865,10 +875,15 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 }
 
 /*
- * Escape deselects all. With nothing selected it goes on up the responder chain.
+ * Escape puts a held row back, or deselects all. With nothing selected it goes on up the
+ * responder chain.
  */
 - (void)cancelOperation:(id)sender
 {
+  if ([self hasHeldRow]) {
+    [self endDrag:NO];
+    return;
+  }
   if (_selection.isEmpty()) {
     [self.nextResponder tryToPerform:@selector(cancelOperation:) with:sender];
     return;

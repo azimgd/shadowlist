@@ -212,6 +212,17 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)listView:(ShadowListKitListView *)listView showsSeparatorAfterItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:showsSeparatorAfterItemAt:));
 
 /*
+ * Whether an item can be picked up when reorderEnabled is set. Every item can by default.
+ */
+- (BOOL)listView:(ShadowListKitListView *)listView canMoveItemAtIndex:(NSInteger)index;
+
+/*
+ * A held item was dropped at another index. Move the item in the data. The list reads the
+ * data again right after and keeps the dropped item where it was let go.
+ */
+- (void)listView:(ShadowListKitListView *)listView moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
+
+/*
  * The scroll position came within startReachedThreshold or endReachedThreshold of an edge.
  */
 - (void)listViewDidReachStart:(ShadowListKitListView *)listView;
@@ -235,7 +246,7 @@ NS_SWIFT_UI_ACTOR
 
 /*
  * With scrollDriven, the content offset the list wants: a correction that keeps the visible
- * items still or the target of a scroll command. Set contentOffset to it inside this call. The
+ * items still, the target of a scroll command or the edge scroll of a held row. Set contentOffset to it inside this call. The
  * list lays out at the offset it has when the call returns.
  */
 - (void)listView:(ShadowListKitListView *)listView didCorrectOffset:(CGPoint)contentOffset;
@@ -270,6 +281,10 @@ NS_SWIFT_UI_ACTOR
  *   fire the reached callbacks. Default 1.
  * - snapToItem, snapAlignment: rest the scroll position on the item edge snapAlignment names
  *   once a gesture's momentum or a mouse wheel ends.
+ * - reorderEnabled: drag an item with the mouse to a new place. It lifts as soon as the mouse
+ *   drags it, without a hold, and the other items slide aside. The list scrolls while the
+ *   item is held near an edge and Escape puts it back. Works in grids too, and in a list with
+ *   sections an item stays in its own section.
  *
  * Scrolling:
  * - contentOffset: the content point at the top left of the viewport. contentInset pads the
@@ -281,7 +296,8 @@ NS_SWIFT_UI_ACTOR
  * - scrollPhase, isTracking, isDragging, isDecelerating: what moves the offset now.
  * - scrollDriven: a host moves the list. The host sets contentOffset and scrollPhase, the list
  *   never moves itself, shows no scrollers and wheel events go to the next responder. An offset
- *   the list wants is reported to the delegate's listView:didCorrectOffset:, which sets it.
+ *   the list wants is reported to the delegate's listView:didCorrectOffset:, which sets it. That
+ *   includes the edge scroll of a held row.
  * - setContentOffset:animated: eases to the offset and listViewDidEndScrollingAnimation: follows
  *   when it arrives. A gesture or another command cuts it short without the call.
  *
@@ -372,6 +388,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) CGFloat endReachedThreshold;
 @property (nonatomic) BOOL snapToItem;
 @property (nonatomic) ShadowListKitSnapAlignment snapAlignment;
+@property (nonatomic) BOOL reorderEnabled;
 
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
 
