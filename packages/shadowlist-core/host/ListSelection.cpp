@@ -49,6 +49,54 @@ void ListSelection::clear(std::vector<std::string>& deselected) {
   deselected.insert(deselected.end(), std::make_move_iterator(keys_.begin()), std::make_move_iterator(keys_.end()));
   keys_.clear();
   set_.clear();
+  dropAnchor();
+}
+
+void ListSelection::setAnchor(const std::string& key) {
+  hasAnchor_ = true;
+  anchorKey_ = key;
+  leadKey_ = key;
+  range_.clear();
+}
+
+bool ListSelection::selectRange(const std::vector<std::string>& keys, std::vector<std::string>& deselected) {
+  if (keys.empty()) {
+    return false;
+  }
+  leadKey_ = keys.back();
+  if (!multiple_) {
+    range_.clear();
+    return selectOnly(keys.back(), deselected);
+  }
+  std::unordered_set<std::string> next(keys.begin(), keys.end());
+  bool changed = false;
+  for (const std::string& previous : range_) {
+    if (next.count(previous) == 0 && deselect(previous)) {
+      deselected.push_back(previous);
+      changed = true;
+    }
+  }
+  for (const std::string& key : keys) {
+    if (set_.insert(key).second) {
+      keys_.push_back(key);
+      changed = true;
+    }
+  }
+  range_ = keys;
+  return changed;
+}
+
+void ListSelection::dropAnchor() {
+  hasAnchor_ = false;
+  anchorKey_.clear();
+  leadKey_.clear();
+  range_.clear();
+}
+
+void ListSelection::retainRange() {
+  range_.erase(
+    std::remove_if(range_.begin(), range_.end(), [&](const std::string& key) { return set_.count(key) == 0; }),
+    range_.end());
 }
 
 bool ListSelection::setKeys(const std::vector<std::string>& keys) {
@@ -66,6 +114,7 @@ bool ListSelection::setKeys(const std::vector<std::string>& keys) {
   }
   keys_ = std::move(next);
   set_ = std::move(nextSet);
+  range_.clear();
   return true;
 }
 
@@ -91,19 +140,29 @@ bool ListSelection::retainKeys(const std::vector<std::string>& keys) {
 }
 
 bool ListSelection::retainKeys(KeyList keys) {
-  if (keys_.empty()) {
+  if (keys_.empty() && !hasAnchor_) {
     return false;
   }
   std::unordered_set<std::string> kept;
+  bool anchorKept = false;
+  bool leadKept = false;
   for (const std::string& key : keys) {
     if (set_.count(key) > 0) {
       kept.insert(key);
     }
+    anchorKept = anchorKept || (hasAnchor_ && key == anchorKey_);
+    leadKept = leadKept || (hasAnchor_ && key == leadKey_);
+  }
+  if (hasAnchor_ && !(anchorKept && leadKept)) {
+    dropAnchor();
   }
   if (kept.size() == keys_.size()) {
     return false;
   }
-  return retainWhere([&](const std::string& key) { return kept.count(key) > 0; });
+  // An anchor still here was found above.
+  return retainWhere([&](const std::string& key) {
+    return kept.count(key) > 0 || (hasAnchor_ && (key == anchorKey_ || key == leadKey_));
+  });
 }
 
 }

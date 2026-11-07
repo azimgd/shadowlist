@@ -73,9 +73,27 @@ public:
   }
 
   /*
-   * Deselect every row and add them to deselected.
+   * Deselect every row and add them to deselected. The anchor goes too.
    */
   void clear(std::vector<std::string>& deselected);
+
+  /*
+   * The anchor is the row a range selection runs from and the lead the row it runs to. setAnchor
+   * sets both to a row and starts a new range, the way a click or a plain arrow key does. Both
+   * follow their keys and drop when their row leaves the data.
+   */
+  void setAnchor(const std::string& key);
+  bool hasAnchor() const { return hasAnchor_; }
+  const std::string& getAnchorKey() const { return anchorKey_; }
+  const std::string& getLeadKey() const { return leadKey_; }
+
+  /*
+   * Select the rows from the anchor to a new lead, keys in row order from the anchor. Rows the
+   * previous range selected that keys leaves out are deselected and added to deselected. Rows
+   * selected outside the range stay. The last key becomes the lead. Under single selection only
+   * the last key is selected. Returns whether the selection changed.
+   */
+  bool selectRange(const std::vector<std::string>& keys, std::vector<std::string>& deselected);
 
   /*
    * Take these keys as the selection, in this order, each once. Returns whether it changed.
@@ -117,18 +135,22 @@ public:
   }
 
   /*
-   * Drop the selected keys that keys no longer has. Returns whether any was dropped.
+   * Drop the selected keys that keys no longer has, and the anchor when its rows are gone.
+   * Returns whether any selected key was dropped.
    */
   bool retainKeys(const std::vector<std::string>& keys);
   bool retainKeys(KeyList keys);
 
   /*
-   * Drop the selected keys keep turns down. Only the selected keys are asked. A lookup that
+   * Drop the selected keys keep turns down. Only the selected keys and the anchor are asked. A lookup that
    * answers in constant time then keeps this proportional to the selection, not the data. Returns
    * whether any was dropped.
    */
   template <typename Keep>
   bool retainWhere(Keep keep) {
+    if (hasAnchor_ && !(keep(anchorKey_) && keep(leadKey_))) {
+      dropAnchor();
+    }
     auto end = std::remove_if(keys_.begin(), keys_.end(), [&](const std::string& key) {
       if (keep(key)) {
         return false;
@@ -140,13 +162,21 @@ public:
       return false;
     }
     keys_.erase(end, keys_.end());
+    retainRange();
     return true;
   }
 
 private:
+  void dropAnchor();
+  void retainRange();
+
   bool multiple_ = false;
   std::vector<std::string> keys_;
   std::unordered_set<std::string> set_;
+  bool hasAnchor_ = false;
+  std::string anchorKey_;
+  std::string leadKey_;
+  std::vector<std::string> range_;
 };
 
 }
