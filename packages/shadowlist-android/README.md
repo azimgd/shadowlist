@@ -91,3 +91,19 @@ These combinations do nothing:
 - `showsSeparators` in a grid.
 - `sectionIndexTitles` in a horizontal list.
 - `followAppends` without `inverted`.
+
+## Building the kit in a host library
+
+`ShadowListKit/src/main/cpp/CMakeLists.txt` builds `libshadowlistkit.so`. A host's CMake can add
+it with `add_subdirectory` and set two variables first:
+
+| Variable | Meaning |
+| --- | --- |
+| `SHADOWLIST_KIT_CORE_DIR` | A copy of the core to compile against, in a folder named `shadowlist-core`. Defaults to `packages/shadowlist-core` in this repo. |
+| `SHADOWLIST_KIT_COMPILE_DEFINITIONS` | Definitions added to the kit target, like `azimgd=host_kit_azimgd` to rename the core's namespace when the app links a second copy of the core. |
+
+```cmake
+set(SHADOWLIST_KIT_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/shadowlist-core)
+set(SHADOWLIST_KIT_COMPILE_DEFINITIONS "azimgd=host_kit_azimgd")
+add_subdirectory(vendor/shadowlistkit/cpp shadowlistkit)
+```
