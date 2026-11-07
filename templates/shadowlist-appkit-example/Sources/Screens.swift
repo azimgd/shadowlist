@@ -277,3 +277,94 @@ final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, S
     (cell as? GridRowCell)?.shift = columnOffset
   }
 }
+
+/*
+ * Travellers grouped by the first letter of their name, like the UIKit example's Sections screen:
+ * built-in section headers that stick, a count in each section's footer, separators and Auto
+ * Layout cells that size themselves. The data source gives no sizes. A header view says what the
+ * screen is and a footer view counts everyone.
+ */
+final class SectionsScreen: NSView, ListScreen, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
+  let list = ShadowListKitListView()
+  private(set) var sections: [(letter: String, contacts: [Contact])] = []
+  private var fresh = 5000
+  private let banner = BannerView("Travellers by the first letter of their name")
+  private let total = BannerView("")
+
+  var keys: [String] { allContacts.map(\.key) }
+
+  init(count: Int) {
+    super.init(frame: .zero)
+    list.estimatedItemSize = 64
+    list.stickySectionHeaders = true
+    list.showsSeparators = true
+    list.separatorInsetStart = 68
+    list.headerView = banner
+    list.footerView = total
+    list.register(ContactCell.self, forCellReuseIdentifier: "contact")
+    list.dataSource = self
+    list.delegate = self
+    list.autoresizingMask = [.width, .height]
+    addSubview(list)
+    group((0..<min(count, 400)).map { Contact(index: $0) })
+    list.reloadData()
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  override var isFlipped: Bool { true }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    list.frame = bounds
+  }
+
+  func group(_ contacts: [Contact]) {
+    let sorted = contacts.sorted { $0.name < $1.name }
+    sections = Dictionary(grouping: sorted) { String($0.name.prefix(1)) }
+      .map { (letter: $0.key, contacts: $0.value) }
+      .sorted { $0.letter < $1.letter }
+    total.text = "\(contacts.count) travellers"
+  }
+
+  var allContacts: [Contact] { sections.flatMap(\.contacts) }
+
+  func contact(at index: Int) -> Contact { allContacts[index] }
+
+  /*
+   * A new traveller lands in its section. The list reads the sections again and keeps its place.
+   */
+  func addTraveller() {
+    var contacts = allContacts
+    contacts.append(Contact(index: fresh))
+    fresh += 1
+    group(contacts)
+    list.insertItems(at: IndexSet(integer: 0))
+  }
+
+  func prependRows() { addTraveller() }
+  func appendRows() { addTraveller() }
+
+  func numberOfItems(in listView: ShadowListKitListView) -> Int { allContacts.count }
+  func numberOfSections(in listView: ShadowListKitListView) -> Int { sections.count }
+  func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { sections[section].contacts.count }
+  func listView(_ listView: ShadowListKitListView, keyForSection section: Int) -> String { sections[section].letter }
+  func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { sections[section].letter }
+  func listView(_ listView: ShadowListKitListView, titleForFooterInSection section: Int) -> String? {
+    "\(sections[section].contacts.count) travellers"
+  }
+
+  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { contact(at: index).key }
+
+  func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
+    let cell = listView.dequeueReusableCell(withIdentifier: "contact") as! ContactCell
+    let contact = contact(at: index)
+    // Every fifth traveller has a longer note, which wraps and makes the row taller.
+    cell.show(
+      contact,
+      note: index % 5 == 0 ? "\(contact.subtitle) · Window seat, travelling with two bags and a guitar case that goes in the cabin." : contact.subtitle)
+    return cell
+  }
+
+  func listView(_ listView: ShadowListKitListView, typeSelectStringForItemAt index: Int) -> String? { contact(at: index).name }
+}

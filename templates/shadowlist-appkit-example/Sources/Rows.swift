@@ -236,3 +236,119 @@ final class GridRowCell: ShadowListKitListCell {
     return layout
   }
 }
+
+/*
+ * A traveller of the Sections screen, a pure function of its index like the UIKit example's.
+ */
+struct Contact {
+  let key: String
+  let name: String
+  let subtitle: String
+
+  init(index: Int) {
+    let names = FixtureStrings.characterNames.map { $0.split(separator: " ") }
+    let first = names[index % names.count][0]
+    let last = names[(index * 7 + index / 15) % names.count][1]
+    key = "contact-\(index)"
+    name = "\(first) \(last)"
+    subtitle = "(\(100 + index % 900)) \(200 + index % 800)-\(1000 + index % 9000)"
+  }
+
+  var initials: String { name.split(separator: " ").compactMap(\.first).map(String.init).joined() }
+}
+
+/*
+ * A traveller built with Auto Layout: an avatar, the name and a note that wraps. The list sizes
+ * it through its constraints.
+ */
+final class ContactCell: ShadowListKitListCell {
+  private let avatar = AvatarView()
+  private let initials = NSTextField(labelWithString: "")
+  private let name = NSTextField(labelWithString: "")
+  private let note = NSTextField(wrappingLabelWithString: "")
+
+  override init(reuseIdentifier: String?) {
+    super.init(reuseIdentifier: reuseIdentifier)
+    initials.alignment = .center
+    initials.textColor = .white
+    initials.font = .systemFont(ofSize: 14, weight: .semibold)
+    name.font = .systemFont(ofSize: 13)
+    note.font = .systemFont(ofSize: 11)
+    note.textColor = .secondaryLabelColor
+    for view in [avatar, initials, name, note] {
+      view.translatesAutoresizingMaskIntoConstraints = false
+      addSubview(view)
+    }
+    NSLayoutConstraint.activate([
+      avatar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+      avatar.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+      avatar.widthAnchor.constraint(equalToConstant: 40),
+      avatar.heightAnchor.constraint(equalToConstant: 40),
+      avatar.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -10),
+      initials.centerXAnchor.constraint(equalTo: avatar.centerXAnchor),
+      initials.centerYAnchor.constraint(equalTo: avatar.centerYAnchor),
+      name.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 12),
+      name.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+      name.topAnchor.constraint(equalTo: topAnchor, constant: 11),
+      note.leadingAnchor.constraint(equalTo: name.leadingAnchor),
+      note.trailingAnchor.constraint(equalTo: name.trailingAnchor),
+      note.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 2),
+      note.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -11),
+    ])
+  }
+
+  func show(_ contact: Contact, note text: String) {
+    initials.stringValue = contact.initials
+    avatar.color = FeedCell.color(of: contact.name)
+    name.stringValue = contact.name
+    note.stringValue = text
+  }
+
+  override func updateLayer() {
+    layer?.backgroundColor = (isSelected
+      ? (isEmphasized ? NSColor.selectedContentBackgroundColor : .unemphasizedSelectedContentBackgroundColor)
+      : NSColor.textBackgroundColor).cgColor
+  }
+
+  override func setSelected(_ selected: Bool, animated: Bool) {
+    super.setSelected(selected, animated: animated)
+    needsDisplay = true
+  }
+
+  override func setEmphasized(_ emphasized: Bool, animated: Bool) {
+    super.setEmphasized(emphasized, animated: animated)
+    needsDisplay = true
+  }
+
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    needsDisplay = true
+  }
+}
+
+/*
+ * A line of text the list shows as its header or footer view, 44 points tall.
+ */
+final class BannerView: NSView {
+  private let label = NSTextField(labelWithString: "")
+
+  var text: String {
+    get { label.stringValue }
+    set { label.stringValue = newValue }
+  }
+
+  init(_ text: String) {
+    super.init(frame: NSRect(x: 0, y: 0, width: 0, height: 44))
+    label.stringValue = text
+    label.font = .systemFont(ofSize: 12)
+    label.textColor = .secondaryLabelColor
+    label.alignment = .center
+    addSubview(label)
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func resizeSubviews(withOldSize oldSize: NSSize) {
+    label.frame = NSRect(x: 16, y: (bounds.height - 16) / 2, width: max(0, bounds.width - 32), height: 16)
+  }
+}

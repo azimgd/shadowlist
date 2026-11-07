@@ -107,5 +107,6 @@ cd packages/shadowlist-appkit && swift test
 
 The demo app in [templates/shadowlist-appkit-example](../../templates/shadowlist-appkit-example)
 runs scripted checks with `-SLScenario`: `prepend`, `append`, `jump`, `wheel`, `keys`, `menu` and
-`reorder` on the feed, and `driven` with `-SLRoute Driven`, a host that moves a list on two axes with a
-scroll engine and scrollers the way a grid does.
+`reorder` on the feed, `driven` with `-SLRoute Driven`, a host that moves a list on two axes with a
+scroll engine and scrollers the way a grid does, and `sections` with `-SLRoute Sections`, travellers
+under sticky section headers between a header and a footer view.

@@ -20,10 +20,14 @@ import ShadowListKit
  *            and its outline, and their end when the menu closes
  *   reorder  a press dragged short of the slop and past it, the drop spot as the mouse moves, a
  *            drop, the edge scroll on the display link with the row under the mouse, and Escape
+ *   sections -SLRoute Sections: the section queries, self-sized rows, the header view, a
+ *            scroll to a section, its header pinned and pushed by the next one, overscroll past
+ *            the start, separators and a regroup that keeps the visible rows still
  *
  * -SLShot scrolls a little first, which shows the overlay scrollers in the picture. With keys,
- * menu or reorder it shoots the end state instead: a selection with a hovered item, an open
- * menu's outline, or a lifted post with its shadow over the gap it opened.
+ * menu, reorder or sections it shoots the end state instead: a selection with a hovered item, an
+ * open menu's outline, a lifted post with its shadow over the gap it opened, or a pinned section
+ * header over the rows scrolled under it.
  */
 enum Scenario {
   static func start(_ screen: NSView & ListScreen) {
@@ -59,6 +63,10 @@ enum Scenario {
     }
     if name == "reorder", let feed = screen as? FeedScreen {
       after(1.5) { checkReorder(feed) }
+      return
+    }
+    if name == "sections", let sections = screen as? SectionsScreen {
+      after(1.5) { checkSections(sections) }
       return
     }
     after(1.5) {
@@ -519,6 +527,75 @@ enum Scenario {
     else { return }
     list.scrollWheel(with: wheel)
     list.layoutSubtreeIfNeeded()
+  }
+
+  /*
+   * The checks of the UIKit example's sections scenario, and the pinning a Mac list adds: the
+   * push by the next header and a rubber band past the start. It ends with a header pinned over
+   * rows for the picture.
+   */
+  private static func checkSections(_ screen: SectionsScreen) {
+    let list = screen.list
+    var result: [String: Any] = ["scenario": "sections", "engine": "shadowlist", "screen": "SectionsScreen"]
+    func layout() {
+      for _ in 0..<4 {
+        list.needsLayout = true
+        list.layoutSubtreeIfNeeded()
+      }
+    }
+    func titleCells() -> [(title: String, cell: ShadowListKitListCell)] {
+      list.subviews.first!.subviews.compactMap { view in
+        guard let cell = view as? ShadowListKitListCell, !cell.isHidden, cell.index == NSNotFound,
+          let title = cell.subviews.compactMap({ ($0 as? NSTextField)?.stringValue }).first
+        else { return nil }
+        return (title, cell)
+      }
+    }
+    func pinned() -> (title: String, offset: Double)? {
+      titleCells().first { $0.cell.layer?.zPosition == 1 }.map { ($0.title, Double(list.convert($0.cell.frame, from: $0.cell.superview).minY)) }
+    }
+    result["numberOfSections"] = list.numberOfSections
+    let third = list.firstItemIndexInSection(3)
+    result["sectionOfThirdsFirstItem"] = list.sectionForItem(at: third)
+    // Self-sizing: a row with the long note is taller than one without.
+    result["selfSizedShort"] = Double(list.rectForItem(at: 1).height)
+    result["selfSizedTall"] = Double(list.rectForItem(at: 0).height)
+    // The header view comes before the first section.
+    result["firstHeaderStart"] = Double(list.rectForHeader(inSection: 0).minY)
+    list.scrollToSection(5, animated: false)
+    layout()
+    result["headerOffsetAfterScrollToSection"] = Double(list.rectForHeader(inSection: 5).minY - list.contentOffset.y)
+    // Scroll into the section: its header stays pinned at the top.
+    list.contentOffset = CGPoint(x: 0, y: list.contentOffset.y + 120)
+    layout()
+    result["pinnedHeader"] = pinned()?.title ?? NSNull()
+    result["pinnedHeaderOffset"] = pinned()?.offset ?? NSNull()
+    // The next header pushes it up.
+    list.contentOffset = CGPoint(x: 0, y: list.rectForHeader(inSection: 6).minY - 10)
+    layout()
+    result["pushedHeaderOffset"] = pinned()?.offset ?? NSNull()
+    result["pushedHeaderExpected"] = Double(10 - list.rectForHeader(inSection: 5).height)
+    // A rubber band past the start pins nothing and the first header goes with the content.
+    list.scrollPhase = .dragging
+    list.contentOffset = CGPoint(x: 0, y: -40)
+    layout()
+    result["pinnedPastStart"] = pinned() != nil
+    result["firstHeaderPastStart"] = titleCells().first { $0.title == screen.sections[0].letter }
+      .map { Double(list.convert($0.cell.frame, from: $0.cell.superview).minY) } ?? NSNull()
+    list.contentOffset = CGPoint(x: 0, y: list.rectForHeader(inSection: 5).minY + 120)
+    list.scrollPhase = .idle
+    layout()
+    result["separators"] = list.visibleCells.filter { cell in
+      cell.layer?.sublayers?.contains { $0.zPosition == 1000 && !$0.isHidden } ?? false
+    }.count
+    // Adding a traveller regroups the sections. Visible rows stay put.
+    let before = visibleRows(list)
+    screen.addTraveller()
+    layout()
+    let (shift, _) = maxShift(from: before, to: visibleRows(list))
+    result["maxShiftAfterRegroup"] = Double(shift)
+    result["pinnedAfterRegroup"] = pinned()?.offset ?? NSNull()
+    finish(result, shoot: screen)
   }
 
   /*
