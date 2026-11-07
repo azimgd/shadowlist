@@ -3,8 +3,8 @@
 ShadowListKit for AppKit is the Mac counterpart of [ShadowListKit for UIKit](../shadowlist-uikit/README.md),
 with the same class names and selectors on the shared C++ core. It is in progress: it has the list
 view with its data changes, sections, scroll commands, saved position and separators, its
-scrolling, the text layout and the model classes. Selection, menus, drag reorder, sticky rows,
-change animations and accessibility come next.
+scrolling, selection with the mouse and the keyboard, context menus, the text layout and the model
+classes. Drag reorder, sticky rows, change animations and accessibility come next.
 
 `ShadowListKitListView` is a flipped, layer backed `NSView` that owns its scroll position, with no
 `NSScrollView`. Its cells sit in a content view moved by `contentOffset`. With `scrollDriven` a host
@@ -34,6 +34,26 @@ target and the core lands them exactly, and `snapToItem` rests it on an item edg
 drives a list, like a two axis grid, runs its own engine and scrollers and hands the list its
 offset and phase.
 
+## Selection and menus
+
+The list selects the way `NSTableView` does while `allowsSelection` is set:
+
+- A click selects when the mouse goes down, Command-click adds or removes an item and Shift-click
+  with `allowsMultipleSelection` selects from the anchor, the last item clicked. A double-click,
+  Return and Space call the delegate's `listView:didActivateItemAtIndex:`.
+- The list takes the first responder on a click. The arrow keys move the selection, with Shift
+  they extend it, Command-arrows go to the ends and Option-Page keys a page. Home, End and the
+  page keys scroll. Command-A selects all and Escape deselects. Typing selects by the delegate's
+  `listView:typeSelectStringForItemAtIndex:`, for items shown or not.
+- Cells get `highlighted` during a press, `hovered` under a resting pointer, `emphasized` while
+  the list is the key window's first responder and `menuTarget` while their menu is open.
+
+A right click, a Control-click or the menu key shows the delegate's
+`listView:contextMenuForItemAtIndex:` menu. While it is open `clickedIndex` is the item and the
+list draws an outline around it. A host that selects by itself, like a grid over a driven list,
+turns `allowsSelection` off: the list then takes no first responder, tracks no pointer and passes
+mouse and key events on.
+
 ## Install
 
 Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the ShadowListKitAppKit product.
@@ -61,6 +81,6 @@ cd packages/shadowlist-appkit && swift test
 ```
 
 The demo app in [templates/shadowlist-appkit-example](../../templates/shadowlist-appkit-example)
-runs scripted checks with `-SLScenario`: `prepend`, `append`, `jump` and `wheel` on the feed, and
-`driven` with `-SLRoute Driven`, a host that moves a list on two axes with a scroll engine and
-scrollers the way a grid does.
+runs scripted checks with `-SLScenario`: `prepend`, `append`, `jump`, `wheel`, `keys` and `menu`
+on the feed, and `driven` with `-SLRoute Driven`, a host that moves a list on two axes with a
+scroll engine and scrollers the way a grid does.

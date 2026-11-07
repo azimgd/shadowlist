@@ -18,9 +18,10 @@ NS_ASSUME_NONNULL_BEGIN
  * dequeueReusableCellWithIdentifier:.
  *
  * The list sets highlighted while the pointer presses a selectable item, selected for selected
- * items, editing while the list is editing, hovered while the pointer is over the item and
- * emphasized while the list is the key window's first responder. Override the animated setters
- * to show them. They are called only when the value changes.
+ * items, editing while the list is editing, hovered while the pointer is over the item,
+ * emphasized while the list is the key window's first responder and menuTarget while the item's
+ * context menu is open. Override the animated setters to show them. They are called only when
+ * the value changes. The list draws the outline around a menu target itself.
  */
 @interface ShadowListKitListCell : NSView
 
@@ -31,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isEditing) BOOL editing;
 @property (nonatomic, getter=isHovered) BOOL hovered;
 @property (nonatomic, getter=isEmphasized) BOOL emphasized;
+@property (nonatomic, getter=isMenuTarget) BOOL menuTarget;
 
 - (instancetype)initWithReuseIdentifier:(nullable NSString *)reuseIdentifier NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithFrame:(NSRect)frame NS_UNAVAILABLE;
@@ -42,6 +44,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated NS_REQUIRES_SUPER;
 - (void)setHovered:(BOOL)hovered animated:(BOOL)animated NS_REQUIRES_SUPER;
 - (void)setEmphasized:(BOOL)emphasized animated:(BOOL)animated NS_REQUIRES_SUPER;
+- (void)setMenuTarget:(BOOL)menuTarget animated:(BOOL)animated NS_REQUIRES_SUPER;
 
 @end
 
@@ -178,6 +181,29 @@ NS_SWIFT_UI_ACTOR
 
 - (void)listView:(ShadowListKitListView *)listView willDisplayCell:(ShadowListKitListCell *)cell atIndex:(NSInteger)index;
 - (void)listView:(ShadowListKitListView *)listView didEndDisplayingCell:(ShadowListKitListCell *)cell atIndex:(NSInteger)index;
+- (void)listView:(ShadowListKitListView *)listView didSelectItemAtIndex:(NSInteger)index;
+- (void)listView:(ShadowListKitListView *)listView didDeselectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didDeselectItemAt:));
+- (BOOL)listView:(ShadowListKitListView *)listView shouldSelectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldSelectItemAt:));
+- (BOOL)listView:(ShadowListKitListView *)listView shouldHighlightItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldHighlightItemAt:));
+
+/*
+ * The reader opened an item: a double-click on it, or Return or Space on the selection. The
+ * item is the one the keyboard is on when it is selected, otherwise the first selected one.
+ */
+- (void)listView:(ShadowListKitListView *)listView didActivateItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didActivateItemAt:));
+
+/*
+ * The text typing selects an item by, or nil for an item typing skips. Typed characters within
+ * a second of each other build one prefix, matched without case or diacritics from the item the
+ * keyboard is on. It is read for any item, shown or not.
+ */
+- (nullable NSString *)listView:(ShadowListKitListView *)listView typeSelectStringForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:typeSelectStringForItemAt:));
+
+/*
+ * The menu for a right click or a Control-click on an item, or the menu key on the keyboard's
+ * item, or nil for none. clickedIndex is the item while the menu is open.
+ */
+- (nullable NSMenu *)listView:(ShadowListKitListView *)listView contextMenuForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contextMenuForItemAt:));
 
 /*
  * Whether the separator below an item shows when showsSeparators is set. Separators only go
@@ -286,6 +312,31 @@ NS_SWIFT_UI_ACTOR
  * to one device pixel. The color follows the list's appearance. Prefetching:
  * prefetchDataSource hears which items come next.
  *
+ * Selection, the way NSTableView selects with the mouse and the keyboard while allowsSelection
+ * is set, the default:
+ * - A click selects an item when the mouse goes down and highlights it until the mouse goes up.
+ *   A Command-click adds or removes an item, a Shift-click with allowsMultipleSelection selects
+ *   the items from the last one clicked to this one. A click on no item deselects all. A
+ *   double-click activates the item.
+ * - The list takes the window's first responder on a click. The arrow keys along the axis move
+ *   the selection, across it they move between columns of a grid. With Shift they extend it.
+ *   Command with an arrow goes to the first or the last item, Option with Page Up or Page Down
+ *   a page. Home, End, Page Up and Page Down scroll without selecting. Return and Space activate
+ *   the selection, Command-A selects every item with allowsMultipleSelection and Escape
+ *   deselects all. The selected item scrolls into view at the nearest edge.
+ * - Typing selects an item by its listView:typeSelectStringForItemAtIndex: text.
+ * - Cells are hovered under the pointer while the list rests and emphasized while it is the
+ *   key window's first responder. The focus ring follows focusRingType.
+ * - selectItemAtIndex:animated: and deselectItemAtIndex:animated: change the selection without
+ *   delegate calls. Selection follows keys.
+ * Without allowsSelection the list takes no first responder, mouse and key events go to the
+ * next responder and no cell is hovered, the way a host that selects by itself wants it.
+ *
+ * Menus: a right click or a Control-click on an item shows the delegate's
+ * listView:contextMenuForItemAtIndex: menu, with or without allowsSelection. While it is open the
+ * item is clickedIndex and its cell the menuTarget, drawn with an outline. clickedIndex is also
+ * the item a mouse press is on until the mouse goes up.
+ *
  * Sections: see the data source. sectionForItemAtIndex:, firstItemIndexInSection:,
  * rectForHeaderInSection:, rectForFooterInSection: and scrollToSection:animated: work in
  * sections. A grid places section header rows in a column slot like any item.
@@ -325,6 +376,9 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
 
 @property (nonatomic) BOOL allowsSelection;
+@property (nonatomic) BOOL allowsMultipleSelection;
+@property (nonatomic, readonly) NSIndexSet *selectedIndices;
+@property (nonatomic, readonly) NSInteger clickedIndex;
 
 @property (nonatomic) BOOL showsSeparators;
 @property (nonatomic, strong, null_resettable) NSColor *separatorColor;
@@ -367,6 +421,9 @@ NS_SWIFT_UI_ACTOR
 - (CGRect)rectForHeaderInSection:(NSInteger)section;
 - (CGRect)rectForFooterInSection:(NSInteger)section;
 - (void)scrollToSection:(NSInteger)section animated:(BOOL)animated NS_SWIFT_NAME(scrollToSection(_:animated:));
+
+- (void)selectItemAtIndex:(NSInteger)index animated:(BOOL)animated;
+- (void)deselectItemAtIndex:(NSInteger)index animated:(BOOL)animated;
 
 - (nullable __kindof ShadowListKitListCell *)cellForItemAtIndex:(NSInteger)index;
 @property (nonatomic, readonly) NSArray<__kindof ShadowListKitListCell *> *visibleCells;

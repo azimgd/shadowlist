@@ -37,6 +37,20 @@
 }
 
 /*
+ * The list answers for its cells: a click in an inactive window selects, and a Control-click
+ * shows the list's menu.
+ */
+- (BOOL)acceptsFirstMouse:(NSEvent *)event
+{
+  return [self.superview acceptsFirstMouse:event];
+}
+
+- (NSMenu *)menuForEvent:(NSEvent *)event
+{
+  return [super menuForEvent:event] ?: [self.superview menuForEvent:event];
+}
+
+/*
  * Fit the cell's Auto Layout constraints to the cross size. The size along the axis is free.
  * The cell lays out at the cross size first, which lets wrapping text fields take that width.
  * Cells that lay out by hand override this.
@@ -104,6 +118,16 @@
 - (void)setEmphasized:(BOOL)emphasized animated:(BOOL)animated
 {
   _emphasized = emphasized;
+}
+
+- (void)setMenuTarget:(BOOL)menuTarget
+{
+  [self setMenuTarget:menuTarget animated:NO];
+}
+
+- (void)setMenuTarget:(BOOL)menuTarget animated:(BOOL)animated
+{
+  _menuTarget = menuTarget;
 }
 
 @end

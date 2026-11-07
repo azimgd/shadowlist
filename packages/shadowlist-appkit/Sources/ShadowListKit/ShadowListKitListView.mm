@@ -16,10 +16,12 @@ using namespace azimgd::shadowlist;
  * Keeps every category file linked into apps that link the kit as a static library without -ObjC.
  */
 __attribute__((used)) static const char *const ShadowListKitListViewCategoryLinks[] = {
+  &ShadowListKitListViewActionsLink,
   &ShadowListKitListViewCommandsLink,
   &ShadowListKitListViewDataLink,
   &ShadowListKitListViewScrollingLink,
   &ShadowListKitListViewSectionsLink,
+  &ShadowListKitListViewSelectionLink,
 };
 
 void ShadowListKitPlace(NSView *view, CGRect frame)
@@ -126,6 +128,8 @@ struct ShadowListKitPassGeometry {
 
 @dynamic numberOfSections;
 @dynamic anchorState;
+@dynamic selectedIndices;
+@dynamic clickedIndex;
 
 - (instancetype)initWithFrame:(NSRect)frame
 {
@@ -468,6 +472,37 @@ struct ShadowListKitPassGeometry {
   [self invalidateFrame];
 }
 
+/*
+ * Without selection the list takes no first responder and hovers nothing.
+ */
+- (void)setAllowsSelection:(BOOL)allowsSelection
+{
+  if (allowsSelection == _allowsSelection) {
+    return;
+  }
+  _allowsSelection = allowsSelection;
+  if (!allowsSelection) {
+    [self clearSelection];
+    [self unhighlight];
+    _hoverActive = NO;
+    [self updateHover];
+    if (self.window.firstResponder == self) {
+      [self.window makeFirstResponder:nil];
+    }
+  }
+  [self updateTrackingAreas];
+  [self updateEmphasis];
+}
+
+- (void)setAllowsMultipleSelection:(BOOL)allowsMultipleSelection
+{
+  _allowsMultipleSelection = allowsMultipleSelection;
+  _selection.setMultiple(allowsMultipleSelection);
+  if (!allowsMultipleSelection && _selection.getCount() > 1) {
+    [self clearSelection];
+  }
+}
+
 - (void)setShowsSeparators:(BOOL)showsSeparators
 {
   _showsSeparators = showsSeparators;
@@ -523,6 +558,8 @@ struct ShadowListKitPassGeometry {
   _scrollPhase = scrollPhase;
   if (scrollPhase == ShadowListKitScrollPhaseDragging) {
     _driver.cancelLanding();
+    [self unhighlight];
+    [self updateHover];
     if ([_delegate respondsToSelector:@selector(listViewWillBeginDragging:)]) {
       [_delegate listViewWillBeginDragging:self];
     }
@@ -618,6 +655,12 @@ struct ShadowListKitPassGeometry {
   if (cell.isSelected) {
     [cell setSelected:NO animated:NO];
   }
+  if (cell.isHovered) {
+    [cell setHovered:NO animated:NO];
+  }
+  if (cell.isMenuTarget) {
+    [self endMenuTarget];
+  }
   if (index != NSNotFound && [_delegate respondsToSelector:@selector(listView:didEndDisplayingCell:atIndex:)]) {
     [_delegate listView:self didEndDisplayingCell:cell atIndex:index];
   }
@@ -708,6 +751,7 @@ struct ShadowListKitPassGeometry {
 {
   [super setFrameSize:newSize];
   self.needsLayout = YES;
+  [self noteFocusRingMaskChanged];
 }
 
 /*
@@ -736,6 +780,10 @@ struct ShadowListKitPassGeometry {
   _passGeometry.valid = false;
   _inLayoutPass = NO;
   [self scrollGeometryChanged];
+  // The content may have moved under a still pointer.
+  if (_hoverActive || _hoveredCell) {
+    [self updateHover];
+  }
   [self dispatchReached];
   if ([_delegate respondsToSelector:@selector(listViewDidLayOut:)]) {
     [_delegate listViewDidLayOut:self];
@@ -998,6 +1046,7 @@ struct ShadowListKitPassGeometry {
     return;
   }
   cell.hidden = NO;
+  [self applyStateToCell:cell key:key];
   if (cell.index != NSNotFound && [_delegate respondsToSelector:@selector(listView:willDisplayCell:atIndex:)]) {
     [_delegate listView:self willDisplayCell:cell atIndex:cell.index];
   }
@@ -1278,6 +1327,21 @@ struct ShadowListKitPassGeometry {
     return NSMakeRange(NSNotFound, 0);
   }
   return NSMakeRange(items->low, items->high - items->low + 1);
+}
+
+/*
+ * The shown item cell at a point in the list's coordinates, or nil.
+ */
+- (ShadowListKitListCell *)itemCellAtPoint:(NSPoint)point
+{
+  NSPoint content = [_contentView convertPoint:point fromView:self];
+  for (auto& entry : _mounted) {
+    ShadowListKitListCell *cell = entry.second;
+    if (!cell.hidden && cell.index != NSNotFound && cell.mountGeneration != 0 && NSPointInRect(content, cell.frame)) {
+      return cell;
+    }
+  }
+  return nil;
 }
 
 - (CGRect)rectForItemAtIndex:(NSInteger)index

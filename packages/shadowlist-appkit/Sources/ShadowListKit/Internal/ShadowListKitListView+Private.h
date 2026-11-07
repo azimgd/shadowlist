@@ -9,6 +9,7 @@
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
+#include <shadowlist-core/host/ListSelection.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
 
 #include <string>
@@ -29,10 +30,12 @@ void ShadowListKitPlace(NSView *view, CGRect frame);
  * would be left out.
  */
 extern "C" {
+extern const char ShadowListKitListViewActionsLink;
 extern const char ShadowListKitListViewCommandsLink;
 extern const char ShadowListKitListViewDataLink;
 extern const char ShadowListKitListViewScrollingLink;
 extern const char ShadowListKitListViewSectionsLink;
+extern const char ShadowListKitListViewSelectionLink;
 }
 
 /*
@@ -56,6 +59,13 @@ extern const char ShadowListKitListViewSectionsLink;
  * payload of the last reload in it. _contentVersions is the content version of every item
  * applyChanges saw, by key. _engine scrolls the list and _scrollers shows where it is, both
  * unused while the list is driven.
+ * _selection holds the selected keys with the anchor of a range, and _highlightedCell the item
+ * the mouse presses. _hoveredCell is the item under _hoverPoint, the pointer in the list's
+ * coordinates while _hoverActive. _hoverTracking reports the pointer while allowsSelection is
+ * set. _emphasized is whether the list is the key window's first responder. _clickedKey is the
+ * key of clickedIndex while _hasClickedKey. _menuCell is the cell whose menu is open and
+ * _menuOutline the outline drawn over it. _typeSelectBuffer holds the characters typed since
+ * _typeSelectTime, the time of the last one.
  */
 @interface ShadowListKitListView () {
  @package
@@ -80,6 +90,22 @@ extern const char ShadowListKitListViewSectionsLink;
   azimgd::shadowlist::ContentVersions _contentVersions;
   ShadowListKitScrollEngine *_engine;
   ShadowListKitScrollerView *_scrollers;
+
+  BOOL _allowsSelection;
+  BOOL _allowsMultipleSelection;
+  azimgd::shadowlist::ListSelection _selection;
+  __weak ShadowListKitListCell *_highlightedCell;
+  __weak ShadowListKitListCell *_hoveredCell;
+  NSPoint _hoverPoint;
+  BOOL _hoverActive;
+  NSTrackingArea *_hoverTracking;
+  BOOL _emphasized;
+  std::string _clickedKey;
+  BOOL _hasClickedKey;
+  __weak ShadowListKitListCell *_menuCell;
+  CALayer *_menuOutline;
+  NSString *_typeSelectBuffer;
+  NSTimeInterval _typeSelectTime;
 }
 
 - (CGFloat)along:(CGPoint)point;
@@ -96,6 +122,7 @@ extern const char ShadowListKitListViewSectionsLink;
 - (NSIndexSet *)itemsOfRows:(const std::vector<std::size_t>&)rows;
 - (CGPoint)contentOffsetAt:(double)offset;
 - (void)invalidateFrame;
+- (nullable ShadowListKitListCell *)itemCellAtPoint:(NSPoint)point;
 
 @end
 
@@ -150,6 +177,39 @@ extern const char ShadowListKitListViewSectionsLink;
 - (void)runCommandNow;
 - (void)restorePendingAnchor;
 - (void)invalidateRestorableStateIfSettled;
+
+@end
+
+/*
+ * Selection by the mouse and the keyboard, hover and emphasis. applyStateToCell:key: gives a
+ * cell coming on screen its row's selection and the list's emphasis. clearSelection deselects
+ * every row without delegate calls. unhighlight takes the highlight off the pressed item.
+ * updateHover hovers the item under the pointer again, after a layout pass moved the content.
+ * updateEmphasis follows the window's key state and first responder. itemIndexOfKey: is the item
+ * of a key, or NSNotFound. revealRow: scrolls a row into view at the nearest edge.
+ */
+@interface ShadowListKitListView (Selection)
+
+- (void)applyStateToCell:(ShadowListKitListCell *)cell key:(const std::string&)key;
+- (void)clearSelection;
+- (void)unhighlight;
+- (void)updateHover;
+- (void)updateEmphasis;
+- (NSInteger)itemIndexOfKey:(const std::string&)key;
+- (void)revealRow:(std::size_t)row;
+
+@end
+
+/*
+ * Context menus. menuForCell: is the delegate's menu for an item. showMenuForRow: opens it on a
+ * row from the keyboard. endMenuTarget takes the outline and clickedIndex off the item once
+ * the menu closes.
+ */
+@interface ShadowListKitListView (Actions)
+
+- (nullable NSMenu *)menuForCell:(ShadowListKitListCell *)cell;
+- (void)showMenuForRow:(std::size_t)row;
+- (void)endMenuTarget;
 
 @end
 

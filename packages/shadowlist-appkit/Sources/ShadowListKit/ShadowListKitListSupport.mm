@@ -89,4 +89,14 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
   return (id<CAAction>)NSNull.null;
 }
 
+- (BOOL)acceptsFirstMouse:(NSEvent *)event
+{
+  return [self.superview acceptsFirstMouse:event];
+}
+
+- (NSMenu *)menuForEvent:(NSEvent *)event
+{
+  return [super menuForEvent:event] ?: [self.superview menuForEvent:event];
+}
+
 @end

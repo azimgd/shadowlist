@@ -106,12 +106,170 @@ final class TestDelegate: NSObject, ShadowListKitListViewDelegate {
 }
 
 /*
- * A window whose backing scale a test sets.
+ * A window whose backing scale and key state a test sets.
  */
 final class ScaleWindow: NSWindow {
   var scale: CGFloat = 2
+  var key = false
 
   override var backingScaleFactor: CGFloat { scale }
+  override var isKeyWindow: Bool { key }
+}
+
+/*
+ * A cell that records the states the list gives it.
+ */
+final class StateCell: ShadowListKitListCell {
+  var key = ""
+  var highlights: [Bool] = []
+
+  override func sizeThatFits(_ size: NSSize) -> NSSize {
+    NSSize(width: size.width, height: 44)
+  }
+
+  override func setHighlighted(_ highlighted: Bool, animated: Bool) {
+    super.setHighlighted(highlighted, animated: animated)
+    highlights.append(highlighted)
+  }
+}
+
+/*
+ * Items with a type select text each, shown in StateCells.
+ */
+final class StateSource: NSObject, ShadowListKitListViewDataSource {
+  var keys: [String]
+
+  init(count: Int) {
+    keys = (0..<count).map { "item-\($0)" }
+  }
+
+  func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
+
+  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+
+  func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
+    let cell = listView.dequeueReusableCell(withIdentifier: "state") as! StateCell
+    cell.key = keys[index]
+    return cell
+  }
+
+  func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 44 }
+}
+
+/*
+ * Records the selection, activation and menu calls, and answers type select and menus.
+ */
+final class SelectionRecorder: NSObject, ShadowListKitListViewDelegate {
+  var selected: [Int] = []
+  var deselected: [Int] = []
+  var activated: [Int] = []
+  var clickedWhenActivated: [Int] = []
+  var refused: Set<Int> = []
+  var names: [Int: String] = [:]
+  var menus = true
+
+  func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) { selected.append(index) }
+  func listView(_ listView: ShadowListKitListView, didDeselectItemAt index: Int) { deselected.append(index) }
+  func listView(_ listView: ShadowListKitListView, shouldSelectItemAt index: Int) -> Bool { !refused.contains(index) }
+
+  func listView(_ listView: ShadowListKitListView, didActivateItemAt index: Int) {
+    activated.append(index)
+    clickedWhenActivated.append(listView.clickedIndex)
+  }
+
+  func listView(_ listView: ShadowListKitListView, typeSelectStringForItemAt index: Int) -> String? { names[index] }
+
+  func listView(_ listView: ShadowListKitListView, contextMenuForItemAt index: Int) -> NSMenu? {
+    guard menus, index % 2 == 0 else { return nil }
+    let menu = NSMenu(title: "item-\(index)")
+    menu.addItem(withTitle: "Open", action: nil, keyEquivalent: "")
+    return menu
+  }
+}
+
+/*
+ * A list of 44 point StateCells in an offscreen window with a SelectionRecorder.
+ */
+@MainActor
+final class SelectionHarness {
+  let window: ScaleWindow
+  let list: ShadowListKitListView
+  let source: StateSource
+  let recorder = SelectionRecorder()
+
+  init(count: Int = 600, configure: (ShadowListKitListView) -> Void = { _ in }) {
+    source = StateSource(count: count)
+    let size = NSSize(width: 320, height: 480)
+    window = ScaleWindow(
+      contentRect: NSRect(origin: NSPoint(x: -10_000, y: -10_000), size: size), styleMask: [.borderless],
+      backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    let container = NSView(frame: NSRect(origin: .zero, size: size))
+    window.contentView = container
+    list = ShadowListKitListView(frame: container.bounds)
+    list.register(StateCell.self, forCellReuseIdentifier: "state")
+    configure(list)
+    list.dataSource = source
+    list.delegate = recorder
+    container.addSubview(list)
+    list.reloadData()
+    layout()
+  }
+
+  func layout() {
+    for _ in 0..<6 {
+      list.needsLayout = true
+      list.layoutSubtreeIfNeeded()
+    }
+  }
+
+  var selection: [Int] { Array(list.selectedIndices) }
+
+  func cell(_ index: Int) -> StateCell? { list.cellForItem(at: index) as? StateCell }
+
+  func click(_ index: Int, _ flags: NSEvent.ModifierFlags = [], count: Int = 1) {
+    list.shadowListKit_clickItem(at: index, modifierFlags: flags, clickCount: count)
+  }
+
+  /*
+   * A key as the keyboard sends it. Arrows and the navigation keys carry the function flag.
+   */
+  func press(_ key: Key, _ flags: NSEvent.ModifierFlags = []) {
+    let function: NSEvent.ModifierFlags = key.isFunction ? [.function] : []
+    list.shadowListKit_pressKey(key.characters, keyCode: key.code, modifierFlags: flags.union(function))
+  }
+
+  /*
+   * Whether an item's cell is shown whole inside the viewport.
+   */
+  func isFullyVisible(_ index: Int) -> Bool {
+    guard let cell = list.cellForItem(at: index), let superview = cell.superview else { return false }
+    let frame = list.convert(cell.frame, from: superview)
+    return frame.minY >= -0.5 && frame.maxY <= list.bounds.height + 0.5
+  }
+}
+
+/*
+ * The keys the selection tests press, with their characters and key codes.
+ */
+struct Key {
+  let characters: String
+  let code: UInt16
+  var isFunction: Bool { characters.unicodeScalars.first.map { $0.value >= 0xF700 } ?? false }
+
+  static let up = Key(characters: "\u{F700}", code: 126)
+  static let down = Key(characters: "\u{F701}", code: 125)
+  static let left = Key(characters: "\u{F702}", code: 123)
+  static let right = Key(characters: "\u{F703}", code: 124)
+  static let home = Key(characters: "\u{F729}", code: 115)
+  static let end = Key(characters: "\u{F72B}", code: 119)
+  static let pageUp = Key(characters: "\u{F72C}", code: 116)
+  static let pageDown = Key(characters: "\u{F72D}", code: 121)
+  static let returnKey = Key(characters: "\r", code: 36)
+  static let space = Key(characters: " ", code: 49)
+  static let escape = Key(characters: "\u{1B}", code: 53)
+
+  static func text(_ characters: String) -> Key { Key(characters: characters, code: 0) }
 }
 
 /*
