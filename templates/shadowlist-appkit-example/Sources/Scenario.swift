@@ -23,6 +23,7 @@ import ShadowListKit
  *   sections -SLRoute Sections: the section queries, self-sized rows, the header view, a
  *            scroll to a section, its header pinned and pushed by the next one, overscroll past
  *            the start, separators and a regroup that keeps the visible rows still
+ *   animate  the feed with animatesChanges: delete a shown post and add one, log the animation
  *
  * -SLShot scrolls a little first, which shows the overlay scrollers in the picture. With keys,
  * menu, reorder or sections it shoots the end state instead: a selection with a hovered item, an
@@ -67,6 +68,10 @@ enum Scenario {
     }
     if name == "sections", let sections = screen as? SectionsScreen {
       after(1.5) { checkSections(sections) }
+      return
+    }
+    if name == "animate", let feed = screen as? FeedScreen {
+      after(1.5) { checkAnimation(feed) }
       return
     }
     after(1.5) {
@@ -596,6 +601,43 @@ enum Scenario {
     result["maxShiftAfterRegroup"] = Double(shift)
     result["pinnedAfterRegroup"] = pinned()?.offset ?? NSNull()
     finish(result, shoot: screen)
+  }
+
+  /*
+   * Delete the second shown post, which slides the next one up, and add a new post after that
+   * one, all through reloadData. Logs the new post's opacity and a survivor's slide while the
+   * animation runs, then whether it settled and how far the first shown post moved. The checks
+   * and the result are the UIKit example's.
+   */
+  private static func checkAnimation(_ screen: FeedScreen) {
+    let list = screen.list
+    list.animatesChanges = true
+    func screenY(_ index: Int, middle: Bool = false) -> CGFloat {
+      guard let cell = list.cellForItem(at: index) else { return -1 }
+      let frame = list.convert(cell.frame, from: cell.superview)
+      return middle ? frame.midY : frame.minY
+    }
+    let first = list.visibleRange.location
+    let topBefore = screenY(first)
+    let survivorBefore = screenY(first + 2, middle: true)
+    screen.replacePost(after: first)
+    list.layoutSubtreeIfNeeded()
+    after(0.06) {
+      let inserted = list.cellForItem(at: first + 2)?.layer
+      let survivor = list.cellForItem(at: first + 1)?.layer
+      let slide = survivor.flatMap { layer in layer.presentation().map { $0.position.y - layer.position.y } } ?? 0
+      let during: [String: Any] = [
+        "insertedAlpha": Double(inserted?.presentation()?.opacity ?? -1),
+        "survivorSlideY": Double(slide),
+        "survivorScreenYBefore": Double(survivorBefore),
+        "survivorScreenYAfter": Double(screenY(first + 1, middle: true)),
+      ]
+      after(0.7) {
+        let settled = list.visibleCells.allSatisfy { $0.alphaValue == 1 && ($0.layer?.animationKeys() ?? []).isEmpty }
+        let topAfter = screenY(first)
+        finish(["scenario": "animate", "during": during, "settled": settled, "firstRowMoved": Double(topAfter - topBefore)])
+      }
+    }
   }
 
   /*

@@ -85,6 +85,15 @@ final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, Sha
     list.insertItems(at: IndexSet(start..<posts.count))
   }
 
+  /*
+   * Delete the post after an index and add a new one after the next, in one reload.
+   */
+  func replacePost(after index: Int) {
+    posts.remove(at: index + 1)
+    posts.insert(FeedPost(index: 900_000), at: index + 2)
+    list.reloadData()
+  }
+
   func numberOfItems(in listView: ShadowListKitListView) -> Int { posts.count }
 
   func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { posts[index].key }
