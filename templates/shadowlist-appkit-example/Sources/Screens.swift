@@ -21,14 +21,18 @@ final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, Sha
   private var layouts: [String: FeedLayout] = [:]
   private var nextIndex: Int
   private var previousIndex = -1
+  private(set) var activated: [Int] = []
 
   var keys: [String] { posts.map(\.key) }
+
+  func name(at index: Int) -> String { posts[index].name }
 
   init(count: Int) {
     posts = (0..<count).map { FeedPost(index: $0) }
     nextIndex = count
     super.init(frame: .zero)
     list.showsSeparators = true
+    list.allowsMultipleSelection = true
     list.separatorInsetStart = FeedLayout.padding + FeedLayout.avatar + FeedLayout.gap
     list.register(FeedCell.self, forCellReuseIdentifier: "post")
     list.dataSource = self
@@ -91,6 +95,21 @@ final class FeedScreen: NSView, ListScreen, ShadowListKitListViewDataSource, Sha
     let cell = listView.dequeueReusableCell(withIdentifier: "post") as! FeedCell
     cell.configure(posts[index], layout: layout(at: index, width: listView.contentSize.width))
     return cell
+  }
+
+  func listView(_ listView: ShadowListKitListView, didActivateItemAt index: Int) {
+    activated.append(index)
+  }
+
+  func listView(_ listView: ShadowListKitListView, typeSelectStringForItemAt index: Int) -> String? {
+    posts[index].name
+  }
+
+  func listView(_ listView: ShadowListKitListView, contextMenuForItemAt index: Int) -> NSMenu? {
+    let menu = NSMenu(title: posts[index].key)
+    menu.addItem(withTitle: "Open", action: nil, keyEquivalent: "")
+    menu.addItem(withTitle: "Copy Name", action: nil, keyEquivalent: "")
+    return menu
   }
 }
 

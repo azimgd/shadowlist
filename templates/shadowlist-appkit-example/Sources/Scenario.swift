@@ -13,14 +13,21 @@ import ShadowListKit
  *            settles, rests and jumps. Logs the shift, the corrections, blank frames and the landing
  *   wheel    trackpad gestures with momentum, a bounce off each end, a mouse wheel, a gesture
  *            across the axis and animated commands, sent as wheel events. Logs where each landed
+ *   keys     clicks with modifiers, the arrows with and without Shift, Command arrows, Option
+ *            page keys, Return, type select to an item not mounted, Escape, emphasis and the
+ *            pointer's hover. Logs each check
+ *   menu     a right click and a Control-click on items: the menu, clickedIndex, the menu target
+ *            and its outline, and their end when the menu closes
  *
- * -SLShot scrolls a little first, which shows the overlay scrollers in the picture.
+ * -SLShot scrolls a little first, which shows the overlay scrollers in the picture. With keys
+ * or menu it shoots the end state instead: a selection with a hovered item, or an open menu's
+ * outline.
  */
 enum Scenario {
   static func start(_ screen: NSView & ListScreen) {
     print("[SLWINDOW] \(screen.window?.windowNumber ?? -1)")
     fflush(stdout)
-    if let path = Settings.shotPath {
+    if let path = Settings.shotPath, Settings.scenario == nil {
       after(1.5) {
         if let driven = screen as? DrivenScreen {
           driven.scroll(to: CGPoint(x: 160, y: 900))
@@ -38,6 +45,14 @@ enum Scenario {
     }
     if name == "wheel" {
       after(1.5) { checkWheel(screen.list) }
+      return
+    }
+    if name == "keys", let feed = screen as? FeedScreen {
+      after(1.5) { checkKeys(feed) }
+      return
+    }
+    if name == "menu", let feed = screen as? FeedScreen {
+      after(1.5) { checkMenu(feed) }
       return
     }
     after(1.5) {
@@ -258,6 +273,157 @@ enum Scenario {
   }
 
   /*
+   * Mouse and key events on the feed, one step a frame, each check logged by name. The window
+   * is key and the list its first responder, which emphasizes the selection.
+   */
+  private static func checkKeys(_ screen: FeedScreen) {
+    let list = screen.list
+    var result: [String: Any] = ["scenario": "keys", "engine": "shadowlist", "screen": "FeedScreen"]
+    var checks: [String: Bool] = [:]
+    let selection = { Array(list.selectedIndices) }
+    func press(_ characters: String, _ code: UInt16, _ flags: NSEvent.ModifierFlags = []) {
+      let function: NSEvent.ModifierFlags = characters.unicodeScalars.first.map { $0.value >= 0xF700 } == true ? [.function] : []
+      list.shadowListKit_pressKey(characters, keyCode: code, modifierFlags: flags.union(function))
+    }
+    func visible(_ index: Int) -> Bool {
+      guard let cell = list.cellForItem(at: index) else { return false }
+      let frame = list.convert(cell.frame, from: cell.superview)
+      return frame.minY >= -0.5 && frame.maxY <= list.bounds.height + 0.5
+    }
+    let down = "\u{F701}"
+    let up = "\u{F700}"
+    let pageDown = "\u{F72D}"
+    let last = screen.keys.count - 1
+    var steps: [() -> Void] = [
+      {
+        list.scrollToStart(animated: false)
+        list.shadowListKit_clickItem(at: 2, modifierFlags: [], clickCount: 1)
+        checks["clickSelects"] = selection() == [2]
+        checks["firstResponder"] = list.window?.firstResponder === list
+        checks["emphasized"] = list.cellForItem(at: 2)?.isEmphasized == true
+      },
+      {
+        list.shadowListKit_clickItem(at: 4, modifierFlags: .command, clickCount: 1)
+        list.shadowListKit_clickItem(at: 6, modifierFlags: .shift, clickCount: 1)
+        checks["commandShiftClick"] = selection() == [2, 4, 5, 6]
+      },
+      {
+        press(down, 125)
+        press(down, 125)
+        checks["arrows"] = selection() == [8]
+        press(down, 125, .shift)
+        press(down, 125, .shift)
+        press(up, 126, .shift)
+        checks["shiftArrows"] = selection() == [8, 9]
+      },
+      {
+        press(down, 125, .command)
+        checks["commandDown"] = selection() == [last] && visible(last)
+        press(up, 126, .command)
+        checks["commandUp"] = selection() == [0] && visible(0)
+      },
+      {
+        press(pageDown, 121, .option)
+        let page = selection().first ?? 0
+        result["optionPageDownItem"] = page
+        checks["optionPageDown"] = selection().count == 1 && page > 2 && visible(page)
+      },
+      {
+        let lead = selection().first ?? -1
+        press("\r", 36)
+        checks["returnActivates"] = screen.activated == [lead]
+      },
+      {
+        // The name of the item before the lead comes next a whole cycle of names later, past the
+        // mounted cells.
+        list.shadowListKit_clickItem(at: 1, modifierFlags: [], clickCount: 1)
+        let name = screen.name(at: 0)
+        let target = (2...last).first { screen.name(at: $0) == name } ?? -1
+        result["typeSelectTarget"] = target
+        result["typeSelectMountedBefore"] = list.cellForItem(at: target) != nil
+        for character in name {
+          press(String(character), 0)
+        }
+        checks["typeSelect"] = selection() == [target] && visible(target)
+      },
+      {
+        press("\u{1B}", 53)
+        checks["escapeDeselects"] = selection().isEmpty
+        list.scrollToStart(animated: false)
+        list.shadowListKit_clickItem(at: 3, modifierFlags: [], clickCount: 1)
+        list.shadowListKit_clickItem(at: 5, modifierFlags: .shift, clickCount: 1)
+        let cell = list.cellForItem(at: 1)
+        let point = cell.map { list.convert(NSPoint(x: $0.frame.midX, y: $0.frame.midY), from: $0.superview) } ?? .zero
+        list.shadowListKit_moveMouse(to: point)
+        checks["hover"] = cell?.isHovered == true && list.visibleCells.filter { $0.isHovered }.count == 1
+        checks["selectedEmphasized"] = selection().allSatisfy { list.cellForItem(at: $0)?.isEmphasized == true }
+      },
+    ]
+    steps.append {
+      result["checks"] = checks
+      result["pass"] = checks.values.allSatisfy { $0 }
+      finish(result, shoot: screen)
+    }
+    run(steps)
+  }
+
+  /*
+   * Menus asked the way a right click and a Control-click ask for them, closed the way AppKit
+   * ends their tracking.
+   */
+  private static func checkMenu(_ screen: FeedScreen) {
+    let list = screen.list
+    var result: [String: Any] = ["scenario": "menu", "engine": "shadowlist", "screen": "FeedScreen"]
+    var checks: [String: Bool] = [:]
+    var menu: NSMenu?
+    let steps: [() -> Void] = [
+      {
+        list.scrollToStart(animated: false)
+        list.shadowListKit_clickItem(at: 1, modifierFlags: [], clickCount: 1)
+        menu = list.shadowListKit_menuForItem(at: 2, modifierFlags: [])
+        checks["rightClickMenu"] = menu?.title == screen.keys[2]
+        checks["clickedIndex"] = list.clickedIndex == 2
+        checks["menuTarget"] = list.cellForItem(at: 2)?.isMenuTarget == true
+        checks["outline"] = list.shadowListKit_menuOutline?.superlayer === list.cellForItem(at: 2)?.layer
+        checks["selectionKept"] = Array(list.selectedIndices) == [1] && list.cellForItem(at: 1)?.isEmphasized == true
+      },
+      {
+        if let menu {
+          NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: menu)
+        }
+        checks["closedClearsClickedIndex"] = list.clickedIndex == NSNotFound
+        checks["closedClearsOutline"] = list.shadowListKit_menuOutline == nil && list.cellForItem(at: 2)?.isMenuTarget == false
+      },
+      {
+        // Left open for the picture.
+        menu = list.shadowListKit_menuForItem(at: 0, modifierFlags: .control)
+        checks["controlClickMenu"] = menu?.title == screen.keys[0] && list.clickedIndex == 0
+      },
+      {
+        result["checks"] = checks
+        result["pass"] = checks.values.allSatisfy { $0 }
+        finish(result, shoot: screen)
+      },
+    ]
+    run(steps)
+  }
+
+  /*
+   * Run steps one frame apart, each laid out after.
+   */
+  private static func run(_ steps: [() -> Void]) {
+    var index = 0
+    Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { timer in
+      guard index < steps.count else {
+        timer.invalidate()
+        return
+      }
+      steps[index]()
+      index += 1
+    }
+  }
+
+  /*
    * A mouse wheel's notches, the way a wheel without precise deltas sends them.
    */
   private static func mouseWheel(_ list: ShadowListKitListView, lines: Int32) {
@@ -313,10 +479,17 @@ enum Scenario {
     exit(0)
   }
 
-  private static func finish(_ result: [String: Any]) {
+  /*
+   * Log the result. With -SLShot the screen is shot after it.
+   */
+  private static func finish(_ result: [String: Any], shoot screen: NSView? = nil) {
     let data = try! JSONSerialization.data(withJSONObject: result, options: .sortedKeys)
     print("[SLSCENARIO] \(String(data: data, encoding: .utf8)!)")
     fflush(stdout)
+    if let screen, let path = Settings.shotPath {
+      after(0.2) { shoot(screen, to: path) }
+      return
+    }
     if Settings.exitsAfterScenario {
       exit(0)
     }

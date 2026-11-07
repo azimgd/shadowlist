@@ -68,13 +68,15 @@ final class AvatarView: NSView {
 }
 
 /*
- * A post: avatar, name and body, laid out by hand from its FeedLayout.
+ * A post: avatar, name and body, laid out by hand from its FeedLayout. Its background shows the
+ * selection, emphasized or not, the press and the hover.
  */
 final class FeedCell: ShadowListKitListCell {
   let avatarView = AvatarView()
   let nameView = ShadowListKitTextView()
   let bodyView = ShadowListKitTextView()
   private(set) var key = ""
+  private(set) var name = ""
   private var textLayout: FeedLayout?
 
   override init(reuseIdentifier: String?) {
@@ -87,6 +89,7 @@ final class FeedCell: ShadowListKitListCell {
 
   func configure(_ post: FeedPost, layout: FeedLayout) {
     key = post.key
+    name = post.name
     textLayout = layout
     avatarView.color = FeedCell.color(of: post.name)
     nameView.textLayout = layout.name
@@ -95,7 +98,45 @@ final class FeedCell: ShadowListKitListCell {
   }
 
   override func updateLayer() {
-    layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
+    let color: NSColor
+    if isSelected {
+      color = isEmphasized ? .selectedContentBackgroundColor : .unemphasizedSelectedContentBackgroundColor
+    } else if isHighlighted {
+      color = NSColor.textBackgroundColor.blended(withFraction: 0.12, of: .labelColor) ?? .textBackgroundColor
+    } else if isHovered {
+      color = NSColor.textBackgroundColor.blended(withFraction: 0.05, of: .labelColor) ?? .textBackgroundColor
+    } else {
+      color = .textBackgroundColor
+    }
+    layer?.backgroundColor = color.cgColor
+    let onAccent = isSelected && isEmphasized
+    nameView.textColor = onAccent ? .alternateSelectedControlTextColor : .labelColor
+    bodyView.textColor = onAccent ? .alternateSelectedControlTextColor : .secondaryLabelColor
+  }
+
+  override func setSelected(_ selected: Bool, animated: Bool) {
+    super.setSelected(selected, animated: animated)
+    needsDisplay = true
+  }
+
+  override func setHighlighted(_ highlighted: Bool, animated: Bool) {
+    super.setHighlighted(highlighted, animated: animated)
+    needsDisplay = true
+  }
+
+  override func setHovered(_ hovered: Bool, animated: Bool) {
+    super.setHovered(hovered, animated: animated)
+    needsDisplay = true
+  }
+
+  override func setEmphasized(_ emphasized: Bool, animated: Bool) {
+    super.setEmphasized(emphasized, animated: animated)
+    needsDisplay = true
+  }
+
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    needsDisplay = true
   }
 
   override func layout() {
