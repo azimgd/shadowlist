@@ -167,6 +167,24 @@ final class DragTests: XCTestCase {
     XCTAssertEqual(list.shadowListKit_heldIndex, NSNotFound)
   }
 
+  /*
+   * The dropped row slides once, from the lifted place it was let go at to its slot.
+   */
+  func testTheDroppedRowSlidesHomeFromWhereItWasLetGo() throws {
+    let (harness, _) = makeHarness()
+    let list = harness.list
+    let start = try center(list, 2)
+    list.shadowListKit_mouseDown(at: start)
+    list.shadowListKit_mouseDrag(to: moved(start, y: 30))
+    let cell = try XCTUnwrap(list.cellForItem(at: 2))
+    let held = try XCTUnwrap(cell.layer?.transform)
+    list.shadowListKit_mouseUp(at: moved(start, y: 30))
+    let slide = try XCTUnwrap(cell.layer?.animation(forKey: "transform") as? CABasicAnimation)
+    let from = try XCTUnwrap((slide.fromValue as? NSValue)?.caTransform3DValue)
+    XCTAssertTrue(CATransform3DEqualToTransform(from, held))
+    XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(cell.layer?.transform)))
+  }
+
   func testADropInPlaceMovesNothing() throws {
     let (harness, recorder) = makeHarness()
     let list = harness.list

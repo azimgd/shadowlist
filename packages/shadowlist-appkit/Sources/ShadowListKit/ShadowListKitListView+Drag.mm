@@ -465,10 +465,11 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
     }
   }];
   for (auto& entry : _mounted) {
-    if (!CATransform3DIsIdentity(entry.second.layer.transform)) {
+    if (entry.second != cell && !CATransform3DIsIdentity(entry.second.layer.transform)) {
       ShadowListKitSetTransform(entry.second.layer, CATransform3DIdentity, SHADOWLIST_KIT_DROP_DURATION);
     }
   }
+  // The dropped row slides once, from where it was let go.
   ShadowListKitSetTransform(cell.layer, CATransform3DIdentity, SHADOWLIST_KIT_DROP_DURATION);
   [CATransaction commit];
 }
