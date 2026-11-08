@@ -97,7 +97,8 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
   }
   NSString *status = first == NSNotFound
     ? nil
-    : [NSString stringWithFormat:@"Rows %ld to %ld of %lu", (long)first + 1, (long)last + 1, (unsigned long)rowCount];
+    : [NSString stringWithFormat:NSLocalizedString(@"Rows %ld to %ld of %lu", nil), (long)first + 1, (long)last + 1,
+                                 (unsigned long)rowCount];
   UIAccessibilityPostNotification(UIAccessibilityPageScrolledNotification, status);
 }
 
