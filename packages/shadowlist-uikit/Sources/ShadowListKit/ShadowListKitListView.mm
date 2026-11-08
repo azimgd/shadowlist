@@ -668,6 +668,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
 {
   _driver.cancelLanding();
+  [self dropPendingAnchor];
   [self unhighlight];
   [self closeSwipeAnimated:YES];
 }

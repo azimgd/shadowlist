@@ -77,6 +77,20 @@ final class CommandsTests: XCTestCase {
     XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 105)), -4, accuracy: 0.5)
   }
 
+  func testAWaitingAnchorStateIsDroppedByAScrollCommand() throws {
+    let harness = makeHarness(count: 100)
+    let list = harness.list
+    list.restoreAnchorState(ShadowListKitAnchorState(key: "later-5", offset: 4))
+    harness.layout()
+    list.scrollToItem(at: 50, viewPosition: 0, animated: false)
+    harness.layout()
+    let y = try XCTUnwrap(harness.screenY(ofItem: 50))
+    harness.source.keys.append(contentsOf: (0..<50).map { "later-\($0)" })
+    list.reloadData()
+    harness.layout()
+    XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 50)), y, accuracy: 0.5)
+  }
+
   func testRestorableStateCarriesThePosition() throws {
     let saved = makeHarness(count: 1000)
     saved.list.identifier = NSUserInterfaceItemIdentifier("list")

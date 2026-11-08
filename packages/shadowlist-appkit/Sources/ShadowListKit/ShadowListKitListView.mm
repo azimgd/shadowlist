@@ -874,6 +874,7 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   _scrollPhase = scrollPhase;
   if (scrollPhase == ShadowListKitScrollPhaseDragging) {
     _driver.cancelLanding();
+    [self dropPendingAnchor];
     [self unhighlight];
     [self closeSwipeAnimated:YES];
     [self updateHover];

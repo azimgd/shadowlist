@@ -434,13 +434,15 @@ struct ShadowListKitPassGeometry {
  * The saved position and the scroll commands. scrollToRow:viewPosition:animated: scrolls to a
  * row, which can be a section header. stopScrolling stops momentum and an animated command.
  * runCommandNow lays the list out at once for a command the core took. restorePendingAnchor
- * lands a waiting saved position once its key is there. invalidateRestorableStateIfSettled tells
+ * lands a waiting saved position once its key is there, and dropPendingAnchor forgets it once
+ * the user or a command moved the list. invalidateRestorableStateIfSettled tells
  * the Mac window the saved position changed once the list rests. animateToOffset:landing: is
  * the iOS animated command, which the Mac runs through its scroll engine.
  */
 @interface ShadowListKitListView (Commands)
 
 - (void)scrollToRow:(std::size_t)row viewPosition:(CGFloat)viewPosition animated:(BOOL)animated;
+- (void)dropPendingAnchor;
 - (void)stopScrolling;
 - (void)runCommandNow;
 - (void)restorePendingAnchor;

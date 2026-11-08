@@ -44,7 +44,8 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 }
 
 /*
- * Land the saved row once the data has it. Until then the position waits.
+ * Land the saved row once the data has it. Until then the position waits, and the user
+ * scrolling or a scroll command drops it, see dropPendingAnchor.
  */
 - (void)restorePendingAnchor
 {
@@ -82,6 +83,15 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   }
 }
 
+/*
+ * Forget a saved position still waiting for its key. The user or a command moved the list
+ * since, and a later reload must not pull the viewport back to it.
+ */
+- (void)dropPendingAnchor
+{
+  _pendingAnchor = nil;
+}
+
 #pragma mark - Scroll commands
 
 - (void)scrollToItemAtIndex:(NSInteger)index viewPosition:(CGFloat)viewPosition animated:(BOOL)animated
@@ -98,6 +108,7 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   if (row >= _driver.getKeyCount()) {
     return;
   }
+  [self dropPendingAnchor];
   if (animated && [self animatesCommands] && row < _driver.getRowCount()) {
     // Animate to the estimate, then let the core land exactly when the animation ends.
     double target = _driver.animatedTargetOffset(row, viewPosition, _windowAlong, [self maxOffset]);
@@ -112,6 +123,7 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 
 - (void)scrollToStartAnimated:(BOOL)animated
 {
+  [self dropPendingAnchor];
   if (animated && [self animatesCommands]) {
     // The header shows at the very start, which landing on row 0 would scroll past.
     [self animateToOffset:0 landing:{ScrollLanding::Target::Start, 0, 0}];
@@ -125,6 +137,7 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 
 - (void)scrollToEndAnimated:(BOOL)animated
 {
+  [self dropPendingAnchor];
   if (animated && [self animatesCommands]) {
     [self animateToOffset:[self maxOffset] landing:{ScrollLanding::Target::End, 0, 0}];
     return;
@@ -141,6 +154,7 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
  */
 - (void)stopScrolling
 {
+  [self dropPendingAnchor];
   [self stopScrollMotion];
   _driver.cancelLanding();
 }
