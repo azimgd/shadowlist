@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import android.os.SystemClock
@@ -721,7 +722,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     cell.alpha = 1f
     cell.translationX = 0f
     cell.translationY = 0f
-    cell.visibility = INVISIBLE
+    setCellShown(cell, false)
     cell.index = ShadowListKitListCell.NO_INDEX
     cell.row = ShadowListKitListCell.NO_INDEX
     if (cell.highlighted) cell.setHighlighted(false, false)
@@ -1280,12 +1281,30 @@ open class ShadowListKitListView @JvmOverloads constructor(
     cell.mountGeneration = generation
     placeCell(cell, index)
     if (appearing) {
-      cell.visibility = VISIBLE
+      setCellShown(cell, true)
       applyState(cell, key)
       // A reload recycled the held row's cell. The new one takes its place under the finger.
       if (index == drag.heldIndex) drag.adoptHeldCell(cell)
       if (cell.index >= 0) delegate?.willDisplayCell(this, cell, cell.index)
     }
+  }
+
+  /*
+   * Shows or hides a mounted or recycled cell. From API 29 the flag changes without the visibility
+   * dispatch through the cell's views, which cost more than the rest of a mount pass. The list then
+   * draws again, and a shown cell with it. A cell holding focus changes the usual way, which moves
+   * the focus.
+   */
+  private fun setCellShown(cell: ShadowListKitListCell, shown: Boolean) {
+    val visibility = if (shown) VISIBLE else INVISIBLE
+    if (cell.visibility == visibility) return
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || cell.hasFocus()) {
+      cell.visibility = visibility
+      return
+    }
+    cell.setTransitionVisibility(visibility)
+    if (shown) cell.invalidate()
+    invalidate()
   }
 
   /*
