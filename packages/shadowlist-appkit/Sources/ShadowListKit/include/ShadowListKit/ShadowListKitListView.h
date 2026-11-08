@@ -261,8 +261,9 @@ NS_SWIFT_UI_ACTOR
 
 /*
  * With scrollDriven, the content offset the list wants: a correction that keeps the visible
- * items still, the target of a scroll command or the edge scroll of a held row. Set contentOffset to it inside this call. The
- * list lays out at the offset it has when the call returns.
+ * items still, the target of a scroll command or the edge scroll of a held row. Set
+ * contentOffset to it inside this call. The list lays out at the offset it has when the call
+ * returns.
  */
 - (void)listView:(ShadowListKitListView *)listView didCorrectOffset:(CGPoint)contentOffset;
 
@@ -401,8 +402,9 @@ NS_SWIFT_UI_ACTOR
  * after them, then the scroll bars. Scrolling a row to visible scrolls it into view. An assistive
  * app selects rows the way the reader does, runs an item's swipe actions through its row's
  * actions and with reorderEnabled moves an item a step through them. Selection changes, the row
- * count and pages scrolled through a scroll bar are posted. A host that gives its own elements, like a grid over a driven list, sets
- * accessibilityElement to NO, which hides the list and its rows.
+ * count and pages scrolled through a scroll bar are posted. A host that gives its own elements,
+ * like a grid over a driven list, sets accessibilityElement to NO, which hides the list and its
+ * rows.
  *
  * Saving the position: anchorState is the item at the viewport start by key, and
  * restoreAnchorState: lands that item the same distance in again, now or once a reload brings
@@ -411,8 +413,8 @@ NS_SWIFT_UI_ACTOR
  * Geometry:
  * - visibleRange: the items overlapping the viewport, low to high.
  * - rectForItemAtIndex: the item's frame in content coordinates: from the start of the content,
- *   headerView included, without the content insets or the scroll offset. Estimated when the item was not measured
- *   yet. The section rects use the same space.
+ *   headerView included, without the content insets or the scroll offset. Estimated when the
+ *   item was not measured yet. The section rects use the same space.
  * - scrollToItemAtIndex:viewPosition:animated: brings an item into view. viewPosition is where
  *   it rests in the viewport, from 0 at the start to 1 at the end. The core keeps correcting
  *   until the item lands, even across estimates. An animated scroll command eases toward the
@@ -461,7 +463,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) NSEdgeInsets contentInset;
 @property (nonatomic, readonly) NSEdgeInsets adjustedContentInset;
 @property (nonatomic, getter=isScrollEnabled) BOOL scrollEnabled;
-@property (nonatomic) BOOL scrollDriven;
+@property (nonatomic, getter=isScrollDriven) BOOL scrollDriven;
 @property (nonatomic) ShadowListKitScrollPhase scrollPhase;
 @property (nonatomic, readonly, getter=isTracking) BOOL tracking;
 @property (nonatomic, readonly, getter=isDragging) BOOL dragging;

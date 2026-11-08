@@ -238,7 +238,7 @@ final class ListScrollingTests: XCTestCase {
     // Long content keeps the thumb at its least length.
     XCTAssertEqual(thumb.height, max(36, track * 480 / list.contentSize.height), accuracy: 0.5)
     XCTAssertEqual(thumb.minY - 2, 1000 / (list.contentSize.height - 480) * (track - thumb.height), accuracy: 0.5)
-    list.scrollDriven = true
+    list.isScrollDriven = true
     XCTAssertTrue(scrollers.isHidden)
   }
 }

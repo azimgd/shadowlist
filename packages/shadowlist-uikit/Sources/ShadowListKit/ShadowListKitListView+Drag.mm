@@ -353,7 +353,7 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 
 #pragma mark - Testing
 
-@implementation ShadowListKitListView (Testing)
+@implementation ShadowListKitListView (DragTesting)
 
 - (void)shadowListKit_beginDragAtPoint:(CGPoint)point
 {
@@ -370,14 +370,6 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 - (void)shadowListKit_endDrag
 {
   [self endDrag:YES];
-}
-
-- (void)shadowListKit_swipeItemAtIndex:(NSInteger)index distance:(CGFloat)distance velocity:(CGFloat)velocity
-{
-  ShadowListKitListCell *cell = [self cellForItemAtIndex:index];
-  if (cell) {
-    [self scriptSwipeOfCell:cell distance:distance velocity:velocity];
-  }
 }
 
 @end

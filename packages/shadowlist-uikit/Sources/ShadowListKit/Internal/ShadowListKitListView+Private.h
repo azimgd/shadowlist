@@ -71,8 +71,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * the list out. A data change made then, like rows added from the reached callbacks, runs in the
  * layout UIKit already has pending. _sizesFromDataSource is whether the data source gives sizes,
  * read again on every reload. _batch holds the changes performBatchUpdates:completion: collects
- * until its block returns, and _batchPayload the payload of the last reload in it. _contentVersions is the content version of every item applyChanges
- * saw, by key.
+ * until its block returns, and _batchPayload the payload of the last reload in it.
+ * _contentVersions is the content version of every item applyChanges saw, by key.
  */
 @interface ShadowListKitListView () <UIScrollViewDelegate> {
  @package

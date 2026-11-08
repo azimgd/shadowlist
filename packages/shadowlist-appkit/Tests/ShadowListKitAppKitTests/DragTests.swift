@@ -413,7 +413,7 @@ final class DragTests: XCTestCase {
 
   func testADrivenListAsksItsHostToScrollNearTheEdge() throws {
     let (harness, recorder) = makeHarness {
-      $0.scrollDriven = true
+      $0.isScrollDriven = true
       $0.allowsSelection = false
     }
     let list = harness.list

@@ -203,11 +203,11 @@ final class GridRowCell: ShadowListKitListCell {
     let height = bounds.height
     numberView.frame = NSRect(x: 8, y: (height - 16) / 2, width: GridRowCell.numberWidth - 16, height: 16)
     let width = GridRowCell.columnWidth
-    let first = max(0, Int(floor(shift / width)))
-    let last = min(columnCount - 1, Int(floor((shift + bounds.width - GridRowCell.numberWidth) / width)))
+    let low = max(0, Int(floor(shift / width)))
+    let high = min(columnCount - 1, Int(floor((shift + bounds.width - GridRowCell.numberWidth) / width)))
     var used = 0
-    if first <= last {
-      for column in first...last {
+    if low <= high {
+      for column in low...high {
         if used == tiles.count {
           let tile = ShadowListKitTextView()
           tiles.append(tile)

@@ -202,7 +202,7 @@ final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, S
   init(count: Int) {
     rows = (0..<count).map { "row-\($0)" }
     super.init(frame: .zero)
-    list.scrollDriven = true
+    list.isScrollDriven = true
     list.allowsSelection = false
     list.estimatedItemSize = 24
     list.register(GridRowCell.self, forCellReuseIdentifier: "row")

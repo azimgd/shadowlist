@@ -389,7 +389,7 @@ final class SwipeTests: XCTestCase {
   }
 
   func testADrivenListNeverSwipes() throws {
-    let (harness, _, _) = makeHarness { $0.scrollDriven = true }
+    let (harness, _, _) = makeHarness { $0.isScrollDriven = true }
     try swipe(harness.list, 3, [-12, -12, -12])
     XCTAssertEqual(harness.list.shadowListKit_swipedIndex, NSNotFound)
   }

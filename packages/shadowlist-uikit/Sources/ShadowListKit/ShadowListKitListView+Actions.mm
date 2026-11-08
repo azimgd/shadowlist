@@ -1,6 +1,8 @@
 #import "Internal/ShadowListKitListView+Private.h"
 #import "Internal/ShadowListKitSwipeActionsView.h"
 
+#import <ShadowListKit/ShadowListKitListView+Testing.h>
+
 #include <cmath>
 
 using namespace azimgd::shadowlist;
@@ -413,6 +415,20 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
   UIMenu *menu = _pendingMenu;
   _pendingMenu = nil;
   return menu;
+}
+
+@end
+
+#pragma mark - Testing
+
+@implementation ShadowListKitListView (ActionsTesting)
+
+- (void)shadowListKit_swipeItemAtIndex:(NSInteger)index distance:(CGFloat)distance velocity:(CGFloat)velocity
+{
+  ShadowListKitListCell *cell = [self cellForItemAtIndex:index];
+  if (cell) {
+    [self scriptSwipeOfCell:cell distance:distance velocity:velocity];
+  }
 }
 
 @end

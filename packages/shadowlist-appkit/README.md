@@ -143,7 +143,7 @@ has full signatures and defaults. Rows marked Mac only have no UIKit counterpart
 | Separators | `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`, `separatorThickness`, delegate `listView:showsSeparatorAfterItemAtIndex:` | Only between items of one section. One device pixel of the window's backing scale thick by default, in a color that follows the appearance. |
 | Queries | `cellForItemAtIndex:`, `visibleCells`, `visibleRange`, `rectForItemAtIndex:`, `numberOfSections`, `sectionForItemAtIndex:`, `firstItemIndexInSection:`, `rectForHeaderInSection:`, `rectForFooterInSection:` | `visibleRange` runs low to high. |
 | Scroll position | `contentOffset`, `setContentOffset:animated:`, `contentSize`, `contentInset`, `adjustedContentInset`, `scrollEnabled`, `scrollPhase`, `tracking`, `dragging`, `decelerating` | `UIScrollView`'s names. `scrollEnabled` off passes wheel events to the next responder. |
-| Driven mode | `scrollDriven`, `contentOffset`, `scrollPhase`, delegate `listView:didCorrectOffset:` | Mac only. See [Driven mode](#driven-mode). |
+| Driven mode | `scrollDriven` (Swift `isScrollDriven`), `contentOffset`, `scrollPhase`, delegate `listView:didCorrectOffset:` | The Android kit has `scrollDriven` too. See [Driven mode](#driven-mode). |
 | Scrolling | `scrollToItemAtIndex:viewPosition:animated:`, `scrollToSection:animated:`, `scrollToStartAnimated:`, `scrollToEndAnimated:` | `viewPosition` goes from 0 at the viewport start to 1 at the end. The core keeps correcting until the item lands. |
 | Saved position | `anchorState`, `restoreAnchorState:` | The key at the viewport start and the distance into it. Lands now or once a reload brings the key. Saved with the window's state restoration when the list has an `identifier`. |
 | Accessibility | A table of one column, every item a row | See [Accessibility](#accessibility). |
@@ -170,8 +170,8 @@ These combinations do nothing:
 or two, with the physics in the core's `host/ScrollPhysics`:
 
 - A trackpad gesture drags from its first movement and rubber bands past the edges. On two axes a gesture that
-  starts within 30 degrees of an axis moves that axis only. On one axis a gesture that starts across it is passed
-  on whole, momentum included.
+  starts within the core's `SCROLL_LOCK_DEGREES` of an axis moves that axis only. On one axis a gesture that
+  starts across it is passed on whole, momentum included.
 - The system's momentum settles it, and momentum that reaches an edge goes at most 12% of the viewport past it
   before it springs back.
 - A mouse wheel scrolls by `lineScroll` points a line and stops at the edges. One that moves nothing is passed on.
@@ -349,7 +349,8 @@ cd packages/shadowlist-appkit && swift test
 
 `swift test` runs the kit's XCTest suites on this Mac: mounting, data changes, sections, driven mode, scrolling,
 the scroll engine and scrollers, selection, hover, menus, drag reorder, change animations, accessibility, swipe
-actions, the text layout and the models.
+actions, the text layout and the models. The kit has no Bench app yet. The UIKit and Android kits measure theirs
+there.
 
 [ShadowListKitListView+Testing.h](Sources/ShadowListKit/include/ShadowListKit/ShadowListKitListView+Testing.h)
 drives the list without a trackpad, a mouse or a keyboard, for tests and scripted checks. Frames run at once

@@ -646,52 +646,6 @@ struct ShadowListKitPassGeometry {
 }
 
 /*
- * The reader's gesture or a driving host moved the phase. Ending a phase hands the core an idle
- * frame, which lets a held correction go.
- */
-- (void)setScrollPhase:(ShadowListKitScrollPhase)scrollPhase
-{
-  if (scrollPhase == _scrollPhase) {
-    return;
-  }
-  ShadowListKitScrollPhase previous = _scrollPhase;
-  _scrollPhase = scrollPhase;
-  if (scrollPhase == ShadowListKitScrollPhaseDragging) {
-    _driver.cancelLanding();
-    [self unhighlight];
-    [self closeSwipeAnimated:YES];
-    [self updateHover];
-    if ([_delegate respondsToSelector:@selector(listViewWillBeginDragging:)]) {
-      [_delegate listViewWillBeginDragging:self];
-    }
-  }
-  if (previous == ShadowListKitScrollPhaseDragging && [_delegate respondsToSelector:@selector(listViewDidEndDragging:willDecelerate:)]) {
-    [_delegate listViewDidEndDragging:self willDecelerate:scrollPhase == ShadowListKitScrollPhaseSettling];
-  }
-  if (previous == ShadowListKitScrollPhaseSettling && scrollPhase == ShadowListKitScrollPhaseIdle &&
-      [_delegate respondsToSelector:@selector(listViewDidEndDecelerating:)]) {
-    [_delegate listViewDidEndDecelerating:self];
-  }
-  [self invalidateFrame];
-  [self invalidateRestorableStateIfSettled];
-}
-
-- (BOOL)isTracking
-{
-  return _scrollPhase == ShadowListKitScrollPhaseDragging;
-}
-
-- (BOOL)isDragging
-{
-  return _scrollPhase == ShadowListKitScrollPhaseDragging;
-}
-
-- (BOOL)isDecelerating
-{
-  return _scrollPhase == ShadowListKitScrollPhaseSettling;
-}
-
-/*
  * Run the core on the next layout pass even inside the band.
  */
 - (void)invalidateFrame
@@ -1064,7 +1018,7 @@ struct ShadowListKitPassGeometry {
   }
   _settleScheduled = YES;
   if (!_settleLink) {
-    ShadowListKitSettleTarget *target = [ShadowListKitSettleTarget new];
+    ShadowListKitSettleLinkTarget *target = [ShadowListKitSettleLinkTarget new];
     target.list = self;
     _settleLink = [self displayLinkWithTarget:target selector:@selector(tick:)];
     [_settleLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
@@ -1511,6 +1465,54 @@ struct ShadowListKitPassGeometry {
       [_delegate listViewDidReachEnd:self];
     }
   }
+}
+
+#pragma mark - Scroll events
+
+/*
+ * The reader's gesture or a driving host moved the phase. Ending a phase hands the core an idle
+ * frame, which lets a held correction go.
+ */
+- (void)setScrollPhase:(ShadowListKitScrollPhase)scrollPhase
+{
+  if (scrollPhase == _scrollPhase) {
+    return;
+  }
+  ShadowListKitScrollPhase previous = _scrollPhase;
+  _scrollPhase = scrollPhase;
+  if (scrollPhase == ShadowListKitScrollPhaseDragging) {
+    _driver.cancelLanding();
+    [self unhighlight];
+    [self closeSwipeAnimated:YES];
+    [self updateHover];
+    if ([_delegate respondsToSelector:@selector(listViewWillBeginDragging:)]) {
+      [_delegate listViewWillBeginDragging:self];
+    }
+  }
+  if (previous == ShadowListKitScrollPhaseDragging && [_delegate respondsToSelector:@selector(listViewDidEndDragging:willDecelerate:)]) {
+    [_delegate listViewDidEndDragging:self willDecelerate:scrollPhase == ShadowListKitScrollPhaseSettling];
+  }
+  if (previous == ShadowListKitScrollPhaseSettling && scrollPhase == ShadowListKitScrollPhaseIdle &&
+      [_delegate respondsToSelector:@selector(listViewDidEndDecelerating:)]) {
+    [_delegate listViewDidEndDecelerating:self];
+  }
+  [self invalidateFrame];
+  [self invalidateRestorableStateIfSettled];
+}
+
+- (BOOL)isTracking
+{
+  return _scrollPhase == ShadowListKitScrollPhaseDragging;
+}
+
+- (BOOL)isDragging
+{
+  return _scrollPhase == ShadowListKitScrollPhaseDragging;
+}
+
+- (BOOL)isDecelerating
+{
+  return _scrollPhase == ShadowListKitScrollPhaseSettling;
 }
 
 #pragma mark - Queries

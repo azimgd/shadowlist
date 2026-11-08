@@ -103,6 +103,8 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
 
+#pragma mark - Swipe and menus
+
 /*
  * Swipe actions and context menus, the way NSTableView shows row actions. A two finger swipe
  * across the scroll axis on a trackpad moves an item that has actions and shows its buttons.

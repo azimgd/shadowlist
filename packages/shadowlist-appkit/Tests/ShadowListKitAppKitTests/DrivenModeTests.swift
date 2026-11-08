@@ -32,7 +32,7 @@ final class DrivenModeTests: XCTestCase {
       source.heights[key] = 24 + CGFloat(index % 4) * 8
     }
     return ListHarness(source: source) {
-      $0.scrollDriven = true
+      $0.isScrollDriven = true
       $0.estimatedItemSize = 30
       $0.allowsSelection = false
     }

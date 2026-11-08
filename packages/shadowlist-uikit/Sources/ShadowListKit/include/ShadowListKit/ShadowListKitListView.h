@@ -9,11 +9,11 @@ NS_ASSUME_NONNULL_BEGIN
 @class ShadowListKitListView;
 
 /*
- * The view that shows an item. Subclasses lay out their subviews by hand in layoutSubviews and report their
- * height in sizeThatFits:. Without an override, sizeThatFits: fits the cell's Auto Layout
- * constraints to the given width, which makes a cell built with constraints self-sizing. index is
- * the item the cell shows, or NSNotFound while it waits in the reuse pool and for a section
- * header or footer. prepareForReuse is called before the cell is handed out again by
+ * The view that shows an item. Subclasses lay out their subviews by hand in layoutSubviews and
+ * report their height in sizeThatFits:. Without an override, sizeThatFits: fits the cell's Auto
+ * Layout constraints to the given width, which makes a cell built with constraints self-sizing.
+ * index is the item the cell shows, or NSNotFound while it waits in the reuse pool and for a
+ * section header or footer. prepareForReuse is called before the cell is handed out again by
  * dequeueReusableCellWithIdentifier:.
  *
  * The list sets highlighted while a finger rests on a selectable item, selected for selected

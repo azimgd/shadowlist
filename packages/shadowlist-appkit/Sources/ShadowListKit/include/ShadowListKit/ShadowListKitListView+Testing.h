@@ -100,6 +100,9 @@ FOUNDATION_EXPORT NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventP
 
 @end
 
+/*
+ * Frames of the engine run at once instead of on the display link.
+ */
 @interface ShadowListKitScrollEngine (Testing)
 
 - (void)shadowListKit_runFramesFor:(NSTimeInterval)duration;

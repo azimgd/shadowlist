@@ -372,7 +372,7 @@ final class AnimationTests: XCTestCase {
   func testADrivenListAnimatesAndReportsItsCorrection() throws {
     let source = SizedTestSource(count: 600)
     let harness = ListHarness(source: source) {
-      $0.scrollDriven = true
+      $0.isScrollDriven = true
       $0.allowsSelection = false
       $0.estimatedItemSize = 30
     }

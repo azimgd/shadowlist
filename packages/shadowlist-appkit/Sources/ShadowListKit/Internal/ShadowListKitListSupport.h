@@ -14,7 +14,7 @@ extern NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER;
  * The settle display link's target. It holds the list weakly, which lets the list go away
  * while the link exists.
  */
-@interface ShadowListKitSettleTarget : NSObject
+@interface ShadowListKitSettleLinkTarget : NSObject
 @property (nonatomic, weak) ShadowListKitListView *list;
 - (void)tick:(CADisplayLink *)link;
 @end

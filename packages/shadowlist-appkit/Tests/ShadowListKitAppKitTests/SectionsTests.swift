@@ -193,7 +193,7 @@ final class SectionsTests: XCTestCase {
   }
 
   func testStickyHeadersFollowADrivenOffset() throws {
-    let harness = makeHarness { $0.scrollDriven = true }
+    let harness = makeHarness { $0.isScrollDriven = true }
     let list = harness.list
     let host = Host(source: harness.source)
     list.delegate = host

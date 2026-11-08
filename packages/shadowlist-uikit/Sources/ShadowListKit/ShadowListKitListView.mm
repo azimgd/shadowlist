@@ -919,7 +919,7 @@ struct ShadowListKitPassGeometry {
   }
   _settleScheduled = YES;
   if (!_settleLink) {
-    ShadowListKitSettleTarget *target = [ShadowListKitSettleTarget new];
+    ShadowListKitSettleLinkTarget *target = [ShadowListKitSettleLinkTarget new];
     target.list = self;
     _settleLink = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
     [_settleLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];

@@ -54,9 +54,9 @@ NS_SWIFT_UI_ACTOR
  * engine took the event.
  *
  * - A trackpad gesture is dragging from its first movement and rubber bands past the edges. With
- *   two axes, a gesture that starts within 30 degrees of an axis moves only that axis. With one
- *   axis, a gesture that starts more across it than along it is not handled, its momentum
- *   included, and the host passes it to the next responder.
+ *   two axes, a gesture that starts within the core's SCROLL_LOCK_DEGREES of an axis moves only
+ *   that axis. With one axis, a gesture that starts more across it than along it is not handled,
+ *   its momentum included, and the host passes it to the next responder.
  * - The momentum the system sends after a gesture is settling. Momentum that reaches an edge goes
  *   a little way past it and springs back.
  * - A mouse wheel moves lineScroll points a line and stops at the edges. A wheel that moves

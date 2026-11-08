@@ -11,7 +11,7 @@ using namespace azimgd::shadowlist;
  * The engine's display link target. It holds the engine weakly, which lets the engine go away
  * while the link exists.
  */
-@interface ShadowListKitScrollEngineTarget : NSObject
+@interface ShadowListKitScrollEngineLinkTarget : NSObject
 @property (nonatomic, weak) ShadowListKitScrollEngine *engine;
 @end
 
@@ -19,7 +19,7 @@ using namespace azimgd::shadowlist;
 - (void)frame;
 @end
 
-@implementation ShadowListKitScrollEngineTarget
+@implementation ShadowListKitScrollEngineLinkTarget
 
 - (void)tick:(CADisplayLink *)link
 {
@@ -196,7 +196,7 @@ static WheelPhase ShadowListKitWheelPhase(NSEventPhase phase)
   }
   NSView *view = _view;
   if (!_link && view) {
-    ShadowListKitScrollEngineTarget *target = [ShadowListKitScrollEngineTarget new];
+    ShadowListKitScrollEngineLinkTarget *target = [ShadowListKitScrollEngineLinkTarget new];
     target.engine = self;
     _link = [view displayLinkWithTarget:target selector:@selector(tick:)];
     [_link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];

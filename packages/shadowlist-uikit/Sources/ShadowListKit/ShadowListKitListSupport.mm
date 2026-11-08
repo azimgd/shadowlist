@@ -6,7 +6,7 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
 
 #pragma mark - Settle frame target
 
-@implementation ShadowListKitSettleTarget
+@implementation ShadowListKitSettleLinkTarget
 
 - (void)tick:(CADisplayLink *)link
 {
