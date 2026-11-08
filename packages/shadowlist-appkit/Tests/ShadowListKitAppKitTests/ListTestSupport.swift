@@ -167,10 +167,15 @@ final class SelectionRecorder: NSObject, ShadowListKitListViewDelegate {
   var refused: Set<Int> = []
   var names: [Int: String] = [:]
   var menus = true
+  var onShouldSelect: ((Int) -> Void)?
 
   func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) { selected.append(index) }
   func listView(_ listView: ShadowListKitListView, didDeselectItemAt index: Int) { deselected.append(index) }
-  func listView(_ listView: ShadowListKitListView, shouldSelectItemAt index: Int) -> Bool { !refused.contains(index) }
+
+  func listView(_ listView: ShadowListKitListView, shouldSelectItemAt index: Int) -> Bool {
+    onShouldSelect?(index)
+    return !refused.contains(index)
+  }
 
   func listView(_ listView: ShadowListKitListView, didActivateItemAt index: Int) {
     activated.append(index)

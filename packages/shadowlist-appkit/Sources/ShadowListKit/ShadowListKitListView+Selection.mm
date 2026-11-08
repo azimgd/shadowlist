@@ -171,28 +171,38 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 
 /*
  * Select the items from the anchor to a row, the new lead. Items the delegate refuses are left
- * out. Without an anchor the row is selected alone.
+ * out. Without an anchor the row is selected alone. A delegate that changes the data while it is
+ * asked ends the range with nothing selected.
  */
 - (void)userSelectRangeToRow:(std::size_t)row
 {
+  if (row >= _driver.getKeyCount()) {
+    return;
+  }
   NSInteger anchor = _selection.hasAnchor() ? [self rowOfKey:_selection.getAnchorKey()] : NSNotFound;
   if (anchor == NSNotFound || !_allowsMultipleSelection) {
     [self userSelectOnlyRow:row];
     return;
   }
+  NSUInteger version = _structureVersion;
+  std::string lead = _driver.getKeyAt(row);
   std::vector<std::string> keys;
   std::ptrdiff_t step = (std::size_t)anchor <= row ? 1 : -1;
   for (std::ptrdiff_t current = anchor;; current += step) {
     std::size_t at = (std::size_t)current;
-    const std::string& key = _driver.getKeyAt(at);
+    // A copy, because the delegate call below may change the keys.
+    std::string key = _driver.getKeyAt(at);
     if (_selection.contains(key) || [self shouldSelectRow:at]) {
-      keys.push_back(key);
+      keys.push_back(std::move(key));
+    }
+    if (_structureVersion != version) {
+      return;
     }
     if (at == row) {
       break;
     }
   }
-  if (keys.empty() || keys.back() != _driver.getKeyAt(row)) {
+  if (keys.empty() || keys.back() != lead) {
     return;
   }
   std::unordered_set<std::string> before;
@@ -212,17 +222,25 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 }
 
 /*
- * Every item the delegate allows.
+ * Every item the delegate allows, up to a data change made while the delegate is asked.
  */
 - (void)userSelectAll
 {
+  NSUInteger version = _structureVersion;
   std::vector<std::string> added;
   std::vector<std::string> ignored;
   for (std::size_t row = 0; row < _driver.getKeyCount(); ++row) {
-    const std::string& key = _driver.getKeyAt(row);
-    if (!_selection.contains(key) && [self shouldSelectRow:row]) {
+    std::string key = _driver.getKeyAt(row);
+    if (_selection.contains(key)) {
+      continue;
+    }
+    BOOL allowed = [self shouldSelectRow:row];
+    if (_structureVersion != version) {
+      break;
+    }
+    if (allowed) {
       _selection.select(key, ignored);
-      added.push_back(key);
+      added.push_back(std::move(key));
     }
   }
   for (const std::string& key : added) {

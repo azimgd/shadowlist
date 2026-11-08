@@ -348,6 +348,29 @@ final class SelectionTests: XCTestCase {
     XCTAssertEqual(harness.selection, [8])
   }
 
+  func testADelegateThatChangesTheDataWhileAskedEndsARange() {
+    let harness = SelectionHarness(count: 30) { $0.allowsMultipleSelection = true }
+    let list = harness.list
+    harness.click(2)
+    // The first question deletes every item from 6 on.
+    harness.recorder.onShouldSelect = { [unowned harness] _ in
+      harness.recorder.onShouldSelect = nil
+      harness.source.keys.removeLast(24)
+      list.reloadData()
+    }
+    harness.click(20, .shift)
+    harness.layout()
+    XCTAssertEqual(harness.selection, [2])
+    harness.recorder.onShouldSelect = { [unowned harness] _ in
+      harness.recorder.onShouldSelect = nil
+      harness.source.keys.removeLast(3)
+      list.reloadData()
+    }
+    list.selectAll(nil)
+    harness.layout()
+    XCTAssertEqual(harness.selection, [2])
+  }
+
   func testEmphasisFollowsTheFirstResponderAndTheKeyWindow() throws {
     let harness = SelectionHarness()
     let list = harness.list
