@@ -1,6 +1,12 @@
 #pragma once
 
+#import <TargetConditionals.h>
+
+#if TARGET_OS_OSX
+#import <AppKit/AppKit.h>
+#else
 #import <UIKit/UIKit.h>
+#endif
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -10,8 +16,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
 };
 
 /*
- * A button shown behind a swiped item. The handler runs when the button is tapped or the item
- * is swiped all the way. Call completion with whether the action was performed. The item then
+ * A button shown behind a swiped item. The handler runs when the button is pressed or the item is
+ * swiped all the way. Call completion with whether the action was performed. The item then
  * closes, unless the action deleted it.
  */
 @interface ShadowListKitSwipeAction : NSObject
@@ -22,8 +28,13 @@ typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
 
 @property (nonatomic, readonly) ShadowListKitSwipeActionStyle style;
 @property (nonatomic, copy, nullable) NSString *title;
+#if TARGET_OS_OSX
+@property (nonatomic, strong, nullable) NSImage *image;
+@property (nonatomic, strong, null_resettable) NSColor *backgroundColor;
+#else
 @property (nonatomic, strong, nullable) UIImage *image;
 @property (nonatomic, strong, null_resettable) UIColor *backgroundColor;
+#endif
 @property (nonatomic, copy, readonly) void (^handler)(ShadowListKitSwipeAction *action, void (^completion)(BOOL performed));
 
 @end

@@ -247,8 +247,8 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   if (!cell || (std::size_t)cell.row >= _driver.getRowCount()) {
     return nil;
   }
-  if ([_delegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] &&
-      ![_delegate listView:self canMoveItemAtIndex:cell.index]) {
+  if ([_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] &&
+      ![_userDelegate listView:self canMoveItemAtIndex:cell.index]) {
     return nil;
   }
   return cell;
@@ -443,7 +443,7 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
 {
   return fromRow != UNDEFINED_INDEX && toRow != UNDEFINED_INDEX && fromRow != toRow &&
     [self itemsForDragFromRow:fromRow toRow:toRow from:from to:to] &&
-    [_delegate respondsToSelector:@selector(listView:moveItemAtIndex:toIndex:)];
+    [_userDelegate respondsToSelector:@selector(listView:moveItemAtIndex:toIndex:)];
 }
 
 /*
@@ -455,7 +455,7 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   // The drop animates the rows itself, a change the delegate applies while it moves the item too.
   BOOL animates = _animatesChanges;
   _animatesChanges = NO;
-  [_delegate listView:self moveItemAtIndex:from toIndex:to];
+  [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
   for (auto& entry : _mounted) {
     ShadowListKitSetTransform(entry.second.layer, CATransform3DIdentity, 0);
   }

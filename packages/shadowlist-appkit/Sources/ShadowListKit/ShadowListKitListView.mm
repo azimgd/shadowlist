@@ -220,13 +220,13 @@ struct ShadowListKitPassGeometry {
 
 - (void)setDelegate:(id<ShadowListKitListViewDelegate>)delegate
 {
-  _delegate = delegate;
+  _userDelegate = delegate;
   [self updateSwipesItems];
 }
 
 - (id<ShadowListKitListViewDelegate>)delegate
 {
-  return _delegate;
+  return _userDelegate;
 }
 
 #pragma mark - Axis
@@ -339,8 +339,8 @@ struct ShadowListKitPassGeometry {
     self.contentOffset = point;
     return;
   }
-  if ([_delegate respondsToSelector:@selector(listView:didCorrectOffset:)]) {
-    [_delegate listView:self didCorrectOffset:point];
+  if ([_userDelegate respondsToSelector:@selector(listView:didCorrectOffset:)]) {
+    [_userDelegate listView:self didCorrectOffset:point];
   }
 }
 
@@ -369,8 +369,8 @@ struct ShadowListKitPassGeometry {
   if (!_inLayoutPass) {
     self.needsLayout = YES;
   }
-  if ([_delegate respondsToSelector:@selector(listViewDidScroll:)]) {
-    [_delegate listViewDidScroll:self];
+  if ([_userDelegate respondsToSelector:@selector(listViewDidScroll:)]) {
+    [_userDelegate listViewDidScroll:self];
   }
 }
 
@@ -386,8 +386,8 @@ struct ShadowListKitPassGeometry {
   }
   [self stopScrolling];
   self.contentOffset = contentOffset;
-  if (animated && [_delegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
-    [_delegate listViewDidEndScrollingAnimation:self];
+  if (animated && [_userDelegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
+    [_userDelegate listViewDidEndScrollingAnimation:self];
   }
 }
 
@@ -721,8 +721,8 @@ struct ShadowListKitPassGeometry {
   }
   [self swipeCellWillRecycle:cell];
   [self resetDragLookOfCell:cell];
-  if (index != NSNotFound && [_delegate respondsToSelector:@selector(listView:didEndDisplayingCell:atIndex:)]) {
-    [_delegate listView:self didEndDisplayingCell:cell atIndex:index];
+  if (index != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:didEndDisplayingCell:atIndex:)]) {
+    [_userDelegate listView:self didEndDisplayingCell:cell atIndex:index];
   }
   if (!cell.reuseIdentifier) {
     [cell removeFromSuperview];
@@ -852,8 +852,8 @@ struct ShadowListKitPassGeometry {
     [self updateHover];
   }
   [self dispatchReached];
-  if ([_delegate respondsToSelector:@selector(listViewDidLayOut:)]) {
-    [_delegate listViewDidLayOut:self];
+  if ([_userDelegate respondsToSelector:@selector(listViewDidLayOut:)]) {
+    [_userDelegate listViewDidLayOut:self];
   }
 }
 
@@ -1164,8 +1164,8 @@ struct ShadowListKitPassGeometry {
   if (index == _driver.getHeldIndex()) {
     [self adoptHeldCell:cell];
   }
-  if (cell.index != NSNotFound && [_delegate respondsToSelector:@selector(listView:willDisplayCell:atIndex:)]) {
-    [_delegate listView:self willDisplayCell:cell atIndex:cell.index];
+  if (cell.index != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:willDisplayCell:atIndex:)]) {
+    [_userDelegate listView:self willDisplayCell:cell atIndex:cell.index];
   }
 }
 
@@ -1372,8 +1372,8 @@ struct ShadowListKitPassGeometry {
 {
   BOOL shows = _showsSeparators && _numberOfColumns == 1 && row + 1 < _driver.getKeyCount() &&
     _sections.isItemBeforeItem(row);
-  if (shows && cell.index != NSNotFound && [_delegate respondsToSelector:@selector(listView:showsSeparatorAfterItemAtIndex:)]) {
-    shows = [_delegate listView:self showsSeparatorAfterItemAtIndex:cell.index];
+  if (shows && cell.index != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:showsSeparatorAfterItemAtIndex:)]) {
+    shows = [_userDelegate listView:self showsSeparatorAfterItemAtIndex:cell.index];
   }
   if (!shows) {
     cell.separatorLayer.hidden = YES;
@@ -1455,14 +1455,14 @@ struct ShadowListKitPassGeometry {
 {
   if (_reachedStart) {
     _reachedStart = NO;
-    if ([_delegate respondsToSelector:@selector(listViewDidReachStart:)]) {
-      [_delegate listViewDidReachStart:self];
+    if ([_userDelegate respondsToSelector:@selector(listViewDidReachStart:)]) {
+      [_userDelegate listViewDidReachStart:self];
     }
   }
   if (_reachedEnd) {
     _reachedEnd = NO;
-    if ([_delegate respondsToSelector:@selector(listViewDidReachEnd:)]) {
-      [_delegate listViewDidReachEnd:self];
+    if ([_userDelegate respondsToSelector:@selector(listViewDidReachEnd:)]) {
+      [_userDelegate listViewDidReachEnd:self];
     }
   }
 }
@@ -1485,16 +1485,16 @@ struct ShadowListKitPassGeometry {
     [self unhighlight];
     [self closeSwipeAnimated:YES];
     [self updateHover];
-    if ([_delegate respondsToSelector:@selector(listViewWillBeginDragging:)]) {
-      [_delegate listViewWillBeginDragging:self];
+    if ([_userDelegate respondsToSelector:@selector(listViewWillBeginDragging:)]) {
+      [_userDelegate listViewWillBeginDragging:self];
     }
   }
-  if (previous == ShadowListKitScrollPhaseDragging && [_delegate respondsToSelector:@selector(listViewDidEndDragging:willDecelerate:)]) {
-    [_delegate listViewDidEndDragging:self willDecelerate:scrollPhase == ShadowListKitScrollPhaseSettling];
+  if (previous == ShadowListKitScrollPhaseDragging && [_userDelegate respondsToSelector:@selector(listViewDidEndDragging:willDecelerate:)]) {
+    [_userDelegate listViewDidEndDragging:self willDecelerate:scrollPhase == ShadowListKitScrollPhaseSettling];
   }
   if (previous == ShadowListKitScrollPhaseSettling && scrollPhase == ShadowListKitScrollPhaseIdle &&
-      [_delegate respondsToSelector:@selector(listViewDidEndDecelerating:)]) {
-    [_delegate listViewDidEndDecelerating:self];
+      [_userDelegate respondsToSelector:@selector(listViewDidEndDecelerating:)]) {
+    [_userDelegate listViewDidEndDecelerating:self];
   }
   [self invalidateFrame];
   [self invalidateRestorableStateIfSettled];

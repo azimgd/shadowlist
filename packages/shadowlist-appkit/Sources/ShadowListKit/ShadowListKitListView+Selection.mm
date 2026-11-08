@@ -118,8 +118,8 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   if (item == NSNotFound) {
     return NO;
   }
-  return ![_delegate respondsToSelector:@selector(listView:shouldSelectItemAtIndex:)] ||
-    [_delegate listView:self shouldSelectItemAtIndex:item];
+  return ![_userDelegate respondsToSelector:@selector(listView:shouldSelectItemAtIndex:)] ||
+    [_userDelegate listView:self shouldSelectItemAtIndex:item];
 }
 
 #pragma mark - Selection by the reader
@@ -292,8 +292,8 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
     [cell setSelected:YES animated:YES];
   }
   NSInteger index = [self itemIndexOfKey:key];
-  if (index != NSNotFound && [_delegate respondsToSelector:@selector(listView:didSelectItemAtIndex:)]) {
-    [_delegate listView:self didSelectItemAtIndex:index];
+  if (index != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:didSelectItemAtIndex:)]) {
+    [_userDelegate listView:self didSelectItemAtIndex:index];
   }
 }
 
@@ -302,7 +302,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   if (!keys.empty()) {
     [self selectionChangedForAccessibility];
   }
-  BOOL notifies = [_delegate respondsToSelector:@selector(listView:didDeselectItemAtIndex:)];
+  BOOL notifies = [_userDelegate respondsToSelector:@selector(listView:didDeselectItemAtIndex:)];
   for (const std::string& key : keys) {
     ShadowListKitListCell *cell = [self mountedCellForKey:key];
     if (cell.isSelected) {
@@ -310,7 +310,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
     }
     NSInteger index = notifies ? [self itemIndexOfKey:key] : NSNotFound;
     if (index != NSNotFound) {
-      [_delegate listView:self didDeselectItemAtIndex:index];
+      [_userDelegate listView:self didDeselectItemAtIndex:index];
     }
   }
 }
@@ -338,8 +338,8 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 - (void)activateRow:(std::size_t)row
 {
   NSInteger item = [self itemForRow:(NSInteger)row];
-  if (item != NSNotFound && [_delegate respondsToSelector:@selector(listView:didActivateItemAtIndex:)]) {
-    [_delegate listView:self didActivateItemAtIndex:item];
+  if (item != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:didActivateItemAtIndex:)]) {
+    [_userDelegate listView:self didActivateItemAtIndex:item];
   }
 }
 
@@ -429,8 +429,8 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 
 - (void)highlightCell:(ShadowListKitListCell *)cell
 {
-  if ([_delegate respondsToSelector:@selector(listView:shouldHighlightItemAtIndex:)] &&
-      ![_delegate listView:self shouldHighlightItemAtIndex:cell.index]) {
+  if ([_userDelegate respondsToSelector:@selector(listView:shouldHighlightItemAtIndex:)] &&
+      ![_userDelegate listView:self shouldHighlightItemAtIndex:cell.index]) {
     return;
   }
   [self unhighlight];
@@ -983,7 +983,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
  */
 - (BOOL)typeSelectWithEvent:(NSEvent *)event
 {
-  if (![_delegate respondsToSelector:@selector(listView:typeSelectStringForItemAtIndex:)]) {
+  if (![_userDelegate respondsToSelector:@selector(listView:typeSelectStringForItemAtIndex:)]) {
     return NO;
   }
   NSEventModifierFlags flags = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
@@ -1032,7 +1032,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
     if (item == NSNotFound) {
       continue;
     }
-    NSString *text = [_delegate listView:self typeSelectStringForItemAtIndex:item];
+    NSString *text = [_userDelegate listView:self typeSelectStringForItemAtIndex:item];
     if (text && [text rangeOfString:match options:options].location != NSNotFound && [self shouldSelectRow:(std::size_t)row]) {
       [self moveToRow:(std::size_t)row extending:NO];
       return;

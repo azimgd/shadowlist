@@ -1,6 +1,7 @@
 #import "Internal/ShadowListKitListView+Private.h"
 #import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListModels+Private.h"
+#import "Internal/ShadowListKitPlatform.h"
 
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
@@ -282,7 +283,7 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     wait = ((ShadowListKitDefaultItemAnimator *)_itemAnimator).duration;
   }
   if (self.window) {
-    [self layoutIfNeeded];
+    ShadowListKitLayoutNow(self);
   }
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     completion(YES);
@@ -432,26 +433,27 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   if (_stickyIndices.count > 0 || _stickySectionHeaders) {
     [self updateStickyRows];
   }
-  if (!_selection.isEmpty()) {
-    _selection.retainKeys(_driver.getKeys());
+  if (_selection.retainKeys(_driver.getKeys())) {
+    [self selectionChangedForAccessibility];
   }
   [self restorePendingAnchor];
   [self invalidateFrame];
+  [self rowsChangedForAccessibility];
 }
 
 /*
- * Lay out a data change right away while the list is on screen, the way UITableView applies
- * its updates. Until the pass runs, the content offset is the one from before the change and
- * misses the correction that keeps the visible rows still. UIKit code that reads it in the same
- * turn writes that offset back after the pass, and the rows jump. UIRefreshControl does this
+ * Lay out a data change right away while the list is in a window, the way UITableView and
+ * NSTableView apply their updates. Until the pass runs, the content offset is the one from before
+ * the change and misses the correction that keeps the visible rows still. Code that reads it in
+ * the same turn and writes it back after the pass makes the rows jump. UIRefreshControl does this
  * in endRefreshing, called right after the refreshed rows were inserted.
  */
 - (void)layoutDataChange
 {
-  if (!self.window || _inLayoutSubviews || _batch.isCollecting()) {
+  if (!self.window || _inLayout || _batch.isCollecting()) {
     return;
   }
-  [self layoutIfNeeded];
+  ShadowListKitLayoutNow(self);
 }
 
 @end

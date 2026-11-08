@@ -466,7 +466,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   std::size_t row = [self accessibilityRowOfKey:key];
   NSInteger item = row == UNDEFINED_INDEX ? NSNotFound : [self itemForRow:(NSInteger)row];
   if (!_reorderEnabled || item == NSNotFound ||
-      ([_delegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] && ![_delegate listView:self canMoveItemAtIndex:item])) {
+      ([_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] && ![_userDelegate listView:self canMoveItemAtIndex:item])) {
     return @[];
   }
   NSInteger columns = MAX(self.numberOfColumns, 1);
@@ -511,7 +511,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
       ![self itemsForDropOfRow:row atRow:(std::size_t)target from:&from to:&to]) {
     return NO;
   }
-  [_delegate listView:self moveItemAtIndex:from toIndex:to];
+  [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
   [self reloadData];
   [self layoutSubtreeIfNeeded];
   [self focusAccessibilityRowForKey:key];

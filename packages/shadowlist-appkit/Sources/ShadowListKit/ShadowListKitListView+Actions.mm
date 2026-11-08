@@ -117,8 +117,8 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 
 - (void)updateSwipesItems
 {
-  _swipesItems = [_delegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)] ||
-    [_delegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)];
+  _swipesItems = [_userDelegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)] ||
+    [_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)];
 }
 
 - (BOOL)isSwipeOpen
@@ -143,19 +143,19 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 
 - (ShadowListKitSwipeActionsConfiguration *)leadingActionsForItem:(NSInteger)index
 {
-  if (index == NSNotFound || ![_delegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)]) {
+  if (index == NSNotFound || ![_userDelegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)]) {
     return nil;
   }
-  ShadowListKitSwipeActionsConfiguration *configuration = [_delegate listView:self leadingSwipeActionsForItemAtIndex:index];
+  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self leadingSwipeActionsForItemAtIndex:index];
   return configuration.actions.count > 0 ? configuration : nil;
 }
 
 - (ShadowListKitSwipeActionsConfiguration *)trailingActionsForItem:(NSInteger)index
 {
-  if (index == NSNotFound || ![_delegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)]) {
+  if (index == NSNotFound || ![_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)]) {
     return nil;
   }
-  ShadowListKitSwipeActionsConfiguration *configuration = [_delegate listView:self trailingSwipeActionsForItemAtIndex:index];
+  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self trailingSwipeActionsForItemAtIndex:index];
   return configuration.actions.count > 0 ? configuration : nil;
 }
 
@@ -605,8 +605,8 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   if (!cell || cell.index == NSNotFound) {
     return nil;
   }
-  if ([_delegate respondsToSelector:@selector(listView:contextMenuForItemAtIndex:)]) {
-    NSMenu *menu = [_delegate listView:self contextMenuForItemAtIndex:cell.index];
+  if ([_userDelegate respondsToSelector:@selector(listView:contextMenuForItemAtIndex:)]) {
+    NSMenu *menu = [_userDelegate listView:self contextMenuForItemAtIndex:cell.index];
     if (menu) {
       return menu;
     }

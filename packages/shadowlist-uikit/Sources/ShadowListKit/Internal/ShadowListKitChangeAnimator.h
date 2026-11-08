@@ -1,6 +1,6 @@
 #pragma once
 
-#import <UIKit/UIKit.h>
+#import "ShadowListKitPlatform.h"
 
 #include <string>
 #include <vector>

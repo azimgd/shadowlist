@@ -84,8 +84,8 @@ extern "C" const char ShadowListKitListViewScrollingLink = 0;
   if (_driver.land()) {
     [self runCommandNow];
   }
-  if ([_delegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
-    [_delegate listViewDidEndScrollingAnimation:self];
+  if ([_userDelegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
+    [_userDelegate listViewDidEndScrollingAnimation:self];
   }
   [self invalidateRestorableStateIfSettled];
 }

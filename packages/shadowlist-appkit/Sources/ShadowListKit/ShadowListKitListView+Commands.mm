@@ -148,8 +148,8 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
  */
 - (void)endCommandAnimated:(BOOL)animated
 {
-  if (animated && [_delegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
-    [_delegate listViewDidEndScrollingAnimation:self];
+  if (animated && [_userDelegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
+    [_userDelegate listViewDidEndScrollingAnimation:self];
   }
   [self invalidateRestorableStateIfSettled];
 }

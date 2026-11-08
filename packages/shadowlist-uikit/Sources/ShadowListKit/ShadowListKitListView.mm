@@ -721,10 +721,10 @@ struct ShadowListKitPassGeometry {
 
 - (void)layoutSubviews
 {
-  _inLayoutSubviews = YES;
+  _inLayout = YES;
   [super layoutSubviews];
   [self layoutPass];
-  _inLayoutSubviews = NO;
+  _inLayout = NO;
 }
 
 /*

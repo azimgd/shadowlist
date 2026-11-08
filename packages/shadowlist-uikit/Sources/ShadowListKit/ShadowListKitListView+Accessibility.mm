@@ -182,4 +182,18 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
   return YES;
 }
 
+#pragma mark - Notifications
+
+/*
+ * VoiceOver reads the rows and their selection again on its own after a data change. The Mac
+ * list posts its notifications here.
+ */
+- (void)selectionChangedForAccessibility
+{
+}
+
+- (void)rowsChangedForAccessibility
+{
+}
+
 @end
