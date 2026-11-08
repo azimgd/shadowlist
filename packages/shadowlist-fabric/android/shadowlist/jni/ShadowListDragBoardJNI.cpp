@@ -223,6 +223,14 @@ JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeExpired)(JNIEnv*, jclass, jlo
   return peerOf(handle)->board.expired(nowMs) ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeBeginOverlaySettle)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->board.beginOverlaySettle() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeIsOverlaySettling)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->board.isOverlaySettling() ? JNI_TRUE : JNI_FALSE;
+}
+
 JNIEXPORT jstring JNICALL SL_DRAG_BOARD_JNI(nativeCancel)(JNIEnv* env, jclass, jlong handle) {
   std::string target = peerOf(handle)->board.cancel();
   return env->NewStringUTF(target.c_str());

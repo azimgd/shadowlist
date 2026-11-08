@@ -379,6 +379,7 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (void)updateDrag;
 - (void)updateDragInsertion;
 - (void)applyDragShuffle;
+- (void)applyDragShuffleAnimated:(BOOL)forceAnimated;
 - (CGRect)restingFrameForView:(RCTUIView *)view;
 - (void)applyDragAutoScrollForTouch:(CGPoint)touch dtSeconds:(double)dtSeconds;
 - (void)noteDragInsertionForFeedback;

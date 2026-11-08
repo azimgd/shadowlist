@@ -214,7 +214,6 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   _overlay = nil;
   _home = nil;
   _target = nil;
-  _settling = NO;
   _core.endFlight();
   [home dragBoardFlightDidEnd];
   if (target != home) {
@@ -740,9 +739,8 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
       if (!strongBoard || strongBoard->_core.getFlight() != flight) {
         return;
       }
-      BOOL settledOffScreen =
-        strongBoard->_core.getPhase() == azimgd::shadowlist::DragBoardPhase::Settling && !strongBoard.settling;
-      if (strongBoard->_core.expired(SLDragNowMs()) || settledOffScreen) {
+      // A landing that ran out, or a row that landed off screen and never mounted.
+      if (strongBoard->_core.expired(SLDragNowMs())) {
         [strongBoard endFlight];
       }
     });
@@ -841,9 +839,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
     return;
   }
   _drag.end();
-  _dragBoardAnimateShifts = YES;
-  [self applyDragShuffle];
-  _dragBoardAnimateShifts = NO;
+  [self applyDragShuffleAnimated:YES];
 }
 
 #pragma mark - Landing
@@ -899,7 +895,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
     [self clearDragTransforms];
   }
   if (core.getPhase() == azimgd::shadowlist::DragBoardPhase::Settling && core.getTargetId() == _dragBoardToken &&
-      !board.settling) {
+      !core.isOverlaySettling()) {
     RCTUIView *cell = [self dragBoardCellViewForKey:_dragBoardLandingKey];
     if (cell) {
       [self landDragBoardOnView:cell];
@@ -912,11 +908,10 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   ShadowListDragBoard *board = _dragBoard;
   _dragBoardLandingKey = nil;
   RCTUIView *overlay = board.overlay;
-  if (!overlay || !cell.window) {
+  if (!overlay || !cell.window || !board->_core.beginOverlaySettle()) {
     [board endFlight];
     return;
   }
-  board.settling = YES;
   cell.hidden = YES;
   _dragBoardHiddenView = cell;
   CGRect frame = [_contentView convertRect:[self restingFrameForView:cell] toView:overlay.superview];

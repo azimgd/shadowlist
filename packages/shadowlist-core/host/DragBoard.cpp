@@ -183,10 +183,19 @@ bool DragBoard::landed(const std::string& listId, const std::vector<std::string>
 }
 
 bool DragBoard::expired(double nowMs) {
-  if (phase_ != DragBoardPhase::Landing || nowMs < landDeadlineMs_) {
+  bool waiting = phase_ == DragBoardPhase::Landing || (phase_ == DragBoardPhase::Settling && !overlaySettling_);
+  if (!waiting || nowMs < landDeadlineMs_) {
     return false;
   }
   reset();
+  return true;
+}
+
+bool DragBoard::beginOverlaySettle() {
+  if (phase_ != DragBoardPhase::Settling || overlaySettling_) {
+    return false;
+  }
+  overlaySettling_ = true;
   return true;
 }
 
@@ -222,6 +231,7 @@ void DragBoard::reset() {
   liftPending_ = false;
   returnPending_ = false;
   landDeadlineMs_ = 0.0;
+  overlaySettling_ = false;
 }
 
 }

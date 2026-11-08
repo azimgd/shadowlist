@@ -89,12 +89,6 @@ final class ShadowListDragBoard {
   private static final int CONSTANT_LAND_TIMEOUT_MS = 0;
   private static final int CONSTANT_SLOTS = 1;
 
-  /*
-   * How long past the landing timeout a picture that never found its row waits before the
-   * flight ends anyway.
-   */
-  private static final long SETTLE_GRACE_MS = 50;
-
   static {
     double[] constants = new double[CONSTANT_SLOTS];
     nativeConstants(constants);
@@ -128,12 +122,10 @@ final class ShadowListDragBoard {
   private int mWindowWidth = 0;
   private int mWindowHeight = 0;
   @Nullable private ViewGroup mSidewaysScrollView = null;
-  private boolean mSettling = false;
   /*
-   * The list a drag the core is deciding started in, and when the last drop went out.
+   * The list a drag the core is deciding started in.
    */
   @Nullable private ShadowListDragController mPickupList = null;
-  private long mDropAtMs = 0L;
   @Nullable private Choreographer.FrameCallback mLandingCallback = null;
 
   private final double[] mFrame = new double[FRAME_SLOTS];
@@ -351,8 +343,11 @@ final class ShadowListDragBoard {
     mTarget = target;
   }
 
+  /*
+   * The picture flies onto the landed row. The core's DragBoard holds it.
+   */
   boolean isSettling() {
-    return mSettling;
+    return nativeIsOverlaySettling(handle());
   }
 
   boolean windowSizeChanged(int width, int height) {
@@ -380,7 +375,6 @@ final class ShadowListDragBoard {
     removeOverlay();
     mHome = null;
     mTarget = null;
-    mSettling = false;
     stopLandingLoop();
     endCore();
     if (home != null) {
@@ -560,14 +554,13 @@ final class ShadowListDragBoard {
    */
   void settleOverlay(float windowLeft, float windowTop) {
     View overlay = mOverlay;
-    if (overlay == null) {
+    if (overlay == null || !nativeBeginOverlaySettle(handle())) {
       endFlight();
       return;
     }
-    mSettling = true;
     long flight = getFlight();
     animateOverlayTo(overlay, windowLeft, windowTop, () -> {
-      if (getFlight() == flight && mSettling) {
+      if (getFlight() == flight && isSettling()) {
         endFlight();
       }
     });
@@ -585,7 +578,6 @@ final class ShadowListDragBoard {
    * timeout, and a row that landed off screen never mounts to settle on.
    */
   void startLandingLoop() {
-    mDropAtMs = SystemClock.uptimeMillis();
     if (mLandingCallback == null) {
       mLandingCallback = new Choreographer.FrameCallback() {
         @Override
@@ -606,12 +598,8 @@ final class ShadowListDragBoard {
 
   private void landingFrame() {
     long now = SystemClock.uptimeMillis();
-    int phase = getPhase();
-    if (phase == PHASE_LANDING && nativeExpired(handle(), now)) {
-      endFlight();
-      return;
-    }
-    if (phase == PHASE_SETTLING && !mSettling && now - mDropAtMs > LAND_TIMEOUT_MS + SETTLE_GRACE_MS) {
+    // A landing that ran out, or a row that landed off screen and never mounted.
+    if (nativeExpired(handle(), now)) {
       endFlight();
       return;
     }
@@ -626,7 +614,7 @@ final class ShadowListDragBoard {
     if (target != null && target != home) {
       target.boardMountDidFinish(true);
     }
-    if (isLanding() && !mSettling && mLandingCallback != null) {
+    if (isLanding() && !isSettling() && mLandingCallback != null) {
       Choreographer.getInstance().postFrameCallback(mLandingCallback);
     }
   }
@@ -650,6 +638,8 @@ final class ShadowListDragBoard {
   private static native String nativeReleaseKey(long handle);
   private static native boolean nativeLanded(long handle, String listId, boolean keysHoldHeldKey);
   private static native boolean nativeExpired(long handle, double nowMs);
+  private static native boolean nativeBeginOverlaySettle(long handle);
+  private static native boolean nativeIsOverlaySettling(long handle);
   private static native String nativeCancel(long handle);
   private static native void nativeEndFlight(long handle);
   private static native void nativeLeave(long handle, String listId);

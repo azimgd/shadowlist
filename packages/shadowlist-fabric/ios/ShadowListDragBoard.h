@@ -24,7 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
  * in window coordinates. windowSize is the window's size at pickup: a rotation mid flight
  * cancels the drag, since the overlay sits in window coordinates. sidewaysScrollView is the
  * scroll view around the board the drag scrolled, which snaps to its page when the drag ends.
- * settling is set while the picture flies onto the landed row.
+ * Whether the picture flies onto the landed row is the core's DragBoard::isOverlaySettling.
  */
 @interface ShadowListDragBoard : NSObject
 
@@ -37,7 +37,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, nullable) RCTUIView *overlay;
 @property (nonatomic) CGSize windowSize;
 @property (nonatomic, weak, nullable) RCTUIScrollView *sidewaysScrollView;
-@property (nonatomic) BOOL settling;
 
 - (void)endFlight;
 

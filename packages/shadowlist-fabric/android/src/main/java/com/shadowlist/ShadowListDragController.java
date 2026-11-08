@@ -105,7 +105,8 @@ final class ShadowListDragController {
    * mBoardDropPending holds the gap a row left in its home list until the data change that
    * removes it lands. mBoardLandingKey is the key of the row dropped in this list, until it
    * mounts here. mBoardAnimateShifts makes the next shuffle slide, when the row came home.
-   * mForeign and mHeldAway mirror the core session's foreign and held away states.
+   * Whether the core session holds a row from another list or holds this list's row away is
+   * the core's, read through mDrag.isForeign and mDrag.isHeldAway.
    */
   @Nullable private ShadowListDragBoard mBoard = null;
   private String mDragBoardId = "";
@@ -122,8 +123,6 @@ final class ShadowListDragController {
    */
   @Nullable private String mAccessibilityMovedKey = null;
   private long mAccessibilityMovedDeadlineMs = 0;
-  private boolean mForeign = false;
-  private boolean mHeldAway = false;
   /*
    * The finger in window pixels. A drag board scrolls the view around this list, which moves
    * the viewport touch under a finger that holds still. Each drag frame on a board reads it
@@ -194,7 +193,7 @@ final class ShadowListDragController {
    * Core corrections must not move the content during this time.
    */
   boolean ownsScrollOffset() {
-    return mDragging || mDragDropPending || mForeign || mBoardDropPending;
+    return mDragging || mDragDropPending || mDrag.isForeign() || mBoardDropPending;
   }
 
   /*
@@ -357,9 +356,6 @@ final class ShadowListDragController {
       horizontal ? contentX : contentY,
       horizontal ? contentY : contentX,
       mNumberOfColumns);
-    // A new drag ends any foreign session the core held for the board.
-    mForeign = false;
-    mHeldAway = false;
     mDragTouchInViewport = horizontal ? x : y;
     mDragCrossTouchInViewport = horizontal ? y : x;
     noteFingerInWindow(x, y);
@@ -591,14 +587,14 @@ final class ShadowListDragController {
    * the drag board hovers this one.
    */
   boolean needsMountShuffle() {
-    return mDragging || mForeign;
+    return mDragging || mDrag.isForeign();
   }
 
   /*
    * A row mounted during the drag. Work out the shifts again with it and slide every row.
    */
   void applyDragShuffle() {
-    if (!mDragging && !mForeign) {
+    if (!mDragging && !mDrag.isForeign()) {
       return;
     }
     collectRows();
@@ -612,7 +608,7 @@ final class ShadowListDragController {
    * one, or just came back. A reorder within one list moves its rows like any list.
    */
   private boolean boardShiftsSlide() {
-    return mBoard != null && (mForeign || mHeldAway || mBoardAnimateShifts);
+    return mBoard != null && (mDrag.isForeign() || mDrag.isHeldAway() || mBoardAnimateShifts);
   }
 
   /*
@@ -827,9 +823,8 @@ final class ShadowListDragController {
     if (mDragging) {
       setAncestorsMayIntercept(true);
     }
-    if (mHeldAway) {
+    if (mDrag.isHeldAway()) {
       mDrag.setHeldAway(false);
-      mHeldAway = false;
     }
     ShadowListCellView held = mDraggedView;
     mDragging = false;
@@ -871,8 +866,6 @@ final class ShadowListDragController {
   void teardown() {
     tearDownDrag(false);
     mDrag.destroy();
-    mForeign = false;
-    mHeldAway = false;
   }
 
   /*
@@ -1147,7 +1140,6 @@ final class ShadowListDragController {
     view.setVisibility(View.INVISIBLE);
     mBoardHiddenView = view;
     mDrag.setHeldAway(true);
-    mHeldAway = true;
     return true;
   }
 
@@ -1184,7 +1176,6 @@ final class ShadowListDragController {
     board.removeOverlay();
     board.setHome(null);
     mDrag.setHeldAway(false);
-    mHeldAway = false;
     mBoardAnimateShifts = true;
     // The next drop spot ticks for the way back.
     mDrag.resetFeedback(-1);
@@ -1310,7 +1301,7 @@ final class ShadowListDragController {
     }
     snapBoardScrollView();
     ShadowListDragController target = board.getTarget();
-    boolean foreign = target != null && target.mForeign;
+    boolean foreign = target != null && target.mDrag.isForeign();
     int release = board.release(
       foreign ? target.mDrag.getInsertionIndex() : -1,
       foreign ? target.mDrag.getInsertionKey() : "",
@@ -1366,9 +1357,8 @@ final class ShadowListDragController {
     if (target != null) {
       target.endBoardForeign();
     }
-    if (mHeldAway) {
+    if (mDrag.isHeldAway()) {
       mDrag.setHeldAway(false);
-      mHeldAway = false;
     }
 
     ShadowListCellView home = mBoardHiddenView;
@@ -1398,14 +1388,13 @@ final class ShadowListDragController {
     mNumberOfColumns = mView.getNumberOfColumns();
     // The first drop spot here ticks for the move into this list.
     mDrag.beginForeign(horizontal ? width : height, horizontal ? height : width, mNumberOfColumns);
-    mForeign = true;
   }
 
   /*
    * Place the incoming row's center, in window pixels, and open the gap where it would drop.
    */
   private void placeBoardForeignAtWindowCenter(float centerX, float centerY) {
-    if (!mForeign) {
+    if (!mDrag.isForeign()) {
       return;
     }
     mView.getContentView().getLocationInWindow(mLocation);
@@ -1423,11 +1412,10 @@ final class ShadowListDragController {
    * The incoming row left this list. The rows slide back.
    */
   private void endBoardForeign() {
-    if (!mForeign) {
+    if (!mDrag.isForeign()) {
       return;
     }
     mDrag.endForeign();
-    mForeign = false;
     collectRows();
     shuffleCollectedRows(true);
     releaseCollectedRows();
@@ -1490,7 +1478,6 @@ final class ShadowListDragController {
     if (board.getPhase() == ShadowListDragBoard.PHASE_LANDING
         && board.landed(mBoardToken, mView.rowKeysContain(landingKey))) {
       mDrag.endForeign();
-      mForeign = false;
       clearDragTransforms();
     }
     if (fromFrame && board.getPhase() == ShadowListDragBoard.PHASE_SETTLING && !board.isSettling()
@@ -1541,9 +1528,8 @@ final class ShadowListDragController {
   void boardFlightDidEnd() {
     showBoardHiddenView();
     mBoardLandingKey = null;
-    if (mForeign) {
+    if (mDrag.isForeign()) {
       mDrag.endForeign();
-      mForeign = false;
       clearDragTransforms();
     }
     if (mBoardDropPending) {
@@ -1552,9 +1538,8 @@ final class ShadowListDragController {
         clearDragTransforms();
       }
     }
-    if (mDragging && mHeldAway) {
+    if (mDragging && mDrag.isHeldAway()) {
       mDrag.setHeldAway(false);
-      mHeldAway = false;
     }
   }
 

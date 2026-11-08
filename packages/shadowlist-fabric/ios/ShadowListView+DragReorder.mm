@@ -494,7 +494,16 @@ void SLDragSelectionFeedback(void)
  */
 - (void)applyDragShuffle
 {
-  BOOL animated = _dragBoard && (_drag.isForeign() || _drag.isHeldAway() || _dragBoardAnimateShifts);
+  [self applyDragShuffleAnimated:NO];
+}
+
+/*
+ * The same, sliding the rows when animated is set. On a board they slide anyway while a row
+ * is away or comes from another list, or on the frame a row came home.
+ */
+- (void)applyDragShuffleAnimated:(BOOL)forceAnimated
+{
+  BOOL animated = forceAnimated || (_dragBoard && (_drag.isForeign() || _drag.isHeldAway() || _dragBoardAnimateShifts));
   for (RCTUIView *subview in _contentView.subviews) {
     if (subview == _draggedView ||
         ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
