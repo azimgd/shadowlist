@@ -322,7 +322,7 @@ export class ShadowListKitListView extends HTMLElement {
 
   private scrollPhase(): number {
     if (this.gesture.isTracking) return ShadowListKitCore.PHASE_DRAGGING;
-    if (this.gesture.isScrolling) return ShadowListKitCore.PHASE_SETTLING;
+    if (this.gesture.isSettling) return ShadowListKitCore.PHASE_SETTLING;
     return ShadowListKitCore.PHASE_IDLE;
   }
 
@@ -638,10 +638,13 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   recycleCell(cell: ShadowListKitListCell): void {
-    const index = cell.index;
+    // A cell only measured was never displayed.
+    const index =
+      cell.mountGeneration !== 0 ? cell.index : ShadowListKitListCell.NO_INDEX;
     cell.view.style.visibility = 'hidden';
     this.stickyPinning.release(cell);
     cell.index = ShadowListKitListCell.NO_INDEX;
+    cell.mountGeneration = 0;
     if (index >= 0) this.delegate?.didEndDisplayingCell?.(this, cell, index);
     const identifier = cell.reuseIdentifier;
     if (identifier == null) {
@@ -992,25 +995,6 @@ export class ShadowListKitListView extends HTMLElement {
 
   // region Mounting
 
-  private measuredLeading(index: number): number {
-    const at = (index - this.measuredLow) * 4;
-    return this.horizontal
-      ? this.measuredFrames[at]!
-      : this.measuredFrames[at + 1]!;
-  }
-
-  private measuredExtent(index: number): number {
-    const at = (index - this.measuredLow) * 4;
-    return this.horizontal
-      ? this.measuredFrames[at + 2]!
-      : this.measuredFrames[at + 3]!;
-  }
-
-  private overlaps(index: number, viewLow: number, viewHigh: number): boolean {
-    const start = this.measuredLeading(index);
-    return start + this.measuredExtent(index) > viewLow && start < viewHigh;
-  }
-
   /*
    * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
    * which keeps the content of a cell that only moved. The range is the core's
@@ -1085,13 +1069,8 @@ export class ShadowListKitListView extends HTMLElement {
     const listRole = this.getAttribute('role') === 'list';
     if (low >= 0) {
       for (let index = low; index <= high; ++index) {
-        // ListDriver::shouldMount. A masonry grid can hold rows inside the index range that are out of view.
-        if (
-          this.numberOfColumns > 1 &&
-          !this.overlaps(index, viewLow, viewHigh)
-        ) {
-          continue;
-        }
+        // A masonry grid can hold rows inside the index range that are out of view.
+        if (!this.core.shouldMount(index, viewLow, viewHigh)) continue;
         this.mountRow(index, generation, listRole);
       }
     }

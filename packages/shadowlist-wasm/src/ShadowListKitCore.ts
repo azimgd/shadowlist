@@ -6,9 +6,9 @@ let wasmModule: ShadowListKitModule | null = null;
 let loading: Promise<void> | null = null;
 
 /*
- * The core's OFFSET_MOVED_THRESHOLD, read once on load.
+ * The core's constants the kit reads, at ShadowListKitCore.CONSTANT_* slots, read once on load.
  */
-let offsetMovedThreshold = 0;
+const constants = new Float64Array(4);
 
 /*
  * The cores by handle, for the measure calls the wasm side makes. Weak, which lets a list
@@ -59,8 +59,10 @@ export function loadShadowListKit(options?: {
       cores.get(handle)?.deref()?.measureRowsAt(rows, crossSizes, count, sizes);
     loaded.shadowListKitPrefetchRows = (handle, packed) =>
       cores.get(handle)?.deref()?.prefetchRowsAt(packed);
-    offsetMovedThreshold =
-      loaded._ShadowListKitCore_nativeOffsetMovedThreshold();
+    const at = loaded._malloc(constants.length * 8);
+    loaded._ShadowListKitCore_nativeConstants(at);
+    constants.set(loaded.HEAPF64.subarray(at / 8, at / 8 + constants.length));
+    loaded._free(at);
     wasmModule = loaded;
   });
   return loading;
@@ -75,6 +77,14 @@ function wasm(): ShadowListKitModule {
     throw new Error('Call loadShadowListKit() before a list lays out');
   }
   return wasmModule;
+}
+
+/*
+ * The core's easeOut, 1 - (1 - t)^3. Animations run on the page's frames, which a call into
+ * the core per frame would not change.
+ */
+export function easeOut(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
 }
 
 /*
@@ -177,12 +187,15 @@ function putKey(key: string, at: number): number {
 }
 
 /*
- * How many keys match at the start of both lists, and at the end without reaching into those.
+ * The changed middle of two key lists, the core's keySplice: the keys equal at the start of
+ * both, then the ones equal at the end without reaching into those. Only the middle crosses
+ * into wasm, which keeps a commit from encoding every key. The core test
+ * key_splice_finds_the_changed_middle holds the rule, and the wasm tests run its cases.
  */
-export function unchangedEnds(
+export function keySplice(
   previous: ReadonlyArray<string>,
   next: ReadonlyArray<string>
-): { start: number; end: number } {
+): KeySplice {
   const limit = Math.min(previous.length, next.length);
   let start = 0;
   while (start < limit && previous[start] === next[start]) ++start;
@@ -193,7 +206,17 @@ export function unchangedEnds(
   ) {
     ++end;
   }
-  return { start, end };
+  return {
+    start,
+    deleted: previous.length - start - end,
+    inserted: next.length - start - end,
+  };
+}
+
+export interface KeySplice {
+  start: number;
+  deleted: number;
+  inserted: number;
 }
 
 /*
@@ -262,10 +285,34 @@ export class ShadowListKitCore {
   static readonly ANCHOR_SLOTS = 2;
 
   /*
+   * Slots of the core's constants, the same as ConstantSlot in the wasm side.
+   */
+  static readonly CONSTANT_OFFSET_MOVED_THRESHOLD = 0;
+  static readonly CONSTANT_SCROLL_ANIMATION_DURATION_MS = 1;
+  static readonly CONSTANT_SCROLL_SETTLE_DURATION_MS = 2;
+  static readonly CONSTANT_SCROLL_WHEEL_IDLE_MS = 3;
+
+  /*
    * The smallest offset change that counts as a real move.
    */
   static get OFFSET_MOVED_THRESHOLD(): number {
-    return offsetMovedThreshold;
+    return constants[ShadowListKitCore.CONSTANT_OFFSET_MOVED_THRESHOLD]!;
+  }
+
+  /*
+   * The core's scroll durations in milliseconds: an animated command, a scroll easing onto a
+   * snap point, and the quiet time after which a wheel or a browser scroll has ended.
+   */
+  static get COMMAND_DURATION_MS(): number {
+    return constants[ShadowListKitCore.CONSTANT_SCROLL_ANIMATION_DURATION_MS]!;
+  }
+
+  static get SETTLE_DURATION_MS(): number {
+    return constants[ShadowListKitCore.CONSTANT_SCROLL_SETTLE_DURATION_MS]!;
+  }
+
+  static get WHEEL_IDLE_MS(): number {
+    return constants[ShadowListKitCore.CONSTANT_SCROLL_WHEEL_IDLE_MS]!;
   }
 
   /*
@@ -518,6 +565,21 @@ export class ShadowListKitCore {
       wasm().HEAPF64.subarray(at / 8, at / 8 + ShadowListKitCore.PLAN_SLOTS)
     );
     return this.plan;
+  }
+
+  /*
+   * The core's shouldMount for a row of the last plan: every row of a plain list, in a masonry
+   * grid only one that overlaps the plan's view.
+   */
+  shouldMount(index: number, viewLow: number, viewHigh: number): boolean {
+    return (
+      wasm()._ShadowListKitCore_nativeShouldMount(
+        this.handle,
+        index,
+        viewLow,
+        viewHigh
+      ) !== 0
+    );
   }
 
   /*
@@ -835,7 +897,7 @@ export class ShadowListKitListState {
     core: ShadowListKitCore | null,
     previous: ReadonlyArray<string>,
     next: ReadonlyArray<string>,
-    unchanged: { start: number; end: number },
+    splice: KeySplice,
     change: {
       diff?: boolean;
       record?: ReadonlyArray<number | string> | null;
@@ -849,7 +911,7 @@ export class ShadowListKitListState {
       return null;
     }
     this.holdKeys(previous);
-    return this.sendKeys(core, next, unchanged, change);
+    return this.sendKeys(core, next, splice, change);
   }
 
   /*
@@ -918,15 +980,12 @@ export class ShadowListKitListState {
     this.pendingRecord = null;
     let held: ReadonlyArray<string> = [];
     if (pending) {
-      this.sendKeys(
-        null,
-        pending.keys,
-        { start: 0, end: 0 },
-        { record: pending.versions }
-      );
+      this.sendKeys(null, pending.keys, keySplice([], pending.keys), {
+        record: pending.versions,
+      });
       held = pending.keys;
     }
-    this.sendKeys(null, keys, unchangedEnds(held, keys), {});
+    this.sendKeys(null, keys, keySplice(held, keys), {});
   }
 
   /*
@@ -936,7 +995,7 @@ export class ShadowListKitListState {
   private sendKeys(
     core: ShadowListKitCore | null,
     next: ReadonlyArray<string>,
-    unchanged: { start: number; end: number },
+    splice: KeySplice,
     change: {
       diff?: boolean;
       record?: ReadonlyArray<number | string> | null;
@@ -944,8 +1003,9 @@ export class ShadowListKitListState {
     }
   ): Int32Array {
     const handle = this.handle;
-    const { start, end } = unchanged;
-    const to = next.length - end;
+    const { start } = splice;
+    const to = start + splice.inserted;
+    const end = next.length - to;
     const versions = change.record ?? change.update ?? null;
     const halves = versions ? align(next.length * 8) : 0;
     const at = reserve(halves + packedBytes(next, start, to));

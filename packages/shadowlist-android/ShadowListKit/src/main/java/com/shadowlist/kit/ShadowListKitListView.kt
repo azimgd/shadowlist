@@ -1202,10 +1202,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
     return if (horizontal) measuredFrames[at + 2] else measuredFrames[at + 3]
   }
 
+  /*
+   * ListDriver::overlaps and ListDriver::shouldMount over the copied frames, with the core's
+   * names. Every row of a plain list mounts. A masonry grid can hold rows inside the index range
+   * that are out of view.
+   */
   private fun overlaps(index: Int, viewLow: Double, viewHigh: Double): Boolean {
     val start = measuredLeading(index)
     return start + measuredExtent(index) > viewLow && start < viewHigh
   }
+
+  private fun shouldMount(index: Int, viewLow: Double, viewHigh: Double): Boolean =
+    numberOfColumns == 1 || overlaps(index, viewLow, viewHigh)
 
   /*
    * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
@@ -1390,8 +1398,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val generation = ++mountGeneration
     if (low >= 0) {
       for (index in low..high) {
-        // ListDriver::shouldMount. A masonry grid can hold rows inside the index range that are out of view.
-        if (numberOfColumns > 1 && !overlaps(index, viewLow, viewHigh)) continue
+        if (!shouldMount(index, viewLow, viewHigh)) continue
         mountRow(index, generation)
       }
     }

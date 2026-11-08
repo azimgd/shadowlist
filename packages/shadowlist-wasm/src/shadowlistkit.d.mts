@@ -65,7 +65,13 @@ export interface ShadowListKitModule {
     trailingInset: number,
     out: number
   ): void;
-  _ShadowListKitCore_nativeOffsetMovedThreshold(): number;
+  _ShadowListKitCore_nativeShouldMount(
+    handle: number,
+    index: number,
+    viewLow: number,
+    viewHigh: number
+  ): number;
+  _ShadowListKitCore_nativeConstants(out: number): void;
   _ShadowListKitCore_nativeVisibleRange(handle: number, out: number): number;
   _ShadowListKitCore_nativeIndexOfKey(
     handle: number,

@@ -19,6 +19,7 @@
 #include <shadowlist-core/host/KitBridge.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
+#include <shadowlist-core/host/ScrollPhysics.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
 /*
@@ -51,6 +52,18 @@ enum AnchorSlot {
   ANCHOR_OFFSET = 0,
   ANCHOR_KEY_LENGTH,
   ANCHOR_SLOTS,
+};
+
+/*
+ * Slots of nativeConstants' out, ShadowListKitCore.CONSTANT_* in TypeScript: the core's
+ * constants the kit reads, in pixels at scale 1 and durations in milliseconds.
+ */
+enum ConstantSlot {
+  CONSTANT_OFFSET_MOVED_THRESHOLD = 0,
+  CONSTANT_SCROLL_ANIMATION_DURATION_MS,
+  CONSTANT_SCROLL_SETTLE_DURATION_MS,
+  CONSTANT_SCROLL_WHEEL_IDLE_MS,
+  CONSTANT_SLOTS,
 };
 
 /*
@@ -260,8 +273,26 @@ void SHADOWLIST_KIT_WASM(nativePlanMount)(std::uintptr_t handle, double offset, 
   out[PLAN_VIEW_HIGH] = plan.viewHigh;
 }
 
-double SHADOWLIST_KIT_WASM(nativeOffsetMovedThreshold)() {
-  return sl::OFFSET_MOVED_THRESHOLD;
+/*
+ * Whether a row of the last plan mounts: every row in a plain list, in a masonry grid only one
+ * that overlaps the plan's view.
+ */
+bool SHADOWLIST_KIT_WASM(nativeShouldMount)(std::uintptr_t handle, std::int32_t index, double viewLow, double viewHigh) {
+  const sl::ListDriver& driver = peerOf(handle)->driver;
+  if (!validRow(driver, index)) {
+    return false;
+  }
+  sl::MountPlan plan;
+  plan.viewLow = viewLow;
+  plan.viewHigh = viewHigh;
+  return driver.shouldMount(plan, static_cast<std::size_t>(index));
+}
+
+void SHADOWLIST_KIT_WASM(nativeConstants)(double* out) {
+  out[CONSTANT_OFFSET_MOVED_THRESHOLD] = sl::OFFSET_MOVED_THRESHOLD;
+  out[CONSTANT_SCROLL_ANIMATION_DURATION_MS] = sl::SCROLL_ANIMATION_DURATION_MS;
+  out[CONSTANT_SCROLL_SETTLE_DURATION_MS] = sl::SCROLL_SETTLE_DURATION_MS;
+  out[CONSTANT_SCROLL_WHEEL_IDLE_MS] = sl::SCROLL_WHEEL_IDLE_MS;
 }
 
 /*

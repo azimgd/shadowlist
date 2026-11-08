@@ -1,24 +1,10 @@
+import { ShadowListKitCore, easeOut } from './ShadowListKitCore.js';
 import type { ShadowListKitListView } from './ShadowListKitListView.js';
 
 /*
- * Duration of a snap after the list came to rest, in milliseconds.
- */
-const SETTLE_DURATION_MS = 250;
-
-/*
- * Duration of an animated scroll command, in milliseconds.
- */
-const COMMAND_DURATION_MS = 300;
-
-/*
- * Time without a scroll event after which the list counts as resting, for browsers without
- * the scrollend event, in milliseconds.
- */
-const IDLE_DELAY_MS = 150;
-
-/*
  * The browser scrolls the list. This follows what moves it to tell the core the scroll phase:
- * a finger or the scrollbar on it is dragging, momentum and animated commands are settling.
+ * a finger or the scrollbar on it is dragging and momentum is settling. Animated commands run
+ * in the idle phase, as in the core's ScrollPhysics.
  * Animated commands and the snap after a scroll run here, one step per animation frame.
  */
 export class ShadowListKitScrollGesture {
@@ -28,7 +14,7 @@ export class ShadowListKitScrollGesture {
   /*
    * The browser moved the list for the reader since the list last came to rest.
    */
-  isScrolling = false;
+  isSettling = false;
 
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -75,7 +61,7 @@ export class ShadowListKitScrollGesture {
     this.stop();
     this.clearIdleTimer();
     this.isTracking = false;
-    this.isScrolling = false;
+    this.isSettling = false;
   }
 
   /*
@@ -83,20 +69,38 @@ export class ShadowListKitScrollGesture {
    * for a while or scrollend arrives.
    */
   userScrolled(): void {
-    this.isScrolling = true;
+    this.isSettling = true;
     this.clearIdleTimer();
-    this.idleTimer = setTimeout(this.onIdle, IDLE_DELAY_MS);
+    this.idleTimer = setTimeout(this.onIdle, ShadowListKitCore.WHEEL_IDLE_MS);
   }
 
+  /*
+   * A finger on a list in motion stops it. The list rests once every finger lifted.
+   */
   private onTouchStart = (): void => {
     this.beginGesture();
+    this.clearIdleTimer();
     this.isTracking = true;
   };
 
-  private onTouchEnd = (): void => {
+  private onTouchEnd = (event: TouchEvent): void => {
+    if (event.touches.length > 0) return;
     this.isTracking = false;
-    if (!this.isScrolling) this.settle();
+    this.release();
   };
+
+  /*
+   * The finger or the mouse let go. A list the reader moved rests once no scroll event follows
+   * for a while, which also covers a lift that left the list still. One never moved rests now.
+   */
+  private release(): void {
+    if (!this.isSettling) {
+      this.settle();
+      return;
+    }
+    this.clearIdleTimer();
+    this.idleTimer = setTimeout(this.onIdle, ShadowListKitCore.WHEEL_IDLE_MS);
+  }
 
   /*
    * A mouse press on the list itself, not on a row, is on its scrollbar.
@@ -110,7 +114,7 @@ export class ShadowListKitScrollGesture {
   private onPointerUp = (event: PointerEvent): void => {
     if (event.pointerType !== 'mouse' || !this.isTracking) return;
     this.isTracking = false;
-    if (!this.isScrolling) this.settle();
+    this.release();
   };
 
   private onWheel = (): void => {
@@ -124,7 +128,11 @@ export class ShadowListKitScrollGesture {
    */
   private onScrollEnd = (): void => {
     if (this.isAnimating) return;
-    if (performance.now() - this.previousWheel < IDLE_DELAY_MS) return;
+    if (
+      performance.now() - this.previousWheel <
+      ShadowListKitCore.WHEEL_IDLE_MS
+    )
+      return;
     /*
      * Rest once this frame is done. A page that writes the offset on every frame gets the
      * scrollend of one write in the frame of the next, and a snap started now would move the
@@ -136,8 +144,8 @@ export class ShadowListKitScrollGesture {
 
   private onIdle = (): void => {
     this.clearIdleTimer();
-    if (this.isTracking || this.isAnimating || !this.isScrolling) return;
-    this.isScrolling = false;
+    if (this.isTracking || this.isAnimating || !this.isSettling) return;
+    this.isSettling = false;
     this.settle();
   };
 
@@ -162,7 +170,7 @@ export class ShadowListKitScrollGesture {
     const offset = this.list.offset;
     const snapped = this.list.snapTarget(offset);
     if (Math.abs(snapped - offset) >= 1) {
-      this.start(snapped, SETTLE_DURATION_MS);
+      this.start(snapped, ShadowListKitCore.SETTLE_DURATION_MS);
       return;
     }
     this.list.scrollingEnded();
@@ -172,7 +180,7 @@ export class ShadowListKitScrollGesture {
    * Animate to an offset for a scroll command. It ends in list.scrollingEnded.
    */
   animateTo(target: () => number): void {
-    this.start(target(), COMMAND_DURATION_MS, target);
+    this.start(target(), ShadowListKitCore.COMMAND_DURATION_MS, target);
   }
 
   /*
@@ -192,7 +200,7 @@ export class ShadowListKitScrollGesture {
   ): void {
     this.stop();
     this.clearIdleTimer();
-    this.isScrolling = false;
+    this.isSettling = false;
     this.isAnimating = true;
     this.animationTarget = live;
     this.animationFrom = this.list.offset;
@@ -217,7 +225,7 @@ export class ShadowListKitScrollGesture {
       1,
       (now - this.animationStart) / this.animationDuration
     );
-    const eased = 1 - Math.pow(1 - progress, 3);
+    const eased = easeOut(progress);
     const target = this.animationTarget?.() ?? Number.NaN;
     if (!Number.isNaN(target)) this.animationTo = target;
     this.list.scrollStep(
@@ -235,5 +243,6 @@ export class ShadowListKitScrollGesture {
     if (this.animationFrame !== 0) cancelAnimationFrame(this.animationFrame);
     this.animationFrame = 0;
     this.isAnimating = false;
+    this.animationTarget = null;
   }
 }

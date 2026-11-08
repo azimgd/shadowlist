@@ -8,7 +8,7 @@ import {
   ShadowListKitCore,
   ShadowListKitListState,
   loadShadowListKit,
-  unchangedEnds,
+  keySplice,
 } from '../dist/ShadowListKitCore.js';
 
 const ROW_SIZE = 50;
@@ -35,7 +35,7 @@ function commit(
     core,
     previous,
     next,
-    unchangedEnds(previous, next),
+    keySplice(previous, next),
     change
   )!;
 }
@@ -99,6 +99,30 @@ function runPasses(core: ShadowListKitCore, offset: number): Float64Array {
   core.runPasses();
   return core.pass;
 }
+
+test('key splice finds the changed middle as the core does', () => {
+  assert.deepEqual(keySplice(['c', 'd'], ['a', 'b', 'c', 'd']), {
+    start: 0,
+    deleted: 0,
+    inserted: 2,
+  });
+  assert.deepEqual(keySplice(['a', 'b', 'c', 'd'], ['a', 'b']), {
+    start: 2,
+    deleted: 2,
+    inserted: 0,
+  });
+  assert.deepEqual(keySplice(['a', 'b', 'c', 'd'], ['a', 'x', 'y', 'd']), {
+    start: 1,
+    deleted: 2,
+    inserted: 2,
+  });
+  assert.deepEqual(keySplice(['a', 'a'], ['a']), {
+    start: 1,
+    deleted: 1,
+    inserted: 0,
+  });
+  assert.deepEqual(keySplice([], []), { start: 0, deleted: 0, inserted: 0 });
+});
 
 test('a layout measures the rows in range and reports the content size', () => {
   const { core, measured } = laidOutCore(100);

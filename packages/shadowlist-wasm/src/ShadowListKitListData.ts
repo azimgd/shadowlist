@@ -2,7 +2,7 @@ import {
   ShadowListKitCore,
   ShadowListKitListState,
   isShadowListKitLoaded,
-  unchangedEnds,
+  keySplice,
 } from './ShadowListKitCore.js';
 import { ShadowListKitListChanges } from './ShadowListKitListChanges.js';
 import type { ShadowListKitListView } from './ShadowListKitListView.js';
@@ -103,7 +103,7 @@ export class ShadowListKitListData {
       this.list.liveCore,
       this.keys,
       next,
-      unchangedEnds(this.keys, next),
+      keySplice(this.keys, next),
       change
     );
     this.keys = next;

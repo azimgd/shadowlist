@@ -179,14 +179,16 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   private fun commitRowKeys(
     previousItems: List<String>, next: ArrayList<String>, nextItems: List<String>, flags: Int,
   ): IntArray {
-    val start = commonPrefix(keys, next)
-    val end = commonSuffix(keys, next, start)
+    val splice = keySplice(keys, next)
+    val start = splice.start
+    val end = keys.size - start - splice.deleted
     if (list.animatesChanges && (start < keys.size || start < next.size)) {
       list.changes.capture(deleted = keys.subList(start, keys.size - end), inserted = next.subList(start, next.size - end))
     }
     val separate = nextItems !== next || previousItems !== keys
-    val itemStart = if (separate) commonPrefix(previousItems, nextItems) else start
-    val itemEnd = if (separate) commonSuffix(previousItems, nextItems, itemStart) else end
+    val itemSplice = if (separate) keySplice(previousItems, nextItems) else splice
+    val itemStart = itemSplice.start
+    val itemEnd = previousItems.size - itemStart - itemSplice.deleted
     val versioned = list.dataSource as? ContentVersions
     val versionFlags = ShadowListKitListState.COMMIT_RECORD_VERSIONS or ShadowListKitListState.COMMIT_UPDATE_VERSIONS
     val versions = if (versioned == null || flags and versionFlags == 0) null
@@ -378,20 +380,20 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     }
   }
 
-  private fun commonPrefix(previous: List<String>, next: List<String>): Int {
+  /*
+   * The changed middle of two key lists, the core's keySplice: the keys equal at the start of
+   * both, then the ones equal at the end without reaching into those. Only the middle crosses
+   * JNI, which keeps a commit from copying every key. The core test
+   * key_splice_finds_the_changed_middle holds the rule.
+   */
+  private fun keySplice(previous: List<String>, next: List<String>): KeySplice {
     val limit = min(previous.size, next.size)
-    var count = 0
-    while (count < limit && previous[count] == next[count]) ++count
-    return count
+    var start = 0
+    while (start < limit && previous[start] == next[start]) ++start
+    var end = 0
+    while (end < limit - start && previous[previous.size - 1 - end] == next[next.size - 1 - end]) ++end
+    return KeySplice(start, previous.size - start - end, next.size - start - end)
   }
 
-  /*
-   * Keys equal at the end of both lists, not reaching into the first start keys of either.
-   */
-  private fun commonSuffix(previous: List<String>, next: List<String>, start: Int): Int {
-    val limit = min(previous.size, next.size) - start
-    var count = 0
-    while (count < limit && previous[previous.size - 1 - count] == next[next.size - 1 - count]) ++count
-    return count
-  }
+  private class KeySplice(val start: Int, val deleted: Int, val inserted: Int)
 }
