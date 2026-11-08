@@ -100,7 +100,8 @@ export interface ShadowListKitListViewPrefetchDataSource {
  * Items are placed by the core, which keeps the visible content still while items are measured,
  * inserted or deleted. Measurement, offset corrections and mounting all happen in one layout
  * pass before the browser paints. A scroll frame that stays inside the core's offset band does
- * no core work at all. Sizes are in CSS pixels. The element needs a size from its styles.
+ * no core work at all. Sizes are in CSS pixels, which are the native kits' points at zoom 1. The
+ * element needs a size from its styles.
  */
 export class ShadowListKitListView extends HTMLElement {
   static readonly TAG_NAME = 'shadowlist-kit-list-view';

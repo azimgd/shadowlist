@@ -68,7 +68,7 @@ Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estim
 `reloadItems(indices, payload)`, `moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates(updates, completion)`
 with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`, `visibleCells`, `visibleRange`,
 `rectForItem` (content coordinates, header included), `contentSize`, `anchorState`, `scrollToItem`, `scrollToStart`,
-`scrollToEnd`, `restoreAnchorState`. Sizes are in CSS pixels.
+`scrollToEnd`, `restoreAnchorState`. Sizes are in CSS pixels, which are the native kits' points at zoom 1.
 
 - Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data before,
   inserts and move destinations in the data after. A batch that does not add up reloads everything. `applyChanges`
