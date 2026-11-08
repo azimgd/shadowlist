@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.RenderNode
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -447,6 +448,27 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private val mountBandInputs = DoubleArray(6)
 
   /*
+   * What the rows a driven list mounted ahead cover along the axis, see mountAhead, and the offset
+   * it planned them at.
+   */
+  private var coverLow = Double.POSITIVE_INFINITY
+  private var coverHigh = Double.NEGATIVE_INFINITY
+  private var aheadOffset = 0.0
+  private var aheadFrames = DoubleArray(128)
+
+  /*
+   * A driven list's children drawn into a RenderNode of their own, see drawContent. contentStale:
+   * a child came, went, showed or hid since. The header's and the footer's visibility it drew
+   * with, and the children that drew again since.
+   */
+  private var contentNode: RenderNode? = null
+  internal var contentStale = true
+  private var contentHeaderVisibility = -1
+  private var contentFooterVisibility = -1
+  private val dirtyChildren = ArrayList<View>()
+  private var refreshNode: RenderNode? = null
+
+  /*
    * The layout passes, the runs of the core and the mount passes since the list was made, for
    * tests.
    */
@@ -455,6 +477,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal var corePassCount = 0
     private set
   internal var mountPassCount = 0
+    private set
+  internal var contentRecordCount = 0
     private set
 
   private val cellFactories = HashMap<String, (Context) -> ShadowListKitListCell>()
@@ -554,6 +578,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     swipe.releaseTracker()
     selection.cancelHighlight()
     destroyCore()
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) contentNode?.discardDisplayList()
+    contentStale = true
   }
 
   // region Axis
@@ -718,7 +744,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     cell.mountGeneration = 0L
     swipe.cellWillRecycle(cell)
     drag.cellWillRecycle(cell)
-    cell.animate().cancel()
+    cell.cancelAnimations()
     cell.alpha = 1f
     cell.translationX = 0f
     cell.translationY = 0f
@@ -1175,6 +1201,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
     // Rows under the padding show when clipToPadding is off. They are mounted too.
     val pad = windowAlong * mountOverscan
+    if (mountsAhead) {
+      mountAhead(pad)
+      return
+    }
+    coverLow = Double.POSITIVE_INFINITY
+    coverHigh = Double.NEGATIVE_INFINITY
     if (mountPlanHolds(pad)) return
     val viewLow = exactOffset - pad - leadingPadding
     val viewHigh = exactOffset + windowAlong + pad + trailingPadding
@@ -1242,6 +1274,88 @@ open class ShadowListKitListView @JvmOverloads constructor(
     mountBandInputs[5] = measuredHigh.toDouble()
   }
 
+  /*
+   * A driven list of one column without sticky rows mounts ahead.
+   */
+  private val mountsAhead: Boolean
+    get() = scrollDriven && numberOfColumns == 1 && stickyPinning.stickyRows.isEmpty()
+
+  /*
+   * A host moves a driven list every frame it draws. The list mounts DRIVEN_MOUNT_AHEAD viewports
+   * past the padding on the side the offset moves to and plans again only once the rows it mounted
+   * stop covering the viewport and the padding, or anything else a plan read changed. A frame then
+   * mounts the rows of several frames at once, and the frames between record nothing
+   * (drawContent). The rows of one column follow each other. The rows a plan mounted cover from
+   * the start of the first to the end of the last, and past the content's ends.
+   */
+  private fun mountAhead(pad: Double) {
+    mountBandLow = 1.0
+    mountBandHigh = 0.0
+    val viewLow = exactOffset - pad - leadingPadding
+    val viewHigh = exactOffset + windowAlong + pad + trailingPadding
+    if (coverLow <= viewLow && viewHigh <= coverHigh && aheadInputsHold(pad)) return
+    // A move longer than the rows ahead plans every pass anyway. Rows mounted ahead then only draw twice.
+    var ahead = windowAlong * DRIVEN_MOUNT_AHEAD
+    if (abs(exactOffset - aheadOffset) > ahead) ahead = 0.0
+    val forward = exactOffset >= aheadOffset
+    val planLow = if (forward) viewLow else viewLow - ahead
+    val planHigh = if (forward) viewHigh + ahead else viewHigh
+    var low = -1
+    var high = -1
+    for (index in measuredLow..measuredHigh) {
+      if (overlaps(index, planLow, planHigh)) {
+        if (low < 0) low = index
+        high = index
+      } else if (low >= 0) {
+        break
+      }
+    }
+    coverLow = when {
+      low < 0 -> Double.POSITIVE_INFINITY
+      low == 0 -> Double.NEGATIVE_INFINITY
+      else -> measuredLeading(low)
+    }
+    coverHigh = when {
+      high < 0 -> Double.NEGATIVE_INFINITY
+      high == keys.size - 1 -> Double.POSITIVE_INFINITY
+      else -> measuredLeading(high) + measuredExtent(high)
+    }
+    aheadOffset = exactOffset
+    if (low >= 0) {
+      val count = (high - low + 1) * 2
+      if (aheadFrames.size < count) aheadFrames = DoubleArray(count * 2)
+      for (index in low..high) {
+        aheadFrames[(index - low) * 2] = measuredLeading(index)
+        aheadFrames[(index - low) * 2 + 1] = measuredExtent(index)
+      }
+    }
+    recordMountBand(exactOffset, exactOffset, pad)
+    if (!mountNeeded(low, high, -1)) return
+    recordMount(low, high, -1)
+    mountPlan(low, high, -1, planLow, planHigh)
+    prefetchAround(low, high)
+  }
+
+  private fun aheadInputsHold(pad: Double): Boolean =
+    mountBandInputs[0] == windowAlong.toDouble() && mountBandInputs[1] == pad &&
+      mountBandInputs[2] == leadingPadding.toDouble() && mountBandInputs[3] == trailingPadding.toDouble() &&
+      offsetFraction == mountedFraction && structureVersion == mountedStructure && !hasHeldRow &&
+      (measuredGeometry == mountedGeometry || mountedFramesHold())
+
+  /*
+   * Rows measured past the mounted ones move the core's geometry too. The plan holds while every
+   * mounted row kept its frame.
+   */
+  private fun mountedFramesHold(): Boolean {
+    if (mountedLow < 0 || mountedLow < measuredLow || mountedHigh > measuredHigh) return false
+    for (index in mountedLow..mountedHigh) {
+      if (measuredLeading(index) != aheadFrames[(index - mountedLow) * 2] ||
+        measuredExtent(index) != aheadFrames[(index - mountedLow) * 2 + 1]) return false
+    }
+    mountedGeometry = measuredGeometry
+    return true
+  }
+
   private fun recordMount(low: Int, high: Int, sticky: Int) {
     mountedLow = low
     mountedHigh = high
@@ -1304,6 +1418,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
     cell.setTransitionVisibility(visibility)
     if (shown) cell.invalidate()
+    contentStale = true
     invalidate()
   }
 
@@ -1341,6 +1456,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     mountedHigh = -1
     mountBandLow = 1.0
     mountBandHigh = 0.0
+    coverLow = Double.POSITIVE_INFINITY
+    coverHigh = Double.NEGATIVE_INFINITY
   }
 
   /*
@@ -1483,10 +1600,132 @@ open class ShadowListKitListView @JvmOverloads constructor(
     liftedHigh = if (sticky >= 0 && held >= 0) max(sticky, held) else -1
     // The held row draws last, above the pinned header.
     liftedTop = if (held >= 0) held else sticky
-    super.dispatchDraw(canvas)
+    if (!drawContent(canvas)) super.dispatchDraw(canvas)
     for (decoration in decorations) decoration.onDrawOver(canvas, this)
     if (refresh.draw(canvas)) postInvalidateOnAnimation()
     sectionIndex.draw(canvas)
+  }
+
+  /*
+   * A driven list moves its offset every frame its host draws, and a new offset records the list's
+   * display list again, a draw of every child in it. From API 29 its children draw into a
+   * RenderNode of their own instead, recorded again only when a child came, went, showed or hid.
+   * A frame that only moved records the list around that node. A child that drew again since is
+   * brought up to date on its own. A lifted row, separators, an open swipe and a layout transition
+   * draw the usual way. Returns false when the children were not drawn.
+   */
+  private fun drawContent(canvas: Canvas): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !scrollDriven || !canvas.isHardwareAccelerated ||
+      liftedLow >= 0 || showsSeparators || swipe.isOpen || layoutTransition != null) {
+      contentStale = true
+      dirtyChildren.clear()
+      return false
+    }
+    val node = contentNode ?: RenderNode("ShadowListKitContent").also {
+      it.setClipToBounds(false)
+      contentNode = it
+    }
+    if (contentStale || !node.hasDisplayList() || contentChanged()) recordContent(node) else refreshDirtyChildren()
+    val save = canvas.save()
+    if (clipToPadding) {
+      canvas.clipRect(scrollX + paddingLeft, scrollY + paddingTop, scrollX + width - paddingRight, scrollY + height - paddingBottom)
+    }
+    canvas.drawRenderNode(node)
+    canvas.restoreToCount(save)
+    return true
+  }
+
+  private fun contentChanged(): Boolean =
+    (headerView?.visibility ?: -1) != contentHeaderVisibility || (footerView?.visibility ?: -1) != contentFooterVisibility
+
+  private fun recordContent(node: RenderNode) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+    ++contentRecordCount
+    contentStale = false
+    dirtyChildren.clear()
+    contentHeaderVisibility = headerView?.visibility ?: -1
+    contentFooterVisibility = footerView?.visibility ?: -1
+    /*
+     * A child the recording canvas does not hold is left out (View.draw rejects it), and the cells
+     * sit where the content puts them. The node spans the list and every child shown.
+     */
+    var left = scrollX
+    var top = scrollY
+    var right = scrollX + max(1, width)
+    var bottom = scrollY + max(1, height)
+    for (at in 0 until childCount) {
+      val child = getChildAt(at)
+      if (child.visibility != VISIBLE && child.animation == null) continue
+      left = min(left, child.left)
+      top = min(top, child.top)
+      right = max(right, child.right)
+      bottom = max(bottom, child.bottom)
+    }
+    node.setPosition(left, top, right, bottom)
+    val content = node.beginRecording(right - left, bottom - top)
+    try {
+      content.translate(-left.toFloat(), -top.toFloat())
+      content.enableZ()
+      val time = drawingTime
+      for (at in 0 until childCount) {
+        val child = getChildAt(at)
+        if (child.visibility == VISIBLE || child.animation != null) drawChild(content, child, time)
+      }
+      content.disableZ()
+    } finally {
+      node.endRecording()
+    }
+  }
+
+  /*
+   * A child that drew again since draws into its own display list, which the content node shows.
+   * Drawing it anywhere does that. The list draws it into a node it drops.
+   */
+  private fun refreshDirtyChildren() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || dirtyChildren.isEmpty()) return
+    val node = refreshNode ?: RenderNode("ShadowListKitRefresh").also { refreshNode = it }
+    // The canvas holds the children it draws, which View.draw would otherwise reject unrecorded.
+    var left = Int.MAX_VALUE
+    var top = Int.MAX_VALUE
+    var right = Int.MIN_VALUE
+    var bottom = Int.MIN_VALUE
+    for (child in dirtyChildren) {
+      left = min(left, child.left)
+      top = min(top, child.top)
+      right = max(right, child.right)
+      bottom = max(bottom, child.bottom)
+    }
+    val canvas = node.beginRecording(max(1, right - left), max(1, bottom - top))
+    try {
+      canvas.translate(-left.toFloat(), -top.toFloat())
+      val time = drawingTime
+      for (child in dirtyChildren) {
+        if (child.parent === this && child.visibility == VISIBLE && child.isDirty) drawChild(canvas, child, time)
+      }
+    } finally {
+      node.endRecording()
+      node.discardDisplayList()
+      dirtyChildren.clear()
+    }
+  }
+
+  /*
+   * A child or a view in it drew again, not a child that only moved. The content node draws it as
+   * it is now.
+   */
+  override fun onDescendantInvalidated(child: View, target: View) {
+    super.onDescendantInvalidated(child, target)
+    if (contentNode != null && child.isDirty && child !in dirtyChildren) dirtyChildren.add(child)
+  }
+
+  override fun onViewAdded(child: View) {
+    super.onViewAdded(child)
+    contentStale = true
+  }
+
+  override fun onViewRemoved(child: View) {
+    super.onViewRemoved(child)
+    contentStale = true
   }
 
   override fun getChildDrawingOrder(childCount: Int, drawingPosition: Int): Int {
@@ -2012,6 +2251,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
     // How far inside each end the mount band stays, where rounding cannot tell it from the edge.
     const val MOUNT_BAND_EDGE = 1e-6
+
+    // How far past the padding a driven list mounts on the side its offset moves to, in viewport sizes.
+    const val DRIVEN_MOUNT_AHEAD = 0.2
   }
 }
 

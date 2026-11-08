@@ -1,6 +1,7 @@
 package com.shadowlist.kit
 
 import android.content.Context
+import android.graphics.RenderNode
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
@@ -110,6 +111,26 @@ class ShadowListKitHostTest {
     for (cell in list.visibleCells) {
       val top = list.rectForItem(cell.index)!!.top.toDouble()
       assertEquals((top - list.exactOffset).roundToInt(), cell.top - list.scrollY)
+    }
+  }
+
+  /*
+   * Every row in view has its cell mounted and shown.
+   */
+  private fun assertVisibleRowsMounted(list: ShadowListKitListView) {
+    for (index in list.visibleRange!!) assertTrue(list.cellForItem(index) != null)
+  }
+
+  /*
+   * Draws the view the way a frame records it.
+   */
+  private fun draw(view: View) {
+    val node = RenderNode("ShadowListKitHostTest")
+    val canvas = node.beginRecording(WIDTH, HEIGHT)
+    try {
+      view.draw(canvas)
+    } finally {
+      node.endRecording()
     }
   }
 
@@ -355,15 +376,93 @@ class ShadowListKitHostTest {
     assertEquals(mounts, list.mountPassCount)
     assertEquals(passes + 3, list.layoutPassCount)
 
-    // A move that brings rows in runs the core once and mounts them where they belong.
+    // A move past the rows mounted ahead runs the core once and mounts them where they belong.
     val before = list.visibleRange!!
-    list.adjustOffsetBy(ROW_SIZE * 6)
+    list.adjustOffsetBy(HEIGHT.toDouble())
     assertEquals(cores + 1, list.corePassCount)
     assertTrue(list.mountPassCount > mounts)
     assertTrue(list.visibleRange!!.last > before.last)
     assertPlacedAtExactOffset(list)
     val bottom = list.visibleCells.maxOf { it.bottom } - list.scrollY
     assertTrue(bottom >= HEIGHT)
+  }
+
+  @Test
+  fun a_driven_list_mounts_ahead_where_it_moves_and_plans_again_once_its_rows_stop_covering_the_viewport() = onMain {
+    val rows = Rows(2_000, ROW_SIZE)
+    val list = makeList(rows)
+    list.scrollDriven = true
+    scrollThrough(list, 20_000)
+    // A short move past the rows mounted mounts a fifth of a viewport (400 pixels) ahead.
+    list.adjustOffsetBy(100.0)
+    val mounts = list.mountPassCount
+    repeat(3) {
+      list.adjustOffsetBy(100.0)
+      assertVisibleRowsMounted(list)
+      assertPlacedAtExactOffset(list)
+    }
+    assertEquals(mounts, list.mountPassCount)
+    list.adjustOffsetBy(200.0)
+    assertEquals(mounts + 1, list.mountPassCount)
+    assertVisibleRowsMounted(list)
+    assertPlacedAtExactOffset(list)
+
+    // Back the other way it mounts ahead above: about one pass every four moves.
+    val back = list.mountPassCount
+    repeat(20) {
+      list.adjustOffsetBy(-100.0)
+      assertVisibleRowsMounted(list)
+      assertPlacedAtExactOffset(list)
+    }
+    assertTrue(list.mountPassCount - back in 2..8)
+  }
+
+  @Test
+  fun a_list_that_is_not_driven_mounts_the_rows_in_view_each_pass() = onMain {
+    val list = makeList(Rows(2_000, ROW_SIZE))
+    scrollThrough(list, 20_000)
+    list.adjustOffsetBy(1.0)
+    val mounts = list.mountPassCount
+    list.adjustOffsetBy(ROW_SIZE * 2)
+    assertEquals(mounts + 1, list.mountPassCount)
+  }
+
+  @Test
+  fun a_driven_list_records_its_content_again_only_when_its_cells_change() = onMain {
+    val rows = Rows(2_000, ROW_SIZE)
+    val list = makeList(rows)
+    list.scrollDriven = true
+    scrollThrough(list, 20_000)
+    list.adjustOffsetBy(100.0)
+    draw(list)
+    val records = list.contentRecordCount
+    assertTrue(records > 0)
+
+    // Moves inside the rows mounted ahead record only the list around its content.
+    repeat(3) {
+      list.adjustOffsetBy(100.0)
+      draw(list)
+    }
+    assertEquals(records, list.contentRecordCount)
+
+    // A cell that draws again does not record the content.
+    list.visibleCells.first().invalidate()
+    draw(list)
+    assertEquals(records, list.contentRecordCount)
+
+    // New rows shown record it once.
+    list.adjustOffsetBy(HEIGHT.toDouble())
+    draw(list)
+    draw(list)
+    assertEquals(records + 1, list.contentRecordCount)
+  }
+
+  @Test
+  fun a_list_that_is_not_driven_draws_its_cells_itself() = onMain {
+    val list = makeList(Rows(2_000, ROW_SIZE))
+    scrollThrough(list, 5_000)
+    draw(list)
+    assertEquals(0, list.contentRecordCount)
   }
 
   @Test

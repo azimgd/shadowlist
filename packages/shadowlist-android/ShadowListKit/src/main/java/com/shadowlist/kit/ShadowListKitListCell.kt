@@ -2,6 +2,7 @@ package com.shadowlist.kit
 
 import android.content.Context
 import android.os.Build
+import android.view.ViewPropertyAnimator
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
 
@@ -39,8 +40,35 @@ open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?)
   var highlighted = false
     private set
 
+  /*
+   * Something asked for the cell's animator since the list last cancelled it.
+   */
+  private var animated = false
+
   var editing = false
     private set
+
+  override fun animate(): ViewPropertyAnimator {
+    animated = true
+    return super.animate()
+  }
+
+  /*
+   * Stops what runs on the cell's animator. Without one asked for there is nothing to stop.
+   */
+  internal fun cancelAnimations() {
+    if (!animated) return
+    animated = false
+    super.animate().cancel()
+  }
+
+  /*
+   * A cell shown or hidden other than by the list draws again in a driven list's content.
+   */
+  override fun setVisibility(visibility: Int) {
+    if (visibility != this.visibility) (parent as? ShadowListKitListView)?.contentStale = true
+    super.setVisibility(visibility)
+  }
 
   /*
    * Called before the cell is handed out again by dequeueReusableCell.
