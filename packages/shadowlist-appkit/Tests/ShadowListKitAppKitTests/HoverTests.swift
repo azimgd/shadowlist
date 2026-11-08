@@ -21,6 +21,21 @@ final class HoverTests: XCTestCase {
     XCTAssertTrue(list.visibleCells.allSatisfy { !$0.isHovered })
   }
 
+  func testTheWindowResigningKeyClearsTheHover() throws {
+    let harness = SelectionHarness()
+    let list = harness.list
+    harness.window.key = true
+    list.shadowListKit_moveMouse(to: CGPoint(x: 100, y: 100))
+    XCTAssertEqual(harness.cell(2)?.isHovered, true)
+    harness.window.key = false
+    NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: harness.window)
+    XCTAssertTrue(list.visibleCells.allSatisfy { !$0.isHovered })
+    // A scroll in the window behind does not hover again.
+    list.contentOffset = CGPoint(x: 0, y: 44)
+    harness.layout()
+    XCTAssertTrue(list.visibleCells.allSatisfy { !$0.isHovered })
+  }
+
   func testTheContentMovingUnderAStillPointerHoversTheNewItem() throws {
     let harness = SelectionHarness()
     let list = harness.list

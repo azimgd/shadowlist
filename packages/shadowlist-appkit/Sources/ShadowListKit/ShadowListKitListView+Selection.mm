@@ -575,8 +575,16 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   [self updateEmphasis];
 }
 
+/*
+ * The hover tracking area works in the key window only. A window that resigns key with the
+ * pointer over a row sends no mouseExited:, and the row stops showing its hover here.
+ */
 - (void)windowKeyChanged:(NSNotification *)notification
 {
+  if (!self.window.isKeyWindow && _hoverActive) {
+    _hoverActive = NO;
+    [self updateHover];
+  }
   [self updateEmphasis];
 }
 
