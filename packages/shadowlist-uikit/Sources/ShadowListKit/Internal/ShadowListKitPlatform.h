@@ -7,6 +7,7 @@
 #else
 #import <UIKit/UIKit.h>
 #endif
+#import <QuartzCore/QuartzCore.h>
 
 /*
  * The platform's color and image classes, for code both kits compile.
@@ -51,5 +52,17 @@ static inline void ShadowListKitSetNeedsLayout(ShadowListKitView *view)
   view.needsLayout = YES;
 #else
   [view setNeedsLayout];
+#endif
+}
+
+/*
+ * A display link on the display that shows a view, calling a target every frame.
+ */
+static inline CADisplayLink *ShadowListKitDisplayLink(ShadowListKitView *view, id target, SEL selector)
+{
+#if TARGET_OS_OSX
+  return [view displayLinkWithTarget:target selector:selector];
+#else
+  return [CADisplayLink displayLinkWithTarget:target selector:selector];
 #endif
 }

@@ -50,6 +50,7 @@ extern const char ShadowListKitListViewActionsLink;
 extern const char ShadowListKitListViewCommandsLink;
 extern const char ShadowListKitListViewDataLink;
 extern const char ShadowListKitListViewDragLink;
+extern const char ShadowListKitListViewPassesLink;
 #if TARGET_OS_OSX
 extern const char ShadowListKitListViewScrollingLink;
 #endif
@@ -61,6 +62,19 @@ extern const char ShadowListKitListViewSelectionLink;
  * State and helpers the list shares with its categories. Both kits compile this header, and
  * each kit's own state follows the shared state.
  * _mounted holds the mounted cells by key. A cell follows its key across inserts above it.
+ * _mountGeneration counts the mount passes, and _mounted* is what the last one covered: the pass
+ * is skipped while all of it holds. _mountedShift is the pixel shift it placed rows with.
+ * _cellClasses holds the registered cell classes and _reusePool the recycled cells, both by
+ * reuse identifier. _prefetchRows and _cancelRows are the prefetch changes of a mount pass.
+ * _band is the band of offsets where the core has nothing to do, and _needsFrame runs the core
+ * inside it. _headerSize, _footerSize, _contentAlong and _footerStart are the header's, the
+ * footer's and the content's sizes along the axis and where the footer starts. _sentSettings
+ * are the settings the core runs with, sent again only when one changed. _previousOffset is the
+ * last offset seen, which tells the user's scrolling from the list's own writes, and
+ * _userScrolled says the user moved it since the last pass. _clampingPass is set while the pass
+ * after a clamp to the end runs. A settle frame waits on _settleLink for the next display frame,
+ * at most one at a time while _settleScheduled. _reachedStart and _reachedEnd wait to be told
+ * to the delegate after the pass.
  * _sections maps the rows the core places to items, section headers and footers.
  * _windowAlong and _windowCross are the geometry the core last ran with. offset is the scroll
  * offset along the axis, from the content start including the header. writeOffset:byUser: moves
@@ -72,7 +86,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * mountedCellAtIndex: is the mounted cell of a row, or nil. mountedCellForKey: is the mounted
  * cell of a key, or nil. itemsOfRows: is the items among rows.
  * _headerView and _footerView are the views before the first row and after the last.
- * _stickyIndices and _stickySectionHeaders pick the rows that pin.
+ * _stickyIndices and _stickySectionHeaders pick the rows that pin, and _stickyCell is the cell
+ * pinned now.
  * _changes animates data changes and _itemAnimator runs its animations.
  * _pendingAnchor is a saved position waiting for its key. contentOffsetAt: is the content offset
  * of an offset along the axis. invalidateFrame runs the core on the next layout pass.
@@ -98,7 +113,7 @@ extern const char ShadowListKitListViewSelectionLink;
  * _rowElements keeps the stand-ins of rows off screen while accessibility holds them.
  *
  * Mac: _contentView holds the cells and the header and footer views. Its bounds origin is the
- * content offset. _stickyCell is the cell pinned now. _changes exists only while
+ * content offset. _changes exists only while
  * animatesChanges is set, which leaves a list without animations no work for them. _engine
  * scrolls the list and _scrollers shows where it is, both unused while the list is driven.
  * _hoveredCell is the item under _hoverPoint, the pointer in the list's coordinates while
@@ -135,6 +150,33 @@ extern const char ShadowListKitListViewSelectionLink;
   BOOL _horizontal;
 
   std::unordered_map<std::string, ShadowListKitListCell *> _mounted;
+  NSUInteger _mountGeneration;
+  std::size_t _mountedLow;
+  std::size_t _mountedHigh;
+  std::size_t _mountedSticky;
+  std::uint64_t _mountedGeometry;
+  NSUInteger _mountedStructure;
+  double _mountedShift;
+  NSMutableDictionary<NSString *, Class> *_cellClasses;
+  NSMutableDictionary<NSString *, NSMutableArray<ShadowListKitListCell *> *> *_reusePool;
+  std::vector<std::size_t> _prefetchRows;
+  std::vector<std::size_t> _cancelRows;
+
+  azimgd::shadowlist::OffsetBand _band;
+  BOOL _needsFrame;
+  CGFloat _headerSize;
+  CGFloat _footerSize;
+  CGFloat _contentAlong;
+  double _footerStart;
+  azimgd::shadowlist::ListSettings _sentSettings;
+  BOOL _hasSentSettings;
+  double _previousOffset;
+  BOOL _userScrolled;
+  BOOL _clampingPass;
+  BOOL _settleScheduled;
+  CADisplayLink *_settleLink;
+  BOOL _reachedStart;
+  BOOL _reachedEnd;
 
   CGFloat _windowAlong;
   CGFloat _windowCross;
@@ -143,6 +185,7 @@ extern const char ShadowListKitListViewSelectionLink;
   ShadowListKitView *_footerView;
   NSIndexSet *_stickyIndices;
   BOOL _stickySectionHeaders;
+  ShadowListKitListCell *_stickyCell;
 
   BOOL _animatesChanges;
   ShadowListKitChangeAnimator *_changes;
@@ -175,7 +218,6 @@ extern const char ShadowListKitListViewSelectionLink;
 
 #if TARGET_OS_OSX
   NSView *_contentView;
-  ShadowListKitListCell *_stickyCell;
   ShadowListKitScrollEngine *_engine;
   ShadowListKitScrollerView *_scrollers;
 
@@ -234,6 +276,7 @@ extern const char ShadowListKitListViewSelectionLink;
 - (CGFloat)along:(CGPoint)point;
 - (CGFloat)cross:(CGPoint)point;
 - (CGFloat)leadingInset;
+- (CGFloat)trailingInset;
 - (double)offset;
 - (CGFloat)maxOffset;
 - (void)writeOffset:(double)offset byUser:(BOOL)byUser;
@@ -246,9 +289,49 @@ extern const char ShadowListKitListViewSelectionLink;
 - (NSIndexSet *)itemsOfRows:(const std::vector<std::size_t>&)rows;
 - (CGPoint)contentOffsetAt:(double)offset;
 - (void)invalidateFrame;
+- (double)pixelShift;
+- (CGFloat)displayScale;
+- (azimgd::shadowlist::ScrollPhase)corePhase;
+- (CGFloat)templateSize:(nullable ShadowListKitView *)view cross:(CGFloat)cross;
+- (void)applyContentSize:(CGFloat)along;
+- (CGColorRef)separatorCGColor;
+- (ShadowListKitView *)cellContainer;
+- (void)clearCellForReuse:(ShadowListKitListCell *)cell;
+- (void)placeSeparatorOfCell:(ShadowListKitListCell *)cell row:(std::size_t)row;
 #if !TARGET_OS_OSX
 - (nullable ShadowListKitListCell *)cellAtPoint:(CGPoint)point;
 #endif
+
+@end
+
+/*
+ * The layout pass, the same in both kits. runPasses runs the core until the measured range has
+ * sizes and any correction landed, after readGeometry read the viewport and the template sizes
+ * and trackUserScroll told the user's scrolling from the list's own. resetKeepingPosition drops
+ * every size and keeps the first visible row. makeCellAtRow: is a row's cell, an item's from
+ * the data source or a section title's. displayRect:y:width:height: puts a frame from the core
+ * on device pixels. mountCells mounts the rows near the viewport and recycles the rest, and
+ * unmountAll recycles every cell. reportPrefetchRows:cancel: hands prefetch changes to the
+ * prefetch data source. measureRow:key:cross: is a row's size for the core. dispatchReached
+ * tells the delegate the list reached its start or its end.
+ * Each kit gives the view the cells sit in with cellContainer, clears its own state off a
+ * recycled cell in clearCellForReuse:, shows a cell's state in applyStateToCell:key:, says what
+ * moves the offset with corePhase, sizes a header or footer view with templateSize:cross:, takes
+ * the content size in applyContentSize: and gives the separator color with separatorCGColor.
+ */
+@interface ShadowListKitListView (Passes)
+
+- (BOOL)readGeometry;
+- (void)trackUserScroll;
+- (void)runPasses;
+- (void)resetKeepingPosition;
+- (ShadowListKitListCell *)makeCellAtRow:(NSInteger)row;
+- (CGRect)displayRect:(double)x y:(double)y width:(double)width height:(double)height;
+- (void)mountCells;
+- (void)unmountAll;
+- (void)reportPrefetchRows:(const std::vector<std::size_t>&)rows cancel:(const std::vector<std::size_t>&)cancelRows;
+- (CGFloat)measureRow:(NSInteger)row key:(const std::string&)key cross:(CGFloat)cross;
+- (void)dispatchReached;
 
 @end
 
@@ -348,11 +431,13 @@ extern const char ShadowListKitListViewSelectionLink;
 @end
 #else
 /*
- * Selection. userSelectedCell: is a tap on a row. clearSelection deselects every row without
- * delegate calls. unhighlight takes the highlight off the touched row.
+ * Selection. applyStateToCell:key: gives a cell coming on screen its row's selection and the
+ * list's editing state. userSelectedCell: is a tap on a row. clearSelection deselects every row
+ * without delegate calls. unhighlight takes the highlight off the touched row.
  */
 @interface ShadowListKitListView (Selection)
 
+- (void)applyStateToCell:(ShadowListKitListCell *)cell key:(const std::string&)key;
 - (void)userSelectedCell:(ShadowListKitListCell *)cell;
 - (void)clearSelection;
 - (void)unhighlight;

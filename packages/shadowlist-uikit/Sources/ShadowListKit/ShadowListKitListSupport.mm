@@ -45,6 +45,12 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
   return CGSizeMake(size.width, MAX(28, ceil(text.height) + 12));
 }
 
+- (void)setTitle:(NSString *)title
+{
+  _label.text = title;
+  [self setNeedsLayout];
+}
+
 - (void)layoutSubviews
 {
   [super layoutSubviews];

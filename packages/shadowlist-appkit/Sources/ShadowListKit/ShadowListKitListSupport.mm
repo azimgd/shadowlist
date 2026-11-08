@@ -62,6 +62,12 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
   self.needsDisplay = YES;
 }
 
+- (void)setTitle:(NSString *)title
+{
+  _label.stringValue = title ?: @"";
+  self.needsLayout = YES;
+}
+
 - (void)layout
 {
   [super layout];
