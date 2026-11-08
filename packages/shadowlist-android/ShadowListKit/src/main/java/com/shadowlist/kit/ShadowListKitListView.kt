@@ -124,6 +124,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   interface Delegate {
+    /*
+     * A cell that fades out after a delete ends displaying when its fade ends, with the index its
+     * item had before the delete.
+     */
     fun willDisplayCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int) {}
     fun didEndDisplayingCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int) {}
     fun didSelectItem(listView: ShadowListKitListView, index: Int) {}

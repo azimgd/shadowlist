@@ -179,6 +179,10 @@ NS_SWIFT_UI_ACTOR
 
 @optional
 
+/*
+ * A cell that fades out after a delete ends displaying when its fade ends, with the index its
+ * item had before the delete, the way UITableView reports a deleted row.
+ */
 - (void)listView:(ShadowListKitListView *)listView willDisplayCell:(ShadowListKitListCell *)cell atIndex:(NSInteger)index;
 - (void)listView:(ShadowListKitListView *)listView didEndDisplayingCell:(ShadowListKitListCell *)cell atIndex:(NSInteger)index;
 - (void)listView:(ShadowListKitListView *)listView didSelectItemAtIndex:(NSInteger)index;
