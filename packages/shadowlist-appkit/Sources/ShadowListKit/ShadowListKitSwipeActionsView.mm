@@ -2,9 +2,10 @@
 
 #import <QuartzCore/QuartzCore.h>
 
+#import "Internal/ShadowListKitSwipeLayout.h"
+
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
-#include <numeric>
 #include <vector>
 
 using namespace azimgd::shadowlist;
@@ -22,6 +23,7 @@ static const CGFloat SHADOWLIST_KIT_SWIPE_FONT_SIZE = 13;
   std::vector<double> _leadingWidths;
   std::vector<double> _trailingWidths;
   std::vector<SwipeSpan> _spans;
+  ShadowListKitSwipeLayout _layout;
   CALayer *_mask;
   NSColor *_backgroundColor;
 }
@@ -99,12 +101,12 @@ static const CGFloat SHADOWLIST_KIT_SWIPE_FONT_SIZE = 13;
 
 - (CGFloat)leadingWidth
 {
-  return (CGFloat)std::accumulate(_leadingWidths.begin(), _leadingWidths.end(), 0.0);
+  return ShadowListKitSwipeWidth(_leadingWidths);
 }
 
 - (CGFloat)trailingWidth
 {
-  return (CGFloat)std::accumulate(_trailingWidths.begin(), _trailingWidths.end(), 0.0);
+  return ShadowListKitSwipeWidth(_trailingWidths);
 }
 
 /*
@@ -121,24 +123,19 @@ static const CGFloat SHADOWLIST_KIT_SWIPE_FONT_SIZE = 13;
   for (NSButton *button in other) {
     button.hidden = YES;
   }
-  CGSize size = self.bounds.size;
-  CGFloat crossSize = _horizontal ? size.height : size.width;
-  CGFloat alongSize = _horizontal ? size.width : size.height;
-  swipeButtonSpans(leading ? _leadingWidths : _trailingWidths, offset, full, crossSize, _spans);
-  for (NSUInteger at = 0; at < shown.count && at < _spans.size(); ++at) {
+  ShadowListKitLayOutSwipe(leading ? _leadingWidths : _trailingWidths, offset, full, self.bounds.size, _horizontal, _spans,
+    _layout);
+  for (NSUInteger at = 0; at < shown.count && at < _layout.buttons.size(); ++at) {
     NSButton *button = shown[at];
-    CGFloat start = (CGFloat)_spans[at].start;
-    CGFloat width = (CGFloat)_spans[at].size;
-    button.hidden = width <= 0;
-    button.frame = _horizontal ? CGRectMake(0, start, alongSize, width) : CGRectMake(start, 0, width, alongSize);
+    CGRect frame = _layout.buttons[at];
+    button.hidden = (_horizontal ? frame.size.height : frame.size.width) <= 0;
+    button.frame = frame;
   }
   _backgroundColor = (leading ? _leadingActions : _trailingActions).firstObject.backgroundColor;
   [self updateColors];
   // Only the gap shows the buttons' color.
-  SwipeSpan gap = swipeRevealedSpan(offset, crossSize);
   _mask.backgroundColor = NSColor.blackColor.CGColor;
-  _mask.frame = _horizontal ? CGRectMake(0, (CGFloat)gap.start, alongSize, (CGFloat)gap.size)
-                            : CGRectMake((CGFloat)gap.start, 0, (CGFloat)gap.size, alongSize);
+  _mask.frame = _layout.gap;
   self.layer.mask = _mask;
   [CATransaction commit];
 }
