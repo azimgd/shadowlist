@@ -209,6 +209,11 @@ public class ShadowListView extends FrameLayout {
    */
   private boolean mDragEventSent = false;
   private boolean mMomentumEventSent = false;
+  /*
+   * The finger lifted from a drag that had no fling yet. A fling the inner scroll view starts
+   * after the lift still sends its momentum begin.
+   */
+  private boolean mDragEndedAtRest = false;
   private int mFlingVelocity = 0;
 
   /*
@@ -379,10 +384,12 @@ public class ShadowListView extends FrameLayout {
     mGeometryHandle = 0;
     mRefreshAwaitingSettle = false;
     removeCallbacks(mRefreshSettleRunnable);
-    removeCallbacks(mSnapSettleRunnable);
-    removeCallbacks(mLandingRunnable);
+    cancelLiftRunnables();
+    mTouching = false;
+    mTouchStoppedFling = false;
     mDragEventSent = false;
     mMomentumEventSent = false;
+    mDragEndedAtRest = false;
     mScrollEventEnabled = false;
     mScrollTracker.reset(mScrollEventThrottle);
     stopSettling();
@@ -837,6 +844,7 @@ public class ShadowListView extends FrameLayout {
     mSync.disarm();
     mTouching = true;
     mDragEventSent = false;
+    mDragEndedAtRest = false;
     mFlingVelocity = 0;
     if (mMomentumEventSent) {
       // The touch stopped the fling.
@@ -844,6 +852,14 @@ public class ShadowListView extends FrameLayout {
       emitScrollEvent(ShadowListScrollEvent.MOMENTUM_END, 0, 0);
     }
     stopSettling();
+    cancelLiftRunnables();
+  }
+
+  /*
+   * The snap after a lift and the fallback landing of a command, which a touch or a recycle
+   * makes moot.
+   */
+  private void cancelLiftRunnables() {
     removeCallbacks(mSnapSettleRunnable);
     removeCallbacks(mLandingRunnable);
   }
@@ -874,6 +890,8 @@ public class ShadowListView extends FrameLayout {
       if (mSettling) {
         mMomentumEventSent = true;
         emitScrollEvent(ShadowListScrollEvent.MOMENTUM_BEGIN, mHorizontal ? velocity : 0, mHorizontal ? 0 : velocity);
+      } else {
+        mDragEndedAtRest = true;
       }
     }
     reportScrollPhase(mSettling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE);
@@ -990,6 +1008,14 @@ public class ShadowListView extends FrameLayout {
   void handleInnerFling(int velocity) {
     mFlingVelocity = velocity;
     mSettling = true;
+    if (mDragEndedAtRest && !mTouching && !mMomentumEventSent) {
+      // The fling came after the lift reported its phase. JS still hears the momentum begin.
+      mDragEndedAtRest = false;
+      mMomentumEventSent = true;
+      double dp = PixelUtil.toDIPFromPixel(velocity) / 1000.0;
+      emitScrollEvent(ShadowListScrollEvent.MOMENTUM_BEGIN, mHorizontal ? dp : 0, mHorizontal ? 0 : dp);
+      reportScrollPhase(SCROLL_PHASE_SETTLING);
+    }
     mSettleStableFrames = 0;
     mSettlePreviousScrollX = mScrollView.getScrollX();
     mSettlePreviousScrollY = mScrollView.getScrollY();
