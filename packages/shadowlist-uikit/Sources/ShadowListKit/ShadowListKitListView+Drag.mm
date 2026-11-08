@@ -162,12 +162,33 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 
 - (void)liftCell:(ShadowListKitListCell *)cell
 {
+  [self showLiftOfCell:cell];
+  [[UIImpactFeedbackGenerator new] impactOccurred];
+}
+
+/*
+ * A reload gave the held row a new cell. It shows lifted under the finger, and the cell it had
+ * loses the lift.
+ */
+- (void)adoptHeldCell:(ShadowListKitListCell *)cell
+{
+  ShadowListKitListCell *previous = _heldCell;
+  if (previous && previous != cell) {
+    previous.layer.zPosition = 0;
+    previous.layer.shadowOpacity = 0;
+  }
+  _heldCell = cell;
+  [self showLiftOfCell:cell];
+  [self placeHeldCell];
+}
+
+- (void)showLiftOfCell:(ShadowListKitListCell *)cell
+{
   cell.layer.zPosition = 2;
   cell.layer.shadowColor = UIColor.blackColor.CGColor;
   cell.layer.shadowOpacity = 0.18f;
   cell.layer.shadowRadius = 12;
   cell.layer.shadowOffset = CGSizeMake(0, 4);
-  [[UIImpactFeedbackGenerator new] impactOccurred];
 }
 
 #pragma mark - Follow
@@ -185,14 +206,23 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
     [self endDrag:NO];
     return;
   }
+  [self placeHeldCell];
+  std::size_t insertion = _driver.getDragInsertionIndex();
+  _driver.dragUpdateInsertion([self mountedIndices]);
+  [self applyDragShiftsAnimated:_driver.getDragInsertionIndex() != insertion];
+}
+
+- (void)placeHeldCell
+{
+  std::size_t held = _driver.getHeldIndex();
+  if (held == UNDEFINED_INDEX) {
+    return;
+  }
   CGPoint offset = self.contentOffset;
   CGPoint touch = CGPointMake(_dragTouch.x + offset.x, _dragTouch.y + offset.y);
   DragOffset placed = _driver.placeHeld(held, [self along:touch], [self cross:touch]);
   CGAffineTransform lift = CGAffineTransformMakeScale(SHADOWLIST_KIT_LIFT_SCALE, SHADOWLIST_KIT_LIFT_SCALE);
   _heldCell.transform = CGAffineTransformConcat(lift, [self transformAlong:placed.leading cross:placed.cross]);
-  std::size_t insertion = _driver.getDragInsertionIndex();
-  _driver.dragUpdateInsertion([self mountedIndices]);
-  [self applyDragShiftsAnimated:_driver.getDragInsertionIndex() != insertion];
 }
 
 - (std::vector<std::size_t>)mountedIndices

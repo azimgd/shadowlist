@@ -312,8 +312,9 @@ extern const char ShadowListKitListViewSelectionLink;
  * starts a press on an item that can move and returns whether the list took it.
  * releaseDragPress drops a held row and returns whether the press was the list's. updateDrag
  * places the held row under the mouse and slides the others, after every layout pass too.
- * endDrag: lets go of the held row, moving it in the data with commit. resetDragLookOfCell:
- * takes a recycled cell's drag translation and shadow off. itemsForDropOfRow:atRow:from:to: maps
+ * endDrag: lets go of the held row, moving it in the data with commit. adoptHeldCell: lifts the
+ * new cell a reload gave the held row. resetDragLookOfCell: takes a recycled cell's drag
+ * translation and shadow off. itemsForDropOfRow:atRow:from:to: maps
  * a drop to the items the delegate moves, NO when nothing would move.
  */
 @interface ShadowListKitListView (Drag)
@@ -323,6 +324,7 @@ extern const char ShadowListKitListViewSelectionLink;
 - (BOOL)releaseDragPress;
 - (void)updateDrag;
 - (void)endDrag:(BOOL)commit;
+- (void)adoptHeldCell:(ShadowListKitListCell *)cell;
 - (void)resetDragLookOfCell:(ShadowListKitListCell *)cell;
 - (BOOL)itemsForDropOfRow:(std::size_t)fromRow atRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to;
 

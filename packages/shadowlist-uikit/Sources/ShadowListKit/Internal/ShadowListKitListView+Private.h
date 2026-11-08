@@ -150,11 +150,12 @@ extern const char ShadowListKitListViewSelectionLink;
 
 /*
  * hasHeldRow says whether a row is held. UIScrollView's isDragging is the scroll gesture, not
- * this.
+ * this. adoptHeldCell: lifts the new cell a reload gave the held row.
  */
 @interface ShadowListKitListView (Drag)
 
 - (BOOL)hasHeldRow;
+- (void)adoptHeldCell:(ShadowListKitListCell *)cell;
 - (void)enableDragPress:(BOOL)enabled;
 - (void)applyDragShiftsAnimated:(BOOL)animated;
 

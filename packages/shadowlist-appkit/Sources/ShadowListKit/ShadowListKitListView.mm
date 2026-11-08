@@ -1206,6 +1206,10 @@ struct ShadowListKitPassGeometry {
   }
   cell.hidden = NO;
   [self applyStateToCell:cell key:key];
+  // A reload recycled the held row's cell. The new one takes its place under the mouse.
+  if (index == _driver.getHeldIndex()) {
+    [self adoptHeldCell:cell];
+  }
   if (cell.index != NSNotFound && [_delegate respondsToSelector:@selector(listView:willDisplayCell:atIndex:)]) {
     [_delegate listView:self willDisplayCell:cell atIndex:cell.index];
   }

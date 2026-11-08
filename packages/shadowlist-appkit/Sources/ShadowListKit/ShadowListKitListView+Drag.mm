@@ -256,6 +256,21 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
 
 - (void)liftCell:(ShadowListKitListCell *)cell
 {
+  [self showLiftOfCell:cell];
+  ShadowListKitPerformHaptic(NSHapticFeedbackPatternGeneric);
+}
+
+/*
+ * A reload gave the held row a new cell. It shows lifted, and updateDrag places it after the pass.
+ */
+- (void)adoptHeldCell:(ShadowListKitListCell *)cell
+{
+  _heldCell = cell;
+  [self showLiftOfCell:cell];
+}
+
+- (void)showLiftOfCell:(ShadowListKitListCell *)cell
+{
   CALayer *layer = cell.layer;
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
@@ -266,7 +281,6 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   layer.shadowRadius = DRAG_LIFT_SHADOW_RADIUS;
   layer.shadowOffset = CGSizeMake(0, DRAG_LIFT_SHADOW_OFFSET);
   [CATransaction commit];
-  ShadowListKitPerformHaptic(NSHapticFeedbackPatternGeneric);
 }
 
 - (void)startDragLink

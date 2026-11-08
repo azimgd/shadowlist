@@ -1187,6 +1187,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     if (appearing) {
       cell.visibility = VISIBLE
       applyState(cell, key)
+      // A reload recycled the held row's cell. The new one takes its place under the finger.
+      if (index == drag.heldIndex) drag.adoptHeldCell(cell)
       if (cell.index >= 0) delegate?.willDisplayCell(this, cell, cell.index)
     }
   }

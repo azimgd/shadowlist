@@ -93,6 +93,26 @@ final class DragTests: XCTestCase {
     XCTAssertEqual(list.shadowListKit_heldIndex, NSNotFound)
   }
 
+  func testReloadingTheHeldRowKeepsItLiftedInANewCell() throws {
+    let (harness, _) = makeHarness()
+    let list = harness.list
+    let start = try center(list, 2)
+    list.shadowListKit_mouseDown(at: start)
+    list.shadowListKit_mouseDrag(to: moved(start, y: 30))
+    list.reloadItems(at: IndexSet(integersIn: 2...3))
+    harness.layout()
+    list.shadowListKit_mouseDrag(to: moved(start, y: 40))
+    let cell = try XCTUnwrap(list.cellForItem(at: 2))
+    XCTAssertGreaterThan(cell.layer?.shadowOpacity ?? 0, 0)
+    XCTAssertEqual(try shownFrame(list, cell).midY, start.y + 40, accuracy: 0.5)
+    // Row 3 shows in its own place, whichever cell it got.
+    let next = try XCTUnwrap(list.cellForItem(at: 3))
+    XCTAssertFalse(next === cell)
+    XCTAssertEqual(next.layer?.shadowOpacity ?? 0, 0)
+    list.shadowListKit_mouseUp(at: moved(start, y: 40))
+    XCTAssertEqual(list.shadowListKit_heldIndex, NSNotFound)
+  }
+
   func testAPressBelowTheSlopIsAClick() throws {
     let (harness, recorder) = makeHarness()
     let list = harness.list

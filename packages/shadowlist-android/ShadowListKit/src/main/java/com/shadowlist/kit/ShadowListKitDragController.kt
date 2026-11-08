@@ -176,6 +176,23 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     list.invalidate()
   }
 
+  /*
+   * A reload gave the held row a new cell. It shows lifted under the finger, and the cell it had
+   * loses the lift.
+   */
+  fun adoptHeldCell(cell: ShadowListKitListCell) {
+    val previous = heldCell
+    if (previous != null && previous !== cell) {
+      previous.scaleX = 1f
+      previous.scaleY = 1f
+      previous.translationZ = 0f
+    }
+    heldCell = cell
+    cell.scaleX = ShadowListKitCore.LIFT_SCALE
+    cell.scaleY = ShadowListKitCore.LIFT_SCALE
+    cell.translationZ = LIFT_ELEVATION_DP * list.density
+  }
+
   // endregion
 
   // region Follow
