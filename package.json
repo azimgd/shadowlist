@@ -9,14 +9,14 @@
     "packages/shadowlist-fabric",
     "packages/shadowhash",
     "packages/shadowlist-wasm",
-    "templates/shadowlist-utils",
+    "packages/shadowlist-utils",
     "templates/shadowlist-fabric-example",
     "templates/shadowlist-macos-example"
   ],
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p templates/shadowlist-fabric-example/tsconfig.json && tsc -p templates/shadowlist-utils/tsconfig.json && tsc -p templates/shadowlist-macos-example/tsconfig.json --noEmit && tsc -b templates/shadowlist-web-example",
+    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p templates/shadowlist-fabric-example/tsconfig.json && tsc -p packages/shadowlist-utils/tsconfig.json && tsc -p templates/shadowlist-macos-example/tsconfig.json --noEmit && tsc -b templates/shadowlist-web-example",
     "test": "yarn workspace shadowlist run test && yarn workspace shadowlist-utils run test && yarn workspace shadowhash run test",
     "test:wasm": "yarn workspace shadowlist-wasm run test",
     "build:wasm": "yarn workspace shadowlist-wasm run build",
@@ -26,7 +26,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "docs:check": "node scripts/check-readmes.mjs",
-    "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish"
+    "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish",
+    "release:utils": "yarn workspace shadowlist-utils npm publish --tolerate-republish"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.3",

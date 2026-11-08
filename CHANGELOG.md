@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### ShadowListUtils
+
+- The package lives in `packages/shadowlist-utils` with the other published packages (it was under `templates/`), and `yarn release:utils` publishes it. A checkout dependency is `file:../shadowlist/packages/shadowlist-utils`.
+
 ### ShadowList (React Native)
 
 - `ShadowListDefaultsProvider` sets `showsVerticalScrollIndicator` and `showsHorizontalScrollIndicator` for every list under it that does not set its own (`useShadowListDefaults` reads them), so an app that hides scroll bars on one platform says so once instead of wrapping each list.

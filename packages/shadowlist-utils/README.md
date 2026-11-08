@@ -43,7 +43,7 @@ macOS uses source `.macos` variants without those UI kit peers; see the
 unavailable on macOS, and snapping lands without an animation; Inbox keeps selection and its menu opens on a right
 click, without swipe actions.
 
-An app outside this repo can depend on a checkout with `"shadowlist-utils": "file:../shadowlist/templates/shadowlist-utils"`.
+An app outside this repo can depend on a checkout with `"shadowlist-utils": "file:../shadowlist/packages/shadowlist-utils"`.
 Metro and TypeScript (`"customConditions": ["react-native"]`) read the TypeScript source. Add the folder to Metro's
 `watchFolders` and block its own `node_modules`.
 

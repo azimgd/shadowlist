@@ -47,7 +47,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/azimgd/shadowlist.git",
-    "directory": "templates/shadowlist-utils"
+    "directory": "packages/shadowlist-utils"
   },
   "author": "azimgd <me@azimgd.com> (https://github.com/azimgd)",
   "license": "MIT",
@@ -87,7 +87,7 @@
   "jest": {
     "testEnvironment": "node",
     "modulePaths": [
-      "<rootDir>/../../packages/shadowlist-fabric/node_modules"
+      "<rootDir>/../shadowlist-fabric/node_modules"
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/lib/"

@@ -32,7 +32,7 @@ const listRef = useRef<ShadowListCommands>(null);
 listRef.current?.scrollToIndex({ index: 42, viewPosition: 0.5 });
 ```
 
-See more: [ShadowList](packages/shadowlist-fabric/README.md), [ShadowListUtils](templates/shadowlist-utils/README.md)
+See more: [ShadowList](packages/shadowlist-fabric/README.md), [ShadowListUtils](packages/shadowlist-utils/README.md)
 
 ## UIKit
 
@@ -168,7 +168,7 @@ list.reloadData();
 | `packages/shadowlist-appkit` | AppKit list |
 | `packages/shadowlist-android` | Android list |
 | `packages/shadowlist-wasm` | Web list, on the core in WebAssembly |
-| `templates/shadowlist-utils` | List helpers, hooks and React Native list kits |
+| `packages/shadowlist-utils` | List helpers, hooks and React Native list kits |
 | `templates/shadowlist-fabric-example` | React Native example app for iOS and Android |
 | `templates/shadowlist-macos-example` | React Native macOS example app |
 | `templates/shadowlist-uikit-example` | UIKit example app |
