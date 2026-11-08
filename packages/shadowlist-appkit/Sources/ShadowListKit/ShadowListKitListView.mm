@@ -736,9 +736,14 @@ struct ShadowListKitPassGeometry {
   ShadowListKitPlace(cell, frame);
 }
 
+/*
+ * A driven list hides and shows a cell by its layer. A cell whose view is hidden (a new one, or
+ * one recycled while views placed the cells) is shown by its view: AppKit draws no hidden view,
+ * and its layer would show the row it held before, or nothing.
+ */
 - (void)setCell:(ShadowListKitListCell *)cell hidden:(BOOL)hidden
 {
-  if ([self placesByLayerCell:cell]) {
+  if ([self placesByLayerCell:cell] && (hidden || !cell.isHidden)) {
     if (cell.shown == hidden) {
       [cell setLayerHidden:hidden];
       [self noteViewsBehind];

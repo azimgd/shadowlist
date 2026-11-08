@@ -248,6 +248,40 @@ final class DrivenModeTests: XCTestCase {
   }
 
   /*
+   * AppKit draws no hidden view. A cell recycled while views placed the cells, or a new one, is
+   * shown by its view when a driven list mounts it, so it draws its new row while the views lag.
+   */
+  func testACellShownWhileTheViewsLagHasItsViewShown() throws {
+    let source = SizedTestSource(count: 2000)
+    let harness = ListHarness(source: source) {
+      $0.estimatedItemSize = 30
+      $0.allowsSelection = false
+    }
+    let list = harness.list
+    // Not driven yet: cells go back to the pool with their views hidden.
+    list.contentOffset = CGPoint(x: 0, y: 1000)
+    harness.layout()
+    list.contentOffset = .zero
+    harness.layout()
+    list.isScrollDriven = true
+    harness.layout()
+    harness.rest()
+    let content = try XCTUnwrap(list.subviews.first)
+    var y: CGFloat = 0
+    for _ in 0..<5 {
+      y += 200
+      list.contentOffset = CGPoint(x: 0, y: y)
+      harness.layout()
+    }
+    XCTAssertTrue(list.shadowListKit_viewsBehind)
+    let shown = content.subviews.compactMap { $0 as? TestCell }.filter { $0.layer?.isHidden == false }
+    XCTAssertFalse(shown.isEmpty)
+    for cell in shown {
+      XCTAssertFalse(cell.isHidden, "row \(cell.key) shows its layer under a hidden view")
+    }
+  }
+
+  /*
    * AppKit writes a view's frame and hidden state into its layer when it syncs them. A cell the
    * list moved by its layer stays where the list put it.
    */
