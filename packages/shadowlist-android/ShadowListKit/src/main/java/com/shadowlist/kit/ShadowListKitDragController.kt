@@ -1,5 +1,6 @@
 package com.shadowlist.kit
 
+import android.os.SystemClock
 import android.view.Choreographer
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -13,11 +14,6 @@ import kotlin.math.abs
  * the shifts come from the core's ListDriver, which runs the host layer's DragReorder.
  */
 internal class ShadowListKitDragController(private val list: ShadowListKitListView) : Choreographer.FrameCallback {
-  companion object {
-    private const val LIFT_ELEVATION_DP = 8f
-  }
-
-  private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
   private val touchSlop = ViewConfiguration.get(list.context).scaledTouchSlop
 
   /*
@@ -87,7 +83,7 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
    * whether the drag took the event.
    */
   fun handle(event: MotionEvent): Boolean {
-    if (!list.reorderEnabled && !list.hasMenus) return false
+    if (!list.reorderEnabled && !list.hasMenus && !hasHeldRow && !menuShown) return false
     touchX = event.x
     touchY = event.y
     if (menuShown) {
@@ -105,6 +101,16 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
   fun cancelPress() = cancelLongPress()
 
   /*
+   * The list left its window. A held row goes back without a move, and the next touch starts
+   * fresh even if this one never ended.
+   */
+  fun reset() {
+    end(false)
+    cancelLongPress()
+    menuShown = false
+  }
+
+  /*
    * A cell going back to the pool loses its shift. Reused for another row it must take that
    * row's shift even when the target matches the previous one.
    */
@@ -118,10 +124,12 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
         downX = event.x
         downY = event.y
         pressPending = true
-        list.postDelayed(longPress, longPressTimeout)
+        list.postDelayed(longPress, ShadowListKitCore.PRESS_DURATION_MS)
       }
       MotionEvent.ACTION_MOVE -> {
-        if (abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop) cancelLongPress()
+        val along = (list.along(event.x, event.y) - list.along(downX, downY)) / list.density
+        val cross = (list.cross(event.x, event.y) - list.cross(downX, downY)) / list.density
+        if (!ShadowListKitCore.dragPressHolds(along.toDouble(), cross.toDouble())) cancelLongPress()
       }
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> cancelLongPress()
     }
@@ -171,7 +179,7 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
 
   private fun lift(cell: ShadowListKitListCell) {
     cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-    cell.animate().scaleX(ShadowListKitCore.LIFT_SCALE).scaleY(ShadowListKitCore.LIFT_SCALE).translationZ(LIFT_ELEVATION_DP * list.density)
+    cell.animate().scaleX(ShadowListKitCore.LIFT_SCALE).scaleY(ShadowListKitCore.LIFT_SCALE).translationZ(liftElevation())
       .setDuration(ShadowListKitCore.LIFT_DURATION_MS).start()
     list.invalidate()
   }
@@ -190,8 +198,10 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     heldCell = cell
     cell.scaleX = ShadowListKitCore.LIFT_SCALE
     cell.scaleY = ShadowListKitCore.LIFT_SCALE
-    cell.translationZ = LIFT_ELEVATION_DP * list.density
+    cell.translationZ = liftElevation()
   }
+
+  private fun liftElevation(): Float = (ShadowListKitCore.LIFT_ELEVATION_DP * list.density).toFloat()
 
   // endregion
 
@@ -199,7 +209,7 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
 
   /*
    * Place the held row under the finger and slide the others to open the gap, in one core call.
-   * Rows mounted since the last frame jump straight to their shift.
+   * Rows mounted since the last frame jump straight to their shift. A new drop spot ticks.
    */
   fun update() {
     val cell = heldCell ?: return
@@ -214,11 +224,13 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     }
     for (at in 0 until count) frameRows[at] = frameCells[at].row
     val along = list.contentAlongAt(touchX, touchY).toDouble()
-    val held = list.core.dragFrame(along, list.contentCrossAt(touchX, touchY).toDouble(), frameRows, count, frameOut)
+    val now = SystemClock.uptimeMillis().toDouble()
+    val held = list.core.dragFrame(along, list.contentCrossAt(touchX, touchY).toDouble(), frameRows, count, now, frameOut)
     if (held < 0) {
       end(false)
       return
     }
+    if (frameOut[ShadowListKitCore.DRAG_FRAME_TICK] != 0.0) cell.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
     translate(cell, frameOut[ShadowListKitCore.DRAG_FRAME_HELD_ALONG].toFloat(), frameOut[ShadowListKitCore.DRAG_FRAME_HELD_CROSS].toFloat())
     val animated = frameOut[ShadowListKitCore.DRAG_FRAME_INSERTION_MOVED] != 0.0
     for (at in 0 until count) {

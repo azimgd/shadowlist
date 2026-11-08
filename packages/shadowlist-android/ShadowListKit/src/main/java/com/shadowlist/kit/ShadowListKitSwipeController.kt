@@ -105,6 +105,8 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     if (!tracking) {
       val crossDelta = list.cross(event.x, event.y) - list.cross(downX, downY)
       val alongDelta = list.along(event.x, event.y) - list.along(downX, downY)
+      // A list already scrolling under the finger keeps the touch.
+      if (list.gesture.isTracking) return false
       if (abs(crossDelta) <= touchSlop || abs(crossDelta) <= abs(alongDelta) || !begin(crossDelta)) return false
       tracking = true
       list.abandonScrollGesture()
@@ -125,6 +127,11 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     if (closingTouch) return false
     if (tracking) {
       tracking = false
+      // A cancelled swipe closes the row and never runs a full swipe's action.
+      if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+        close(true)
+        return true
+      }
       track(event)
       val tracker = velocityTracker
       tracker?.computeCurrentVelocity(1000)
@@ -159,7 +166,7 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     if (list.editing || list.hasHeldRow) return false
     val target = list.itemCellAt(downX, downY) ?: return false
     if (target === cell) {
-      animator?.cancel()
+      stopAnimator()
       return true
     }
     val leading = actions(target, leadingSide = true)
@@ -227,8 +234,13 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     }
   }
 
+  /*
+   * Ease the row to target. An animation another one replaced, or a cancelled one, ends
+   * nothing. ValueAnimator.cancel calls onAnimationEnd too, and a row grabbed again while it
+   * closed would otherwise lose its swipe under the finger.
+   */
   private fun animateTo(target: Float) {
-    animator?.cancel()
+    stopAnimator()
     val swiped = cell ?: return
     animator = ValueAnimator.ofFloat(offset, target).apply {
       duration = ShadowListKitCore.SWIPE_DURATION_MS
@@ -236,6 +248,8 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
       addUpdateListener { if (cell === swiped) apply(it.animatedValue as Float) }
       addListener(object : AnimatorListenerAdapter() {
         override fun onAnimationEnd(animation: Animator) {
+          if (animator !== animation) return
+          animator = null
           if (cell === swiped && target == 0f) tearDown()
         }
       })
@@ -243,13 +257,21 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     }
   }
 
+  private fun stopAnimator() {
+    val running = animator ?: return
+    animator = null
+    running.cancel()
+  }
+
   /*
-   * Run an action. Its completion closes the row, unless the action deleted it.
+   * Run an action. Its completion closes the row it was swiped open on, unless the action
+   * deleted the row or the row closed and opened again since. A reused cell can show another
+   * row by then, and the actions view of the swipe tells them apart.
    */
   private fun perform(action: ShadowListKitSwipeAction) {
-    val swiped = cell ?: return
+    val view = actionsView ?: return
     action.handler(action) { _ ->
-      list.post { if (cell === swiped) close(true) }
+      list.post { if (actionsView === view) close(true) }
     }
   }
 
@@ -259,14 +281,13 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
       animateTo(0f)
       return
     }
-    animator?.cancel()
+    stopAnimator()
     apply(0f)
     tearDown()
   }
 
   private fun tearDown() {
-    animator?.cancel()
-    animator = null
+    stopAnimator()
     actionsView?.let { list.removeSwipeActionsView(it) }
     actionsView = null
     cell?.let {
@@ -275,6 +296,17 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     cell = null
     offset = 0f
     pastFull = false
+  }
+
+  /*
+   * The list left its window. The open row closes, and the next touch starts fresh even if this
+   * one never ended.
+   */
+  fun reset() {
+    close(false)
+    tracking = false
+    closingTouch = false
+    buttonTouch = false
   }
 
   /*

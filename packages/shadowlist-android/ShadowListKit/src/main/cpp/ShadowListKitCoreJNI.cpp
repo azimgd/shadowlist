@@ -20,6 +20,7 @@
 #include <shadowlist-core/host/ListSections.hpp>
 #include <shadowlist-core/host/ListSelection.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
+#include <shadowlist-core/host/ScrollPhysics.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 #include <shadowlist-core/host/SectionIndex.hpp>
 #include <shadowlist-core/host/SwipeReveal.hpp>
@@ -67,6 +68,7 @@ struct Peer {
   sl::ListDriver driver;
   sl::ListSections sections;
   sl::ChangeAnimation changes;
+  sl::DragFeedback dragFeedback;
   JNIEnv* env = nullptr;
   jobject target = nullptr;
   jmethodID measureRow = nullptr;
@@ -214,6 +216,7 @@ enum DragFrameSlot {
   DRAG_FRAME_HELD_ALONG = 0,
   DRAG_FRAME_HELD_CROSS,
   DRAG_FRAME_INSERTION_MOVED,
+  DRAG_FRAME_TICK,
   DRAG_FRAME_SLOTS,
 };
 
@@ -310,6 +313,11 @@ enum ConstantSlot {
   CONSTANT_SECTION_INDEX_WIDTH,
   CONSTANT_CHANGE_DURATION_MS,
   CONSTANT_OFFSET_MOVED_THRESHOLD,
+  CONSTANT_DRAG_PRESS_DURATION_MS,
+  CONSTANT_DRAG_PRESS_SLOP,
+  CONSTANT_DRAG_LIFT_ELEVATION,
+  CONSTANT_SCROLL_ANIMATION_DURATION_MS,
+  CONSTANT_SCROLL_SETTLE_DURATION_MS,
   CONSTANT_SLOTS,
 };
 
@@ -557,7 +565,9 @@ JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeLand)(JNIEnv*, jclass, jlong
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBegin)(
   JNIEnv*, jclass, jlong handle, jint index, jdouble touchAlong, jdouble touchCross) {
   if (index >= 0) {
-    peerOf(handle)->driver.dragBegin(static_cast<std::size_t>(index), touchAlong, touchCross);
+    Peer* peer = peerOf(handle);
+    peer->driver.dragBegin(static_cast<std::size_t>(index), touchAlong, touchCross);
+    peer->dragFeedback.reset(peer->driver.getDragOriginIndex());
   }
 }
 
@@ -571,11 +581,12 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeHeldIndex)(JNIEnv*, jclass, jlon
 
 /*
  * One drag frame: place the held row under the touch, find the drop slot among the first count
- * rows and write the held row's offset and whether the slot moved into out's DRAG_FRAME_* slots,
- * then each row's shift as an along, cross pair. Returns the held row, or -1 when its key is gone.
+ * rows and write the held row's offset, whether the slot moved and whether the new slot ticks at
+ * nowMs into out's DRAG_FRAME_* slots, then each row's shift as an along, cross pair. Returns the
+ * held row, or -1 when its key is gone.
  */
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragFrame)(JNIEnv* env, jclass, jlong handle, jdouble touchAlong,
-  jdouble touchCross, jintArray rows, jint count, jdoubleArray out) {
+  jdouble touchCross, jintArray rows, jint count, jdouble nowMs, jdoubleArray out) {
   Peer* peer = peerOf(handle);
   sl::ListDriver& driver = peer->driver;
   std::size_t held = driver.getHeldIndex();
@@ -602,6 +613,7 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragFrame)(JNIEnv* env, jclass, 
   values[DRAG_FRAME_HELD_ALONG] = placed.leading;
   values[DRAG_FRAME_HELD_CROSS] = placed.cross;
   values[DRAG_FRAME_INSERTION_MOVED] = driver.getDragInsertionIndex() != insertion ? 1.0 : 0.0;
+  values[DRAG_FRAME_TICK] = peer->dragFeedback.shouldTick(driver.getDragInsertionIndex(), nowMs) ? 1.0 : 0.0;
   for (std::size_t at = 0; at < ints.size(); ++at) {
     sl::DragOffset shift = driver.dragShiftFor(indexFromJint(ints[at]));
     values[DRAG_FRAME_SLOTS + at * 2] = shift.leading;
@@ -618,6 +630,13 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragOriginIndex)(JNIEnv*, jclass
 
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragInsertionIndex)(JNIEnv*, jclass, jlong handle) {
   return jintFromIndex(peerOf(handle)->driver.getDragInsertionIndex());
+}
+
+/*
+ * Whether a press still picks a row up after the finger moved this far from where it went down.
+ */
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeDragPressHolds)(JNIEnv*, jclass, jdouble along, jdouble cross) {
+  return sl::dragPressHolds(along, cross) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeDragAutoScrollOffset)(
@@ -901,6 +920,11 @@ JNIEXPORT jdoubleArray JNICALL SHADOWLIST_KIT_JNI(nativeConstants)(JNIEnv* env, 
   values[CONSTANT_SECTION_INDEX_WIDTH] = sl::SECTION_INDEX_WIDTH;
   values[CONSTANT_CHANGE_DURATION_MS] = sl::CHANGE_DURATION_MS;
   values[CONSTANT_OFFSET_MOVED_THRESHOLD] = sl::OFFSET_MOVED_THRESHOLD;
+  values[CONSTANT_DRAG_PRESS_DURATION_MS] = sl::DRAG_PRESS_DURATION_MS;
+  values[CONSTANT_DRAG_PRESS_SLOP] = sl::DRAG_PRESS_SLOP;
+  values[CONSTANT_DRAG_LIFT_ELEVATION] = sl::DRAG_LIFT_ELEVATION;
+  values[CONSTANT_SCROLL_ANIMATION_DURATION_MS] = sl::SCROLL_ANIMATION_DURATION_MS;
+  values[CONSTANT_SCROLL_SETTLE_DURATION_MS] = sl::SCROLL_SETTLE_DURATION_MS;
   jdoubleArray array = env->NewDoubleArray(CONSTANT_SLOTS);
   if (array != nullptr) {
     env->SetDoubleArrayRegion(array, 0, CONSTANT_SLOTS, values);

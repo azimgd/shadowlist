@@ -91,6 +91,16 @@ internal class ShadowListKitRefreshIndicator(private val list: ShadowListKitList
     return false
   }
 
+  /*
+   * The list left its window. A pull the finger never let go of springs back at once.
+   */
+  fun reset() {
+    if (refreshing) return
+    animator?.cancel()
+    animator = null
+    pull = 0f
+  }
+
   fun setRefreshing(value: Boolean) {
     if (value == refreshing) return
     refreshing = value

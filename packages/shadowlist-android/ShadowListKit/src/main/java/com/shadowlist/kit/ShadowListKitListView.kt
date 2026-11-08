@@ -253,6 +253,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * item stays in its section.
    */
   var reorderEnabled = false
+    set(value) {
+      field = value
+      if (!value) drag.end(false)
+    }
 
   /*
    * Whether the reader scrolls the list: its touch scrolling, flings, edge pulls and nested
@@ -571,11 +575,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   override fun onDetachedFromWindow() {
     super.onDetachedFromWindow()
-    gesture.stop()
+    gesture.reset()
     gesture.releaseTracker()
-    drag.end(false)
-    swipe.close(false)
+    drag.reset()
+    swipe.reset()
     swipe.releaseTracker()
+    refresh.reset()
     selection.cancelHighlight()
     destroyCore()
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) contentNode?.discardDisplayList()
@@ -639,7 +644,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun scrollPhase(): Int = when {
     gesture.isTracking -> ShadowListKitCore.PHASE_DRAGGING
-    gesture.isFlinging -> ShadowListKitCore.PHASE_SETTLING
+    gesture.isSettling -> ShadowListKitCore.PHASE_SETTLING
     else -> ShadowListKitCore.PHASE_IDLE
   }
 
@@ -700,7 +705,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   fun setEditing(editing: Boolean, animated: Boolean) {
-    if (editing) swipe.close(animated)
+    if (editing) {
+      drag.end(false)
+      swipe.close(animated)
+    }
     for (cell in mounted.values) if (cell.editing != editing) cell.setEditing(editing, animated)
     editingState = editing
   }

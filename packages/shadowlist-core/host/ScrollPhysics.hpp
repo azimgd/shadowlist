@@ -29,6 +29,12 @@ constexpr double SCROLL_SPRING_TIME_MS = 75.0;
 constexpr double SCROLL_ANIMATION_DURATION_MS = 300.0;
 
 /*
+ * How long a scroll that came to rest between snap points takes to ease onto one, in
+ * milliseconds.
+ */
+constexpr double SCROLL_SETTLE_DURATION_MS = 250.0;
+
+/*
  * A mouse wheel never says it ended. It has once it is quiet for SCROLL_WHEEL_IDLE_MS. Fingers
  * that lift without momentum following within SCROLL_MOMENTUM_WAIT_MS end their gesture.
  */
