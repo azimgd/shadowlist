@@ -679,8 +679,10 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 }
 
 /*
- * The selectable row a step of rows away from the lead, or the next one past it the same way.
- * Without a lead a step forward starts at the first item and back at the last.
+ * The selectable row a step of rows away from the lead, or the next one past it by the same step.
+ * The core places a grid's rows, section rows included, in its columns in turn, and a step of
+ * numberOfColumns stays in the lead's column. Past the last row there is none. Without a lead a
+ * step forward starts at the first item and back at the last.
  */
 - (NSInteger)rowStepping:(NSInteger)step
 {
@@ -690,12 +692,10 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   }
   NSInteger lead = [self leadRow];
   NSInteger direction = step > 0 ? 1 : -1;
-  NSInteger target = lead == NSNotFound ? (step > 0 ? 0 : count - 1) : MIN(MAX(lead + step, 0), count - 1);
-  if (target == lead) {
-    return NSNotFound;
-  }
-  for (NSInteger row = target; row >= 0 && row < count; row += direction) {
-    if (row != lead && [self shouldSelectRow:(std::size_t)row]) {
+  NSInteger target = lead == NSNotFound ? (step > 0 ? 0 : count - 1) : lead + step;
+  NSInteger stride = lead == NSNotFound ? direction : step;
+  for (NSInteger row = target; row >= 0 && row < count; row += stride) {
+    if ([self shouldSelectRow:(std::size_t)row]) {
       return row;
     }
   }

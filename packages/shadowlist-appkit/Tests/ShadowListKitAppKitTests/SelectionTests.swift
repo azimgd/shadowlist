@@ -137,6 +137,20 @@ final class SelectionTests: XCTestCase {
     XCTAssertEqual(harness.selection, [8])
     harness.press(.up)
     XCTAssertEqual(harness.selection, [5])
+    // A refused item below is passed over in its column.
+    harness.recorder.refused = [8]
+    harness.press(.down)
+    XCTAssertEqual(harness.selection, [11])
+  }
+
+  func testDownInTheLastLineOfAGridStays() {
+    let harness = SelectionHarness(count: 9) { $0.numberOfColumns = 3 }
+    harness.click(7)
+    harness.press(.down)
+    XCTAssertEqual(harness.selection, [7])
+    harness.click(1)
+    harness.press(.up)
+    XCTAssertEqual(harness.selection, [1])
   }
 
   func testCommandArrowsGoToTheEndsAndRevealTheItem() {
