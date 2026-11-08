@@ -993,16 +993,22 @@ open class ShadowListKitListView @JvmOverloads constructor(
     return if (horizontal) view.measuredWidth else view.measuredHeight
   }
 
+  /*
+   * The header and the footer round their edges from the exact offset like the rows, which they
+   * meet without a gap.
+   */
   private fun layoutTemplates() {
-    headerView?.let { placeTemplate(it, 0, headerSize) }
-    footerView?.let { placeTemplate(it, footerStart.roundToInt(), footerSize) }
+    headerView?.let { placeTemplate(it, 0.0, headerSize) }
+    footerView?.let { placeTemplate(it, footerStart, footerSize) }
   }
 
-  private fun placeTemplate(view: View, start: Int, size: Int) {
+  private fun placeTemplate(view: View, start: Double, size: Int) {
+    val low = (start - offsetFraction).roundToInt()
+    val high = (start + size - offsetFraction).roundToInt()
     val left = paddingLeft
     val top = paddingTop
-    if (horizontal) layoutIfMoved(view, left + start, top, left + start + size, top + windowCross)
-    else layoutIfMoved(view, left, top + start, left + windowCross, top + start + size)
+    if (horizontal) layoutIfMoved(view, left + low, top, left + high, top + windowCross)
+    else layoutIfMoved(view, left, top + low, left + windowCross, top + high)
   }
 
   private fun layoutIfMoved(view: View, left: Int, top: Int, right: Int, bottom: Int) {

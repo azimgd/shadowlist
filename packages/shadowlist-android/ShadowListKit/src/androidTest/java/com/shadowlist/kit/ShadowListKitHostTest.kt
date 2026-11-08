@@ -345,6 +345,21 @@ class ShadowListKitHostTest {
     assertEquals(0, list.visibleCells.minOf { it.top })
   }
 
+  @Test
+  fun the_footer_meets_the_last_row_at_a_fractional_offset() = onMain {
+    // 41 rows end at 2260.125 pixels.
+    val rows = Rows(41, ROW_SIZE)
+    val list = ShadowListKitListView(context)
+    list.footerView = View(context).apply { minimumHeight = 100 }
+    makeList(rows, list)
+    scrollThrough(list, Int.MAX_VALUE)
+    list.adjustOffsetBy(-0.4)
+    layOut(list)
+    val last = list.visibleCells.maxByOrNull { it.index }!!
+    assertEquals(rows.keys.size - 1, last.index)
+    assertEquals(last.bottom, list.footerView!!.top)
+  }
+
   // endregion
 
   // region Layout pass hook
