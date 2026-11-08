@@ -1,10 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.10.0
 
-### shadowlist-utils
+### Breaking
 
-- `Form.Row` sets its label in the label colour instead of the secondary one, so a row reads as a settings list sets it: what it is in the primary ink, its value (`Form.Value`) in the secondary. A label and its value in the same gray read as one faint line.
+- Android: `scrollGestureEnabled` is `scrollDriven`, inverted, with no alias. `scrollDriven` hands the scrolling to a host and `scrollEnabled` off turns the reader's scrolling off.
+- AppKit: the getter of `scrollDriven` is `isScrollDriven`, so Swift spells the property `isScrollDriven` instead of `scrollDriven`.
+- Android: `ShadowListKitDefaultItemAnimator.CHANGE_DURATION_MS` is a `val` read from the core instead of a `const val`.
+- Android and the web: `retainSelection` and the per-change key repacking are gone. One `commitKeys` call sends the changed keys.
+- React Native: the raw `ShadowListView` sends `onMountedRangeChange`, `onViewabilityChange` (only `addedKeys` and `removedKeys`) and `onPrefetchChange` instead of `onMeasuredRangeChange` and `onViewableIndicesChange`, takes its keys through `keysStore`, `keysVersion` and `sizeSpecsVersion`, and the raw `ShadowListCellView` has no `index` prop. SectionList row keys are `\x1fh:`, `\x1fi:` and `\x1ff:` with the section key instead of `sh:`, `si:` and `sf:`.
+- React Native: SectionList and TreeList drop the props they do not support, with a `__DEV__` warning.
+- Core: scroll command and prop indices are `std::size_t` with `UNDEFINED_INDEX`, `prefetchWindow` is `prefetchRange`, `SL_LOG` is `SHADOWLIST_LOG`, `endEdit` and `Row::index` are removed, `ListDriver::reloadKeys` takes a splice and `KeyList` is a read-only view.
+- shadowhash: `decodePost` and `decodeText` refuse a hash over the exported `LIMITS` with `InvalidHashError`: over 1024 characters, a number over 3 bytes or not written the shortest way, more than 64 images, 1024 word nibbles or 65536 characters, words or breaks. The encoder keeps a run of breaks at 255 instead of wrapping past a byte.
 
 ### ShadowList (React Native)
 
@@ -71,6 +78,7 @@
 
 ### ShadowListUtils
 
+- `Form.Row` sets its label in the label colour instead of the secondary one, so a row reads as a settings list sets it: what it is in the primary ink, its value (`Form.Value`) in the secondary. A label and its value in the same gray read as one faint line.
 - `TemplateList` passes selection, keyboard selection, swipe actions, menus and `contentContainerStyle` through to the list.
 - `Grouped.Actions`, and swipe actions and a menu on `Grouped.Row`.
 - `Assistant.List` dismisses the keyboard on drag.

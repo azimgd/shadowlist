@@ -9,7 +9,7 @@ Maven Central:
 
 ```kotlin
 dependencies {
-  implementation("io.github.azimgd:shadowlist-kit:0.9.0")
+  implementation("io.github.azimgd:shadowlist-kit:0.10.0")
 }
 ```
 
@@ -17,7 +17,7 @@ JitPack, with `maven("https://jitpack.io")` in the repositories:
 
 ```kotlin
 dependencies {
-  implementation("com.github.azimgd.shadowlist:shadowlist-kit:v0.9.0")
+  implementation("com.github.azimgd.shadowlist:shadowlist-kit:v0.10.0")
 }
 ```
 

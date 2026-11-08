@@ -9,13 +9,13 @@ Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the Shadow
 A Mac app takes the ShadowListKitAppKit product of the same package.
 
 ```swift
-.package(url: "https://github.com/azimgd/shadowlist", from: "0.9.0")
+.package(url: "https://github.com/azimgd/shadowlist", from: "0.10.0")
 ```
 
 CocoaPods:
 
 ```ruby
-pod 'ShadowListKit', '~> 0.9'
+pod 'ShadowListKit', '~> 0.10'
 ```
 
 Then `import ShadowListKit` in Swift, or `#import <ShadowListKit/ShadowListKit.h>` in Objective-C.

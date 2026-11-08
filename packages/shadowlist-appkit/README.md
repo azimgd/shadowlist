@@ -16,14 +16,14 @@ ShadowListKit product is the UIKit kit and builds for iOS only, and `swift build
 `--target ShadowListKitAppKit`.
 
 ```swift
-.package(url: "https://github.com/azimgd/shadowlist", from: "0.9.0")
+.package(url: "https://github.com/azimgd/shadowlist", from: "0.10.0")
 ```
 
 CocoaPods: the ShadowListKit pod builds this kit on macOS.
 
 ```ruby
 platform :osx, '14.0'
-pod 'ShadowListKit', '~> 0.9'
+pod 'ShadowListKit', '~> 0.10'
 ```
 
 Then `import ShadowListKitAppKit` in Swift with Swift Package Manager, `import ShadowListKit` with CocoaPods, or
