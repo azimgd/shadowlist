@@ -745,9 +745,13 @@ open class ShadowListKitListView @JvmOverloads constructor(
     swipe.cellWillRecycle(cell)
     drag.cellWillRecycle(cell)
     cell.cancelAnimations()
+    // A drop cancelled part way leaves its lift: the next row would show raised and scaled.
     cell.alpha = 1f
     cell.translationX = 0f
     cell.translationY = 0f
+    cell.translationZ = 0f
+    cell.scaleX = 1f
+    cell.scaleY = 1f
     setCellShown(cell, false)
     cell.index = ShadowListKitListCell.NO_INDEX
     cell.row = ShadowListKitListCell.NO_INDEX

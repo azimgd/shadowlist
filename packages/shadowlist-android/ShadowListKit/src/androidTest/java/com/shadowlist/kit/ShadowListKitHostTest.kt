@@ -50,6 +50,22 @@ class ShadowListKitHostTest {
     override fun exactSizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Double = size
   }
 
+  /*
+   * Rows whose sizes a test changes one by one.
+   */
+  private class SizedRows(count: Int, size: Double) :
+    ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+    val keys = MutableList(count) { "row$it" }
+    val sizes = MutableList(count) { size }
+
+    override fun numberOfItems(listView: ShadowListKitListView): Int = keys.size
+    override fun keyForItem(listView: ShadowListKitListView, index: Int): String = keys[index]
+    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+      listView.dequeueReusableCell("row")
+    override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = sizes[index].roundToInt()
+    override fun exactSizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Double = sizes[index]
+  }
+
   private class CountingListView(context: Context) : ShadowListKitListView(context) {
     var layoutPasses = 0
     var mountedInPass = false
@@ -546,4 +562,38 @@ class ShadowListKitHostTest {
   }
 
   // endregion
+
+  @Test
+  fun the_last_row_grown_by_a_reload_takes_its_new_size() = onMain {
+    val rows = SizedRows(3, ROW_SIZE)
+    val list = ShadowListKitListView(context)
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    list.dataSource = rows
+    list.reloadData()
+    layOut(list)
+    rows.sizes[2] = ROW_SIZE * 4
+    list.reloadItems(intArrayOf(2))
+    layOut(list)
+    val rect = requireNotNull(list.rectForItem(2))
+    val cell = requireNotNull(list.cellForItem(2))
+    assertEquals(ROW_SIZE * 4, rect.height().toDouble(), 1.0)
+    assertEquals(rect.height().toDouble(), cell.height.toDouble(), 1.0)
+  }
+
+  @Test
+  fun a_recycled_cell_comes_back_without_a_lift() = onMain {
+    val rows = Rows(500, ROW_SIZE)
+    val list = makeList(rows)
+    val lifted = requireNotNull(list.cellForItem(2))
+    // A drop cancelled part way leaves the lift on the cell.
+    lifted.scaleX = 1.03f
+    lifted.scaleY = 1.03f
+    lifted.translationZ = 21f
+    list.scrollTo(0, (300 * ROW_SIZE).roundToInt())
+    // Row 2 left: its cell went back to the pool, or already shows another row.
+    assertTrue(list.cellForItem(2) == null)
+    assertEquals(1f, lifted.scaleX)
+    assertEquals(1f, lifted.scaleY)
+    assertEquals(0f, lifted.translationZ)
+  }
 }
