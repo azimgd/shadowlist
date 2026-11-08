@@ -103,7 +103,8 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
     }
     val position = pinnedSectionIndex(list.exactOffset)
     val active = if (position >= 0) stickyRows[position] else -1
-    val cell = list.mountedCell(active)
+    // A held sticky item follows the finger from its own row.
+    val cell = list.mountedCell(active)?.takeIf { it !== list.heldCell }
     val previous = stickyCell
     if (previous != null && previous !== cell) unpinCell(previous)
     stickyCell = cell

@@ -1823,11 +1823,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal fun cellAt(x: Float, y: Float): ShadowListKitListCell? {
     val contentX = x + scrollX
     val contentY = y + scrollY
+    fun hit(cell: ShadowListKitListCell): Boolean = cell.visibility == VISIBLE && cell.row >= 0 &&
+      contentX >= cell.left && contentX < cell.right && contentY >= cell.top && contentY < cell.bottom
+    // A pinned header covers the rows under it.
+    stickyPinning.stickyCell?.let { if (hit(it)) return it }
     for (cell in mounted.values) {
-      if (cell.visibility == VISIBLE && cell.row >= 0 &&
-        contentX >= cell.left && contentX < cell.right && contentY >= cell.top && contentY < cell.bottom) {
-        return cell
-      }
+      if (hit(cell)) return cell
     }
     return null
   }
@@ -2270,6 +2271,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     reorderEnabled && !editingState && drag.begin(x, y)
 
   internal val hasHeldRow: Boolean get() = drag.hasHeldRow
+  internal val heldCell: ShadowListKitListCell? get() = drag.heldCell
 
   /*
    * The held row was dropped. Move it in the data and keep it where it was let go. Returns
