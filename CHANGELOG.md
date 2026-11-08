@@ -33,7 +33,7 @@
 ### ShadowListKit (iOS and Android)
 
 - Android: `Sizing.exactSizeForItem` gives an item a size with its fraction of a pixel, and rows sit on whole pixels rounded from the exact sum of the sizes before them.
-- Android: a view that owns the scrolling can host the list. `scrollGestureEnabled` turns off its touch scrolling, `adjustOffsetBy(delta)` moves its offset by a fractional delta and a subclass's `didLayOut()` runs after every layout pass.
+- Android: a view that owns the scrolling can host the list. `scrollDriven` hands it the scrolling, `scrollEnabled` turns the reader's scrolling off and keeps taps, swipe actions and reordering, `adjustOffsetBy(delta)` moves the offset by a fractional delta and a subclass's `didLayOut()` runs after every layout pass.
 - Android: a host library builds the kit's native library against its own copy of the core with `SHADOWLIST_KIT_CORE_DIR` and adds definitions with `SHADOWLIST_KIT_COMPILE_DEFINITIONS`.
 - iOS: the swipe action, swipe configuration, anchor state and list changes classes live in `ShadowListKitListModels.h`, which `ShadowListKitListView.h` imports. The API is the same.
 - `followAppends` also keeps items growing at the end in view.

@@ -253,19 +253,38 @@ open class ShadowListKitListView @JvmOverloads constructor(
   var reorderEnabled = false
 
   /*
-   * The list's own touch scrolling, flings, edge pulls and nested scrolling. Off, the list takes
-   * no touch to scroll and a view around it owns the gesture and moves the list through
-   * scrollTo, scrollToItem and adjustOffsetBy. Taps, swipe actions and reordering stay. On by
-   * default.
+   * Whether the reader scrolls the list: its touch scrolling, flings, edge pulls and nested
+   * scrolling. Off, a drag scrolls nothing and the scroll commands still move the list. Taps, swipe
+   * actions and reordering stay. On by default.
    */
-  var scrollGestureEnabled = true
+  var scrollEnabled = true
     set(value) {
       field = value
-      if (!value) {
-        gesture.abandon()
-        gesture.stop()
-      }
+      if (!userScrolls) stopUserScrolling()
     }
+
+  /*
+   * A view around the list owns the scrolling and moves the list with scrollTo, scrollToItem and
+   * adjustOffsetBy, like the Mac kit's scrollDriven. The reader's scrolling is off as with
+   * scrollEnabled off, and a scroll command lands without an animation. The list still corrects
+   * its own offset to keep the visible rows still, and a subclass hears of each pass in didLayOut.
+   * Off by default.
+   */
+  var scrollDriven = false
+    set(value) {
+      field = value
+      if (!userScrolls) stopUserScrolling()
+    }
+
+  /*
+   * The reader scrolls the list with touch.
+   */
+  private val userScrolls: Boolean get() = scrollEnabled && !scrollDriven
+
+  private fun stopUserScrolling() {
+    gesture.abandon()
+    gesture.stop()
+  }
 
   /*
    * Animate insertItems, deleteItems, reloadData, batches and applyChanges through itemAnimator:
@@ -1529,13 +1548,13 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * A touch that closed an open row never reaches the rows. The list keeps it to scroll.
    */
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean =
-    (scrollGestureEnabled && gesture.intercept(event)) || swipe.closingTouch
+    (userScrolls && gesture.intercept(event)) || swipe.closingTouch
 
   /*
-   * Without scrollGestureEnabled a touch no row took goes back to the parent.
+   * Without the reader's scrolling the list still takes a touch no row took, for its taps, swipe
+   * actions and reordering, and scrolls nothing with it. A parent that pans intercepts the moves.
    */
-  override fun onTouchEvent(event: MotionEvent): Boolean =
-    if (scrollGestureEnabled) gesture.touch(event) else super.onTouchEvent(event)
+  override fun onTouchEvent(event: MotionEvent): Boolean = if (userScrolls) gesture.touch(event) else true
 
   override fun computeScroll() = gesture.computeScroll()
 
@@ -1777,7 +1796,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun scrollToRow(row: Int, viewPosition: Double, animated: Boolean) {
     if (row !in keys.indices) return
-    val target = if (animated) core.animatedTargetOffset(row, viewPosition, windowAlong.toDouble(), maxOffset.toDouble())
+    val target = if (animated && !scrollDriven) core.animatedTargetOffset(row, viewPosition, windowAlong.toDouble(), maxOffset.toDouble())
       else Double.NaN
     if (!target.isNaN()) {
       // Animate to the estimate, then let the core land exactly when the animation ends.
@@ -1790,7 +1809,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   fun scrollToStart(animated: Boolean = false) {
-    if (animated) {
+    if (animated && !scrollDriven) {
       // The header shows at the very start, which landing on row 0 would scroll past.
       animateCommand(0, ShadowListKitCore.LANDING_START)
       return
@@ -1801,7 +1820,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   fun scrollToEnd(animated: Boolean = false) {
-    if (animated) {
+    if (animated && !scrollDriven) {
       animateCommand(maxOffset, ShadowListKitCore.LANDING_END)
       return
     }

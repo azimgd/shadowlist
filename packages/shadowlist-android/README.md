@@ -79,7 +79,7 @@ has full signatures and defaults.
 | Pull to refresh | `refreshEnabled`, `refreshing`, delegate `didBeginRefreshing` | Draws its own spinner, without a SwipeRefreshLayout dependency. Works in horizontal lists too. |
 | Separators | `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`, `separatorThickness`, delegate `showsSeparatorAfterItem`, `addItemDecoration` | Only between items of one section. `ShadowListKitItemDecoration` draws below or above the rows, like RecyclerView's ItemDecoration without item offsets. |
 | Queries | `cellForItem`, `visibleCells`, `visibleRange`, `rectForItem`, `contentSize`, `numberOfSections`, `sectionForItem`, `firstItemIndexInSection`, `rectForHeaderInSection`, `rectForFooterInSection` | `visibleRange` runs low to high, null before the first layout. Section header and footer rows do not count. |
-| Scrolling | `scrollToItem(index, viewPosition, animated)`, `scrollToSection`, `scrollToStart`, `scrollToEnd`, `adjustOffsetBy(delta)`, `scrollGestureEnabled` | `viewPosition` goes from 0 at the viewport start to 1 at the end. The core keeps correcting until the item lands. See [Hosting the list](#hosting-the-list) for the last two. |
+| Scrolling | `scrollToItem(index, viewPosition, animated)`, `scrollToSection`, `scrollToStart`, `scrollToEnd`, `adjustOffsetBy(delta)`, `scrollEnabled`, `scrollDriven` | `viewPosition` goes from 0 at the viewport start to 1 at the end. The core keeps correcting until the item lands. `scrollEnabled` off stops the reader's scrolling and keeps taps, swipe actions and reordering. See [Driven mode](#driven-mode) for the last three. |
 | Saved position | `anchorState`, `restoreAnchorState` | The key at the viewport start and the distance into it. Lands now or once a reload brings the key. Saved in `onSaveInstanceState` when the list has an id. |
 | Accessibility | `CollectionInfo` for all rows, `CollectionItemInfo` per cell | Page scrolls and scroll to position reach rows that are not mounted, which lets TalkBack move past the mounted rows. |
 
@@ -97,21 +97,25 @@ These combinations do nothing:
 - `sectionIndexTitles` in a horizontal list.
 - `followAppends` without `inverted`.
 
-## Hosting the list
+## Driven mode
 
 A view that owns the scrolling, like a spreadsheet grid that pans on two axes, can put the list
-inside itself and drive it:
+inside itself and drive it, the way `scrollDriven` drives the AppKit kit:
 
-- `scrollGestureEnabled = false` turns off the list's touch scrolling, flings, edge pulls and
-  nested scrolling. The list takes no drag and a touch no row took goes back to the parent. The
-  host moves the list with `scrollTo`, `scrollToItem` and `adjustOffsetBy`. Taps, swipe actions and
-  reordering stay with their own switches.
+- `scrollDriven = true` turns off the list's touch scrolling, flings, edge pulls and nested
+  scrolling, as `scrollEnabled = false` does, and lands animated scroll commands at once. The host
+  moves the list with `scrollTo`, `scrollToItem` and `adjustOffsetBy`. The list still takes a touch
+  no row took, for its taps, swipe actions and reordering, which keep their own switches. A host
+  that pans intercepts the moves in its `onInterceptTouchEvent`, or takes every touch and handles
+  taps itself.
 - `adjustOffsetBy(delta: Double)` moves the offset by `delta` pixels, fractions included, and lays
   out right away. `scrollTo` holds the offset inside the content size, which counts estimates for
   rows not measured yet. This one leaves that to the layout pass, which measures the rows at the
   new offset first.
 - A subclass overrides `didLayOut()`, which runs after every layout pass once the rows it measured
-  and the cells it mounted are in place, before the frame is drawn.
+  and the cells it mounted are in place, before the frame is drawn. The host is the list's subclass
+  here, where the Mac's host is its delegate. The list also moves its own offset to keep the visible
+  rows still, where the Mac list asks its delegate to.
 - `performBatchUpdates` that deletes rows at one end and inserts rows at the other keeps the
   visible rows where they are on screen by key, in the layout pass that follows.
 - `importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS` hides the list

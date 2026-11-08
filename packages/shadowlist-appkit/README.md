@@ -329,8 +329,8 @@ Only on the Mac so far, not in the UIKit or Android kits:
 - The swipe actions as accessibility custom actions.
 - Move up, down, left and right accessibility actions with `reorderEnabled`.
 - Keyboard selection, type select, activation, hover, emphasis and `clickedIndex`.
-- `scrollDriven` with `listView:didCorrectOffset:`, and `listViewDidLayOut:`. The Android kit serves a driven host
-  with `scrollGestureEnabled`, `adjustOffsetBy` and `didLayOut` instead.
+- `listView:didCorrectOffset:` and `listViewDidLayOut:` for a driven list. The Android kit has `scrollDriven` too,
+  and its list moves itself with `adjustOffsetBy` and calls a subclass's `didLayOut` instead.
 - `ShadowListKitScrollEngine` and `ShadowListKitScrollerView`.
 
 ## Layout

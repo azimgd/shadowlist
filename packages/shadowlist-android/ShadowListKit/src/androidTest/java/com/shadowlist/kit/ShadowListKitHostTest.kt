@@ -17,8 +17,8 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /*
- * What a view that hosts the list relies on: exact item sizes, the scroll gesture switched off,
- * offset adjustments, batches that keep the visible rows still and the layout pass hook.
+ * What a view that hosts the list relies on: exact item sizes, driven mode and the scroll
+ * switch, offset adjustments, batches that keep the visible rows still and the layout pass hook.
  */
 @RunWith(AndroidJUnit4::class)
 class ShadowListKitHostTest {
@@ -178,30 +178,49 @@ class ShadowListKitHostTest {
 
   // endregion
 
-  // region Scroll gesture
+  // region Driven and scroll switches
+
+  /*
+   * Takes the moves of a touch once it pans past the slop, the way a view that owns the
+   * scrolling does, and counts them.
+   */
+  private class PanningParent(context: Context) : FrameLayout(context) {
+    var moves = 0
+    private var downY = 0f
+
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+      if (event.actionMasked == MotionEvent.ACTION_DOWN) downY = event.y
+      return event.actionMasked == MotionEvent.ACTION_MOVE && abs(event.y - downY) > 20
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+      if (event.actionMasked == MotionEvent.ACTION_MOVE) moves += 1
+      return true
+    }
+  }
+
+  private fun drag(parent: View, from: Float, to: FloatArray) {
+    val downTime = SystemClock.uptimeMillis()
+    parent.dispatchTouchEvent(touch(MotionEvent.ACTION_DOWN, from, downTime))
+    for (y in to) parent.dispatchTouchEvent(touch(MotionEvent.ACTION_MOVE, y, downTime))
+    parent.dispatchTouchEvent(touch(MotionEvent.ACTION_UP, to.last(), downTime))
+  }
 
   @Test
-  fun a_list_with_the_scroll_gesture_off_takes_no_drag() = onMain {
+  fun a_driven_list_takes_no_drag_and_a_tap_through_its_parent_still_selects() = onMain {
     val parent = NestedParent(context)
     val list = ShadowListKitListView(context)
     parent.addView(list)
     makeList(Rows(500, ROW_SIZE), list)
     layOut(parent)
-    list.scrollGestureEnabled = false
+    list.scrollDriven = true
 
-    val downTime = SystemClock.uptimeMillis()
-    val down = touch(MotionEvent.ACTION_DOWN, 1500f, downTime)
-    assertFalse(list.onInterceptTouchEvent(down))
-    assertFalse(list.dispatchTouchEvent(down))
-    for (y in floatArrayOf(1400f, 1200f, 900f, 500f)) {
-      val move = touch(MotionEvent.ACTION_MOVE, y, downTime)
-      assertFalse(list.onInterceptTouchEvent(move))
-      assertFalse(list.dispatchTouchEvent(move))
-    }
-    list.dispatchTouchEvent(touch(MotionEvent.ACTION_UP, 500f, downTime))
-
+    drag(parent, 1500f, floatArrayOf(1400f, 1200f, 900f, 500f))
     assertEquals(0, list.scrollY)
     assertEquals(0, parent.nestedStarts)
+
+    drag(parent, 100f, floatArrayOf(100f))
+    assertEquals(listOf((100 / ROW_SIZE).toInt()), list.selectedIndices.toList())
 
     // The host moves the list instead.
     list.scrollTo(0, 1000)
@@ -209,24 +228,55 @@ class ShadowListKitHostTest {
   }
 
   @Test
-  fun a_list_with_the_scroll_gesture_on_takes_the_same_drag() = onMain {
+  fun a_parent_that_pans_takes_the_moves_of_a_driven_list() = onMain {
+    val parent = PanningParent(context)
+    val list = ShadowListKitListView(context)
+    parent.addView(list)
+    makeList(Rows(500, ROW_SIZE), list)
+    layOut(parent)
+    list.scrollDriven = true
+
+    drag(parent, 1500f, floatArrayOf(1490f, 1400f, 1200f, 900f))
+    assertTrue(parent.moves >= 2)
+    assertEquals(0, list.scrollY)
+    assertTrue(list.selectedIndices.isEmpty())
+  }
+
+  @Test
+  fun a_list_without_scrolling_takes_no_drag_and_keeps_its_animated_commands() = onMain {
+    val parent = NestedParent(context)
+    val list = ShadowListKitListView(context)
+    parent.addView(list)
+    makeList(Rows(500, ROW_SIZE), list)
+    layOut(parent)
+    list.scrollEnabled = false
+
+    drag(parent, 1500f, floatArrayOf(1400f, 1200f, 900f, 500f))
+    assertEquals(0, list.scrollY)
+    assertEquals(0, parent.nestedStarts)
+
+    list.scrollToItem(300, 0.0, animated = true)
+    assertTrue(list.scrollY < 300 * ROW_SIZE - 1)
+  }
+
+  @Test
+  fun a_driven_list_lands_an_animated_command_at_once() = onMain {
+    val list = makeList(Rows(500, ROW_SIZE))
+    list.scrollDriven = true
+    list.scrollToItem(300, 0.0, animated = true)
+    assertEquals(list.rectForItem(300)!!.top.toDouble(), list.exactOffset, 1.0)
+    assertEquals(300, list.visibleRange!!.first)
+  }
+
+  @Test
+  fun a_list_with_scrolling_on_takes_the_same_drag() = onMain {
     val parent = NestedParent(context)
     val list = ShadowListKitListView(context)
     parent.addView(list)
     makeList(Rows(500, ROW_SIZE), list)
     layOut(parent)
 
-    val downTime = SystemClock.uptimeMillis()
-    list.dispatchTouchEvent(touch(MotionEvent.ACTION_DOWN, 1500f, downTime))
-    var intercepted = false
-    for (y in floatArrayOf(1400f, 1200f, 900f, 500f)) {
-      val move = touch(MotionEvent.ACTION_MOVE, y, downTime)
-      intercepted = intercepted || list.onInterceptTouchEvent(move)
-      list.onTouchEvent(move)
-    }
-    list.onTouchEvent(touch(MotionEvent.ACTION_CANCEL, 500f, downTime))
-
-    assertTrue(intercepted)
+    drag(parent, 1500f, floatArrayOf(1400f, 1200f, 900f, 500f))
     assertTrue(list.scrollY > 0)
     assertTrue(parent.nestedStarts > 0)
   }
