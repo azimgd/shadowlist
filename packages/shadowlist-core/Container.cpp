@@ -81,14 +81,21 @@ void Container::endRevision() {
   dispatchObservers();
 }
 
+/*
+ * The newest scroll command wins. Each one replaces any command still pending.
+ */
 void Container::scrollToRow(std::size_t index, double viewPosition, double viewOffset) {
   scrollToRowTarget = index;
   scrollToRowViewPosition = viewPosition;
   scrollToRowViewOffset = viewOffset;
+  pendingScrollToStart = false;
+  pendingScrollToEnd = false;
 }
 
 void Container::scrollToEnd() {
   pendingScrollToEnd = true;
+  pendingScrollToStart = false;
+  scrollToRowTarget = UNDEFINED_INDEX;
 }
 
 void Container::scrollToStart() {

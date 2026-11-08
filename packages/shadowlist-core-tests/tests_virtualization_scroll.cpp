@@ -899,6 +899,30 @@ TEST(scroll_to_index_lands_on_the_requested_row) {
   checkNoRowLost(container, "after scrollToRow");
 }
 
+TEST(scroll_to_index_issued_while_scroll_to_end_is_pending_wins) {
+  Fixture fixture;
+  std::vector<std::string> keys = keysFor(500);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+
+  container.scrollToEnd();
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK(container.pendingScrollToEnd);
+  container.scrollToRow(120);
+  CHECK(!container.pendingScrollToEnd);
+
+  double offset = container.revision.offsetY;
+  for (int frame = 0; frame < 8; ++frame) {
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
+    offset = container.revision.offsetY;
+  }
+  CHECK_NEAR(offset, offsetOf(container, container.indexOfKey("k120")), 1.0);
+
+  container.scrollToEnd();
+  CHECK_EQ(container.scrollToRowTarget, UNDEFINED_INDEX);
+}
+
 TEST(content_shrinking_below_the_offset_pulls_the_view_back) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(300);
