@@ -1074,7 +1074,11 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 {
   // A swipe that began on a row is a scroll, not a press on that row.
   SLCancelReactTouches(self);
-  // An animation still waiting for its landing ends before the drag begins.
+  /*
+   * An animation still waiting for its landing ends before the drag begins. The finger owns
+   * the offset now, and a later animation does not wait for this landing either.
+   */
+  _landCommandSequence = 0;
   [self emitMomentumEndAfterLand];
   // An open row closes when the list scrolls.
   [self closeSwipeActionsExcept:nil];
