@@ -129,6 +129,32 @@ final class AnimationTests: XCTestCase {
     XCTAssertTrue(CATransform3DIsIdentity(layer.transform))
   }
 
+  /*
+   * AppKit syncs a cell's layer on a frame change and when it builds the layer tree. A slide and
+   * a transform the list set stay through both. A rotation of the cell still lands and comes off.
+   */
+  func testASlideAndATransformStayThroughARunLoopTurnAndAFrameChange() throws {
+    let harness = makeHarness()
+    let list = harness.list
+    harness.source.keys.insert("new", at: 2)
+    list.insertItems(at: IndexSet(integer: 2))
+    harness.layout()
+    let cell = try XCTUnwrap(list.cellForItem(at: 3))
+    let layer = try XCTUnwrap(cell.layer)
+    layer.transform = CATransform3DConcat(CATransform3DMakeScale(1.03, 1.03, 1), CATransform3DMakeTranslation(0, 44, 0))
+    RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+    cell.frame = cell.frame.offsetBy(dx: 0, dy: 1)
+    XCTAssertTrue((layer.animation(forKey: Self.moveKey) as? CABasicAnimation)?.isAdditive == true)
+    XCTAssertEqual(layer.transform.m42, 44, accuracy: 0.01)
+    XCTAssertEqual(layer.transform.m11, 1.03, accuracy: 0.0001)
+    cell.frameCenterRotation = 10
+    XCTAssertNotEqual(layer.transform.m12, 0)
+    cell.frameCenterRotation = 0
+    XCTAssertEqual(layer.transform.m11, 1, accuracy: 1e-9)
+    XCTAssertEqual(layer.transform.m12, 0, accuracy: 1e-9)
+    XCTAssertEqual(layer.transform.m42, 0, accuracy: 1e-9)
+  }
+
   func testAChangeWhileTheListHasNoSizeDoesNotAnimateLater() throws {
     let harness = makeHarness()
     let list = harness.list

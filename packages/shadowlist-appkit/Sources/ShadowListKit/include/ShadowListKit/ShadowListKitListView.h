@@ -10,7 +10,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 /*
  * The view that shows an item. It is flipped and layer backed, and its layer never animates a
- * change by itself. Subclasses lay out their subviews by hand in layout and report their height
+ * change by itself. The layer keeps the transform a drag gives it when AppKit syncs the layer's
+ * geometry, unless the cell is rotated. A subclass that overrides makeBackingLayer calls super
+ * to keep that. Subclasses lay out their subviews by hand in layout and report their height
  * in sizeThatFits:. Without an override, sizeThatFits: fits the cell's Auto Layout constraints to
  * the given width, which makes a cell built with constraints self-sizing. index is the item the
  * cell shows, or NSNotFound while it waits in the reuse pool and for a section header or footer.

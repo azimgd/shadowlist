@@ -447,4 +447,59 @@ final class DragTests: XCTestCase {
     }
     list.cancelOperation(nil)
   }
+
+  /*
+   * AppKit writes a view's rotation into its layer's transform whenever it syncs the layer, on
+   * a new layer tree and on a frame change. The shifts and the lift stay without a mouse move.
+   */
+  func testTheShiftsAndTheLiftStayThroughARunLoopTurnAndAFrameChange() throws {
+    let (harness, _) = makeHarness()
+    let list = harness.list
+    let start = try center(list, 2)
+    list.shadowListKit_mouseDown(at: start)
+    list.shadowListKit_mouseDrag(to: moved(start, y: 140))
+    let held = try XCTUnwrap(list.cellForItem(at: 2))
+    let shifted = try XCTUnwrap(list.cellForItem(at: 4))
+    spin(0.05)
+    shifted.setFrameOrigin(shifted.frame.origin)
+    shifted.frame = shifted.frame.offsetBy(dx: 0, dy: 1)
+    shifted.frame = shifted.frame.offsetBy(dx: 0, dy: -1)
+    XCTAssertEqual(shifted.layer?.transform.m42 ?? 0, -44, accuracy: 0.01)
+    let shown = try shownFrame(list, held)
+    XCTAssertEqual(shown.midY, start.y + 140, accuracy: 0.5)
+    XCTAssertGreaterThan(shown.height, 44)
+    list.cancelOperation(nil)
+  }
+
+  /*
+   * The end of a drop takes only the lift off the dropped cell. A new drag that shifted it by
+   * then keeps its shift.
+   */
+  func testTheEndOfADropKeepsTheShiftANewDragGaveTheDroppedCell() throws {
+    let (harness, recorder) = makeHarness()
+    let list = harness.list
+    let start = try center(list, 2)
+    list.shadowListKit_mouseDown(at: start)
+    list.shadowListKit_mouseDrag(to: moved(start, y: 140))
+    list.shadowListKit_mouseUp(at: moved(start, y: 140))
+    harness.layout()
+    XCTAssertEqual(recorder.moves, [[2, 5]])
+    let dropped = try XCTUnwrap(list.cellForItem(at: 5))
+    XCTAssertGreaterThan(dropped.layer?.shadowOpacity ?? 0, 0)
+    // Item 7 goes up past the middles of items 6 and 5, which make room below it.
+    let next = try center(list, 7)
+    list.shadowListKit_mouseDown(at: next)
+    list.shadowListKit_mouseDrag(to: moved(next, y: -100))
+    XCTAssertEqual(list.shadowListKit_dropIndex, 5)
+    XCTAssertEqual(dropped.layer?.transform.m42 ?? 0, 44, accuracy: 0.01)
+    spin(0.5)
+    XCTAssertEqual(dropped.layer?.shadowOpacity ?? 0, 0)
+    XCTAssertEqual(dropped.layer?.zPosition ?? 0, 0)
+    XCTAssertEqual(dropped.layer?.transform.m42 ?? 0, 44, accuracy: 0.01)
+    list.cancelOperation(nil)
+  }
+
+  private func spin(_ seconds: TimeInterval) {
+    RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+  }
 }

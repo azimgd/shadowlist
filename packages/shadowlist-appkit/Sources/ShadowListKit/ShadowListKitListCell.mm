@@ -1,6 +1,58 @@
 #import "Internal/ShadowListKitListCell+Private.h"
 #import "Internal/ShadowListKitListView+Private.h"
 
+#import <objc/runtime.h>
+
+static IMP ShadowListKitBaseSetAffineTransform;
+
+/*
+ * Drops an identity while the layer's transform has no rotation, which only the list sets. A
+ * rotation of the cell still lands and comes off.
+ */
+static void ShadowListKitCellLayerSetAffineTransform(CALayer *layer, SEL selector, CGAffineTransform transform)
+{
+  CATransform3D current = layer.transform;
+  BOOL unrotated = current.m12 == 0 && current.m21 == 0 && current.m11 > 0 && current.m22 > 0;
+  if (CGAffineTransformIsIdentity(transform) && unrotated) {
+    return;
+  }
+  ((void (*)(CALayer *, SEL, CGAffineTransform))ShadowListKitBaseSetAffineTransform)(layer, selector, transform);
+}
+
+/*
+ * AppKit owns the geometry of a layer backed view's layer. Whenever it syncs it, on a frame
+ * change and when it builds the layer tree a run loop turn after a view joins a window, it
+ * writes the view's rotation into the layer with setAffineTransform:. For a cell without a
+ * rotation that write is the identity, which took off the shift and the lift a drag keeps in the
+ * transform. A cell's layer is AppKit's own layer class with that write dropped, a subclass made
+ * at run time because AppKit's layer class is private. It is made once, for the first class
+ * AppKit gives. A layer of another class stays as it is.
+ */
+static Class ShadowListKitCellLayerClass(Class base)
+{
+  static Class cellLayerClass;
+  static Class cellLayerBase;
+  if (cellLayerBase) {
+    return cellLayerBase == base ? cellLayerClass : nil;
+  }
+  SEL selector = @selector(setAffineTransform:);
+  NSString *name = [@"ShadowListKitCellLayer_" stringByAppendingString:NSStringFromClass(base)];
+  Class subclass = objc_getClass(name.UTF8String);
+  if (!subclass) {
+    subclass = objc_allocateClassPair(base, name.UTF8String, 0);
+    if (!subclass) {
+      return nil;
+    }
+    Method method = class_getInstanceMethod(base, selector);
+    class_addMethod(subclass, selector, (IMP)ShadowListKitCellLayerSetAffineTransform, method_getTypeEncoding(method));
+    objc_registerClassPair(subclass);
+  }
+  ShadowListKitBaseSetAffineTransform = class_getMethodImplementation(base, selector);
+  cellLayerBase = base;
+  cellLayerClass = subclass;
+  return subclass;
+}
+
 @implementation ShadowListKitListCell
 
 - (instancetype)initWithReuseIdentifier:(NSString *)reuseIdentifier
@@ -25,6 +77,16 @@
 - (BOOL)wantsUpdateLayer
 {
   return YES;
+}
+
+- (CALayer *)makeBackingLayer
+{
+  CALayer *layer = [super makeBackingLayer];
+  Class cellLayerClass = ShadowListKitCellLayerClass(object_getClass(layer));
+  if (cellLayerClass) {
+    object_setClass(layer, cellLayerClass);
+  }
+  return layer;
 }
 
 /*
