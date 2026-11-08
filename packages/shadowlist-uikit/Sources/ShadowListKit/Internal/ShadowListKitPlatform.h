@@ -10,14 +10,16 @@
 #import <QuartzCore/QuartzCore.h>
 
 /*
- * The platform's color and image classes, for code both kits compile.
+ * The platform's color, image and font classes, for code both kits compile.
  */
 #if TARGET_OS_OSX
 typedef NSColor ShadowListKitColor;
 typedef NSImage ShadowListKitImage;
+typedef NSFont ShadowListKitFont;
 #else
 typedef UIColor ShadowListKitColor;
 typedef UIImage ShadowListKitImage;
+typedef UIFont ShadowListKitFont;
 #endif
 
 /*

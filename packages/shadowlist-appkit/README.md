@@ -338,10 +338,11 @@ Only on the Mac so far, not in the UIKit or Android kits:
 The files the two kits share live in the UIKit kit and are linked here: the key and index conversions
 (`ShadowListKitCoreBridge`), the platform names and helpers (`ShadowListKitPlatform.h`), the list's and the cell's
 private headers, the change animator (`ShadowListKitChangeAnimator`), the model classes (`ShadowListKitListModels.h`
-and `.mm`), the list's support classes' header and the `+Data`, `+Sections`, `+Commands` and `+Passes` categories.
-`+Passes` holds the layout pass: the core's passes, the cells, mounting, prefetching, measurement and separators. Each
-compiles once in each kit, and what differs sits behind `TARGET_OS_OSX`. The other categories are the UIKit kit's
-(`+Selection`, `+Accessibility`, `+Drag`, `+Actions`) on AppKit, plus `+Scrolling` for the engine and the scrollers.
+and `.mm`), the list's support classes' header, the text layout (`ShadowListKitText.h` and
+`ShadowListKitTextLayout.mm`) and the `+Data`, `+Sections`, `+Commands` and `+Passes` categories. `+Passes` holds the
+layout pass: the core's passes, the cells, mounting, prefetching, measurement and separators. Each compiles once in
+each kit, and what differs sits behind `TARGET_OS_OSX`. The other categories are the UIKit kit's (`+Selection`,
+`+Accessibility`, `+Drag`, `+Actions`) on AppKit, plus `+Scrolling` for the engine and the scrollers.
 
 ## Tests
 
