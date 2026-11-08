@@ -1,5 +1,5 @@
 /* eslint-disable no-bitwise */
-import { ByteReader, ByteWriter, InvalidHashError } from './bytes';
+import { ByteReader, ByteWriter, InvalidHashError, LIMITS } from './bytes';
 
 /*
  * The shape of a text without its words: the length of each word and where the paragraphs
@@ -12,8 +12,8 @@ export type TextShape =
   { kind: 'words'; tokens: number[] } | { kind: 'chars'; length: number };
 
 /*
- * maxNibbles is the number of nibbles kept word by word. Past them only the word count, break
- * count and mean length are.
+ * maxNibbles is the number of nibbles kept word by word, at most LIMITS.nibbles. Past them only
+ * the word count, break count and mean length are.
  */
 export interface TextOptions {
   maxNibbles?: number;
@@ -63,14 +63,15 @@ export function writeText(
   }
   const shape = measureText(text);
   if (shape.kind === 'chars') {
-    writer.varint((shape.length << 2) | Mode.Chars);
+    writer.varint((Math.min(shape.length, LIMITS.length) << 2) | Mode.Chars);
     return;
   }
+  const nibbleCap = Math.min(maxNibbles, LIMITS.nibbles);
   const nibbles: number[] = [];
   let kept = 0;
   for (const token of shape.tokens) {
     const next = token === 0 ? [0] : wordNibbles(token);
-    if (nibbles.length + next.length > maxNibbles) break;
+    if (nibbles.length + next.length > nibbleCap) break;
     nibbles.push(...next);
     kept++;
   }
@@ -86,10 +87,19 @@ export function writeText(
   const runs = rest.filter(
     (token, index) => token === 0 && rest[index - 1] !== 0
   ).length;
-  writer.varint(words.length);
-  writer.varint(runs);
-  if (runs > 0) {
-    writer.byte(Math.round((rest.length - words.length) / runs));
+  // A tail past LIMITS.length words or breaks keeps that many, and a run keeps at most 255.
+  const wordCount = Math.min(words.length, LIMITS.length);
+  const runCount = Math.min(runs, wordCount + 1);
+  writer.varint(wordCount);
+  writer.varint(runCount);
+  if (runCount > 0) {
+    writer.byte(
+      Math.min(
+        Math.round((rest.length - words.length) / runs),
+        Math.floor(LIMITS.length / runCount),
+        255
+      )
+    );
   }
   // Mean word length in sixteenths, up to 15.9 characters.
   writer.byte(
@@ -100,12 +110,26 @@ export function writeText(
 // Spread around the mean so the filled-in words do not read as a grid. It sums to zero.
 const SPREAD = [0, 2, -1, 1, -2, 0, 3, -1, -2, 0];
 
+/*
+ * Every count is checked against LIMITS before anything is made from it. A shape holds at most
+ * LIMITS.nibbles tokens, then LIMITS.length words and LIMITS.length breaks.
+ */
 export function readText(reader: ByteReader): TextShape | undefined {
   const head = reader.varint();
   const mode = head & 3;
-  const count = Math.floor(head / 4);
+  const count = head >> 2;
   if (mode === Mode.None) return undefined;
-  if (mode === Mode.Chars) return { kind: 'chars', length: count };
+  if (mode === Mode.Chars) {
+    if (count > LIMITS.length) {
+      throw new InvalidHashError(
+        `${count} characters, at most ${LIMITS.length}`
+      );
+    }
+    return { kind: 'chars', length: count };
+  }
+  if (count > LIMITS.nibbles) {
+    throw new InvalidHashError(`${count} nibbles, at most ${LIMITS.nibbles}`);
+  }
 
   const tokens: number[] = [];
   let carry = 0;
@@ -120,9 +144,14 @@ export function readText(reader: ByteReader): TextShape | undefined {
   }
   if (carry > 0) throw new InvalidHashError('a long word runs past the end');
   if (mode === Mode.WordsTruncated) {
-    const words = reader.varint();
-    const runs = reader.varint();
+    const words = reader.count(LIMITS.length, 'words');
+    const runs = reader.count(words + 1, 'runs of breaks');
     const runLength = runs > 0 ? reader.byte() : 0;
+    if (runs * runLength > LIMITS.length) {
+      throw new InvalidHashError(
+        `${runs * runLength} breaks, at most ${LIMITS.length}`
+      );
+    }
     const mean = reader.byte() / 16;
     // One run of breaks after every this many words keeps the paragraphs evenly sized.
     const every =

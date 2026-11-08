@@ -46,6 +46,24 @@ cut     remaining words, remaining breaks, mean word length in sixteenths
 
 Bytes are base64url. A hash fits in JSON, a URL or a database column unescaped.
 
+## Limits
+
+A hash usually comes from a server, and the decoder reads it as untrusted input. `decodePost` and `decodeText`
+check every count before they make anything from it, refuse a hash past the limits with `InvalidHashError` and never
+throw anything else. A hash of any content decodes in time and memory bounded by these limits, exported as `LIMITS`:
+
+| Limit | Value | What it bounds |
+| --- | --- | --- |
+| `hashLength` | 1024 characters | the hash, checked before it is read |
+| `varintBytes` | 3 bytes | every number, written the shortest way |
+| `images` | 64 | images in a post |
+| `nibbles` | 1024 | word nibbles kept for a text |
+| `length` | 65536 | a name's or handle's characters, a text without spaces, the words past the nibbles and their breaks |
+
+The encoder stays inside them. A post keeps its first 64 images, `maxNibbles` above 1024 counts as 1024, and a name,
+handle, text without spaces or cut text past 65536 characters or words keeps 65536. The longest hash it writes is
+963 characters. Every hash within the limits decodes as before.
+
 ## Caching on the device
 
 `createHashStore` keeps the first rows of a list between launches, through MMKV or any `getString`, `set` and

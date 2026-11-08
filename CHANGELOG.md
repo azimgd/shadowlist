@@ -98,6 +98,7 @@
 
 ### shadowhash
 
+- The decoder bounds what a hash can make it do. A 10 character hash could ask for 30 million words past the nibbles and a 10 byte one for a trillion, and a text without spaces could claim 2^40 characters and break the placeholder's string. `decodePost` and `decodeText` now refuse a hash over 1024 characters, a number over 3 bytes or not written the shortest way, more than 64 images, 1024 word nibbles or 65536 characters, words or breaks, with `InvalidHashError`. The limits are exported as `LIMITS` and listed in the README. The encoder stays inside them, and every hash it wrote with the default `maxNibbles` decodes as before. A cut text whose runs of breaks average more than 255 keeps 255 instead of wrapping past a byte.
 - Fidelity is scored on a held-out corpus of 233 hand-written posts in 13 groups instead of the corpus `LETTERS` was calibrated on. The README gives the held-out numbers beside the chars-only baseline, and says every number comes from CoreText with the macOS system font.
 
 ## 0.9.0
