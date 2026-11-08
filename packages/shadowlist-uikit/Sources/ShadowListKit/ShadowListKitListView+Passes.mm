@@ -311,11 +311,13 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 /*
  * One pass runs the core when the offset left the band, then mounts. Everything lands
- * before the frame is drawn.
+ * before the frame is drawn. A pass asked for during a pass, or an offset a delegate wrote
+ * while the cells mounted, lays out once more on the next layout.
  */
 - (void)layoutPass
 {
   if (_inLayoutPass) {
+    _layoutPassRequested = YES;
     return;
   }
   _inLayoutPass = YES;
@@ -338,6 +340,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
       }
     }
     [self readPassGeometry];
+    double mountedOffset = [self offset];
     [self layoutTemplates];
     [self mountCells];
     [self layoutSticky];
@@ -349,9 +352,16 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 #if !TARGET_OS_OSX
     [self layoutSectionIndex];
 #endif
+    if ([self offset] != mountedOffset) {
+      _layoutPassRequested = YES;
+    }
   }
   _passGeometry.valid = false;
   _inLayoutPass = NO;
+  if (_layoutPassRequested) {
+    _layoutPassRequested = NO;
+    ShadowListKitSetNeedsLayout(self);
+  }
 #if TARGET_OS_OSX
   [self scrollGeometryChanged];
   // The content may have moved under a still pointer.

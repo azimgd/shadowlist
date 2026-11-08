@@ -548,6 +548,14 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var offsetFraction = 0.0
 
   private var inLayoutPass = false
+
+  /*
+   * A pass asked for during a pass, or an offset a delegate wrote while the cells mounted, lays
+   * out once more after it. A scroll during a pass reports didScroll once the pass ends, with the
+   * cells of the new offset in place.
+   */
+  private var layoutPassRequested = false
+  private var didScrollPending = false
   private var settleScheduled = false
   private var reachedStart = false
   private var reachedEnd = false
@@ -988,30 +996,50 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
     super.onScrollChanged(l, t, oldl, oldt)
+    if (inLayoutPass) {
+      didScrollPending = true
+      return
+    }
     layoutPass()
     delegate?.didScroll(this)
   }
 
   /*
    * One pass runs the core when the offset left the band, then mounts. Everything lands
-   * before the frame is drawn.
+   * before the frame is drawn. A thrown delegate call still ends the pass.
    */
   internal fun layoutPass() {
-    if (inLayoutPass) return
-    inLayoutPass = true
-    ++layoutPassCount
-    val geometryChanged = readGeometry()
-    trackUserScroll()
-    if (windowAlong > 0 && windowCross > 0) {
-      if (needsFrame || geometryChanged || !inBand(exactOffset)) runPasses()
-      layoutTemplates()
-      mountCells()
-      stickyPinning.layoutSticky()
-      if (hasHeldRow) drag.update()
-      changes.run()
-      swipe.layout()
+    if (inLayoutPass) {
+      layoutPassRequested = true
+      return
     }
-    inLayoutPass = false
+    inLayoutPass = true
+    try {
+      ++layoutPassCount
+      val geometryChanged = readGeometry()
+      trackUserScroll()
+      if (windowAlong > 0 && windowCross > 0) {
+        if (needsFrame || geometryChanged || !inBand(exactOffset)) runPasses()
+        val mountedOffset = exactOffset
+        layoutTemplates()
+        mountCells()
+        stickyPinning.layoutSticky()
+        if (hasHeldRow) drag.update()
+        changes.run()
+        swipe.layout()
+        if (exactOffset != mountedOffset) layoutPassRequested = true
+      }
+    } finally {
+      inLayoutPass = false
+    }
+    if (didScrollPending) {
+      didScrollPending = false
+      delegate?.didScroll(this)
+    }
+    if (layoutPassRequested) {
+      layoutPassRequested = false
+      requestLayout()
+    }
     dispatchReached()
     didLayOut()
   }

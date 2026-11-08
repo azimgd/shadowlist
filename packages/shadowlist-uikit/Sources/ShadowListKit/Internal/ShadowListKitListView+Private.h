@@ -222,6 +222,7 @@ struct ShadowListKitPassGeometry {
   NSUInteger _structureVersion;
   BOOL _inLayout;
   BOOL _inLayoutPass;
+  BOOL _layoutPassRequested;
   ShadowListKitPassGeometry _passGeometry;
   BOOL _sizesFromDataSource;
   azimgd::shadowlist::BatchCollector _batch;
