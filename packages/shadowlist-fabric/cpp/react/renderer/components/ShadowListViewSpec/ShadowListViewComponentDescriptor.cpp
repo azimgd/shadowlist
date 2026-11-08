@@ -1,6 +1,8 @@
 #include "ShadowListViewComponentDescriptor.h"
 
 #include <chrono>
+#include <cmath>
+#include <cstdint>
 
 namespace facebook::react {
 
@@ -91,7 +93,10 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    * when the data change lands.
    */
   azimgd::shadowlist::DropHint dropHint;
-  if (containerManager->takeDragEventSequence(shadowlistViewStateData.dragEventSequence_)) {
+  double dragEventSequence = shadowlistViewStateData.dragEventSequence_;
+  std::uint64_t dragSequence =
+    std::isfinite(dragEventSequence) && dragEventSequence >= 1.0 ? static_cast<std::uint64_t>(dragEventSequence) : 0;
+  if (containerManager->takeDragEventSequence(dragSequence)) {
     const std::string& dragSourceKey = shadowlistViewStateData.dragSourceKey_;
     const std::string& dragDestinationKey = shadowlistViewStateData.dragDestinationKey_;
     switch (static_cast<int>(shadowlistViewStateData.dragEventType_)) {

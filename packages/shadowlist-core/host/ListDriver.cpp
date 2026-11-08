@@ -482,7 +482,7 @@ std::size_t ListDriver::getRowCount() const {
 }
 
 std::uint64_t ListDriver::getGeometryVersion() const {
-  return core_->geometryVersion;
+  return core_->state.geometryVersion;
 }
 
 double ListDriver::getContentAlong() const {

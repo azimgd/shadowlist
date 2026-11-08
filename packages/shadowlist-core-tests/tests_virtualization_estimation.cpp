@@ -509,27 +509,27 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   CHECK_NEAR(container.revision.offsetY, 37.0 + inserted, 1.0);
 
   Virtualizer::update(container, prepend);
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(container.revision.offsetY, 37.0 + inserted, 1.0);
-  CHECK(container.operation.has_value());
+  CHECK(container.state.operation.has_value());
 
   // A momentum frame reported before the host applied the correction moves the target along.
   FrameInput momentum = inputFor(grown, 21.0, fixture);
   momentum.userScrolled = true;
   momentum.scrollPhase = ScrollPhase::Settling;
   Virtualizer::update(container, momentum);
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(container.revision.offsetY, 21.0 + inserted, 1.0);
-  CHECK(container.operation.has_value());
+  CHECK(container.state.operation.has_value());
 
   // The host applies it and reports the token back. The gesture owns the offset again.
-  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
+  std::uint64_t token = container.state.operation ? container.state.operation->commitToken : 0;
   FrameInput echo = inputFor(grown, 21.0 + inserted, fixture);
   echo.scrollPhase = ScrollPhase::Settling;
   echo.commitToken = token;
   Virtualizer::update(container, echo);
-  CHECK(!container.offsetCorrected);
-  CHECK(!container.operation.has_value());
+  CHECK(!container.state.offsetCorrected);
+  CHECK(!container.state.operation.has_value());
   CHECK_NEAR(container.revision.offsetY, 21.0 + inserted, 1.0);
 
   // Momentum carries on from there and is not pulled back.
@@ -537,7 +537,7 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   carryOn.userScrolled = true;
   carryOn.scrollPhase = ScrollPhase::Settling;
   Virtualizer::update(container, carryOn);
-  CHECK(!container.offsetCorrected);
+  CHECK(!container.state.offsetCorrected);
   CHECK_NEAR(container.revision.offsetY, 5.0 + inserted, 1.0);
 
   /*
@@ -584,7 +584,7 @@ TEST(inverted_list_at_the_bottom_follows_appended_rows) {
   double newBottom = container.revision.contentHeight - WINDOW_HEIGHT;
   CHECK_NEAR(newBottom, bottom + 3 * 180.0, 1.0);
   CHECK_NEAR(offset, newBottom, 1.0);
-  CHECK(!container.operation.has_value());
+  CHECK(!container.state.operation.has_value());
 }
 
 /*
@@ -616,8 +616,8 @@ TEST(inverted_list_at_the_bottom_holds_appended_rows_by_default) {
     offset = container.revision.offsetY;
     CHECK_NEAR(offset, bottom, 0.01);
   }
-  CHECK(!container.pendingScrollToEnd);
-  CHECK(!container.operation.has_value());
+  CHECK(!container.state.pendingScrollToEnd);
+  CHECK(!container.state.operation.has_value());
 }
 
 /*
@@ -640,7 +640,7 @@ TEST(inverted_list_scrolled_up_holds_when_rows_are_appended) {
   drag.scrollPhase = ScrollPhase::Dragging;
   Virtualizer::update(container, drag);
   Virtualizer::update(container, inputFor(keys, parked, fixture));
-  CHECK(container.invertedBottomReleased);
+  CHECK(container.state.invertedBottomReleased);
 
   std::vector<std::string> grown = keys;
   grown.push_back("appended");
@@ -648,7 +648,7 @@ TEST(inverted_list_scrolled_up_holds_when_rows_are_appended) {
     Virtualizer::update(container, inputFor(grown, parked, fixture));
     CHECK_NEAR(container.revision.offsetY, parked, 0.01);
   }
-  CHECK(!container.pendingScrollToEnd);
+  CHECK(!container.state.pendingScrollToEnd);
 }
 
 /*
@@ -682,8 +682,8 @@ TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
       Virtualizer::updateRowAtIndex(container, 0, {WINDOW_WIDTH, 100.0});
     }
   }
-  CHECK(!container.invertedOpeningPin);
-  CHECK(!container.pendingScrollToEnd);
+  CHECK(!container.state.invertedOpeningPin);
+  CHECK(!container.state.pendingScrollToEnd);
 
   double windowHeight = WINDOW_HEIGHT;
   for (int line = 0; line < 3; ++line) {
@@ -708,8 +708,8 @@ TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
     frame(grown, WINDOW_HEIGHT);
   }
   CHECK_NEAR(offset, container.revision.contentHeight - WINDOW_HEIGHT, 1.0);
-  CHECK(!container.operation.has_value());
-  CHECK(!container.pendingScrollToEnd);
+  CHECK(!container.state.operation.has_value());
+  CHECK(!container.state.pendingScrollToEnd);
 }
 
 /*
@@ -738,7 +738,7 @@ TEST(inverted_list_scrolled_up_holds_when_the_viewport_resizes) {
     Virtualizer::update(container, input);
     CHECK_NEAR(container.revision.offsetY, parked, 0.01);
   }
-  CHECK(!container.pendingScrollToEnd);
+  CHECK(!container.state.pendingScrollToEnd);
 }
 
 /*
@@ -767,24 +767,24 @@ TEST(scroll_to_end_requested_during_momentum_lands_on_the_bottom) {
   command.scrollPhase = ScrollPhase::Settling;
   command.offsetEnabled = true;
   Virtualizer::update(container, command);
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(container.revision.offsetY, maxOffset, 1.0);
 
   FrameInput momentum = inputFor(keys, 340.0, fixture);
   momentum.userScrolled = true;
   momentum.scrollPhase = ScrollPhase::Settling;
   Virtualizer::update(container, momentum);
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(container.revision.offsetY, maxOffset, 1.0);
 
-  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
+  std::uint64_t token = container.state.operation ? container.state.operation->commitToken : 0;
   CHECK(token != 0);
   FrameInput echo = inputFor(keys, maxOffset, fixture);
   echo.commitToken = token;
   Virtualizer::update(container, echo);
   Virtualizer::update(container, inputFor(keys, maxOffset, fixture));
-  CHECK(!container.operation.has_value());
-  CHECK(!container.pendingScrollToEnd);
+  CHECK(!container.state.operation.has_value());
+  CHECK(!container.state.pendingScrollToEnd);
   CHECK_NEAR(container.revision.offsetY, maxOffset, 1.0);
 }
 
@@ -809,15 +809,15 @@ TEST(a_drag_cancels_a_scroll_command_but_momentum_does_not) {
   momentum.userScrolled = true;
   momentum.scrollPhase = ScrollPhase::Settling;
   Virtualizer::update(container, momentum);
-  CHECK(container.operation.has_value());
+  CHECK(container.state.operation.has_value());
   CHECK_NEAR(container.revision.offsetY, target, 1.0);
 
   FrameInput drag = inputFor(keys, 540.0, fixture);
   drag.userScrolled = true;
   drag.scrollPhase = ScrollPhase::Dragging;
   Virtualizer::update(container, drag);
-  CHECK(!container.operation.has_value());
-  CHECK(!container.offsetCorrected);
+  CHECK(!container.state.operation.has_value());
+  CHECK(!container.state.offsetCorrected);
   CHECK_NEAR(container.revision.offsetY, 540.0, 0.01);
 }
 
@@ -917,10 +917,10 @@ TEST(first_measurement_of_a_straddling_anchor_row_keeps_the_rows_below_in_place)
   scroll.scrollPhase = ScrollPhase::Dragging;
   Virtualizer::update(container, scroll);
   Virtualizer::update(container, inputFor(keys, straddling, fixture));
-  CHECK(!container.operation.has_value());
+  CHECK(!container.state.operation.has_value());
 
   double belowOnScreen = offsetOf(container, 6) - straddling;
   Virtualizer::updateRowAtIndex(container, 5, {WINDOW_WIDTH, 60.0});
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(offsetOf(container, 6) - container.revision.offsetY, belowOnScreen, 0.5);
 }

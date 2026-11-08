@@ -159,7 +159,7 @@ TEST(a_prediction_staged_early_lands_when_its_row_arrives) {
   Container container;
 
   container.setPredictedSize("k7", {WINDOW_WIDTH, 777.0});
-  CHECK_EQ(container.predictedSizes.size(), static_cast<std::size_t>(1));
+  CHECK_EQ(container.state.predictedSizes.size(), static_cast<std::size_t>(1));
 
   Virtualizer::update(container, inputFor(keys, 0.0));
 
@@ -167,7 +167,7 @@ TEST(a_prediction_staged_early_lands_when_its_row_arrives) {
   CHECK_NEAR(container.revision.rows[index].height, 777.0, 0.001);
   CHECK(container.revision.rows[index].predicted);
   // The queue is emptied once the size is on the row.
-  CHECK_EQ(container.predictedSizes.size(), static_cast<std::size_t>(0));
+  CHECK_EQ(container.state.predictedSizes.size(), static_cast<std::size_t>(0));
 }
 
 /*
@@ -378,7 +378,7 @@ TEST(a_prediction_staged_on_a_settled_list_lands_on_the_next_frame) {
 
   CHECK_NEAR(container.revision.rows[3].height, 400.0, 0.001);
   CHECK(container.revision.rows[3].predicted);
-  CHECK_EQ(container.predictedSizes.size(), static_cast<std::size_t>(0));
+  CHECK_EQ(container.state.predictedSizes.size(), static_cast<std::size_t>(0));
   CHECK_NEAR(container.revision.rows[40].offsetY, offsetBefore + (400.0 - ESTIMATED_ROW_HEIGHT), 0.001);
 }
 
@@ -414,7 +414,7 @@ TEST(invalidating_predictions_returns_rows_to_the_estimate) {
   Virtualizer::invalidatePredictions(container);
   Virtualizer::update(container, inputFor(keys, 0.0));
 
-  CHECK_EQ(container.predictedSizes.size(), static_cast<std::size_t>(0));
+  CHECK_EQ(container.state.predictedSizes.size(), static_cast<std::size_t>(0));
   CHECK_NEAR(container.revision.rows[0].height, ESTIMATED_ROW_HEIGHT, 0.001);
   CHECK(!container.revision.rows[0].predicted);
   CHECK(!container.hasTrustedSize(0));

@@ -125,120 +125,16 @@ struct IndexRange {
   }
 };
 
-class Container final {
-public:
+/*
+ * What the virtualizer carries from one frame to the next: pending scroll requests, the running
+ * correction and its anchor, the inverted bottom pin, and the layout and sizing bookkeeping that
+ * lets a pass skip work. Only the virtualizer and the host helpers in shadowlist-core change it.
+ */
+struct ContainerState {
   /*
-   * Width and height used for rows not measured yet.
+   * Newest drag event number sent to JS. 0 means none yet, as numbers start at 1.
    */
-  std::pair<double, double> estimatedRowSize = DEFAULT_ESTIMATED_ROW_SIZE;
-
-  /*
-   * Called when the user scrolls near the end.
-   */
-  std::function<void()> onEndReachedCallback;
-
-  /*
-   * Called when the user scrolls near the start.
-   */
-  std::function<void()> onStartReachedCallback;
-
-  /*
-   * Called with the low and high index when the measured range changes.
-   */
-  std::function<void(std::size_t, std::size_t)> onMeasuredRangeChangeCallback;
-
-  /*
-   * Called when the viewable rows of any viewable rule change, with a low and a high index
-   * per rule in rule order. A rule with no viewable row has UNDEFINED_INDEX for both.
-   */
-  std::function<void(const std::vector<std::size_t>&)> onViewableIndicesChangeCallback;
-
-  /*
-   * Called when an inverted list leaves its end because the user scrolled away from the bottom,
-   * and when it is back at the end. A list starts at its end.
-   */
-  std::function<void(bool)> onAtEndChangeCallback;
-
-  /*
-   * Turn the start and end reached callbacks on or off.
-   */
-  bool endReachedEnabled = true;
-  bool startReachedEnabled = true;
-
-  Revision revision = {};
-  std::size_t revisionCount = REVISION_COUNT_FIRST;
-
-  /*
-   * An inverted list runs bottom to top.
-   */
-  bool inverted = false;
-
-  /*
-   * An inverted list resting at its bottom keeps the bottom in view as rows are appended or
-   * grow in place.
-   */
-  bool followAppends = false;
-
-  bool horizontal = false;
-
-  std::size_t numberOfColumns = 1;
-
-  /*
-   * How far past the viewport to measure and mount rows on each side, in viewport sizes.
-   * 1 keeps one screen above and one below, 0 keeps only what is visible.
-   */
-  double overscan = 1.0;
-
-  /*
-   * Snap the resting scroll position to a row edge. snapAlignment picks the edge.
-   */
-  bool snapToItem = false;
-  SnapAlignment snapAlignment = SnapAlignment::Start;
-
-  /*
-   * How close to an edge, in viewport sizes, before onStartReached or onEndReached fires.
-   */
-  double startReachedThreshold = 1.0;
-  double endReachedThreshold = 1.0;
-
-  /*
-   * The rules that decide which rows are viewable, one range each.
-   */
-  std::vector<ViewableRule> viewableRules = {ViewableRule{}};
-
-  /*
-   * Size of the header or empty template along the scroll axis. Rows start after it.
-   */
-  double headerSize = 0.0;
-
-  /*
-   * Size of the footer along the scroll axis. It counts toward the total size.
-   */
-  double footerSize = 0.0;
-
-  /*
-   * Indices of sticky section headers in order, set each frame. Empty for a plain list.
-   */
-  std::vector<std::size_t> stickyIndices;
-
-  /*
-   * Newest drag event number sent to JS. -1 means none yet.
-   */
-  double previousDragEventSequence = -1.0;
-
-  /*
-   * Whether a state's drag event still has to go to JS, once for each number. The number stands
-   * for the state it came with, and Android can commit a state older than one already seen: a
-   * host update there is built on the state the view last mounted, so a scroll frame right after
-   * a pickup brings back the previous drop's number and keys. Only a number past the newest fires.
-   */
-  bool takeDragEventSequence(double sequence) {
-    if (sequence <= previousDragEventSequence) {
-      return false;
-    }
-    previousDragEventSequence = sequence;
-    return true;
-  }
+  std::uint64_t previousDragEventSequence = 0;
 
   /*
    * Scroll requests. resolveScroll turns each into an operation and clears it.
@@ -369,18 +265,6 @@ public:
   std::unordered_map<std::string, Size> predictedSizes;
 
   /*
-   * Save an early size for a key. Fine for keys not in the list yet, it waits for a later update.
-   * To apply it to a row that already exists, use Virtualizer::applyPredictedRowSize.
-   */
-  void setPredictedSize(const std::string& key, Size size);
-
-  /*
-   * Keys never used as the anchor, like date pills or unread dividers whose keys come and go.
-   * The anchor picks the nearest real content row instead. Empty means any row can be the anchor.
-   */
-  std::unordered_set<std::string> nonAnchorKeys;
-
-  /*
    * What a drag dropped, from FrameInput::dropHint until it is used or expires, see
    * reconcileFrameKeys. pendingDropAtMs is the frame time it came in, 0 when the host sends
    * no frame times. The kind is None when no drop waits.
@@ -449,27 +333,6 @@ public:
   std::size_t rowSizeDirtyToIndex = 0;
 
   /*
-   * Mark a size change the next layout must reflow. A caller that reflows it itself must use
-   * noteRowSizeSpan instead, or the work is done twice.
-   */
-  void markRowSizeDirty(std::size_t index) {
-    if (index < rowSizeDirtyFromIndex) {
-      rowSizeDirtyFromIndex = index;
-    }
-    noteRowSizeSpan(index);
-  }
-
-  /*
-   * Widen the changed range without scheduling a layout reflow.
-   * Used by batched sizes, where commitRowSizes reflows once and only needs to know where to stop.
-   */
-  void noteRowSizeSpan(std::size_t index) {
-    if (index > rowSizeDirtyToIndex) {
-      rowSizeDirtyToIndex = index;
-    }
-  }
-
-  /*
    * Farthest any row reaches on the other axis. Tracked here because a wide row mid list would
    * be missed by the total size scan. Full passes rebuild it, partial passes only grow it.
    */
@@ -481,6 +344,155 @@ public:
    * because the host is not there yet.
    */
   double previousReportedOffset = 0.0;
+};
+
+class Container final {
+public:
+  /*
+   * Width and height used for rows not measured yet.
+   */
+  std::pair<double, double> estimatedRowSize = DEFAULT_ESTIMATED_ROW_SIZE;
+
+  /*
+   * Called when the user scrolls near the end.
+   */
+  std::function<void()> onEndReachedCallback;
+
+  /*
+   * Called when the user scrolls near the start.
+   */
+  std::function<void()> onStartReachedCallback;
+
+  /*
+   * Called with the low and high index when the measured range changes.
+   */
+  std::function<void(std::size_t, std::size_t)> onMeasuredRangeChangeCallback;
+
+  /*
+   * Called when the viewable rows of any viewable rule change, with a low and a high index
+   * per rule in rule order. A rule with no viewable row has UNDEFINED_INDEX for both.
+   */
+  std::function<void(const std::vector<std::size_t>&)> onViewableIndicesChangeCallback;
+
+  /*
+   * Called when an inverted list leaves its end because the user scrolled away from the bottom,
+   * and when it is back at the end. A list starts at its end.
+   */
+  std::function<void(bool)> onAtEndChangeCallback;
+
+  /*
+   * Turn the start and end reached callbacks on or off.
+   */
+  bool endReachedEnabled = true;
+  bool startReachedEnabled = true;
+
+  Revision revision = {};
+  std::size_t revisionCount = REVISION_COUNT_FIRST;
+
+  /*
+   * An inverted list runs bottom to top.
+   */
+  bool inverted = false;
+
+  /*
+   * An inverted list resting at its bottom keeps the bottom in view as rows are appended or
+   * grow in place.
+   */
+  bool followAppends = false;
+
+  bool horizontal = false;
+
+  std::size_t numberOfColumns = 1;
+
+  /*
+   * How far past the viewport to measure and mount rows on each side, in viewport sizes.
+   * 1 keeps one screen above and one below, 0 keeps only what is visible.
+   */
+  double overscan = 1.0;
+
+  /*
+   * Snap the resting scroll position to a row edge. snapAlignment picks the edge.
+   */
+  bool snapToItem = false;
+  SnapAlignment snapAlignment = SnapAlignment::Start;
+
+  /*
+   * How close to an edge, in viewport sizes, before onStartReached or onEndReached fires.
+   */
+  double startReachedThreshold = 1.0;
+  double endReachedThreshold = 1.0;
+
+  /*
+   * The rules that decide which rows are viewable, one range each.
+   */
+  std::vector<ViewableRule> viewableRules = {ViewableRule{}};
+
+  /*
+   * Size of the header or empty template along the scroll axis. Rows start after it.
+   */
+  double headerSize = 0.0;
+
+  /*
+   * Size of the footer along the scroll axis. It counts toward the total size.
+   */
+  double footerSize = 0.0;
+
+  /*
+   * Indices of sticky section headers in order, set each frame. Empty for a plain list.
+   */
+  std::vector<std::size_t> stickyIndices;
+
+  /*
+   * The bookkeeping the virtualizer carries between frames, see ContainerState.
+   */
+  ContainerState state;
+
+  /*
+   * Whether a state's drag event still has to go to JS, once for each number. The number stands
+   * for the state it came with, and Android can commit a state older than one already seen: a
+   * host update there is built on the state the view last mounted, so a scroll frame right after
+   * a pickup brings back the previous drop's number and keys. Only a number past the newest fires.
+   */
+  bool takeDragEventSequence(std::uint64_t sequence) {
+    if (sequence <= state.previousDragEventSequence) {
+      return false;
+    }
+    state.previousDragEventSequence = sequence;
+    return true;
+  }
+
+  /*
+   * Save an early size for a key. Fine for keys not in the list yet, it waits for a later update.
+   * To apply it to a row that already exists, use Virtualizer::applyPredictedRowSize.
+   */
+  void setPredictedSize(const std::string& key, Size size);
+
+  /*
+   * Keys never used as the anchor, like date pills or unread dividers whose keys come and go.
+   * The anchor picks the nearest real content row instead. Empty means any row can be the anchor.
+   */
+  std::unordered_set<std::string> nonAnchorKeys;
+
+  /*
+   * Mark a size change the next layout must reflow. A caller that reflows it itself must use
+   * noteRowSizeSpan instead, or the work is done twice.
+   */
+  void markRowSizeDirty(std::size_t index) {
+    if (index < state.rowSizeDirtyFromIndex) {
+      state.rowSizeDirtyFromIndex = index;
+    }
+    noteRowSizeSpan(index);
+  }
+
+  /*
+   * Widen the changed range without scheduling a layout reflow.
+   * Used by batched sizes, where commitRowSizes reflows once and only needs to know where to stop.
+   */
+  void noteRowSizeSpan(std::size_t index) {
+    if (index > state.rowSizeDirtyToIndex) {
+      state.rowSizeDirtyToIndex = index;
+    }
+  }
 
   /*
    * Guards the Container, which really is shared across threads. In Fabric, shadow node clones

@@ -67,10 +67,10 @@ bool vouchedFor(const KeyEdit& edit, KeyEditKind kind, std::size_t count) {
  * Flag a structure change for the next layout, from the first row whose place changed.
  */
 void markStructureDirty(Container& container, std::size_t fromIndex) {
-  container.rowStructureDirtyFromIndex = container.rowStructureDirty
-    ? std::min(container.rowStructureDirtyFromIndex, fromIndex)
+  container.state.rowStructureDirtyFromIndex = container.state.rowStructureDirty
+    ? std::min(container.state.rowStructureDirtyFromIndex, fromIndex)
     : fromIndex;
-  container.rowStructureDirty = true;
+  container.state.rowStructureDirty = true;
 }
 
 /*
@@ -546,7 +546,7 @@ std::size_t Virtualizer::reconcileRows(
     }
   }
   if (changedFrom != UNDEFINED_INDEX) {
-    container.geometryVersion++;
+    container.state.geometryVersion++;
     markStructureDirty(container, changedFrom);
     return std::min(previousCount, nextKeys.size());
   }
@@ -564,7 +564,7 @@ std::size_t Virtualizer::reconcileRows(
   }
 
   // Rows moved. Any geometry derived from the old list is stale.
-  container.geometryVersion++;
+  container.state.geometryVersion++;
 
   // Rows were added, removed or moved. The next layout must recompute offsets.
   markStructureDirty(container, changedFrom);
