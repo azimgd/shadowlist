@@ -44,35 +44,17 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   [CATransaction commit];
 }
 
-/*
- * What a layout pass reads for every row, read once after the core ran: the offset, the pixel
- * shift, the backing scale and the insets. Valid until the pass ends. A content offset or inset
- * that changes during the pass reads them again.
- */
-struct ShadowListKitPassGeometry {
-  double offset = 0.0;
-  double shift = 0.0;
-  CGFloat scale = 1.0;
-  CGFloat leadingInset = 0.0;
-  CGFloat trailingInset = 0.0;
-  bool valid = false;
-};
-
 #pragma mark - List
 
 // The categories in ShadowListKitListView+*.mm implement the rest of the class interface.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
 @implementation ShadowListKitListView {
-  ShadowListKitPassGeometry _passGeometry;
-
   /*
    * The content offset along the axis, exact. The content view shows it on device pixels and
    * rows are drawn shifted by the difference, which keeps the content where the core holds it.
    */
   double _offsetAlong;
-
-  BOOL _inLayoutPass;
 
   /*
    * The separator color as the list's appearance shows it, resolved on first use.
@@ -780,53 +762,6 @@ struct ShadowListKitPassGeometry {
 }
 
 /*
- * One pass runs the core when the offset left the band, then mounts. Everything lands
- * before the frame is drawn.
- */
-- (void)layoutPass
-{
-  if (_inLayoutPass) {
-    return;
-  }
-  _inLayoutPass = YES;
-  ++_layoutPasses;
-  if (_viewsBehind && ![self placesByLayer]) {
-    [self catchUpViews];
-  }
-  BOOL geometryChanged = [self readGeometry];
-  [self placeContentView];
-  [self trackUserScroll];
-  if (_windowCross > 0 && _windowAlong > 0) {
-    if (_needsFrame || geometryChanged || !_band.contains([self offset])) {
-      [self runPasses];
-      if ([self measuredRangeEndsShort]) {
-        [self runPasses];
-      }
-    }
-    [self readPassGeometry];
-    [self layoutTemplates];
-    [self mountCells];
-    [self layoutSticky];
-    if ([self hasHeldRow]) {
-      [self updateDrag];
-    }
-    [_changes run];
-    [self layoutSwipe];
-  }
-  _passGeometry.valid = false;
-  _inLayoutPass = NO;
-  [self scrollGeometryChanged];
-  // The content may have moved under a still pointer.
-  if (_hoverActive || _hoveredCell) {
-    [self updateHover];
-  }
-  [self dispatchReached];
-  if ([_userDelegate respondsToSelector:@selector(listViewDidLayOut:)]) {
-    [_userDelegate listViewDidLayOut:self];
-  }
-}
-
-/*
  * A driven list moved inside the core's band and the band of its mount plan, with nothing else
  * waiting. The content moved already, the same rows stay mounted and no pass runs. Returns
  * whether that was the case.
@@ -868,96 +803,9 @@ struct ShadowListKitPassGeometry {
   return _horizontal ? fits.width : fits.height;
 }
 
-- (void)layoutTemplates
-{
-  if (_headerView) {
-    CGRect frame = _horizontal ? [self displayRect:0 y:0 width:_headerSize height:_windowCross]
-                               : [self displayRect:0 y:0 width:_windowCross height:_headerSize];
-    ShadowListKitPlace(_headerView, frame);
-  }
-  if (_footerView) {
-    CGRect frame = _horizontal ? [self displayRect:_footerStart y:0 width:_footerSize height:_windowCross]
-                               : [self displayRect:0 y:_footerStart width:_windowCross height:_footerSize];
-    ShadowListKitPlace(_footerView, frame);
-  }
-}
-
-/*
- * Whether rows the viewport shows are left out of the measured range. The first frame picks the
- * range from estimates, which can stop short of the viewport's end. One more run fills it.
- */
-- (BOOL)measuredRangeEndsShort
-{
-  std::optional<MountedRange> measured = _driver.getMeasuredRange();
-  if (!measured || measured->high + 1 >= _driver.getRowCount()) {
-    return NO;
-  }
-  double end = _driver.getLeadingAt(measured->high) + _driver.getExtentAt(measured->high);
-  return end < [self offset] + _windowAlong + [self trailingInset];
-}
-
 - (void)applyContentSize:(CGFloat)along
 {
   _contentAlong = along;
-}
-
-#pragma mark - Sticky
-
-/*
- * Pin the active section header and put the one it replaced back in its row. A pinned row
- * sits over the rows and under a held one. Its frame pins it and leaves the transform a drag
- * shifts it by.
- */
-- (void)layoutSticky
-{
-  if (!_driver.hasSticky()) {
-    if (_stickyCell) {
-      [self unpinCell:_stickyCell];
-      _stickyCell = nil;
-    }
-    return;
-  }
-  double offset = [self offset];
-  std::size_t active = _driver.activeStickyIndex(offset);
-  ShadowListKitListCell *cell = active != UNDEFINED_INDEX ? [self mountedCellAtIndex:active] : nil;
-  // A held sticky item follows the mouse from its own row.
-  if (cell == _heldCell) {
-    cell = nil;
-  }
-  if (_stickyCell && _stickyCell != cell) {
-    [self unpinCell:_stickyCell];
-  }
-  _stickyCell = cell;
-  if (!cell) {
-    return;
-  }
-  RowRect rect = _driver.getRowRect(active);
-  double pinned = _driver.stickyLeading(active, offset);
-  if (_horizontal) {
-    rect.x = pinned;
-  } else {
-    rect.y = pinned;
-  }
-  [self placeCell:cell frame:[self displayRect:rect.x y:rect.y width:rect.width height:rect.height]];
-  if (cell.layer.zPosition != 1) {
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    cell.layer.zPosition = 1;
-    [CATransaction commit];
-  }
-}
-
-- (void)unpinCell:(ShadowListKitListCell *)cell
-{
-  if (cell.row != NSNotFound && (std::size_t)cell.row < _driver.getRowCount()) {
-    [self placeCell:cell frame:[self rowRect:(std::size_t)cell.row]];
-  }
-  if (cell != _heldCell) {
-    [CATransaction begin];
-    [CATransaction setDisableActions:YES];
-    cell.layer.zPosition = 0;
-    [CATransaction commit];
-  }
 }
 
 #pragma mark - Separators

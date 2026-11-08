@@ -59,6 +59,20 @@ extern const char ShadowListKitListViewSelectionLink;
 }
 
 /*
+ * What a layout pass reads for every row, read once after the core ran: the offset, the pixel
+ * shift, the display scale and the insets. Valid until the pass ends. A content offset or inset
+ * that changes during the pass reads them again.
+ */
+struct ShadowListKitPassGeometry {
+  double offset = 0.0;
+  double shift = 0.0;
+  CGFloat scale = 1.0;
+  CGFloat leadingInset = 0.0;
+  CGFloat trailingInset = 0.0;
+  bool valid = false;
+};
+
+/*
  * State and helpers the list shares with its categories. Both kits compile this header, and
  * each kit's own state follows the shared state.
  * _mounted holds the mounted cells by key. A cell follows its key across inserts above it.
@@ -207,6 +221,8 @@ extern const char ShadowListKitListViewSelectionLink;
 
   NSUInteger _structureVersion;
   BOOL _inLayout;
+  BOOL _inLayoutPass;
+  ShadowListKitPassGeometry _passGeometry;
   BOOL _sizesFromDataSource;
   azimgd::shadowlist::BatchCollector _batch;
   id _batchPayload;
@@ -315,7 +331,10 @@ extern const char ShadowListKitListViewSelectionLink;
 - (void)placeCell:(ShadowListKitListCell *)cell frame:(CGRect)frame;
 - (void)setCell:(ShadowListKitListCell *)cell hidden:(BOOL)hidden;
 - (void)placeSeparatorOfCell:(ShadowListKitListCell *)cell row:(std::size_t)row;
+- (void)readPassGeometry;
 #if TARGET_OS_OSX
+- (BOOL)placesByLayer;
+- (void)placeContentView;
 - (void)catchUpViews;
 - (CGPoint)contentPointAt:(CGPoint)point;
 - (nullable NSView *)hitTestThroughLayers:(NSPoint)point;
@@ -326,7 +345,9 @@ extern const char ShadowListKitListViewSelectionLink;
 @end
 
 /*
- * The layout pass, the same in both kits. runPasses runs the core until the measured range has
+ * The layout pass, the same in both kits. layoutPass runs the core when the offset left the band,
+ * mounts, pins the sticky row with layoutSticky and follows a held row. unpinCell: puts a pinned
+ * cell back in its row. runPasses runs the core until the measured range has
  * sizes and any correction landed, after readGeometry read the viewport and the template sizes
  * and trackUserScroll told the user's scrolling from the list's own. resetKeepingPosition drops
  * every size and keeps the first visible row. makeCellAtRow: is a row's cell, an item's from
@@ -343,6 +364,9 @@ extern const char ShadowListKitListViewSelectionLink;
  */
 @interface ShadowListKitListView (Passes)
 
+- (void)layoutPass;
+- (void)layoutSticky;
+- (void)unpinCell:(ShadowListKitListCell *)cell;
 - (BOOL)readGeometry;
 - (void)trackUserScroll;
 - (void)runPasses;
@@ -550,6 +574,7 @@ extern const char ShadowListKitListViewSelectionLink;
 @interface ShadowListKitListView (Drag)
 
 - (BOOL)hasHeldRow;
+- (void)updateDrag;
 - (void)adoptHeldCell:(ShadowListKitListCell *)cell;
 - (void)enableDragPress:(BOOL)enabled;
 - (void)applyDragShiftsAnimated:(BOOL)animated;

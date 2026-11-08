@@ -37,20 +37,6 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   }
 }
 
-/*
- * What a layout pass reads for every row, read once after the core ran: the offset, the pixel
- * shift, the display scale and the insets. Valid until the pass ends. A content offset or inset
- * that changes during the pass reads them again.
- */
-struct ShadowListKitPassGeometry {
-  double offset = 0.0;
-  double shift = 0.0;
-  CGFloat scale = 1.0;
-  CGFloat leadingInset = 0.0;
-  CGFloat trailingInset = 0.0;
-  bool valid = false;
-};
-
 #pragma mark - List
 
 // The categories in ShadowListKitListView+*.mm implement the rest of the class interface.
@@ -58,7 +44,6 @@ struct ShadowListKitPassGeometry {
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
 @implementation ShadowListKitListView {
   ShadowListKitDelegateProxy *_proxy;
-  ShadowListKitPassGeometry _passGeometry;
 
   /*
    * The offset the core last asked for and the device pixel aligned content offset written
@@ -71,8 +56,6 @@ struct ShadowListKitPassGeometry {
   CGFloat _writtenAlong;
   CGFloat _writtenInset;
   BOOL _hasWrittenOffset;
-
-  BOOL _inLayoutPass;
 
   UIRefreshControl *_refresh;
 }
@@ -531,10 +514,13 @@ struct ShadowListKitPassGeometry {
 }
 
 /*
- * A recycled cell loses its swipe, its animations and its drag look.
+ * A recycled cell loses its pinned slot, its swipe, its animations and its drag look.
  */
 - (void)clearCellForReuse:(ShadowListKitListCell *)cell
 {
+  if (cell == _stickyCell) {
+    _stickyCell = nil;
+  }
   [self swipeCellWillRecycle:cell];
   [cell.layer removeAllAnimations];
   cell.alpha = 1;
@@ -573,39 +559,6 @@ struct ShadowListKitPassGeometry {
   [self invalidateFrame];
 }
 
-/*
- * One pass runs the core when the offset left the band, then mounts. Everything lands
- * before the frame is drawn.
- */
-- (void)layoutPass
-{
-  if (_inLayoutPass) {
-    return;
-  }
-  _inLayoutPass = YES;
-  ++_layoutPasses;
-  BOOL geometryChanged = [self readGeometry];
-  [self trackUserScroll];
-  if (_windowCross > 0 && _windowAlong > 0) {
-    if (_needsFrame || geometryChanged || !_band.contains([self offset])) {
-      [self runPasses];
-    }
-    [self readPassGeometry];
-    [self layoutTemplates];
-    [self mountCells];
-    [self layoutSticky];
-    if ([self hasHeldRow]) {
-      [self applyDragShiftsAnimated:NO];
-    }
-    [_changes run];
-    [self layoutSwipe];
-    [self layoutSectionIndex];
-  }
-  _passGeometry.valid = false;
-  _inLayoutPass = NO;
-  [self dispatchReached];
-}
-
 - (CGFloat)templateSize:(UIView *)view cross:(CGFloat)cross
 {
   if (!view) {
@@ -620,24 +573,6 @@ struct ShadowListKitPassGeometry {
   return _horizontal ? fits.width : fits.height;
 }
 
-- (void)layoutTemplates
-{
-  if (_headerView) {
-    CGRect frame = _horizontal ? [self displayRect:0 y:0 width:_headerSize height:_windowCross]
-                               : [self displayRect:0 y:0 width:_windowCross height:_headerSize];
-    if (!CGRectEqualToRect(_headerView.frame, frame)) {
-      _headerView.frame = frame;
-    }
-  }
-  if (_footerView) {
-    CGRect frame = _horizontal ? [self displayRect:_footerStart y:0 width:_footerSize height:_windowCross]
-                               : [self displayRect:0 y:_footerStart width:_windowCross height:_footerSize];
-    if (!CGRectEqualToRect(_footerView.frame, frame)) {
-      _footerView.frame = frame;
-    }
-  }
-}
-
 - (void)applyContentSize:(CGFloat)along
 {
   if (along == _contentAlong && !CGSizeEqualToSize(self.contentSize, CGSizeZero)) {
@@ -645,45 +580,6 @@ struct ShadowListKitPassGeometry {
   }
   _contentAlong = along;
   self.contentSize = _horizontal ? CGSizeMake(along, _windowCross) : CGSizeMake(_windowCross, along);
-}
-
-#pragma mark - Sticky
-
-/*
- * Pin the active section header and put the one it replaced back in its row.
- */
-- (void)layoutSticky
-{
-  if (!_driver.hasSticky()) {
-    return;
-  }
-  double offset = [self offset];
-  std::size_t active = _driver.activeStickyIndex(offset);
-  ShadowListKitListCell *cell = active != UNDEFINED_INDEX ? [self mountedCellAtIndex:active] : nil;
-  if (_stickyCell && _stickyCell != cell) {
-    [self unpinCell:_stickyCell];
-  }
-  _stickyCell = cell;
-  if (!cell) {
-    return;
-  }
-  RowRect rect = _driver.getRowRect(active);
-  double pinned = _driver.stickyLeading(active, offset);
-  if (_horizontal) {
-    rect.x = pinned;
-  } else {
-    rect.y = pinned;
-  }
-  ShadowListKitPlace(cell, [self displayRect:rect.x y:rect.y width:rect.width height:rect.height]);
-  cell.layer.zPosition = 1;
-}
-
-- (void)unpinCell:(ShadowListKitListCell *)cell
-{
-  if (cell.row != NSNotFound && (std::size_t)cell.row < _driver.getRowCount()) {
-    ShadowListKitPlace(cell, [self rowRect:(std::size_t)cell.row]);
-  }
-  cell.layer.zPosition = 0;
 }
 
 #pragma mark - Separators
@@ -699,10 +595,14 @@ struct ShadowListKitPassGeometry {
 #pragma mark - Events
 
 /*
- * The visible cell under a point in the list's own coordinates.
+ * The visible cell under a point in the list's own coordinates. A pinned header covers the
+ * items under it.
  */
 - (ShadowListKitListCell *)cellAtPoint:(CGPoint)point
 {
+  if (_stickyCell && !_stickyCell.hidden && _stickyCell.row != NSNotFound && CGRectContainsPoint(_stickyCell.frame, point)) {
+    return _stickyCell;
+  }
   for (auto& entry : _mounted) {
     ShadowListKitListCell *cell = entry.second;
     if (!cell.hidden && cell.row != NSNotFound && CGRectContainsPoint(cell.frame, point)) {

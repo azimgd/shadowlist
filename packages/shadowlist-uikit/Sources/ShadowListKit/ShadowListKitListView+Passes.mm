@@ -19,9 +19,9 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
 
 /*
- * The layout pass both kits run: the core's passes and their result, the cells of the rows with
- * their reuse, mounting near the viewport, prefetching and measurement, the separators, the
- * reached callbacks and the queries about the cells.
+ * The layout pass both kits run: the core's passes and their result, the pinned sticky row, the
+ * cells of the rows with their reuse, mounting near the viewport, prefetching and measurement,
+ * the separators, the reached callbacks and the queries about the cells.
  */
 @implementation ShadowListKitListView (Passes)
 
@@ -302,6 +302,151 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   _band = OffsetBand();
   _needsFrame = YES;
   ++_structureVersion;
+}
+
+/*
+ * One pass runs the core when the offset left the band, then mounts. Everything lands
+ * before the frame is drawn.
+ */
+- (void)layoutPass
+{
+  if (_inLayoutPass) {
+    return;
+  }
+  _inLayoutPass = YES;
+  ++_layoutPasses;
+#if TARGET_OS_OSX
+  if (_viewsBehind && ![self placesByLayer]) {
+    [self catchUpViews];
+  }
+#endif
+  BOOL geometryChanged = [self readGeometry];
+#if TARGET_OS_OSX
+  [self placeContentView];
+#endif
+  [self trackUserScroll];
+  if (_windowCross > 0 && _windowAlong > 0) {
+    if (_needsFrame || geometryChanged || !_band.contains([self offset])) {
+      [self runPasses];
+      if ([self measuredRangeEndsShort]) {
+        [self runPasses];
+      }
+    }
+    [self readPassGeometry];
+    [self layoutTemplates];
+    [self mountCells];
+    [self layoutSticky];
+    if ([self hasHeldRow]) {
+      [self updateDrag];
+    }
+    [_changes run];
+    [self layoutSwipe];
+#if !TARGET_OS_OSX
+    [self layoutSectionIndex];
+#endif
+  }
+  _passGeometry.valid = false;
+  _inLayoutPass = NO;
+#if TARGET_OS_OSX
+  [self scrollGeometryChanged];
+  // The content may have moved under a still pointer.
+  if (_hoverActive || _hoveredCell) {
+    [self updateHover];
+  }
+#endif
+  [self dispatchReached];
+#if TARGET_OS_OSX
+  if ([_userDelegate respondsToSelector:@selector(listViewDidLayOut:)]) {
+    [_userDelegate listViewDidLayOut:self];
+  }
+#endif
+}
+
+- (void)layoutTemplates
+{
+  if (_headerView) {
+    CGRect frame = _horizontal ? [self displayRect:0 y:0 width:_headerSize height:_windowCross]
+                               : [self displayRect:0 y:0 width:_windowCross height:_headerSize];
+    ShadowListKitPlace(_headerView, frame);
+  }
+  if (_footerView) {
+    CGRect frame = _horizontal ? [self displayRect:_footerStart y:0 width:_footerSize height:_windowCross]
+                               : [self displayRect:0 y:_footerStart width:_windowCross height:_footerSize];
+    ShadowListKitPlace(_footerView, frame);
+  }
+}
+
+/*
+ * Whether rows the viewport shows are left out of the measured range. The first frame picks the
+ * range from estimates, which can stop short of the viewport's end. One more run fills it.
+ */
+- (BOOL)measuredRangeEndsShort
+{
+  std::optional<MountedRange> measured = _driver.getMeasuredRange();
+  if (!measured || measured->high + 1 >= _driver.getRowCount()) {
+    return NO;
+  }
+  double end = _driver.getLeadingAt(measured->high) + _driver.getExtentAt(measured->high);
+  return end < [self offset] + _windowAlong + [self trailingInset];
+}
+
+#pragma mark - Sticky
+
+/*
+ * Pin the active section header and put the one it replaced back in its row. A pinned row
+ * sits over the rows and under a held one. Its frame pins it and leaves the transform a drag
+ * shifts it by.
+ */
+- (void)layoutSticky
+{
+  if (!_driver.hasSticky()) {
+    if (_stickyCell) {
+      [self unpinCell:_stickyCell];
+      _stickyCell = nil;
+    }
+    return;
+  }
+  double offset = [self offset];
+  std::size_t active = _driver.activeStickyIndex(offset);
+  ShadowListKitListCell *cell = active != UNDEFINED_INDEX ? [self mountedCellAtIndex:active] : nil;
+  // A held sticky item follows the pointer from its own row.
+  if (cell == _heldCell) {
+    cell = nil;
+  }
+  if (_stickyCell && _stickyCell != cell) {
+    [self unpinCell:_stickyCell];
+  }
+  _stickyCell = cell;
+  if (!cell) {
+    return;
+  }
+  RowRect rect = _driver.getRowRect(active);
+  double pinned = _driver.stickyLeading(active, offset);
+  if (_horizontal) {
+    rect.x = pinned;
+  } else {
+    rect.y = pinned;
+  }
+  [self placeCell:cell frame:[self displayRect:rect.x y:rect.y width:rect.width height:rect.height]];
+  if (cell.layer.zPosition != 1) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    cell.layer.zPosition = 1;
+    [CATransaction commit];
+  }
+}
+
+- (void)unpinCell:(ShadowListKitListCell *)cell
+{
+  if (cell.row != NSNotFound && (std::size_t)cell.row < _driver.getRowCount()) {
+    [self placeCell:cell frame:[self rowRect:(std::size_t)cell.row]];
+  }
+  if (cell != _heldCell) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    cell.layer.zPosition = 0;
+    [CATransaction commit];
+  }
 }
 
 #pragma mark - Mounting

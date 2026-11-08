@@ -28,8 +28,8 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 @interface ShadowListKitListView (DragSteps)
 - (void)setDragTouch:(CGPoint)location;
 - (void)beginDragAtPoint:(CGPoint)location;
-- (void)updateDrag;
 - (void)endDrag:(BOOL)commit;
+- (void)clearLiftOfCell:(ShadowListKitListCell *)cell;
 - (void)dragAutoScroll:(CADisplayLink *)link;
 @end
 
@@ -174,8 +174,7 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 {
   ShadowListKitListCell *previous = _heldCell;
   if (previous && previous != cell) {
-    previous.layer.zPosition = 0;
-    previous.layer.shadowOpacity = 0;
+    [self clearLiftOfCell:previous];
   }
   _heldCell = cell;
   [self showLiftOfCell:cell];
@@ -336,6 +335,7 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 
 - (void)dropCell:(ShadowListKitListCell *)cell
 {
+  __weak ShadowListKitListView *weakSelf = self;
   [UIView animateWithDuration:SHADOWLIST_KIT_DROP_DURATION delay:0 usingSpringWithDamping:0.9 initialSpringVelocity:0
                       options:UIViewAnimationOptionBeginFromCurrentState animations:^{
                         for (auto& entry : self->_mounted) {
@@ -344,9 +344,17 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
                         cell.transform = CGAffineTransformIdentity;
                       }
                    completion:^(BOOL finished) {
-                     cell.layer.zPosition = 0;
-                     cell.layer.shadowOpacity = 0;
+                     ShadowListKitListView *list = weakSelf;
+                     if (list && list->_heldCell != cell) {
+                       [list clearLiftOfCell:cell];
+                     }
                    }];
+}
+
+- (void)clearLiftOfCell:(ShadowListKitListCell *)cell
+{
+  cell.layer.zPosition = cell == _stickyCell ? 1 : 0;
+  cell.layer.shadowOpacity = 0;
 }
 
 @end
