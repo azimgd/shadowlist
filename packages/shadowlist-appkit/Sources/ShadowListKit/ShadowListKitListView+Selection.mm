@@ -391,6 +391,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   std::size_t row = (std::size_t)cell.row;
   _clickedKey = _driver.getKeyAt(row);
   _hasClickedKey = YES;
+  ++_clickGeneration;
   if (event.clickCount >= 2) {
     if (!extends) {
       [self activateRow:row];

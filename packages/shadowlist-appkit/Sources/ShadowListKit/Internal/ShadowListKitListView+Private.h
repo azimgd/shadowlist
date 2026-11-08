@@ -80,8 +80,9 @@ extern const char ShadowListKitListViewSelectionLink;
  * the mouse presses. _hoveredCell is the item under _hoverPoint, the pointer in the list's
  * coordinates while _hoverActive. _hoverTracking reports the pointer while allowsSelection is
  * set. _emphasized is whether the list is the key window's first responder. _clickedKey is the
- * key of clickedIndex while _hasClickedKey. _menuCell is the cell whose menu is open and
- * _menuOutline the outline drawn over it. _typeSelectBuffer holds the characters typed since
+ * key of clickedIndex while _hasClickedKey, and _clickGeneration counts the clicks and menus
+ * that set it. _menuCell is the cell whose menu is open and _menuOutline the outline drawn over
+ * it. _typeSelectBuffer holds the characters typed since
  * _typeSelectTime, the time of the last one.
  * _heldCell is the cell of the held row and _dragTouch the mouse in the list's coordinates.
  * _dragPressed is a mouse press on an item that can move, at _dragStart, which lifts it once
@@ -147,6 +148,7 @@ extern const char ShadowListKitListViewSelectionLink;
   BOOL _emphasized;
   std::string _clickedKey;
   BOOL _hasClickedKey;
+  NSUInteger _clickGeneration;
   __weak ShadowListKitListCell *_menuCell;
   CALayer *_menuOutline;
   NSString *_typeSelectBuffer;

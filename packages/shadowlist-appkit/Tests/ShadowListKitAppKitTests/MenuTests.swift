@@ -11,6 +11,10 @@ final class MenuTests: XCTestCase {
     NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: menu)
   }
 
+  private func spin() {
+    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+  }
+
   func testARightClickGetsTheDelegatesMenuAndMarksTheItem() throws {
     let harness = SelectionHarness()
     let list = harness.list
@@ -26,10 +30,23 @@ final class MenuTests: XCTestCase {
     // The menu does not select.
     XCTAssertEqual(harness.selection, [])
 
+    // The chosen item's action, sent after tracking ends, still reads the clicked item.
     closeMenu(menu)
-    XCTAssertEqual(list.clickedIndex, NSNotFound)
+    XCTAssertEqual(list.clickedIndex, 4)
     XCTAssertFalse(cell.isMenuTarget)
     XCTAssertNil(list.shadowListKit_menuOutline)
+    spin()
+    XCTAssertEqual(list.clickedIndex, NSNotFound)
+  }
+
+  func testAMenuOpenedRightAfterAnotherKeepsItsClickedItem() throws {
+    let harness = SelectionHarness()
+    let list = harness.list
+    let menu = try XCTUnwrap(list.shadowListKit_menuForItem(at: 2, modifierFlags: []))
+    closeMenu(menu)
+    _ = try XCTUnwrap(list.shadowListKit_menuForItem(at: 6, modifierFlags: []))
+    spin()
+    XCTAssertEqual(list.clickedIndex, 6)
   }
 
   func testAControlClickGetsTheSameMenu() throws {
@@ -44,6 +61,7 @@ final class MenuTests: XCTestCase {
     XCTAssertEqual(harness.cell(6)?.isMenuTarget, true)
     XCTAssertTrue(list.shadowListKit_menuOutline?.superlayer === harness.cell(6)?.layer)
     closeMenu(next)
+    spin()
     XCTAssertEqual(list.clickedIndex, NSNotFound)
   }
 

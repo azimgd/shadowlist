@@ -682,6 +682,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   [self endMenuTarget];
   _clickedKey = _driver.getKeyAt((std::size_t)cell.row);
   _hasClickedKey = YES;
+  ++_clickGeneration;
   _menuCell = cell;
   [cell setMenuTarget:YES animated:NO];
   [self placeMenuOutlineOnCell:cell];
@@ -689,18 +690,37 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
                                              name:NSMenuDidEndTrackingNotification object:menu];
 }
 
+/*
+ * AppKit ends tracking before it sends the chosen item's action, which reads clickedIndex the
+ * way an NSTableView menu reads clickedRow. The outline goes now and the clicked item on the
+ * next turn, unless another click or menu took its place.
+ */
 - (void)menuDidEndTracking:(NSNotification *)notification
 {
   [NSNotificationCenter.defaultCenter removeObserver:self name:NSMenuDidEndTrackingNotification object:notification.object];
-  [self endMenuTarget];
+  [self clearMenuTarget];
+  NSUInteger generation = _clickGeneration;
+  __weak ShadowListKitListView *weakSelf = self;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    ShadowListKitListView *strongSelf = weakSelf;
+    if (strongSelf && strongSelf->_clickGeneration == generation && !strongSelf->_menuCell) {
+      strongSelf->_hasClickedKey = NO;
+      strongSelf->_clickedKey.clear();
+    }
+  });
 }
 
 - (void)endMenuTarget
 {
-  ShadowListKitListCell *cell = _menuCell;
-  _menuCell = nil;
+  [self clearMenuTarget];
   _hasClickedKey = NO;
   _clickedKey.clear();
+}
+
+- (void)clearMenuTarget
+{
+  ShadowListKitListCell *cell = _menuCell;
+  _menuCell = nil;
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
   [_menuOutline removeFromSuperlayer];

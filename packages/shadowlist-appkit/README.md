@@ -232,7 +232,8 @@ responder, tracks no pointer and passes mouse and key events on.
 
 A right click, a Control-click or the menu key shows the delegate's `listView:contextMenuForItemAtIndex:` menu,
 with or without `allowsSelection`. While it is open `clickedIndex` is the item, its cell is the `menuTarget` and
-the list draws an outline around it. `clickedIndex` is also the item a mouse press is on until the mouse goes up.
+the list draws an outline around it. The chosen menu item's action still reads `clickedIndex`, like `clickedRow` in
+an NSTableView menu. `clickedIndex` is also the item a mouse press is on until the mouse goes up.
 
 An item the delegate gives no menu, but swipe actions, shows its trailing then its leading actions as a menu, a
 destructive one in red. A mouse without a trackpad reaches the actions that way.
