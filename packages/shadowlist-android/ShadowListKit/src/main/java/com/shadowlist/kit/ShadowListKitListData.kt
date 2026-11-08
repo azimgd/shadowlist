@@ -270,13 +270,12 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
 
   fun performBatchUpdates(updates: () -> Unit, completion: ((finished: Boolean) -> Unit)? = null) {
     state.beginBatch()
-    var outermost = false
     try {
       updates()
     } finally {
-      outermost = state.endBatch()
+      // A block that threw changed the data as far as it got. Its batch commits too.
+      if (state.endBatch()) commitBatch()
     }
-    if (outermost) commitBatch()
     if (completion == null) return
     val wait = if (list.animatesChanges && list.isAttachedToWindow) (list.itemAnimator as? ShadowListKitDefaultItemAnimator)?.durationMs ?: 0L else 0L
     list.runCommandNow()

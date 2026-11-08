@@ -198,13 +198,12 @@ export class ShadowListKitListData {
       this.performUnloadedBatch(updates);
     } else {
       this.state.beginBatch();
-      let outermost = false;
       try {
         updates();
       } finally {
-        outermost = this.state.endBatch();
+        // A block that threw changed the data as far as it got. Its batch commits too.
+        if (this.state.endBatch()) this.commitBatch();
       }
-      if (outermost) this.commitBatch();
     }
     if (!completion) return;
     this.list.runCommandNow();
