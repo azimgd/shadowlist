@@ -11,8 +11,8 @@ namespace azimgd::shadowlist {
 /*
  * Drag event types a host writes into the list state when a row is picked up or dropped.
  * DRAG_EVENT_LAND marks a row from another list of a drag board landing in this one. It sends
- * JS nothing and only tells the core to keep the offset, see DropHint. Android's
- * ShadowListDragController.DRAG_EVENT_* constants must match.
+ * JS nothing and only tells the core to keep the offset, see DropHint. Fabric Android reads
+ * them through ShadowListDrag.nativeConstants.
  */
 constexpr int DRAG_EVENT_START = 1;
 constexpr int DRAG_EVENT_END = 3;

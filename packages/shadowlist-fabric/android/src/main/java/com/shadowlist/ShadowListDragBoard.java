@@ -61,13 +61,13 @@ final class ShadowListDragBoard {
   static final int RELEASE_DROP = 2;
 
   /*
-   * Where the held row is, matching DragBoardPhase.
+   * Where the held row is, the core's DragBoardPhase read through nativeConstants.
    */
-  static final int PHASE_IDLE = 0;
-  static final int PHASE_AT_HOME = 1;
-  static final int PHASE_FLOATING = 2;
-  static final int PHASE_LANDING = 3;
-  static final int PHASE_SETTLING = 4;
+  static final int PHASE_IDLE;
+  static final int PHASE_AT_HOME;
+  static final int PHASE_FLOATING;
+  static final int PHASE_LANDING;
+  static final int PHASE_SETTLING;
 
   /*
    * Slots of the array frame fills. Match FrameSlot in ShadowListDragBoardJNI.cpp.
@@ -87,12 +87,22 @@ final class ShadowListDragBoard {
    * Slots of the array nativeConstants fills. Match ConstantSlot in ShadowListDragBoardJNI.cpp.
    */
   private static final int CONSTANT_LAND_TIMEOUT_MS = 0;
-  private static final int CONSTANT_SLOTS = 1;
+  private static final int CONSTANT_PHASE_IDLE = 1;
+  private static final int CONSTANT_PHASE_AT_HOME = 2;
+  private static final int CONSTANT_PHASE_FLOATING = 3;
+  private static final int CONSTANT_PHASE_LANDING = 4;
+  private static final int CONSTANT_PHASE_SETTLING = 5;
+  private static final int CONSTANT_SLOTS = 6;
 
   static {
     double[] constants = new double[CONSTANT_SLOTS];
     nativeConstants(constants);
     LAND_TIMEOUT_MS = Math.round(constants[CONSTANT_LAND_TIMEOUT_MS]);
+    PHASE_IDLE = (int) constants[CONSTANT_PHASE_IDLE];
+    PHASE_AT_HOME = (int) constants[CONSTANT_PHASE_AT_HOME];
+    PHASE_FLOATING = (int) constants[CONSTANT_PHASE_FLOATING];
+    PHASE_LANDING = (int) constants[CONSTANT_PHASE_LANDING];
+    PHASE_SETTLING = (int) constants[CONSTANT_PHASE_SETTLING];
   }
 
   private static final ShadowListPeerReclaimer RECLAIMER =

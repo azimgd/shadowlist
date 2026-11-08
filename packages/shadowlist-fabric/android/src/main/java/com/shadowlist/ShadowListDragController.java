@@ -32,11 +32,11 @@ import java.util.WeakHashMap;
  */
 final class ShadowListDragController {
   /*
-   * Match DRAG_EVENT_* in shadowlist-core/host/DragReorder.hpp.
+   * The core's DRAG_EVENT_* in host/DragReorder.hpp, read through ShadowListDrag.
    */
-  private static final int DRAG_EVENT_START = 1;
-  static final int DRAG_EVENT_END = 3;
-  static final int DRAG_EVENT_LAND = 4;
+  private static final int DRAG_EVENT_START = ShadowListDrag.EVENT_START;
+  static final int DRAG_EVENT_END = ShadowListDrag.EVENT_END;
+  static final int DRAG_EVENT_LAND = ShadowListDrag.EVENT_LAND;
 
   private final ShadowListView mView;
   private final ShadowListDrag mDrag = new ShadowListDrag();

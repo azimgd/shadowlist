@@ -50,21 +50,14 @@ public class ShadowListView extends FrameLayout {
   }
 
   /*
-   * Values for the scrollPhase state key, matching SCROLL_PHASE_* in host/LiveScroll.hpp.
-   * Idle, finger down, or momentum running.
+   * Values for the scrollPhase state key and the scrollToRow rows for the end and an absolute
+   * offset, read from the core through ShadowListScrollSync.
    */
-  static final int SCROLL_PHASE_IDLE = 0;
-  private static final int SCROLL_PHASE_DRAGGING = 1;
-  private static final int SCROLL_PHASE_SETTLING = 2;
-  /*
-   * The scrollToRow row that means the end, matching SCROLL_TO_END_SLOT in Constants.hpp.
-   */
-  private static final double SCROLL_TO_END_INDEX = -3.0;
-  /*
-   * The scrollToRow row that means the absolute offset carried in viewOffset, matching
-   * SCROLL_TO_OFFSET_SLOT.
-   */
-  private static final double SCROLL_TO_OFFSET_INDEX = -4.0;
+  static final int SCROLL_PHASE_IDLE = ShadowListScrollSync.SCROLL_PHASE_IDLE;
+  private static final int SCROLL_PHASE_DRAGGING = ShadowListScrollSync.SCROLL_PHASE_DRAGGING;
+  private static final int SCROLL_PHASE_SETTLING = ShadowListScrollSync.SCROLL_PHASE_SETTLING;
+  private static final double SCROLL_TO_END_SLOT = ShadowListScrollSync.SCROLL_TO_END_SLOT;
+  private static final double SCROLL_TO_OFFSET_SLOT = ShadowListScrollSync.SCROLL_TO_OFFSET_SLOT;
 
   /*
    * Keys of the state MapBuffer, matching ShadowListStateKey in ShadowListViewState.h.
@@ -1451,7 +1444,7 @@ public class ShadowListView extends FrameLayout {
      * the first correction a row measured on the way sends.
      */
     if (animated && mState != null) {
-      issueScrollCommand(SCROLL_TO_OFFSET_INDEX, 0.0, offset, true);
+      issueScrollCommand(SCROLL_TO_OFFSET_SLOT, 0.0, offset, true);
       return;
     }
     // Marked as ours so its frames don't count as user scrolls.
@@ -1477,7 +1470,7 @@ public class ShadowListView extends FrameLayout {
     /*
      * The core keeps adjusting as rows get measured instead of jumping to an estimated bottom.
      */
-    issueScrollCommand(SCROLL_TO_END_INDEX, 0.0, 0.0, animated);
+    issueScrollCommand(SCROLL_TO_END_SLOT, 0.0, 0.0, animated);
   }
 
   /*

@@ -17,6 +17,19 @@ namespace {
 namespace sl = azimgd::shadowlist;
 
 /*
+ * Slots of ShadowListScrollSync.CONSTANT_*: the scroll phases a host reports and the scroll
+ * command rows that mean the end and an absolute offset.
+ */
+enum ConstantSlot {
+  CONSTANT_SCROLL_PHASE_IDLE = 0,
+  CONSTANT_SCROLL_PHASE_DRAGGING,
+  CONSTANT_SCROLL_PHASE_SETTLING,
+  CONSTANT_SCROLL_TO_END_SLOT,
+  CONSTANT_SCROLL_TO_OFFSET_SLOT,
+  CONSTANT_SLOTS,
+};
+
+/*
  * Slots of ShadowListScrollSync.OUT_*.
  */
 enum OutSlot {
@@ -97,6 +110,19 @@ void writePatch(
 #define SL_SCROLL_SYNC_JNI(name) Java_com_shadowlist_ShadowListScrollSync_##name
 
 extern "C" {
+
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeConstants)(JNIEnv* env, jclass, jdoubleArray out) {
+  if (out == nullptr || env->GetArrayLength(out) < CONSTANT_SLOTS) {
+    return;
+  }
+  jdouble values[CONSTANT_SLOTS];
+  values[CONSTANT_SCROLL_PHASE_IDLE] = sl::SCROLL_PHASE_IDLE;
+  values[CONSTANT_SCROLL_PHASE_DRAGGING] = sl::SCROLL_PHASE_DRAGGING;
+  values[CONSTANT_SCROLL_PHASE_SETTLING] = sl::SCROLL_PHASE_SETTLING;
+  values[CONSTANT_SCROLL_TO_END_SLOT] = sl::SCROLL_TO_END_SLOT;
+  values[CONSTANT_SCROLL_TO_OFFSET_SLOT] = sl::SCROLL_TO_OFFSET_SLOT;
+  env->SetDoubleArrayRegion(out, 0, CONSTANT_SLOTS, values);
+}
 
 JNIEXPORT jlong JNICALL SL_SCROLL_SYNC_JNI(nativeCreate)(JNIEnv*, jclass, jdouble landingTolerance) {
   sl::ScrollSync::Options options;

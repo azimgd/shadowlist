@@ -44,6 +44,13 @@ final class ShadowListDrag {
   static final long DROP_DURATION_MS;
 
   /*
+   * The core's drag event types, DRAG_EVENT_* in host/DragReorder.hpp.
+   */
+  static final int EVENT_START;
+  static final int EVENT_END;
+  static final int EVENT_LAND;
+
+  /*
    * Slots of the array nativeConstants fills. Match ConstantSlot in ShadowListDragJNI.cpp.
    */
   private static final int CONSTANT_PRESS_DURATION_MS = 0;
@@ -51,7 +58,10 @@ final class ShadowListDrag {
   private static final int CONSTANT_LIFT_ELEVATION = 2;
   private static final int CONSTANT_SHIFT_DURATION_MS = 3;
   private static final int CONSTANT_DROP_DURATION_MS = 4;
-  private static final int CONSTANT_SLOTS = 5;
+  private static final int CONSTANT_EVENT_START = 5;
+  private static final int CONSTANT_EVENT_END = 6;
+  private static final int CONSTANT_EVENT_LAND = 7;
+  private static final int CONSTANT_SLOTS = 8;
 
   static {
     double[] constants = new double[CONSTANT_SLOTS];
@@ -61,6 +71,9 @@ final class ShadowListDrag {
     LIFT_ELEVATION_DP = constants[CONSTANT_LIFT_ELEVATION];
     SHIFT_DURATION_MS = Math.round(constants[CONSTANT_SHIFT_DURATION_MS]);
     DROP_DURATION_MS = Math.round(constants[CONSTANT_DROP_DURATION_MS]);
+    EVENT_START = (int) constants[CONSTANT_EVENT_START];
+    EVENT_END = (int) constants[CONSTANT_EVENT_END];
+    EVENT_LAND = (int) constants[CONSTANT_EVENT_LAND];
   }
 
   private static final ShadowListPeerReclaimer RECLAIMER = new ShadowListPeerReclaimer(ShadowListDrag::nativeDestroy);
