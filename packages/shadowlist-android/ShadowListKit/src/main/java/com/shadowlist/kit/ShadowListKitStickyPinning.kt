@@ -90,10 +90,15 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
   }
 
   /*
-   * Pin the active section header and put the one it replaced back in its row.
+   * Pin the active section header and put the one it replaced back in its row. With no sticky
+   * rows left, the row pinned last goes back to its own place.
    */
   fun layoutSticky() {
-    if (stickyRows.isEmpty()) return
+    if (stickyRows.isEmpty()) {
+      stickyCell?.let { unpinCell(it) }
+      stickyCell = null
+      return
+    }
     val position = activeStickyPosition(list.exactOffset)
     val active = if (position >= 0) stickyRows[position] else -1
     val cell = list.mountedCell(active)

@@ -933,8 +933,16 @@ open class ShadowListKitListView @JvmOverloads constructor(
     if (row >= 0) scrollToRow(row, 0.0, animated)
   }
 
+  /*
+   * New sticky rows mount and pin again, wherever the offset is: the band of the last mount plan
+   * was found without them.
+   */
   private fun updateStickyRows() {
-    if (stickyPinning.updateStickyRows(stickyIndices, stickySectionHeaders)) mountedLow = -1
+    if (stickyPinning.updateStickyRows(stickyIndices, stickySectionHeaders)) {
+      mountedLow = -1
+      mountBandLow = 1.0
+      mountBandHigh = 0.0
+    }
   }
 
   internal fun reloadSectionIndex() {

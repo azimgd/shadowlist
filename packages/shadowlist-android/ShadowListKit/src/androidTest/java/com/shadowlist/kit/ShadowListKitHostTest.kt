@@ -596,4 +596,23 @@ class ShadowListKitHostTest {
     assertEquals(1f, lifted.scaleY)
     assertEquals(0f, lifted.translationZ)
   }
+
+  @Test
+  fun sticky_rows_set_and_cleared_at_rest_pin_and_unpin() = onMain {
+    val rows = Rows(500, ROW_SIZE)
+    val list = makeList(rows)
+    list.scrollTo(0, (8 * ROW_SIZE).roundToInt())
+    list.stickyIndices = intArrayOf(5)
+    layOut(list)
+    val pinned = requireNotNull(list.cellForItem(5))
+    assertEquals(list.scrollY, pinned.top)
+    list.stickyIndices = IntArray(0)
+    layOut(list)
+    // Row 5 is above the viewport now: its cell is gone, or back at its own row.
+    val back = list.cellForItem(5)
+    if (back != null) assertEquals(requireNotNull(list.rectForItem(5)).top.roundToInt(), back.top)
+    for (cell in list.visibleCells) {
+      assertEquals(requireNotNull(list.rectForItem(cell.index)).top.roundToInt(), cell.top)
+    }
+  }
 }
