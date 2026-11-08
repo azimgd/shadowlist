@@ -44,7 +44,7 @@ struct Peer {
   sl::DragFeedback dragFeedback;
   JNIEnv* env = nullptr;
   jobject target = nullptr;
-  jmethodID measureRow = nullptr;
+  jmethodID measureRows = nullptr;
   jmethodID prefetchRows = nullptr;
   std::vector<jint> dragInts;
   std::vector<std::size_t> dragRows;
@@ -314,16 +314,36 @@ extern "C" {
 JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject thiz) {
   auto* peer = new Peer();
   jclass clazz = env->GetObjectClass(thiz);
-  peer->measureRow = env->GetMethodID(clazz, "measureRow", "(ID)D");
+  peer->measureRows = env->GetMethodID(clazz, "measureRows", "([I[D[D)V");
   peer->prefetchRows = env->GetMethodID(clazz, "prefetchRows", "(I)V");
   env->DeleteLocalRef(clazz);
-  peer->driver.setMeasureRow([peer](std::size_t row, const std::string&, double cross) {
+  /*
+   * One upcall measures every row a pass needs, as the wasm bridge does, instead of one JNI
+   * round trip per row.
+   */
+  peer->driver.setMeasureRows([peer](const std::vector<std::size_t>& indices, const std::vector<double>& crossSizes,
+                                std::vector<double>& sizes) {
+    JNIEnv* env = peer->env;
     // A measure that threw leaves its exception pending. No JNI call may follow until runPasses returns.
-    if (peer->env == nullptr || peer->target == nullptr || peer->env->ExceptionCheck()) {
-      return 0.0;
+    if (env == nullptr || peer->target == nullptr || env->ExceptionCheck() || indices.empty()) {
+      return;
     }
-    double size = peer->env->CallDoubleMethod(peer->target, peer->measureRow, static_cast<jint>(row), cross);
-    return peer->env->ExceptionCheck() ? 0.0 : size;
+    auto count = static_cast<jsize>(indices.size());
+    std::vector<jint> rows(indices.begin(), indices.end());
+    jintArray rowArray = env->NewIntArray(count);
+    jdoubleArray crossArray = env->NewDoubleArray(count);
+    jdoubleArray sizeArray = env->NewDoubleArray(count);
+    if (rowArray != nullptr && crossArray != nullptr && sizeArray != nullptr) {
+      env->SetIntArrayRegion(rowArray, 0, count, rows.data());
+      env->SetDoubleArrayRegion(crossArray, 0, count, crossSizes.data());
+      env->CallVoidMethod(peer->target, peer->measureRows, rowArray, crossArray, sizeArray);
+      if (!env->ExceptionCheck()) {
+        env->GetDoubleArrayRegion(sizeArray, 0, count, sizes.data());
+      }
+    }
+    env->DeleteLocalRef(rowArray);
+    env->DeleteLocalRef(crossArray);
+    env->DeleteLocalRef(sizeArray);
   });
   peer->driver.setPrefetchRows([peer](const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel) {
     if (peer->env == nullptr || peer->target == nullptr || peer->env->ExceptionCheck()) {

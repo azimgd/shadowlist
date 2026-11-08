@@ -294,12 +294,15 @@ internal class ShadowListKitCore(
   private external fun nativeRunPasses(handle: Long, io: DoubleArray)
 
   /*
-   * Called by the driver during runPasses for every row in the measured range that has no size yet.
-   * Only JNI calls it. Keep stops R8 in a minified app from removing or renaming it.
+   * Called by the driver during runPasses with every row in the measured range that has no size
+   * yet, all in one call: each row's size at its cross size goes into sizes. Only JNI calls it.
+   * Keep stops R8 in a minified app from removing or renaming it.
    */
   @Keep
   @Suppress("unused")
-  private fun measureRow(row: Int, crossSize: Double): Double = measure(row, crossSize)
+  private fun measureRows(rows: IntArray, crossSizes: DoubleArray, sizes: DoubleArray) {
+    for (at in rows.indices) sizes[at] = measure(rows[at], crossSizes[at])
+  }
 
   /*
    * Called by the driver during runPasses with PASS_PREFETCH on, before it measures the rows it
