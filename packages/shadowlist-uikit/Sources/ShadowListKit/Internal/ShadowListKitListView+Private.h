@@ -306,7 +306,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * row, which can be a section header. stopScrolling stops momentum and an animated command.
  * runCommandNow lays the list out at once for a command the core took. restorePendingAnchor
  * lands a waiting saved position once its key is there. invalidateRestorableStateIfSettled tells
- * the Mac window the saved position changed once the list rests.
+ * the Mac window the saved position changed once the list rests. animateToOffset:landing: is
+ * the iOS animated command, which the Mac runs through its scroll engine.
  */
 @interface ShadowListKitListView (Commands)
 
@@ -314,8 +315,9 @@ extern const char ShadowListKitListViewSelectionLink;
 - (void)stopScrolling;
 - (void)runCommandNow;
 - (void)restorePendingAnchor;
-#if TARGET_OS_OSX
 - (void)invalidateRestorableStateIfSettled;
+#if !TARGET_OS_OSX
+- (void)animateToOffset:(double)offset landing:(azimgd::shadowlist::ScrollLanding)landing;
 #endif
 
 @end
