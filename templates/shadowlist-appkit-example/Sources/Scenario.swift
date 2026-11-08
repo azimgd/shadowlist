@@ -424,8 +424,12 @@ enum Scenario {
         if let menu {
           NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: menu)
         }
-        checks["closedClearsClickedIndex"] = list.clickedIndex == NSNotFound
+        // The chosen item's action runs after tracking ends and still reads the clicked item.
+        checks["actionReadsClickedIndex"] = list.clickedIndex == 2
         checks["closedClearsOutline"] = list.shadowListKit_menuOutline == nil && list.cellForItem(at: 2)?.isMenuTarget == false
+      },
+      {
+        checks["closedClearsClickedIndex"] = list.clickedIndex == NSNotFound
       },
       {
         // Left open for the picture.
