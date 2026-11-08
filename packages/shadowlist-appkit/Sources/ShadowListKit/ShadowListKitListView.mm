@@ -699,8 +699,9 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   if (cell.isHovered) {
     [cell setHovered:NO animated:NO];
   }
+  // The clicked item stays by key. A menu still open sends its action after a reload.
   if (cell.isMenuTarget) {
-    [self endMenuTarget];
+    [self clearMenuTarget];
   }
   [self swipeCellWillRecycle:cell];
   [self resetDragLookOfCell:cell];

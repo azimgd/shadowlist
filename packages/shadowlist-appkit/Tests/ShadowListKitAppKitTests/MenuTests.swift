@@ -94,6 +94,21 @@ final class MenuTests: XCTestCase {
     closeMenu(menu)
   }
 
+  func testTheClickedItemOutlivesItsCellGoingBackToThePool() throws {
+    let harness = SelectionHarness()
+    let list = harness.list
+    let menu = try XCTUnwrap(list.shadowListKit_menuForItem(at: 2, modifierFlags: []))
+    list.scrollToItem(at: 400, viewPosition: 0, animated: false)
+    harness.layout()
+    XCTAssertNil(harness.cell(2))
+    // The action the menu sends after tracking ends still reads the clicked item.
+    XCTAssertEqual(list.clickedIndex, 2)
+    closeMenu(menu)
+    XCTAssertEqual(list.clickedIndex, 2)
+    spin()
+    XCTAssertEqual(list.clickedIndex, NSNotFound)
+  }
+
   func testAListWithoutMenusLeavesTheEventToAppKit() {
     let harness = ListHarness(source: TestSource(count: 20))
     XCTAssertNil(harness.list.shadowListKit_menuForItem(at: 1, modifierFlags: []))

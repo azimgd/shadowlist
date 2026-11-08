@@ -550,7 +550,8 @@ struct ShadowListKitPassGeometry {
  * accessibilitySwipeActionsForItem: is an item's swipe actions as accessibility actions.
  * menuForCell: is the delegate's menu for an item, or a menu of its swipe actions.
  * showMenuForRow: opens it on a row from the keyboard. endMenuTarget takes the outline and
- * clickedIndex off the item once the menu closes.
+ * clickedIndex off the item once the menu closes, and clearMenuTarget takes only the outline,
+ * like for a cell going back to the pool while its menu is open.
  */
 @interface ShadowListKitListView (Actions)
 
@@ -566,6 +567,7 @@ struct ShadowListKitPassGeometry {
 - (nullable NSMenu *)menuForCell:(ShadowListKitListCell *)cell;
 - (void)showMenuForRow:(std::size_t)row;
 - (void)endMenuTarget;
+- (void)clearMenuTarget;
 
 @end
 #else

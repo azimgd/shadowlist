@@ -693,6 +693,8 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 - (void)beginMenu:(NSMenu *)menu cell:(ShadowListKitListCell *)cell
 {
   [self endMenuTarget];
+  // One menu at a time. A menu AppKit never showed sends no end of tracking.
+  [NSNotificationCenter.defaultCenter removeObserver:self name:NSMenuDidEndTrackingNotification object:nil];
   _clickedKey = _driver.getKeyAt((std::size_t)cell.row);
   _hasClickedKey = YES;
   ++_clickGeneration;
