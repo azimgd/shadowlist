@@ -1,10 +1,12 @@
 #import "ShadowListMacScrollView.h"
 
+#include <shadowlist-core/host/ScrollPhysics.hpp>
+
 #if TARGET_OS_OSX
 /*
- * How long a mouse wheel rests before its live scroll ends.
+ * How long a mouse wheel rests before its live scroll ends, the core's SCROLL_WHEEL_IDLE_MS.
  */
-static const NSTimeInterval SL_WHEEL_IDLE_DELAY = 0.15;
+static const NSTimeInterval SL_WHEEL_IDLE_DELAY = azimgd::shadowlist::SCROLL_WHEEL_IDLE_MS / 1000.0;
 
 @implementation ShadowListMacScrollView {
   ShadowListMacScrollPhase _phase;
@@ -37,8 +39,8 @@ static const NSTimeInterval SL_WHEEL_IDLE_DELAY = 0.15;
 - (void)beginLiveScroll:(NSNotification *)notification
 {
   _ignoreMomentum = NO;
-  if (_phase != ShadowListMacScrollPhaseMomentum) {
-    _phase = ShadowListMacScrollPhaseTracking;
+  if (_phase != ShadowListMacScrollPhaseSettling) {
+    _phase = ShadowListMacScrollPhaseDragging;
   }
   [self notifyLiveScrollBegan];
 }
@@ -116,9 +118,9 @@ static const NSTimeInterval SL_WHEEL_IDLE_DELAY = 0.15;
   }
   NSEventPhase touching = NSEventPhaseMayBegin | NSEventPhaseBegan | NSEventPhaseChanged | NSEventPhaseStationary;
   if (event.momentumPhase == NSEventPhaseBegan || event.momentumPhase == NSEventPhaseChanged) {
-    _phase = ShadowListMacScrollPhaseMomentum;
+    _phase = ShadowListMacScrollPhaseSettling;
   } else if (unphased || (event.phase & touching) != 0) {
-    _phase = ShadowListMacScrollPhaseTracking;
+    _phase = ShadowListMacScrollPhaseDragging;
   } else {
     _phase = ShadowListMacScrollPhaseIdle;
   }
@@ -140,7 +142,7 @@ static const NSTimeInterval SL_WHEEL_IDLE_DELAY = 0.15;
 
 - (BOOL)stopMomentum
 {
-  BOOL moving = _phase == ShadowListMacScrollPhaseMomentum;
+  BOOL moving = _phase == ShadowListMacScrollPhaseSettling;
   _ignoreMomentum = YES;
   if (moving) {
     _phase = ShadowListMacScrollPhaseIdle;

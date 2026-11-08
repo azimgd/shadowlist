@@ -12,10 +12,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)shadowListScrollDidEnd;
 @end
 
+/*
+ * The core's ScrollPhase words: Dragging while fingers or a mouse wheel move the view,
+ * Settling while momentum carries it on.
+ */
 typedef NS_ENUM(NSInteger, ShadowListMacScrollPhase) {
   ShadowListMacScrollPhaseIdle,
-  ShadowListMacScrollPhaseTracking,
-  ShadowListMacScrollPhaseMomentum,
+  ShadowListMacScrollPhaseDragging,
+  ShadowListMacScrollPhaseSettling,
 };
 
 /*

@@ -36,9 +36,9 @@
 static double SLScrollPhaseForMacPhase(ShadowListMacScrollPhase phase)
 {
   switch (phase) {
-    case ShadowListMacScrollPhaseTracking:
+    case ShadowListMacScrollPhaseDragging:
       return azimgd::shadowlist::SCROLL_PHASE_DRAGGING;
-    case ShadowListMacScrollPhaseMomentum:
+    case ShadowListMacScrollPhaseSettling:
       return azimgd::shadowlist::SCROLL_PHASE_SETTLING;
     case ShadowListMacScrollPhaseIdle:
       return azimgd::shadowlist::SCROLL_PHASE_IDLE;
@@ -560,7 +560,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   motion.maxOffset = MAX(0, _horizontal
     ? _scrollView.contentSize.width - _scrollView.contentView.bounds.size.width
     : _scrollView.contentSize.height - _scrollView.contentView.bounds.size.height);
-  motion.touching = macPhase == ShadowListMacScrollPhaseTracking;
+  motion.touching = macPhase == ShadowListMacScrollPhaseDragging;
   // Fingers on the trackpad move the view like a UIKit drag. A correction shifts the live offset.
   motion.moving = macPhase != ShadowListMacScrollPhaseIdle;
 #endif
