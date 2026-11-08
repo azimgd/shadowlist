@@ -53,13 +53,15 @@ export function useAnchorState({
         return;
       }
       let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = (state: AnchorState | null) => {
         if (settled) return;
         settled = true;
+        clearTimeout(timer);
         resolve(state);
       };
       anchorWaitersRef.current.push(finish);
-      setTimeout(() => finish(null), ANCHOR_STATE_TIMEOUT_MS);
+      timer = setTimeout(() => finish(null), ANCHOR_STATE_TIMEOUT_MS);
       Commands.requestAnchorState(view);
     });
 
