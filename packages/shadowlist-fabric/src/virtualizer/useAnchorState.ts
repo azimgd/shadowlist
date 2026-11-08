@@ -57,7 +57,7 @@ export function useAnchorState({
       const finish = (state: AnchorState | null) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        if (timer !== undefined) clearTimeout(timer);
         resolve(state);
       };
       anchorWaitersRef.current.push(finish);
