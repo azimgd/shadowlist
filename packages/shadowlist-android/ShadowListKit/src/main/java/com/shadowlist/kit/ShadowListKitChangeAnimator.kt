@@ -24,7 +24,8 @@ internal class ShadowListKitChangeAnimator(private val list: ShadowListKitListVi
    * first one records the screen.
    */
   fun capture(deleted: List<String>, inserted: List<String>) {
-    if (!list.isLaidOut || list.hasHeldRow) return
+    // A list without a size shows nothing to animate from and runs no pass to play it.
+    if (!list.isLaidOut || list.hasHeldRow || list.width == 0 || list.height == 0) return
     val core = list.liveCore ?: return
     val keys = ArrayList<String>(list.mounted.size)
     val positions = DoubleArray(list.mounted.size * 2)

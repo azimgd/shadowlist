@@ -41,10 +41,14 @@ using namespace azimgd::shadowlist;
   return {origin.x, origin.y};
 }
 
+/*
+ * A list without a size runs no pass that would play the change. It shows nothing to animate
+ * from either.
+ */
 - (void)captureDeleted:(const std::vector<std::string>&)deleted inserted:(const std::vector<std::string>&)inserted
 {
   ShadowListKitListView *list = _list;
-  if (!list || !list.window || [list hasHeldRow]) {
+  if (!list || !list.window || [list hasHeldRow] || list->_windowAlong <= 0 || list->_windowCross <= 0) {
     return;
   }
   if (_animation.capture(deleted, inserted)) {

@@ -129,6 +129,27 @@ final class AnimationTests: XCTestCase {
     XCTAssertTrue(CATransform3DIsIdentity(layer.transform))
   }
 
+  func testAChangeWhileTheListHasNoSizeDoesNotAnimateLater() throws {
+    let harness = makeHarness()
+    let list = harness.list
+    let source = harness.source
+    let frame = list.frame
+    list.frame = NSRect(origin: frame.origin, size: .zero)
+    harness.layout()
+    source.keys.insert("new", at: 0)
+    list.insertItems(at: IndexSet(integer: 0))
+    harness.layout()
+    list.frame = frame
+    harness.layout()
+    XCTAssertTrue(list.visibleCells.allSatisfy { keys($0).isEmpty })
+    // The next change slides from where the items show now.
+    source.keys.insert("next", at: 2)
+    list.insertItems(at: IndexSet(integer: 2))
+    harness.layout()
+    let after = try XCTUnwrap(slide(list.cellForItem(at: 3)))
+    XCTAssertEqual(after.y, -44, accuracy: 0.01)
+  }
+
   func testTheSlideStartsWhereTheItemShowedBefore() throws {
     let harness = makeHarness()
     let list = harness.list
