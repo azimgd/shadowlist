@@ -359,6 +359,18 @@ final class AccessibilityTests: XCTestCase {
     XCTAssertTrue(list.accessibilityHitTest(NSPoint(x: frame.midX, y: frame.midY)) as? ShadowListKitListCell === cell)
   }
 
+  func testAPointOverTheScrollBarFindsItInAListAwayFromTheOrigin() throws {
+    let (harness, _) = makeHarness()
+    let list = harness.list
+    list.autoresizingMask = []
+    list.frame = NSRect(x: 40, y: 20, width: 280, height: 460)
+    list.shadowListKit_scrollerView.flashScrollers()
+    harness.layout()
+    let frame = try screenRect(list, NSRect(x: list.bounds.width - 3, y: 100, width: 0, height: 0))
+    let hit = list.accessibilityHitTest(frame.origin) as? NSAccessibilityElement
+    XCTAssertEqual(hit?.accessibilityRole(), .scrollBar)
+  }
+
   func testAHostHidesTheListAndItsRows() throws {
     let (harness, _) = makeHarness {
       $0.scrollDriven = true

@@ -279,7 +279,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   }
   NSRect screen = NSMakeRect(point.x, point.y, 0, 0);
   NSPoint local = self.window ? [self convertRect:[self.window convertRectFromScreen:screen] fromView:nil].origin : NSZeroPoint;
-  if (!_scrollers.hidden && [_scrollers hitTest:[self convertPoint:local toView:self.superview]]) {
+  if (!_scrollers.hidden && [_scrollers hitTest:local]) {
     return [_scrollers accessibilityHitTest:point];
   }
   NSPoint content = [_contentView convertPoint:local fromView:self];
