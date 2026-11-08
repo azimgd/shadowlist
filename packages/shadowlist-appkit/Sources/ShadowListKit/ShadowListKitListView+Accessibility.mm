@@ -1,4 +1,5 @@
 #import "Internal/ShadowListKitListView+Private.h"
+#import "Internal/ShadowListKitListSupport.h"
 #import "Internal/ShadowListKitSwipeActionsView.h"
 
 #import <ShadowListKit/ShadowListKitListView+Testing.h>
@@ -577,8 +578,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   if (visible.location == NSNotFound) {
     return;
   }
-  NSString *status = [NSString stringWithFormat:@"Rows %lu to %lu of %lu", (unsigned long)visible.location + 1,
-    (unsigned long)NSMaxRange(visible), (unsigned long)_sections.getItemCount()];
+  NSString *status = ShadowListKitRowsShownAnnouncement(visible, _sections.getItemCount());
   [self postAccessibilityNotification:NSAccessibilityAnnouncementRequestedNotification
                              userInfo:@{NSAccessibilityAnnouncementKey : status,
                                NSAccessibilityPriorityKey : @(NSAccessibilityPriorityMedium)}];

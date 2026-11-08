@@ -927,7 +927,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 - (void)scrollByPage:(NSInteger)direction
 {
   [self stopScrolling];
-  double target = std::min(std::max([self offset] + direction * _windowAlong, 0.0), (double)[self maxOffset]);
+  double target = pageScrollTarget([self offset], _windowAlong, [self maxOffset], (int)direction);
   [self setContentOffset:[self contentOffsetAt:target] animated:YES];
 }
 

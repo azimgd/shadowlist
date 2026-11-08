@@ -11,6 +11,18 @@ extern NSString *const SHADOWLIST_KIT_SECTION_HEADER_IDENTIFIER;
 extern NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER;
 
 /*
+ * What an assistive app hears after a page scroll: which items show out of all of them. An app
+ * localizes it under the key ShadowListKitRowsShown in its ShadowListKit strings table.
+ */
+static inline NSString *ShadowListKitRowsShownAnnouncement(NSRange visible, NSUInteger count)
+{
+  NSString *format = NSLocalizedStringWithDefaultValue(@"ShadowListKitRowsShown", @"ShadowListKit", NSBundle.mainBundle,
+    @"Rows %lu to %lu of %lu", @"The first and last item that show and the item count, after a page scroll");
+  return [NSString localizedStringWithFormat:format, (unsigned long)visible.location + 1, (unsigned long)NSMaxRange(visible),
+    (unsigned long)count];
+}
+
+/*
  * The settle display link's target. It holds the list weakly, which lets the list go away
  * while the link exists.
  */
