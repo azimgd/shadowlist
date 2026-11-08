@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### ShadowListKit for AppKit
+
+- A driven list costs about what a host that places its rows itself does. While the host moves it, the content moves by its layer's `sublayerTransform` and cells move and hide by their layers. No view geometry changes. When it did, AppKit walked every view of the window on each frame to update its tracking areas. The views take their layers' geometry once the list rests for a tenth of a second, and `visibleCells`, `cellForItemAtIndex:`, hit testing, menus, drags and accessibility see the cells where they show before that.
+- A driven list lays out as soon as its host sets `contentOffset`, without AppKit's layout machinery, and an offset that keeps the same rows mounted runs no layout pass. Its rows sit on their own device pixels.
+- `ShadowListKitScrollerView` hides its thumbs with one timer it puts off on each move instead of a cancelled and repeated perform request.
+- `(Testing)` counts layout passes, runs of the core and mount passes, and says whether the views lag behind their layers.
+
+### ShadowListKit (Android)
+
+- A driven list moved by `adjustOffsetBy` inside the content lays out once, and runs the core only once the offset leaves the core's band. Every adjustment laid out twice and ran the core in the second pass before. A layout pass whose offset keeps the same rows mounted plans no mount.
+
+### Core (C++)
+
+- `MountPlan` has a `band`: the offsets where a plan mounts the same rows.
+
 ## 0.10.0
 
 ### Breaking
