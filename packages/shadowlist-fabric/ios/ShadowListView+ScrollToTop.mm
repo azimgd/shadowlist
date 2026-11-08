@@ -1,6 +1,8 @@
 #import "ShadowListView.h"
 #import "ShadowListView+Private.h"
 
+#include <shadowlist-core/host/ScrollPhysics.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -201,7 +203,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   CFTimeInterval now = CACurrentMediaTime();
   CGFloat top = -_scrollView.contentInset.top;
   CGFloat time = MIN(1.0, (now - _scrollToTopStartTime) / SL_SCROLL_TO_TOP_DURATION);
-  CGFloat eased = 1.0 - pow(1.0 - time, 3.0);
+  CGFloat eased = (CGFloat)azimgd::shadowlist::easeOut(time);
   CGFloat remainingFraction = 1.0 - _scrollToTopProgress;
   CGFloat currentY = _scrollView.contentOffset.y;
   CGFloat nextY = (time >= 1.0 || remainingFraction <= 0.0)
