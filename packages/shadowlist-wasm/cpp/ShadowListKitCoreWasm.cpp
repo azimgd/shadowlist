@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <shadowlist-core/host/KeyDiff.hpp>
+#include <shadowlist-core/host/KitBridge.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
@@ -41,35 +42,7 @@ namespace {
 
 namespace sl = azimgd::shadowlist;
 
-/*
- * Slots of ShadowListKitCore.PASS_*. The first block is what the view reports, the second what it applies.
- */
-enum PassSlot {
-  PASS_OFFSET = 0,
-  PASS_WINDOW_ALONG,
-  PASS_WINDOW_CROSS,
-  PASS_HEADER_SIZE,
-  PASS_FOOTER_SIZE,
-  PASS_PHASE,
-  PASS_USER_SCROLLED,
-  PASS_TRACKING,
-  PASS_PREFETCH,
-  PASS_MOUNT_PAD,
-  PASS_LEADING_INSET,
-  PASS_TRAILING_INSET,
-  PASS_OUT_OFFSET,
-  PASS_OUT_CONTENT,
-  PASS_OUT_BAND_LOW,
-  PASS_OUT_BAND_HIGH,
-  PASS_OUT_SETTLING,
-  PASS_OUT_REACHED_START,
-  PASS_OUT_REACHED_END,
-  PASS_OUT_GEOMETRY,
-  PASS_OUT_MEASURED_LOW,
-  PASS_OUT_MEASURED_HIGH,
-  PASS_OUT_FOOTER_START,
-  PASS_SLOTS,
-};
+using namespace azimgd::shadowlist::kit;
 
 /*
  * Slots of the anchor out values, ShadowListKitCore.ANCHOR_* in TypeScript.
@@ -165,65 +138,14 @@ std::vector<std::string> readPackedKeys(const char* packed, const std::int32_t* 
   return keys;
 }
 
-sl::PassInput readPassInput(const double* slots) {
-  sl::PassInput input;
-  input.offset = slots[PASS_OFFSET];
-  input.windowAlong = slots[PASS_WINDOW_ALONG];
-  input.windowCross = slots[PASS_WINDOW_CROSS];
-  input.headerSize = slots[PASS_HEADER_SIZE];
-  input.footerSize = slots[PASS_FOOTER_SIZE];
-  input.phase = static_cast<sl::ScrollPhase>(static_cast<int>(slots[PASS_PHASE]));
-  input.userScrolled = slots[PASS_USER_SCROLLED] != 0.0;
-  input.tracking = slots[PASS_TRACKING] != 0.0;
-  input.prefetch = slots[PASS_PREFETCH] != 0.0;
-  input.mountPad = slots[PASS_MOUNT_PAD];
-  input.leadingInset = slots[PASS_LEADING_INSET];
-  input.trailingInset = slots[PASS_TRAILING_INSET];
-  return input;
-}
-
-void writePassResult(const sl::ListDriver& driver, const sl::PassResult& result, double* slots) {
-  slots[PASS_OUT_OFFSET] = result.offset;
-  slots[PASS_OUT_CONTENT] = result.contentAlong;
-  slots[PASS_OUT_BAND_LOW] = result.band.low;
-  slots[PASS_OUT_BAND_HIGH] = result.band.high;
-  slots[PASS_OUT_SETTLING] = result.settling ? 1.0 : 0.0;
-  slots[PASS_OUT_REACHED_START] = result.reachedStart ? 1.0 : 0.0;
-  slots[PASS_OUT_REACHED_END] = result.reachedEnd ? 1.0 : 0.0;
-  slots[PASS_OUT_GEOMETRY] = static_cast<double>(driver.getGeometryVersion());
-  std::optional<sl::MountedRange> measured = driver.getMeasuredRange();
-  slots[PASS_OUT_MEASURED_LOW] = measured ? static_cast<double>(measured->low) : -1.0;
-  slots[PASS_OUT_MEASURED_HIGH] = measured ? static_cast<double>(measured->high) : -1.0;
-  slots[PASS_OUT_FOOTER_START] = result.footerStart;
-}
-
-void writeRect(const sl::RowRect& rect, double* out) {
-  out[0] = rect.x;
-  out[1] = rect.y;
-  out[2] = rect.width;
-  out[3] = rect.height;
-}
-
-bool validRow(const sl::ListDriver& driver, std::int32_t index) {
-  return index >= 0 && static_cast<std::size_t>(index) < driver.getRowCount();
-}
-
 /*
  * TypeScript carries a missing index as -1, the core as UNDEFINED_INDEX.
  */
-std::int32_t intFromIndex(std::size_t index) {
-  return index == sl::UNDEFINED_INDEX ? -1 : static_cast<std::int32_t>(index);
-}
-
-std::size_t indexFromInt(std::int32_t index) {
-  return index < 0 ? sl::UNDEFINED_INDEX : static_cast<std::size_t>(index);
-}
-
 std::vector<std::int32_t> intsFromIndices(const std::vector<std::size_t>& indices) {
   std::vector<std::int32_t> values;
   values.reserve(indices.size());
   for (std::size_t index : indices) {
-    values.push_back(intFromIndex(index));
+    values.push_back(intFrom(index));
   }
   return values;
 }
@@ -275,18 +197,8 @@ void SHADOWLIST_KIT_WASM(nativeDestroy)(std::uintptr_t handle) {
 void SHADOWLIST_KIT_WASM(nativeSetSettings)(std::uintptr_t handle, double estimatedRowSize, double overscan,
   double startReachedThreshold, double endReachedThreshold, std::int32_t numberOfColumns, bool inverted, bool followAppends,
   bool horizontal, bool snapToItem, std::int32_t snapAlignment) {
-  sl::ListSettings settings;
-  settings.estimatedRowSize = estimatedRowSize;
-  settings.overscan = overscan;
-  settings.startReachedThreshold = startReachedThreshold;
-  settings.endReachedThreshold = endReachedThreshold;
-  settings.numberOfColumns = static_cast<std::size_t>(numberOfColumns < 1 ? 1 : numberOfColumns);
-  settings.inverted = inverted;
-  settings.followAppends = followAppends;
-  settings.horizontal = horizontal;
-  settings.snapToItem = snapToItem;
-  settings.snapAlignment = static_cast<sl::SnapAlignment>(snapAlignment);
-  peerOf(handle)->driver.setSettings(settings);
+  peerOf(handle)->driver.setSettings(listSettingsFrom(estimatedRowSize, overscan, startReachedThreshold,
+    endReachedThreshold, numberOfColumns, inverted, followAppends, horizontal, snapToItem, snapAlignment));
 }
 
 void SHADOWLIST_KIT_WASM(nativeSetStickyIndices)(std::uintptr_t handle, const std::int32_t* indices, std::int32_t count) {
@@ -323,13 +235,7 @@ std::int32_t SHADOWLIST_KIT_WASM(nativeRowCount)(std::uintptr_t handle) {
  * Frames of rows low to high, four values each, x y width height.
  */
 void SHADOWLIST_KIT_WASM(nativeCopyRowRects)(std::uintptr_t handle, std::int32_t low, std::int32_t high, double* out) {
-  const sl::ListDriver& driver = peerOf(handle)->driver;
-  if (!validRow(driver, low) || !validRow(driver, high) || high < low) {
-    return;
-  }
-  for (std::int32_t index = low; index <= high; ++index) {
-    writeRect(driver.getRowRect(static_cast<std::size_t>(index)), out + static_cast<std::size_t>(index - low) * 4);
-  }
+  copyRowRects(peerOf(handle)->driver, low, high, out);
 }
 
 bool SHADOWLIST_KIT_WASM(nativeRowRect)(std::uintptr_t handle, std::int32_t index, double* out) {
@@ -347,9 +253,9 @@ bool SHADOWLIST_KIT_WASM(nativeRowRect)(std::uintptr_t handle, std::int32_t inde
 void SHADOWLIST_KIT_WASM(nativePlanMount)(std::uintptr_t handle, double offset, double windowAlong, double pad,
   double leadingInset, double trailingInset, double* out) {
   sl::MountPlan plan = peerOf(handle)->driver.planMount(offset, windowAlong, pad, leadingInset, trailingInset);
-  out[PLAN_LOW] = intFromIndex(plan.low);
-  out[PLAN_HIGH] = intFromIndex(plan.high);
-  out[PLAN_STICKY] = intFromIndex(plan.sticky);
+  out[PLAN_LOW] = intFrom(plan.low);
+  out[PLAN_HIGH] = intFrom(plan.high);
+  out[PLAN_STICKY] = intFrom(plan.sticky);
   out[PLAN_VIEW_LOW] = plan.viewLow;
   out[PLAN_VIEW_HIGH] = plan.viewHigh;
 }
@@ -366,13 +272,13 @@ bool SHADOWLIST_KIT_WASM(nativeVisibleRange)(std::uintptr_t handle, std::int32_t
   if (!visible) {
     return false;
   }
-  out[0] = intFromIndex(visible->low);
-  out[1] = intFromIndex(visible->high);
+  out[0] = intFrom(visible->low);
+  out[1] = intFrom(visible->high);
   return true;
 }
 
 std::int32_t SHADOWLIST_KIT_WASM(nativeIndexOfKey)(std::uintptr_t handle, const char* key, std::int32_t length) {
-  return intFromIndex(peerOf(handle)->driver.indexOfKey(readString(key, length)));
+  return intFrom(peerOf(handle)->driver.indexOfKey(readString(key, length)));
 }
 
 /*
@@ -423,11 +329,7 @@ double SHADOWLIST_KIT_WASM(nativeAnimatedTargetOffset)(
  */
 void SHADOWLIST_KIT_WASM(nativeSetLanding)(
   std::uintptr_t handle, std::int32_t target, std::int32_t index, double viewPosition) {
-  sl::ScrollLanding landing;
-  landing.target = static_cast<sl::ScrollLanding::Target>(target);
-  landing.index = static_cast<std::size_t>(index < 0 ? 0 : index);
-  landing.viewPosition = viewPosition;
-  peerOf(handle)->driver.setLanding(landing);
+  peerOf(handle)->driver.setLanding(landingFrom(target, index, viewPosition));
 }
 
 void SHADOWLIST_KIT_WASM(nativeCancelLanding)(std::uintptr_t handle) {
@@ -445,7 +347,7 @@ bool SHADOWLIST_KIT_WASM(nativeLand)(std::uintptr_t handle) {
 const std::int32_t* SHADOWLIST_KIT_WASM(nativeUpdatePrefetch)(std::uintptr_t handle, std::int32_t low, std::int32_t high) {
   std::vector<std::size_t> prefetch;
   std::vector<std::size_t> cancel;
-  peerOf(handle)->driver.updatePrefetch(indexFromInt(low), indexFromInt(high), prefetch, cancel);
+  peerOf(handle)->driver.updatePrefetch(indexFrom(low), indexFrom(high), prefetch, cancel);
   return writePrefetch(prefetch, cancel);
 }
 
@@ -495,15 +397,6 @@ struct StatePeer {
   sl::BatchCollector batch;
   sl::CollectedBatch taken;
   sl::ContentVersions versions;
-};
-
-/*
- * Bits of nativeCommitKeys' flags, ShadowListKitListState.COMMIT_* in TypeScript.
- */
-enum CommitFlag {
-  COMMIT_DIFF = 1,
-  COMMIT_RECORD_VERSIONS = 2,
-  COMMIT_UPDATE_VERSIONS = 4,
 };
 
 /*
@@ -651,27 +544,7 @@ const std::int32_t* SHADOWLIST_KIT_STATE_WASM(nativeCommitKeys)(std::uintptr_t h
   } else if (versions != nullptr && (flags & COMMIT_UPDATE_VERSIONS) != 0) {
     reloaded = peer->versions.update(peer->keys.items(), readVersions(versions, items));
   }
-  const sl::KeyDiff& diff = commit.diff;
-  std::vector<std::int32_t> result;
-  result.reserve(4 + diff.deleted.size() + diff.inserted.size() + diff.moved.size() * 2 + reloaded.size());
-  result.push_back(static_cast<std::int32_t>(diff.deleted.size()));
-  for (std::size_t index : diff.deleted) {
-    result.push_back(static_cast<std::int32_t>(index));
-  }
-  result.push_back(static_cast<std::int32_t>(diff.inserted.size()));
-  for (std::size_t index : diff.inserted) {
-    result.push_back(static_cast<std::int32_t>(index));
-  }
-  result.push_back(static_cast<std::int32_t>(diff.moved.size()));
-  for (const sl::KeyMove& move : diff.moved) {
-    result.push_back(static_cast<std::int32_t>(move.from));
-    result.push_back(static_cast<std::int32_t>(move.to));
-  }
-  result.push_back(static_cast<std::int32_t>(reloaded.size()));
-  for (std::size_t item : reloaded) {
-    result.push_back(static_cast<std::int32_t>(item));
-  }
-  return writeInts(result);
+  return writeInts(packCommit(commit.diff, reloaded));
 }
 
 /*

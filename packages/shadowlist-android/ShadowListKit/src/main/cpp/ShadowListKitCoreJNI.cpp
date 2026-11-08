@@ -16,6 +16,7 @@
 
 #include <shadowlist-core/host/ChangeAnimation.hpp>
 #include <shadowlist-core/host/KeyDiff.hpp>
+#include <shadowlist-core/host/KitBridge.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
 #include <shadowlist-core/host/ListSelection.hpp>
@@ -29,35 +30,7 @@ namespace {
 
 namespace sl = azimgd::shadowlist;
 
-/*
- * Slots of ShadowListKitCore.PASS_*. The first block is what the view reports, the second what it applies.
- */
-enum PassSlot {
-  PASS_OFFSET = 0,
-  PASS_WINDOW_ALONG,
-  PASS_WINDOW_CROSS,
-  PASS_HEADER_SIZE,
-  PASS_FOOTER_SIZE,
-  PASS_PHASE,
-  PASS_USER_SCROLLED,
-  PASS_TRACKING,
-  PASS_PREFETCH,
-  PASS_MOUNT_PAD,
-  PASS_LEADING_INSET,
-  PASS_TRAILING_INSET,
-  PASS_OUT_OFFSET,
-  PASS_OUT_CONTENT,
-  PASS_OUT_BAND_LOW,
-  PASS_OUT_BAND_HIGH,
-  PASS_OUT_SETTLING,
-  PASS_OUT_REACHED_START,
-  PASS_OUT_REACHED_END,
-  PASS_OUT_GEOMETRY,
-  PASS_OUT_MEASURED_LOW,
-  PASS_OUT_MEASURED_HIGH,
-  PASS_OUT_FOOTER_START,
-  PASS_SLOTS,
-};
+using namespace azimgd::shadowlist::kit;
 
 /*
  * The driver and the Java object it measures and reports prefetch through. The env and target
@@ -167,45 +140,9 @@ std::vector<std::string> readPackedKeys(JNIEnv* env, jcharArray packed, jintArra
   return keys;
 }
 
-sl::PassInput readPassInput(const jdouble* slots) {
-  sl::PassInput input;
-  input.offset = slots[PASS_OFFSET];
-  input.windowAlong = slots[PASS_WINDOW_ALONG];
-  input.windowCross = slots[PASS_WINDOW_CROSS];
-  input.headerSize = slots[PASS_HEADER_SIZE];
-  input.footerSize = slots[PASS_FOOTER_SIZE];
-  input.phase = static_cast<sl::ScrollPhase>(static_cast<int>(slots[PASS_PHASE]));
-  input.userScrolled = slots[PASS_USER_SCROLLED] != 0.0;
-  input.tracking = slots[PASS_TRACKING] != 0.0;
-  input.prefetch = slots[PASS_PREFETCH] != 0.0;
-  input.mountPad = slots[PASS_MOUNT_PAD];
-  input.leadingInset = slots[PASS_LEADING_INSET];
-  input.trailingInset = slots[PASS_TRAILING_INSET];
-  return input;
-}
-
-void writePassResult(const sl::ListDriver& driver, const sl::PassResult& result, jdouble* slots) {
-  slots[PASS_OUT_OFFSET] = result.offset;
-  slots[PASS_OUT_CONTENT] = result.contentAlong;
-  slots[PASS_OUT_BAND_LOW] = result.band.low;
-  slots[PASS_OUT_BAND_HIGH] = result.band.high;
-  slots[PASS_OUT_SETTLING] = result.settling ? 1.0 : 0.0;
-  slots[PASS_OUT_REACHED_START] = result.reachedStart ? 1.0 : 0.0;
-  slots[PASS_OUT_REACHED_END] = result.reachedEnd ? 1.0 : 0.0;
-  slots[PASS_OUT_GEOMETRY] = static_cast<double>(driver.getGeometryVersion());
-  std::optional<sl::MountedRange> measured = driver.getMeasuredRange();
-  slots[PASS_OUT_MEASURED_LOW] = measured ? static_cast<double>(measured->low) : -1.0;
-  slots[PASS_OUT_MEASURED_HIGH] = measured ? static_cast<double>(measured->high) : -1.0;
-  slots[PASS_OUT_FOOTER_START] = result.footerStart;
-}
-
 void writeRect(JNIEnv* env, const sl::RowRect& rect, jdoubleArray out) {
   jdouble values[4] = {rect.x, rect.y, rect.width, rect.height};
   env->SetDoubleArrayRegion(out, 0, 4, values);
-}
-
-bool validRow(const sl::ListDriver& driver, jint index) {
-  return index >= 0 && static_cast<std::size_t>(index) < driver.getRowCount();
 }
 
 /*
@@ -405,18 +342,8 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDestroy)(JNIEnv*, jclass, jlong 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetSettings)(JNIEnv*, jclass, jlong handle, jdouble estimatedRowSize,
   jdouble overscan, jdouble startReachedThreshold, jdouble endReachedThreshold, jint numberOfColumns, jboolean inverted,
   jboolean followAppends, jboolean horizontal, jboolean snapToItem, jint snapAlignment) {
-  sl::ListSettings settings;
-  settings.estimatedRowSize = estimatedRowSize;
-  settings.overscan = overscan;
-  settings.startReachedThreshold = startReachedThreshold;
-  settings.endReachedThreshold = endReachedThreshold;
-  settings.numberOfColumns = static_cast<std::size_t>(numberOfColumns < 1 ? 1 : numberOfColumns);
-  settings.inverted = inverted;
-  settings.followAppends = followAppends;
-  settings.horizontal = horizontal;
-  settings.snapToItem = snapToItem;
-  settings.snapAlignment = static_cast<sl::SnapAlignment>(snapAlignment);
-  peerOf(handle)->driver.setSettings(settings);
+  peerOf(handle)->driver.setSettings(listSettingsFrom(estimatedRowSize, overscan, startReachedThreshold,
+    endReachedThreshold, numberOfColumns, inverted, followAppends, horizontal, snapToItem, snapAlignment));
 }
 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetStickyIndices)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
@@ -457,20 +384,11 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeRowCount)(JNIEnv*, jclass, jlong
  */
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeCopyRowRects)(
   JNIEnv* env, jclass, jlong handle, jint low, jint high, jdoubleArray out) {
-  const sl::ListDriver& driver = peerOf(handle)->driver;
-  if (!validRow(driver, low) || !validRow(driver, high) || high < low) {
-    return;
+  std::vector<jdouble> values(high >= low ? static_cast<std::size_t>(high - low + 1) * 4 : 0);
+  std::size_t written = copyRowRects(peerOf(handle)->driver, low, high, values.data());
+  if (written > 0) {
+    env->SetDoubleArrayRegion(out, 0, static_cast<jsize>(written), values.data());
   }
-  std::vector<jdouble> values(static_cast<std::size_t>(high - low + 1) * 4);
-  for (jint index = low; index <= high; ++index) {
-    sl::RowRect rect = driver.getRowRect(static_cast<std::size_t>(index));
-    std::size_t at = static_cast<std::size_t>(index - low) * 4;
-    values[at] = rect.x;
-    values[at + 1] = rect.y;
-    values[at + 2] = rect.width;
-    values[at + 3] = rect.height;
-  }
-  env->SetDoubleArrayRegion(out, 0, static_cast<jsize>(values.size()), values.data());
 }
 
 JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeRowRect)(JNIEnv* env, jclass, jlong handle, jint index, jdoubleArray out) {
@@ -547,11 +465,7 @@ JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeAnimatedTargetOffset)(
  */
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetLanding)(
   JNIEnv*, jclass, jlong handle, jint target, jint index, jdouble viewPosition) {
-  sl::ScrollLanding landing;
-  landing.target = static_cast<sl::ScrollLanding::Target>(target);
-  landing.index = static_cast<std::size_t>(index < 0 ? 0 : index);
-  landing.viewPosition = viewPosition;
-  peerOf(handle)->driver.setLanding(landing);
+  peerOf(handle)->driver.setLanding(landingFrom(target, index, viewPosition));
 }
 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeCancelLanding)(JNIEnv*, jclass, jlong handle) {
@@ -994,15 +908,6 @@ enum TapOutcome {
 };
 
 /*
- * Bits of nativeCommitKeys' flags, ShadowListKitListState.COMMIT_* in Kotlin.
- */
-enum CommitFlag {
-  COMMIT_DIFF = 1,
-  COMMIT_RECORD_VERSIONS = 2,
-  COMMIT_UPDATE_VERSIONS = 4,
-};
-
-/*
  * The core of a core handle, or none for 0.
  */
 Peer* livePeerOf(jlong handle) {
@@ -1210,27 +1115,8 @@ JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeCommitKeys)(JNIEnv* e
     reloaded = peer->versions.update(peer->keys.items(), readLongs(env, versions));
   }
   retainSelection(*peer);
-  const sl::KeyDiff& diff = commit.diff;
-  std::vector<jint> packed;
-  packed.reserve(4 + diff.deleted.size() + diff.inserted.size() + diff.moved.size() * 2 + reloaded.size());
-  packed.push_back(static_cast<jint>(diff.deleted.size()));
-  for (std::size_t index : diff.deleted) {
-    packed.push_back(static_cast<jint>(index));
-  }
-  packed.push_back(static_cast<jint>(diff.inserted.size()));
-  for (std::size_t index : diff.inserted) {
-    packed.push_back(static_cast<jint>(index));
-  }
-  packed.push_back(static_cast<jint>(diff.moved.size()));
-  for (const sl::KeyMove& move : diff.moved) {
-    packed.push_back(static_cast<jint>(move.from));
-    packed.push_back(static_cast<jint>(move.to));
-  }
-  packed.push_back(static_cast<jint>(reloaded.size()));
-  for (std::size_t item : reloaded) {
-    packed.push_back(static_cast<jint>(item));
-  }
-  return makeIntArray(env, packed);
+  std::vector<std::int32_t> packed = packCommit(commit.diff, reloaded);
+  return makeIntArray(env, std::vector<jint>(packed.begin(), packed.end()));
 }
 
 /*

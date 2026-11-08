@@ -138,7 +138,7 @@ Every platform uses the same word for each concept and only changes the shape to
 - The owner calls `destroy()` when its view detaches or is dropped. The next use creates a new peer lazily.
 - Entry points sit in one `extern "C"` block and use one macro per class (`SHADOWLIST_KIT_JNI(name)`, `SL_SCROLL_SYNC_JNI(name)`).
 - Includes: `<jni.h>` first, then std headers, then core headers.
-- Slot arrays mirror a named enum on both sides (`PASS_*`, `STICKY_*`). Never index them with bare numbers.
+- Slot arrays mirror a named enum on both sides (`PASS_*`, `STICKY_*`). Never index them with bare numbers. What the JNI and wasm bridges share, the pass slots, the commit flags and the checked conversions of numbers into core enums, sits once in `packages/shadowlist-core/host/KitBridge.hpp`.
 
 ## Kits
 

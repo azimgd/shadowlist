@@ -22,6 +22,9 @@ internal class ShadowListKitCore(
      */
     private val reclaimer = ShadowListKitPeerReclaimer(::nativeDestroy)
 
+    /*
+     * Slots of runPasses' values, the same as PassSlot in the core's host/KitBridge.hpp.
+     */
     const val PASS_OFFSET = 0
     const val PASS_WINDOW_ALONG = 1
     const val PASS_WINDOW_CROSS = 2

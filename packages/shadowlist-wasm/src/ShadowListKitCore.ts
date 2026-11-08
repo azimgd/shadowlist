@@ -202,6 +202,9 @@ export function unchangedEnds(
  * reuses.
  */
 export class ShadowListKitCore {
+  /*
+   * Slots of the pass values, the same as PassSlot in the core's host/KitBridge.hpp.
+   */
   static readonly PASS_OFFSET = 0;
   static readonly PASS_WINDOW_ALONG = 1;
   static readonly PASS_WINDOW_CROSS = 2;
@@ -716,7 +719,7 @@ function versionHalves(
  */
 export class ShadowListKitListState {
   /*
-   * Bits of commitKeys' flags, the same as CommitFlag in the wasm side.
+   * Bits of commitKeys' flags, the same as CommitFlag in the core's host/KitBridge.hpp.
    */
   static readonly COMMIT_DIFF = 1;
   static readonly COMMIT_RECORD_VERSIONS = 2;
