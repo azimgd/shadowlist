@@ -11,12 +11,14 @@ using namespace azimgd::shadowlist;
 @implementation ShadowListKitChangeAnimator {
   __weak ShadowListKitListView *_list;
   ChangeAnimation _animation;
+  NSMutableSet<ShadowListKitListCell *> *_fading;
 }
 
 - (instancetype)initWithList:(ShadowListKitListView *)list
 {
   if (self = [super init]) {
     _list = list;
+    _fading = [NSMutableSet new];
   }
   return self;
 }
@@ -62,11 +64,32 @@ using namespace azimgd::shadowlist;
     return NO;
   }
   [self placeCell:cell atScreenOrigin:*previous];
-  __weak ShadowListKitListView *weakList = list;
+  [_fading addObject:cell];
+  __weak ShadowListKitChangeAnimator *weakSelf = self;
   [list.itemAnimator listView:list animateDeleteOfCell:cell completion:^{
-    [weakList recycleCell:cell];
+    [weakSelf finishFadeOfCell:cell];
   }];
   return YES;
+}
+
+/*
+ * A fading cell goes back to the pool once. An item animator that calls its completion twice,
+ * or the list recycling every cell first, finds it gone.
+ */
+- (void)finishFadeOfCell:(ShadowListKitListCell *)cell
+{
+  if (![_fading containsObject:cell]) {
+    return;
+  }
+  [_fading removeObject:cell];
+  [_list recycleCell:cell];
+}
+
+- (void)finishFades
+{
+  for (ShadowListKitListCell *cell in [_fading allObjects]) {
+    [self finishFadeOfCell:cell];
+  }
 }
 
 - (void)run

@@ -608,6 +608,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 - (void)unmountAll
 {
+  [_changes finishFades];
   for (auto& entry : _mounted) {
     [self recycleCell:entry.second];
   }
