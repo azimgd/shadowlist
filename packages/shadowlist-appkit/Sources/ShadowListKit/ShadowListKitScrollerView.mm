@@ -136,6 +136,11 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
    */
   ShadowListKitScrollBarAccessibilityElement *_verticalElement;
   ShadowListKitScrollBarAccessibilityElement *_horizontalElement;
+
+  /*
+   * Hides the thumbs a while after the last move. Each move puts it off again.
+   */
+  NSTimer *_hideTimer;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame
@@ -159,7 +164,7 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
 - (void)dealloc
 {
   [NSNotificationCenter.defaultCenter removeObserver:self];
-  [NSObject cancelPreviousPerformRequestsWithTarget:self];
+  [_hideTimer invalidate];
 }
 
 - (CALayer *)makeThumb
@@ -250,15 +255,28 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
 
 - (void)flashScrollers
 {
-  [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideScrollers) object:nil];
-  [CATransaction begin];
-  [CATransaction setDisableActions:YES];
-  _verticalThumb.opacity = 1;
-  _horizontalThumb.opacity = 1;
-  [CATransaction commit];
-  if (!self.showsScrollersAlways) {
-    [self performSelector:@selector(hideScrollers) withObject:nil afterDelay:SHADOWLIST_KIT_THUMB_HIDE_DELAY];
+  if (_verticalThumb.opacity != 1 || _horizontalThumb.opacity != 1) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    _verticalThumb.opacity = 1;
+    _horizontalThumb.opacity = 1;
+    [CATransaction commit];
   }
+  if (self.showsScrollersAlways) {
+    [_hideTimer invalidate];
+    _hideTimer = nil;
+    return;
+  }
+  NSDate *hide = [NSDate dateWithTimeIntervalSinceNow:SHADOWLIST_KIT_THUMB_HIDE_DELAY];
+  if (_hideTimer.valid) {
+    _hideTimer.fireDate = hide;
+    return;
+  }
+  __weak ShadowListKitScrollerView *weakSelf = self;
+  _hideTimer = [[NSTimer alloc] initWithFireDate:hide interval:0 repeats:NO block:^(NSTimer *timer) {
+    [weakSelf hideScrollers];
+  }];
+  [NSRunLoop.mainRunLoop addTimer:_hideTimer forMode:NSDefaultRunLoopMode];
 }
 
 - (void)hideScrollers
