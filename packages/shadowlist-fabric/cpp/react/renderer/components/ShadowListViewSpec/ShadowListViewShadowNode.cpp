@@ -218,7 +218,7 @@ void ShadowListViewShadowNode::placeRows(
    * final here, resolveStateUpdate below only reads it.
    */
   const auto& inputStateData = getStateData();
-  bool correcting = core.offsetCorrected;
+  bool correcting = core.state.offsetCorrected;
   auto concealAck = static_cast<std::uint64_t>(inputStateData.concealGenerationAck_);
   std::size_t concealBeforeIndex = CONCEAL_UNSETTLED_ROWS
     ? azimgd::shadowlist::ConcealTracker<ShadowListViewGeometryCache::ConcealedProps>::hideBeforeIndex(
