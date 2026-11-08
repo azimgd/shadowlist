@@ -468,6 +468,54 @@ TEST(list_driver_mount_plan_reaches_into_the_insets) {
   CHECK_NEAR(padded.viewHigh, host.offset + WINDOW_ALONG + 30.0 + TRAILING_INSET, 1e-9);
 }
 
+/*
+ * A host moving the offset inside the plan's band mounts the same rows without planning again.
+ * Just past either end a row enters or leaves.
+ */
+TEST(list_driver_mount_plan_band_holds_the_same_rows) {
+  for (std::size_t columns : {std::size_t{1}, std::size_t{3}}) {
+    ListSettings settings;
+    settings.numberOfColumns = columns;
+    Host host(1000, settings);
+    host.settle();
+    host.scrollTo(2000.0);
+    host.settle();
+    constexpr double PAD = 40.0;
+    MountPlan plan = host.driver.planMount(host.offset, WINDOW_ALONG, PAD, 10.0, 20.0);
+    CHECK(plan.band.contains(host.offset));
+    CHECK(plan.band.low < plan.band.high);
+    auto mounted = [&](const MountPlan& at) {
+      std::vector<std::size_t> rows;
+      for (std::size_t index = at.low; at.low != UNDEFINED_INDEX && index <= at.high; ++index) {
+        if (host.driver.shouldMount(at, index)) {
+          rows.push_back(index);
+        }
+      }
+      return rows;
+    };
+    std::vector<std::size_t> rows = mounted(plan);
+    for (double offset : {plan.band.low, (plan.band.low + plan.band.high) / 2, plan.band.high}) {
+      CHECK(mounted(host.driver.planMount(offset, WINDOW_ALONG, PAD, 10.0, 20.0)) == rows);
+    }
+    CHECK(mounted(host.driver.planMount(plan.band.low - 0.01, WINDOW_ALONG, PAD, 10.0, 20.0)) != rows);
+    CHECK(mounted(host.driver.planMount(plan.band.high + 0.01, WINDOW_ALONG, PAD, 10.0, 20.0)) != rows);
+  }
+}
+
+/*
+ * The pinned row changes with the offset, and a plan with sticky rows holds only its own offset.
+ */
+TEST(list_driver_mount_plan_band_with_sticky_rows_is_its_offset) {
+  Host host(300);
+  host.driver.setStickyIndices({0, 20, 40});
+  host.settle();
+  host.scrollTo(1500.0);
+  host.settle();
+  MountPlan plan = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0);
+  CHECK_EQ(plan.band.low, host.offset);
+  CHECK_EQ(plan.band.high, host.offset);
+}
+
 TEST(list_driver_reset_keeps_the_first_visible_row) {
   Host host(1000);
   host.settle();
