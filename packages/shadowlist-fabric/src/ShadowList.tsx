@@ -21,6 +21,7 @@ import ShadowListView, {
   type NativeScrollEvent,
 } from './ShadowListViewNativeComponent';
 import ShadowListTemplateView from './ShadowListTemplateViewNativeComponent';
+import { useShadowListDefaults } from './ShadowListDefaults';
 import type {
   ScrollEvent,
   ShadowListProps,
@@ -191,8 +192,8 @@ function ShadowListBaseInner<ItemT>(
     scrollEventThrottle = 0,
     onScrollToIndexFailed,
     scrollEnabled = true,
-    showsVerticalScrollIndicator = true,
-    showsHorizontalScrollIndicator = true,
+    showsVerticalScrollIndicator: showsVerticalScrollIndicatorProp,
+    showsHorizontalScrollIndicator: showsHorizontalScrollIndicatorProp,
     bounces = true,
     decelerationRate,
     scrollsToTop = true,
@@ -237,6 +238,16 @@ function ShadowListBaseInner<ItemT>(
   );
 
   const traceRenderStartRef = useRenderTraceStart();
+
+  const defaults = useShadowListDefaults();
+  const showsVerticalScrollIndicator =
+    showsVerticalScrollIndicatorProp ??
+    defaults.showsVerticalScrollIndicator ??
+    true;
+  const showsHorizontalScrollIndicator =
+    showsHorizontalScrollIndicatorProp ??
+    defaults.showsHorizontalScrollIndicator ??
+    true;
 
   /*
    * Native reads these as whole numbers. JS uses the same whole numbers, or a fraction would

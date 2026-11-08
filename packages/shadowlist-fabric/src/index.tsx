@@ -3,6 +3,11 @@ export { default as SectionList } from './SectionList';
 export { default as TreeList } from './TreeList';
 export { default as DraggableList } from './DraggableList';
 export { default as ItemActionsView } from './ItemActionsView';
+export {
+  ShadowListDefaultsProvider,
+  useShadowListDefaults,
+  type ShadowListDefaults,
+} from './ShadowListDefaults';
 
 export { useKeyboardAnimation, KeyboardView } from './keyboard';
 export type {

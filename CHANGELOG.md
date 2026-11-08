@@ -4,6 +4,7 @@
 
 ### ShadowList (React Native)
 
+- `ShadowListDefaultsProvider` sets `showsVerticalScrollIndicator` and `showsHorizontalScrollIndicator` for every list under it that does not set its own (`useShadowListDefaults` reads them), so an app that hides scroll bars on one platform says so once instead of wrapping each list.
 - The codegen event payload types are named `<Name>Event` (`DragEndEvent`, `MountedRangeChangeEvent`, `NativeScrollEvent` for the payload `ScrollEvent` wraps) and the package index no longer re-exports them. `ShadowListView` and its `Commands` are still exported.
 
 ### ShadowListKit for UIKit
