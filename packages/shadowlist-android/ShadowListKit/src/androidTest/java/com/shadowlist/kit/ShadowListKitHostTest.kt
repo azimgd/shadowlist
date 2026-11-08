@@ -337,6 +337,46 @@ class ShadowListKitHostTest {
   }
 
   @Test
+  fun a_driven_list_moved_inside_its_mounted_rows_runs_neither_the_core_nor_a_mount_pass() = onMain {
+    val rows = Rows(2_000, ROW_SIZE)
+    val list = makeList(rows)
+    list.scrollDriven = true
+    scrollThrough(list, 20_000)
+    // The pass after the jump publishes the band.
+    list.adjustOffsetBy(1.0)
+    val cores = list.corePassCount
+    val mounts = list.mountPassCount
+    val passes = list.layoutPassCount
+    for (step in 1..3) {
+      list.adjustOffsetBy(1.0)
+      assertPlacedAtExactOffset(list)
+    }
+    assertEquals(cores, list.corePassCount)
+    assertEquals(mounts, list.mountPassCount)
+    assertEquals(passes + 3, list.layoutPassCount)
+
+    // A move that brings rows in runs the core once and mounts them where they belong.
+    val before = list.visibleRange!!
+    list.adjustOffsetBy(ROW_SIZE * 6)
+    assertEquals(cores + 1, list.corePassCount)
+    assertTrue(list.mountPassCount > mounts)
+    assertTrue(list.visibleRange!!.last > before.last)
+    assertPlacedAtExactOffset(list)
+    val bottom = list.visibleCells.maxOf { it.bottom } - list.scrollY
+    assertTrue(bottom >= HEIGHT)
+  }
+
+  @Test
+  fun a_list_that_is_not_driven_runs_the_core_on_every_offset_adjustment() = onMain {
+    val list = makeList(Rows(2_000, ROW_SIZE))
+    scrollThrough(list, 20_000)
+    list.adjustOffsetBy(1.0)
+    val cores = list.corePassCount
+    list.adjustOffsetBy(1.0)
+    assertEquals(cores + 1, list.corePassCount)
+  }
+
+  @Test
   fun an_offset_moved_before_the_start_comes_back_to_it() = onMain {
     val list = makeList(Rows(2_000, ROW_SIZE))
     list.adjustOffsetBy(-37.0)

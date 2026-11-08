@@ -111,7 +111,9 @@ inside itself and drive it, the way `scrollDriven` drives the AppKit kit:
 - `adjustOffsetBy(delta: Double)` moves the offset by `delta` pixels, fractions included, and lays
   out right away. `scrollTo` holds the offset inside the content size, which counts estimates for
   rows not measured yet. This one leaves that to the layout pass, which measures the rows at the
-  new offset first. An offset moved before the start comes back to it.
+  new offset first. An offset moved before the start comes back to it. A driven list that stays
+  inside the content lays out once, and runs the core only once the offset leaves the core's band.
+  A layout pass whose offset keeps the same rows mounted places no cells.
 - A subclass overrides `didLayOut()`, which runs after every layout pass once the rows it measured
   and the cells it mounted are in place, before the frame is drawn. The host is the list's subclass
   here, where the Mac's host is its delegate. The list also moves its own offset to keep the visible

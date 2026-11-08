@@ -437,6 +437,25 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var mountedStructure = 0
   private var structureVersion = 0
 
+  /*
+   * The offsets where the last mount plan mounts the same rows, see ListDriver::planMount, and
+   * the window, padding and measured range it was made with.
+   */
+  private var mountBandLow = 1.0
+  private var mountBandHigh = 0.0
+  private val mountBandInputs = DoubleArray(6)
+
+  /*
+   * The layout passes, the runs of the core and the mount passes since the list was made, for
+   * tests.
+   */
+  internal var layoutPassCount = 0
+    private set
+  internal var corePassCount = 0
+    private set
+  internal var mountPassCount = 0
+    private set
+
   private val cellFactories = HashMap<String, (Context) -> ShadowListKitListCell>()
   private val reusePool = HashMap<String, ArrayList<ShadowListKitListCell>>()
 
@@ -933,6 +952,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal fun layoutPass() {
     if (inLayoutPass) return
     inLayoutPass = true
+    ++layoutPassCount
     val geometryChanged = readGeometry()
     trackUserScroll()
     if (windowAlong > 0 && windowCross > 0) {
@@ -1037,6 +1057,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     pass[ShadowListKitCore.PASS_LEADING_INSET] = leadingPadding.toDouble()
     pass[ShadowListKitCore.PASS_TRAILING_INSET] = trailingPadding.toDouble()
     core.runPasses()
+    ++corePassCount
     userScrolled = false
     needsFrame = false
     applyPassResult(pass)
@@ -1153,16 +1174,36 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
     // Rows under the padding show when clipToPadding is off. They are mounted too.
     val pad = windowAlong * mountOverscan
+    if (mountPlanHolds(pad)) return
     val viewLow = exactOffset - pad - leadingPadding
     val viewHigh = exactOffset + windowAlong + pad + trailingPadding
     var low = -1
     var high = -1
+    /*
+     * The band where the same rows mount, as ListDriver::planMount finds it: a row overlaps the
+     * view at a new offset while start - after < offset < end + before. Each end stays a hair
+     * inside.
+     */
+    val before = pad + leadingPadding
+    val after = windowAlong + pad + trailingPadding
+    var bandLow = Double.NEGATIVE_INFINITY
+    var bandHigh = Double.POSITIVE_INFINITY
     for (index in measuredLow..measuredHigh) {
-      if (!overlaps(index, viewLow, viewHigh)) continue
+      val start = measuredLeading(index)
+      val end = start + measuredExtent(index)
+      if (!overlaps(index, viewLow, viewHigh)) {
+        if (end <= viewLow) bandLow = max(bandLow, end + before + MOUNT_BAND_EDGE)
+        else bandHigh = min(bandHigh, start - after - MOUNT_BAND_EDGE)
+        continue
+      }
+      bandLow = max(bandLow, start - after + MOUNT_BAND_EDGE)
+      bandHigh = min(bandHigh, end + before - MOUNT_BAND_EDGE)
       if (low < 0) low = index
       high = index
     }
     val sticky = stickyPinning.activeStickyIndex(exactOffset)
+    recordMountBand(if (stickyPinning.stickyRows.isEmpty()) bandLow else exactOffset,
+      if (stickyPinning.stickyRows.isEmpty()) bandHigh else exactOffset, pad)
     if (!mountNeeded(low, high, sticky)) return
     recordMount(low, high, sticky)
     mountPlan(low, high, sticky, viewLow, viewHigh)
@@ -1177,6 +1218,29 @@ open class ShadowListKitListView @JvmOverloads constructor(
     low != mountedLow || high != mountedHigh || sticky != mountedSticky || measuredGeometry != mountedGeometry ||
       offsetFraction != mountedFraction || structureVersion != mountedStructure || hasHeldRow
 
+  /*
+   * Whether the offset is still inside the band of the last mount plan, made with the same
+   * window, padding, measured range, frames and offset fraction, and nothing else needs a mount
+   * pass.
+   */
+  private fun mountPlanHolds(pad: Double): Boolean =
+    exactOffset in mountBandLow..mountBandHigh && mountBandInputs[0] == windowAlong.toDouble() &&
+      mountBandInputs[1] == pad && mountBandInputs[2] == leadingPadding.toDouble() &&
+      mountBandInputs[3] == trailingPadding.toDouble() && mountBandInputs[4] == measuredLow.toDouble() &&
+      mountBandInputs[5] == measuredHigh.toDouble() && measuredGeometry == mountedGeometry &&
+      offsetFraction == mountedFraction && structureVersion == mountedStructure && !hasHeldRow
+
+  private fun recordMountBand(low: Double, high: Double, pad: Double) {
+    mountBandLow = min(low, exactOffset)
+    mountBandHigh = max(high, exactOffset)
+    mountBandInputs[0] = windowAlong.toDouble()
+    mountBandInputs[1] = pad
+    mountBandInputs[2] = leadingPadding.toDouble()
+    mountBandInputs[3] = trailingPadding.toDouble()
+    mountBandInputs[4] = measuredLow.toDouble()
+    mountBandInputs[5] = measuredHigh.toDouble()
+  }
+
   private fun recordMount(low: Int, high: Int, sticky: Int) {
     mountedLow = low
     mountedHigh = high
@@ -1187,6 +1251,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   private fun mountPlan(low: Int, high: Int, sticky: Int, viewLow: Double, viewHigh: Double) {
+    ++mountPassCount
     val generation = ++mountGeneration
     if (low >= 0) {
       for (index in low..high) {
@@ -1255,6 +1320,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     mounted.clear()
     mountedLow = -1
     mountedHigh = -1
+    mountBandLow = 1.0
+    mountBandHigh = 0.0
   }
 
   /*
@@ -1847,9 +1914,15 @@ open class ShadowListKitListView @JvmOverloads constructor(
     if (delta == 0.0) return
     val target = exactOffset + delta
     val whole = target.roundToInt()
+    /*
+     * A driven list that stays inside the content, with nothing waiting, lays out once: that pass
+     * runs the core only when the offset left the core's band. A new whole pixel lays out through
+     * onScrollChanged.
+     */
+    val onePass = scrollDriven && !needsFrame && isLaidOut && !isLayoutRequested && whole in 0..maxOffset
     offsetFraction = target - whole
-    if (whole != offset) writeOffset(whole)
-    runCommandNow()
+    if (whole != offset) writeOffset(whole) else if (onePass) layoutPass()
+    if (!onePass) runCommandNow()
   }
 
   fun closeSwipeActions(animated: Boolean = true) = swipe.close(animated)
@@ -1917,6 +1990,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private companion object {
     const val STATE_SUPER = "ShadowListKitListView.super"
     const val STATE_ANCHOR = "ShadowListKitListView.anchor"
+
+    // How far inside each end the mount band stays, where rounding cannot tell it from the edge.
+    const val MOUNT_BAND_EDGE = 1e-6
   }
 }
 
