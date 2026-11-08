@@ -1912,7 +1912,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
     delegate?.didEndScrolling(this)
   }
 
-  internal fun gestureBegan() = core.cancelLanding()
+  internal fun gestureBegan() {
+    core.cancelLanding()
+    dropPendingAnchor()
+  }
 
   /*
    * A finger started moving the list. The highlight goes and an open row closes.
@@ -2078,12 +2081,24 @@ open class ShadowListKitListView @JvmOverloads constructor(
     restorePendingAnchor()
   }
 
+  /*
+   * Land the saved row once the data has it. Until then the position waits, and the user
+   * scrolling or a scroll command drops it, see dropPendingAnchor.
+   */
   private fun restorePendingAnchor() {
     val state = pendingAnchor ?: return
     if (keys.isEmpty() || !core.restoreAnchorState(state.key, state.offset.toDouble())) return
     pendingAnchor = null
     stopScrolling()
     runCommandNow()
+  }
+
+  /*
+   * Forget a saved position still waiting for its key. The user or a command moved the list
+   * since, and a later reload must not pull the viewport back to it.
+   */
+  private fun dropPendingAnchor() {
+    pendingAnchor = null
   }
 
   override fun onSaveInstanceState(): Parcelable? {
@@ -2140,6 +2155,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun scrollToRow(row: Int, viewPosition: Double, animated: Boolean) {
     if (row !in keys.indices) return
+    dropPendingAnchor()
     val target = if (animated && !scrollDriven) core.animatedTargetOffset(row, viewPosition, windowAlong.toDouble(), maxOffset.toDouble())
       else Double.NaN
     if (!target.isNaN()) {
@@ -2153,6 +2169,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   fun scrollToStart(animated: Boolean = false) {
+    dropPendingAnchor()
     if (animated && !scrollDriven) {
       // The header shows at the very start, which landing on row 0 would scroll past.
       animateCommand(0, ShadowListKitCore.LANDING_START)
@@ -2164,6 +2181,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   fun scrollToEnd(animated: Boolean = false) {
+    dropPendingAnchor()
     if (animated && !scrollDriven) {
       animateCommand(maxOffset, ShadowListKitCore.LANDING_END)
       return
@@ -2216,6 +2234,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * the offset over a command that runs now.
    */
   private fun stopScrolling() {
+    dropPendingAnchor()
     gesture.stop()
     core.cancelLanding()
   }

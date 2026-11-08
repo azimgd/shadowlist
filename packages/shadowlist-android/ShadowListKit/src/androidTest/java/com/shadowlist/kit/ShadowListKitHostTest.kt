@@ -615,4 +615,19 @@ class ShadowListKitHostTest {
       assertEquals(requireNotNull(list.rectForItem(cell.index)).top.roundToInt(), cell.top)
     }
   }
+
+  @Test
+  fun a_waiting_saved_position_is_dropped_by_a_scroll_command() = onMain {
+    val rows = Rows(100, ROW_SIZE)
+    val list = makeList(rows)
+    list.restoreAnchorState(ShadowListKitAnchorState("later5", 4f))
+    layOut(list)
+    list.scrollToItem(50)
+    layOut(list)
+    val top = requireNotNull(list.cellForItem(50)).top - list.scrollY
+    rows.keys.addAll(List(50) { "later$it" })
+    list.reloadData()
+    layOut(list)
+    assertEquals(top, requireNotNull(list.cellForItem(50)).top - list.scrollY)
+  }
 }

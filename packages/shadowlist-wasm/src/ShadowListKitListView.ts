@@ -1322,6 +1322,7 @@ export class ShadowListKitListView extends HTMLElement {
 
   gestureBegan(): void {
     this.liveCore?.cancelLanding();
+    this.dropPendingAnchor();
   }
 
   /*
@@ -1401,6 +1402,10 @@ export class ShadowListKitListView extends HTMLElement {
     this.restorePendingAnchor();
   }
 
+  /*
+   * Land the saved row once the data has it. Until then the position waits, and the user
+   * scrolling or a scroll command drops it, see dropPendingAnchor.
+   */
   private restorePendingAnchor(): void {
     const state = this.pendingAnchor;
     if (!state || this.keys.length === 0 || !isShadowListKitLoaded()) return;
@@ -1408,6 +1413,14 @@ export class ShadowListKitListView extends HTMLElement {
     this.pendingAnchor = null;
     this.stopScrolling();
     this.runCommandNow();
+  }
+
+  /*
+   * Forget a saved position still waiting for its key. The user or a command moved the list
+   * since, and a later reload must not pull the viewport back to it.
+   */
+  private dropPendingAnchor(): void {
+    this.pendingAnchor = null;
   }
 
   // endregion
@@ -1452,6 +1465,7 @@ export class ShadowListKitListView extends HTMLElement {
    */
   scrollToItem(index: number, viewPosition = 0, animated = false): void {
     if (index < 0 || index >= this.keys.length) return;
+    this.dropPendingAnchor();
     const target = () =>
       this.core.animatedTargetOffset(
         index,
@@ -1475,6 +1489,7 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   scrollToStart(animated = false): void {
+    this.dropPendingAnchor();
     if (animated) {
       // The header shows at the very start, which landing on row 0 would scroll past.
       this.animateCommand(() => 0, ShadowListKitCore.LANDING_START);
@@ -1486,6 +1501,7 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   scrollToEnd(animated = false): void {
+    this.dropPendingAnchor();
     if (animated) {
       this.animateCommand(() => this.maxOffset, ShadowListKitCore.LANDING_END);
       return;
@@ -1510,6 +1526,7 @@ export class ShadowListKitListView extends HTMLElement {
    * command that runs now.
    */
   private stopScrolling(): void {
+    this.dropPendingAnchor();
     this.gesture.stop();
     this.core.cancelLanding();
   }
