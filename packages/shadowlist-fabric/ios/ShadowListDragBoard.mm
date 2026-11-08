@@ -840,7 +840,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   if (!_drag.isForeign()) {
     return;
   }
-  _drag.endForeign();
+  _drag.end();
   _dragBoardAnimateShifts = YES;
   [self applyDragShuffle];
   _dragBoardAnimateShifts = NO;
@@ -895,7 +895,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   }
   if (core.getPhase() == azimgd::shadowlist::DragBoardPhase::Landing &&
       core.landed(_dragBoardToken, [self rowKeysContainKey:_dragBoardLandingKey])) {
-    _drag.endForeign();
+    _drag.end();
     [self clearDragTransforms];
   }
   if (core.getPhase() == azimgd::shadowlist::DragBoardPhase::Settling && core.getTargetId() == _dragBoardToken &&
@@ -952,7 +952,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   }
   _dragBoardLandingKey = nil;
   if (_drag.isForeign()) {
-    _drag.endForeign();
+    _drag.end();
     [self clearDragTransforms];
   }
   if (_dragBoardDropPending) {

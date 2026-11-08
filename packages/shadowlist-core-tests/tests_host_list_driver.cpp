@@ -604,6 +604,10 @@ TEST(list_driver_drag_moves_the_drop_slot_and_skips_the_held_row) {
   host.driver.dragEnd();
   CHECK(!host.driver.isDragging());
   CHECK_EQ(host.driver.getHeldIndex(), UNDEFINED_INDEX);
+  // The ended drag shifts no row and has no origin or drop spot left.
+  CHECK_EQ(host.driver.dragShiftFor(3).leading, 0.0);
+  CHECK_EQ(host.driver.getDragOriginIndex(), UNDEFINED_INDEX);
+  CHECK_EQ(host.driver.getDragInsertionIndex(), UNDEFINED_INDEX);
 }
 
 TEST(list_driver_held_row_follows_its_key) {

@@ -262,7 +262,7 @@ JNIEXPORT void JNICALL SL_DRAG_JNI(nativePlaceForeignCenter)(
 }
 
 JNIEXPORT void JNICALL SL_DRAG_JNI(nativeEndForeign)(JNIEnv*, jclass, jlong handle) {
-  peerOf(handle)->drag.endForeign();
+  peerOf(handle)->drag.end();
 }
 
 JNIEXPORT jboolean JNICALL SL_DRAG_JNI(nativeIsForeign)(JNIEnv*, jclass, jlong handle) {

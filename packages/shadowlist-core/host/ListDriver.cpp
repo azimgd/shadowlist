@@ -745,6 +745,7 @@ void ListDriver::dragBegin(std::size_t index, double touchAlong, double touchCro
 
 void ListDriver::dragEnd() {
   heldKey_.clear();
+  drag_.end();
 }
 
 std::size_t ListDriver::getHeldIndex() const {

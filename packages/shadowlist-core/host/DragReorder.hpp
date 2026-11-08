@@ -383,9 +383,9 @@ void dragGridForeignShifts(
 /*
  * One drag, from pickup to drop. On a drag board the same class runs either side. The home
  * list keeps its normal drag and marks the held row away while it hovers another list. The
- * list under the row runs a foreign session from beginForeign to endForeign. A foreign session
+ * list under the row runs a foreign session from beginForeign to end. A foreign session
  * and a normal drag never run together on one instance. Calling begin or beginCell ends a
- * foreign session, and beginForeign drops any normal drag.
+ * foreign session, and beginForeign drops any normal drag. end finishes either one.
  */
 class DragReorder final {
 public:
@@ -489,9 +489,10 @@ public:
   void placeForeignCenter(double center, double crossCenter);
 
   /*
-   * End the foreign session. Nothing is held and no row shifts.
+   * End the drag or the foreign session. Nothing is held, no row shifts and the origin and
+   * insertion indices are UNDEFINED_INDEX.
    */
-  void endForeign();
+  void end();
   bool isForeign() const { return foreign_; }
 
   /*

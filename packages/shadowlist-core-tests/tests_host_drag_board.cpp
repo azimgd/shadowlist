@@ -431,9 +431,9 @@ TEST(drag_board_begin_after_a_foreign_session_resets_it) {
   CHECK_EQ(drag.shiftFor(4), -100.0);
 }
 
-TEST(drag_board_end_foreign_clears_the_gap) {
+TEST(drag_board_ending_a_foreign_session_clears_the_gap) {
   DragReorder drag = foreignGrid(150.0, 250.0);
-  drag.endForeign();
+  drag.end();
   CHECK(!drag.isForeign());
   CHECK_EQ(drag.getInsertionIndex(), UNDEFINED_INDEX);
   CHECK_EQ(drag.getInsertionKey(), std::string());
@@ -441,7 +441,7 @@ TEST(drag_board_end_foreign_clears_the_gap) {
   checkOffset(drag, 11, 0.0, 0.0);
 
   DragReorder list = foreignList(560.0);
-  list.endForeign();
+  list.end();
   CHECK_EQ(list.shiftFor(6), 0.0);
 }
 
