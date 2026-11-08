@@ -807,3 +807,30 @@ TEST(list_driver_reset_measures_the_rows_at_the_offset_in_one_layout) {
   CHECK(host.driver.getLeadingAt(measured->low) <= host.offset);
   CHECK(host.driver.getLeadingAt(measured->high) + 30.0 >= host.offset + WINDOW_ALONG);
 }
+
+/*
+ * The last row moves no row when it grows, and a host that copies the frames by the geometry
+ * version still hears that it changed.
+ */
+TEST(list_driver_a_last_row_that_grows_moves_the_geometry_version) {
+  ListDriver driver;
+  double last = 50.0;
+  driver.setMeasureRow([&](std::size_t index, const std::string&, double) { return index == 2 ? last : 50.0; });
+  driver.setKeys({"a", "b", "c"});
+  PassInput input;
+  input.windowAlong = 600;
+  input.windowCross = 300;
+  driver.runPasses(input);
+  std::uint64_t before = driver.getGeometryVersion();
+  last = 200.0;
+  driver.markRemeasure({2});
+  PassResult result = driver.runPasses(input);
+  CHECK_EQ(driver.getExtentAt(2), 200.0);
+  CHECK_EQ(result.contentAlong, 300.0);
+  CHECK(driver.getGeometryVersion() != before);
+  // Measured again at the same size, nothing changed.
+  std::uint64_t grown = driver.getGeometryVersion();
+  driver.markRemeasure({2});
+  driver.runPasses(input);
+  CHECK_EQ(driver.getGeometryVersion(), grown);
+}

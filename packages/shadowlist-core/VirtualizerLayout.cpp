@@ -181,6 +181,7 @@ void Virtualizer::layoutRows(Container& container) {
     std::size_t changedThroughIndex =
       container.rowStructureDirty ? UNDEFINED_INDEX : container.rowSizeDirtyToIndex;
 
+    container.rowExtentChanged = container.rowExtentChanged || anyNewlyEstimated;
     recomputeRowOffsets(container, reflowFrom, changedThroughIndex);
     container.previousLayoutHeaderSize = container.headerSize;
     container.previousLayoutWindowWidth = container.revision.windowWidth;
@@ -201,8 +202,8 @@ void Virtualizer::recomputeRowOffsets(
 
   /*
    * All row positions are written here. This is where snap and sticky caches go stale.
-   * Only bump the geometry version when an offset really changed, or those caches get
-   * thrown away for nothing.
+   * Only bump the geometry version when an offset or a row's size really changed, or those
+   * caches get thrown away for nothing.
    */
   bool anyOffsetChanged = false;
 
@@ -261,9 +262,10 @@ void Virtualizer::recomputeRowOffsets(
 
   container.maxCrossAxisExtent = crossMax;
 
-  if (anyOffsetChanged) {
+  if (anyOffsetChanged || container.rowExtentChanged) {
     container.geometryVersion++;
   }
+  container.rowExtentChanged = false;
 }
 
 void Virtualizer::recomputeContentSize(Container& container) {

@@ -69,6 +69,7 @@ bool Virtualizer::applyRowSize(Container& container, std::size_t index, Size siz
   nextRow.height = size.height;
   nextRow.estimated = true;
   nextRow.measured = true;
+  container.rowExtentChanged = container.rowExtentChanged || dimensionsChanged;
 
   // A real measurement always replaces a prediction.
   nextRow.predicted = false;
@@ -124,6 +125,7 @@ std::size_t Virtualizer::applyPredictedRowSize(Container& container, const std::
     return UNDEFINED_INDEX;
   }
 
+  container.rowExtentChanged = true;
   container.markRowSizeDirty(index);
 
   return index;

@@ -418,6 +418,12 @@ public:
   std::uint64_t geometryVersion = 1;
 
   /*
+   * A row took a new size since the last reflow. A row that grows or shrinks moves no row when
+   * it is the last one, and the version still has to move: a host's copy of the frames reads it.
+   */
+  bool rowExtentChanged = false;
+
+  /*
    * Set on any insert, remove or reorder, since positions shift even without size changes.
    * Starts true so the first layout always runs.
    */
