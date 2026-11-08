@@ -103,10 +103,27 @@ extern "C" const char ShadowListKitListViewScrollingLink = 0;
 
 #pragma mark - Scrollers
 
-- (void)scrollerView:(ShadowListKitScrollerView *)scrollerView didScrollToOffset:(CGPoint)offset
+/*
+ * A thumb held by the pointer drags the list like a gesture: the phase is Dragging until it lets
+ * go, which tells the delegate, closes an open row and keeps the core from clamping mid drag.
+ */
+- (void)scrollerViewWillBeginDragging:(ShadowListKitScrollerView *)scrollerView
 {
   [self stopScrolling];
+  self.scrollPhase = ShadowListKitScrollPhaseDragging;
+}
+
+- (void)scrollerView:(ShadowListKitScrollerView *)scrollerView didScrollToOffset:(CGPoint)offset
+{
+  if (self.scrollPhase != ShadowListKitScrollPhaseDragging) {
+    [self stopScrolling];
+  }
   [self writeOffset:[self along:offset] byUser:YES];
+}
+
+- (void)scrollerViewDidEndDragging:(ShadowListKitScrollerView *)scrollerView
+{
+  self.scrollPhase = ShadowListKitScrollPhaseIdle;
 }
 
 #pragma mark - Wheel

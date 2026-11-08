@@ -321,7 +321,8 @@ NS_SWIFT_UI_ACTOR
  * - contentSize: the size of the content along the axis and the viewport across it.
  * - scrollEnabled: whether the scroll wheel scrolls the list. Without it, wheel events go to
  *   the next responder.
- * - scrollPhase, isTracking, isDragging, isDecelerating: what moves the offset now.
+ * - scrollPhase, isTracking, isDragging, isDecelerating: what moves the offset now. The scroll
+ *   engine and the scrollers set the phase. A host sets it only on a scrollDriven list.
  * - scrollDriven: a host moves the list. The host sets contentOffset and scrollPhase, the list
  *   never moves itself, shows no scrollers and wheel events go to the next responder. An offset
  *   the list wants is reported to the delegate's listView:didCorrectOffset:, which sets it. That

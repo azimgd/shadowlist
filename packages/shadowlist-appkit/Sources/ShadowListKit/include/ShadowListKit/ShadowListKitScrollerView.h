@@ -24,6 +24,13 @@ NS_SWIFT_UI_ACTOR
  */
 - (void)scrollerViewDidScrollForAccessibility:(ShadowListKitScrollerView *)scrollerView;
 
+/*
+ * The pointer took hold of a thumb or a track, and let go of it. The offsets it scrolls to in
+ * between come through scrollerView:didScrollToOffset:.
+ */
+- (void)scrollerViewWillBeginDragging:(ShadowListKitScrollerView *)scrollerView;
+- (void)scrollerViewDidEndDragging:(ShadowListKitScrollerView *)scrollerView;
+
 @end
 
 /*

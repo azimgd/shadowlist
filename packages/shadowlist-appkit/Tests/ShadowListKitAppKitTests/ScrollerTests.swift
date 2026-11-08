@@ -9,10 +9,21 @@ import XCTest
 final class ScrollerTests: XCTestCase {
   private final class ScrollerDelegate: NSObject, ShadowListKitScrollerViewDelegate {
     var offsets: [CGPoint] = []
+    var dragging = false
+    var drags = 0
 
     func scrollerView(_ scrollerView: ShadowListKitScrollerView, didScrollTo offset: CGPoint) {
       offsets.append(offset)
       scrollerView.offset = offset
+    }
+
+    func scrollerViewWillBeginDragging(_ scrollerView: ShadowListKitScrollerView) {
+      dragging = true
+      drags += 1
+    }
+
+    func scrollerViewDidEndDragging(_ scrollerView: ShadowListKitScrollerView) {
+      dragging = false
     }
   }
 
@@ -92,6 +103,20 @@ final class ScrollerTests: XCTestCase {
     XCTAssertTrue(delegate.offsets.isEmpty)
     scrollers.mouseDragged(with: mouse(.leftMouseDragged, at: NSPoint(x: 295, y: 400), in: scrollers))
     XCTAssertEqual(delegate.offsets.last?.y ?? 0, 1500 - 20.0 / 372 * 1500, accuracy: 0.01)
+  }
+
+  func testAHeldThumbDragsFromPressToRelease() {
+    let scrollers = makeScrollers()
+    scrollers.mouseDown(with: mouse(.leftMouseDown, at: NSPoint(x: 295, y: 60), in: scrollers))
+    XCTAssertTrue(delegate.dragging)
+    scrollers.mouseDragged(with: mouse(.leftMouseDragged, at: NSPoint(x: 295, y: 200), in: scrollers))
+    XCTAssertTrue(delegate.dragging)
+    scrollers.mouseUp(with: mouse(.leftMouseUp, at: NSPoint(x: 295, y: 200), in: scrollers))
+    XCTAssertFalse(delegate.dragging)
+    XCTAssertEqual(delegate.drags, 1)
+    // A press off the tracks drags nothing.
+    scrollers.mouseDown(with: mouse(.leftMouseDown, at: NSPoint(x: 100, y: 200), in: scrollers))
+    XCTAssertEqual(delegate.drags, 1)
   }
 
   func testOnlyShownTracksTakeTheMouse() {

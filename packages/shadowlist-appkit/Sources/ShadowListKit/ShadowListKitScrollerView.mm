@@ -456,6 +456,9 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   ScrollerThumb thumb = vertical ? [self verticalThumb] : [self horizontalThumb];
   _grabOffset = (CGFloat)scrollerGrabOffset(thumb, vertical ? point.y : point.x);
   [self updateThumbs];
+  if ([_delegate respondsToSelector:@selector(scrollerViewWillBeginDragging:)]) {
+    [_delegate scrollerViewWillBeginDragging:self];
+  }
   [self dragTo:point];
 }
 
@@ -473,6 +476,9 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   [self hoverAt:[self convertPoint:event.locationInWindow fromView:nil]];
   [self updateThumbs];
   [self flashScrollers];
+  if ([_delegate respondsToSelector:@selector(scrollerViewDidEndDragging:)]) {
+    [_delegate scrollerViewDidEndDragging:self];
+  }
 }
 
 /*
