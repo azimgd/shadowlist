@@ -240,10 +240,17 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
     edges.release()
     list.stopNestedScroll(ViewCompat.TYPE_TOUCH)
     if (list.refresh.isPulling) list.refreshReleased()
-    if (wasTracking) {
-      val velocity = currentVelocity()
-      if (!(allowFling && flingWithParent(velocity))) settleWithoutFling()
-    }
+    if (wasTracking) endDragging(allowFling && flingWithParent(currentVelocity()))
+  }
+
+  /*
+   * The finger let go of a list it moved. A fling or a snap settles it, otherwise its scroll
+   * ends here.
+   */
+  private fun endDragging(flung: Boolean) {
+    val settles = flung || startSnapSettle()
+    list.draggingEnded(settles)
+    if (!settles) list.scrollingEnded()
   }
 
   /*
@@ -324,15 +331,16 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
   private fun snapDuration(distance: Int, velocity: Float): Long =
     (2000f * distance / velocity).roundToLong().coerceIn(SNAP_MIN_DURATION_MS, SNAP_MAX_DURATION_MS)
 
-  private fun settleWithoutFling() {
+  /*
+   * Ease a list at rest off an item edge onto the nearest one. Returns whether it moves.
+   */
+  private fun startSnapSettle(): Boolean {
     val snapped = list.snapTarget(list.offset)
-    if (snapped != list.offset) {
-      isSettling = true
-      startScroll(list.offset, snapped, ShadowListKitCore.SETTLE_DURATION_MS)
-      list.postInvalidateOnAnimation()
-      return
-    }
-    list.scrollingEnded()
+    if (snapped == list.offset) return false
+    isSettling = true
+    startScroll(list.offset, snapped, ShadowListKitCore.SETTLE_DURATION_MS)
+    list.postInvalidateOnAnimation()
+    return true
   }
 
   private fun startScroll(from: Int, to: Int, durationMs: Long) {
@@ -341,7 +349,7 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
   }
 
   /*
-   * Animate to an offset for a scroll command. It ends in list.scrollingEnded.
+   * Animate to an offset for a scroll command. It ends in list.scrollAnimationEnded.
    */
   fun animateTo(target: Int, currentTarget: (() -> Int)? = null) {
     scroller.abortAnimation()
@@ -390,11 +398,12 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
         return
       }
     }
+    val animated = isAnimating
     endFlingSteps()
     isSettling = false
     isAnimating = false
     commandTarget = null
-    list.scrollingEnded()
+    if (animated) list.scrollAnimationEnded() else list.deceleratingEnded()
   }
 
   /*
@@ -428,7 +437,7 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
     activePointer = MotionEvent.INVALID_POINTER_ID
     edges.release()
     list.stopNestedScroll(ViewCompat.TYPE_TOUCH)
-    if (wasTracking) settleWithoutFling()
+    if (wasTracking) endDragging(false)
   }
 
   /*

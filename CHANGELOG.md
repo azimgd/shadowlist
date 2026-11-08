@@ -6,6 +6,10 @@
 
 - The codegen event payload types are named `<Name>Event` (`DragEndEvent`, `MountedRangeChangeEvent`, `NativeScrollEvent` for the payload `ScrollEvent` wraps) and the package index no longer re-exports them. `ShadowListView` and its `Commands` are still exported.
 
+### ShadowListKit for UIKit
+
+- The delegate hears the scroll events as `listViewDidScroll:`, `listViewWillBeginDragging:`, `listViewDidEndDragging:willDecelerate:`, `listViewDidEndDecelerating:` and `listViewDidEndScrollingAnimation:`, the same calls as the AppKit list's. `UIScrollViewDelegate`'s calls still arrive.
+
 ### ShadowListKit for AppKit
 
 - A driven list costs about what a host that places its rows itself does. While the host moves it, the content moves by its layer's `sublayerTransform` and cells move and hide by their layers. No view geometry changes. When it did, AppKit walked every view of the window on each frame to update its tracking areas. The views take their layers' geometry once the list rests for a tenth of a second, and `visibleCells`, `cellForItemAtIndex:`, hit testing, menus, drags and accessibility see the cells where they show before that.
@@ -15,6 +19,7 @@
 
 ### ShadowListKit (Android)
 
+- Breaking: `Delegate.didEndScrolling` is gone. The delegate hears `willBeginDragging`, `didEndDragging(listView, willDecelerate)`, `didEndDecelerating` and `didEndScrollingAnimation` beside `didScroll`, the same calls as the Apple lists'. A lift without settling is `didEndDragging` with `willDecelerate` false.
 - A driven list moved by `adjustOffsetBy` inside the content lays out once, and runs the core only once the offset leaves the core's band. Every adjustment laid out twice and ran the core in the second pass before. A layout pass whose offset keeps the same rows mounted plans no mount.
 - A mount pass shows and hides cells with `setTransitionVisibility` from API 29. `setVisibility` dispatched the change through every view of the cell, which cost more than the rest of the pass. A cell holding focus still changes through `setVisibility`.
 - A driven list draws its children into a `RenderNode` of its own from API 29 and records it again only when a child comes, goes, shows or hides. A frame that only moves the offset records the list around that node, and a child that drew again is brought up to date on its own. A lifted row, separators, an open swipe and a layout transition draw the usual way.

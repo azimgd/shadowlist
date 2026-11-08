@@ -220,6 +220,18 @@ NS_SWIFT_UI_ACTOR
 - (void)listViewDidReachStart:(ShadowListKitListView *)listView;
 - (void)listViewDidReachEnd:(ShadowListKitListView *)listView;
 
+/*
+ * The scroll events, the same as the AppKit list's. listViewDidScroll: follows every change of
+ * contentOffset. The others follow the scroll view's dragging and the deceleration after it.
+ * listViewDidEndScrollingAnimation: follows an animated scroll command. The protocol inherits
+ * UIScrollViewDelegate only because the list is a UIScrollView. Its calls still arrive.
+ */
+- (void)listViewDidScroll:(ShadowListKitListView *)listView;
+- (void)listViewWillBeginDragging:(ShadowListKitListView *)listView;
+- (void)listViewDidEndDragging:(ShadowListKitListView *)listView willDecelerate:(BOOL)decelerate;
+- (void)listViewDidEndDecelerating:(ShadowListKitListView *)listView;
+- (void)listViewDidEndScrollingAnimation:(ShadowListKitListView *)listView;
+
 @end
 
 /*

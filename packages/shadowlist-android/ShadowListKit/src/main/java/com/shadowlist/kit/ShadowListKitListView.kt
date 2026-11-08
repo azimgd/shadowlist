@@ -136,13 +136,19 @@ open class ShadowListKitListView @JvmOverloads constructor(
     fun didDeselectItem(listView: ShadowListKitListView, index: Int) {}
     fun shouldSelectItem(listView: ShadowListKitListView, index: Int): Boolean = true
     fun shouldHighlightItem(listView: ShadowListKitListView, index: Int): Boolean = true
-    fun didScroll(listView: ShadowListKitListView) {}
 
     /*
-     * The list came to rest after a touch, a fling or an animated scroll, on an item edge when
-     * snapToItem is set.
+     * The scroll events, the same as the Apple lists' listViewDidScroll: family. didScroll follows
+     * every change of the offset. willBeginDragging and didEndDragging follow a finger moving the
+     * list, and willDecelerate says a fling or a snap settles it after. didEndDecelerating follows
+     * that settling, on an item edge when snapToItem is set. didEndScrollingAnimation follows an
+     * animated scroll command.
      */
-    fun didEndScrolling(listView: ShadowListKitListView) {}
+    fun didScroll(listView: ShadowListKitListView) {}
+    fun willBeginDragging(listView: ShadowListKitListView) {}
+    fun didEndDragging(listView: ShadowListKitListView, willDecelerate: Boolean) {}
+    fun didEndDecelerating(listView: ShadowListKitListView) {}
+    fun didEndScrollingAnimation(listView: ShadowListKitListView) {}
 
     /*
      * Whether an item can be picked up when reorderEnabled is set. Every item can by default.
@@ -1947,13 +1953,26 @@ open class ShadowListKitListView @JvmOverloads constructor(
   override fun computeScroll() = gesture.computeScroll()
 
   /*
-   * A fling or an animated scroll ended. The core needs an idle frame to let a held
-   * correction go, and an animated command lands on its row.
+   * A lift without settling, a fling or a snap, or an animated scroll ended. The core needs an
+   * idle frame to let a held correction go, and an animated command lands on its row.
    */
   internal fun scrollingEnded() {
     core.land()
     invalidateFrame()
-    delegate?.didEndScrolling(this)
+  }
+
+  internal fun draggingEnded(willDecelerate: Boolean) {
+    delegate?.didEndDragging(this, willDecelerate)
+  }
+
+  internal fun deceleratingEnded() {
+    scrollingEnded()
+    delegate?.didEndDecelerating(this)
+  }
+
+  internal fun scrollAnimationEnded() {
+    scrollingEnded()
+    delegate?.didEndScrollingAnimation(this)
   }
 
   internal fun gestureBegan() {
@@ -1968,6 +1987,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     selection.cancelHighlight()
     drag.cancelPress()
     if (swipe.isOpen) swipe.close(true)
+    delegate?.willBeginDragging(this)
   }
 
   /*

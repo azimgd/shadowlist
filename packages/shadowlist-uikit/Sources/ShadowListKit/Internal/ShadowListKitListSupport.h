@@ -54,7 +54,8 @@ static inline NSString *ShadowListKitRowsShownAnnouncement(NSRange visible, NSUI
 #else
 /*
  * Sits between UIScrollView and the user's delegate. The list sees the scroll events it needs
- * for snapping and gesture phases, and everything else goes to the user's delegate.
+ * for snapping and gesture phases and passes them on as the delegate's listViewDidScroll: family.
+ * The scroll view's calls also go to the user's delegate when it answers them.
  */
 @interface ShadowListKitDelegateProxy : NSProxy
 @property (nonatomic, weak) ShadowListKitListView *list;

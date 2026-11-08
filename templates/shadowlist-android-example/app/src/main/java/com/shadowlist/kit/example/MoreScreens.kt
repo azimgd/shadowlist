@@ -75,7 +75,15 @@ class RowsList(context: Context, engine: Engine) : ShadowListKitListView.Delegat
     onMove?.invoke(sourceIndex, destinationIndex)
   }
 
-  override fun didEndScrolling(listView: ShadowListKitListView) {
+  override fun didEndDragging(listView: ShadowListKitListView, willDecelerate: Boolean) {
+    if (!willDecelerate) onEndScrolling?.invoke()
+  }
+
+  override fun didEndDecelerating(listView: ShadowListKitListView) {
+    onEndScrolling?.invoke()
+  }
+
+  override fun didEndScrollingAnimation(listView: ShadowListKitListView) {
     onEndScrolling?.invoke()
   }
 }

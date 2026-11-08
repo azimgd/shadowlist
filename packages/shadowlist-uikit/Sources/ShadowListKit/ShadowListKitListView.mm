@@ -665,12 +665,26 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   return [super gestureRecognizerShouldBegin:gesture];
 }
 
+/*
+ * The scroll view's events reach the delegate as the kit's own scroll callbacks, the same ones
+ * the AppKit list sends.
+ */
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView
+{
+  if ([_userDelegate respondsToSelector:@selector(listViewDidScroll:)]) {
+    [_userDelegate listViewDidScroll:self];
+  }
+}
+
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
 {
   _driver.cancelLanding();
   [self dropPendingAnchor];
   [self unhighlight];
   [self closeSwipeAnimated:YES];
+  if ([_userDelegate respondsToSelector:@selector(listViewWillBeginDragging:)]) {
+    [_userDelegate listViewWillBeginDragging:self];
+  }
 }
 
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView
@@ -695,11 +709,17 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
     // The gesture ended. The core needs an idle frame to let a held correction go.
     [self invalidateFrame];
   }
+  if ([_userDelegate respondsToSelector:@selector(listViewDidEndDragging:willDecelerate:)]) {
+    [_userDelegate listViewDidEndDragging:self willDecelerate:decelerate];
+  }
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
 {
   [self invalidateFrame];
+  if ([_userDelegate respondsToSelector:@selector(listViewDidEndDecelerating:)]) {
+    [_userDelegate listViewDidEndDecelerating:self];
+  }
 }
 
 /*
@@ -709,6 +729,9 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 {
   if (_driver.land()) {
     [self invalidateFrame];
+  }
+  if ([_userDelegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
+    [_userDelegate listViewDidEndScrollingAnimation:self];
   }
 }
 
