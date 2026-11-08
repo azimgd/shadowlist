@@ -205,7 +205,6 @@ RCT_EXPORT_MODULE()
 {
   CFTimeInterval elapsed = CACurrentMediaTime() - _animationStart;
   CGFloat time = _animationDuration > 0 ? MIN(1.0, elapsed / _animationDuration) : 1.0;
-  // Cubic ease out.
   CGFloat eased = (CGFloat)azimgd::shadowlist::easeOut(time);
   CGFloat value = _animationFrom + (_animationTo - _animationFrom) * eased;
   [self emitHeight:value];

@@ -70,6 +70,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   }
   // Stop any momentum first, like UIKit does.
   [_scrollView setContentOffset:_scrollView.contentOffset animated:NO];
+  [self endStoppedMomentum];
 
   SLF_TRACE("ev=stt-start off=%.1f cs=%.1f", _scrollView.contentOffset.y, _scrollView.contentSize.height);
   _scrollingToTop = YES;
@@ -249,6 +250,8 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 {
   SLF_TRACE("ev=stt-finish off=%.1f", _scrollView.contentOffset.y);
   [self cancelScrollToTop];
+  // JS hears the end of the motion, as after an animated scroll command.
+  [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
   if (!_state) {
     return;
   }

@@ -52,6 +52,7 @@ using namespace facebook::react;
   if (_scrollView.isDecelerating && !_scrollView.isTracking) {
     // Writing the current offset stops the fling, like in startScrollToTop.
     [_scrollView setContentOffset:_scrollView.contentOffset animated:NO];
+    [self endStoppedMomentum];
     yielded = YES;
   }
   return yielded;

@@ -321,6 +321,13 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _scrollTracker = ShadowListScrollTracker();
   _landCommandSequence = 0;
   _momentumEndAfterLand = NO;
+  _momentumRunning = NO;
+#if TARGET_OS_OSX
+  _macDragEnded = NO;
+  _macMomentum = NO;
+#endif
+  // A refresh settle still waiting belongs to the list before the recycle.
+  _refreshSettleToken += 1;
   _pageAnnouncementPending = NO;
   _pageKeyIndicesProps.reset();
   _pageKeyIndices.clear();
@@ -1091,6 +1098,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 
 - (void)scrollViewWillBeginDecelerating:(UIScrollView *)scrollView
 {
+  _momentumRunning = YES;
   [self emitScrollEvent:"momentumScrollBegin" velocity:CGPointZero];
 }
 
@@ -1098,6 +1106,23 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 {
   SLF_TRACE("ev=decel-end off=%.1f,%.1f", scrollView.contentOffset.x, scrollView.contentOffset.y);
   [self clearUserScrolled];
+  if (!_momentumRunning) {
+    return;
+  }
+  _momentumRunning = NO;
+  [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
+}
+
+/*
+ * A fling stopped by writing the offset ends without scrollViewDidEndDecelerating. JS still
+ * hears the end of the momentum it heard begin.
+ */
+- (void)endStoppedMomentum
+{
+  if (!_momentumRunning) {
+    return;
+  }
+  _momentumRunning = NO;
   [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
 }
 
