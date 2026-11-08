@@ -336,6 +336,15 @@ class ShadowListKitHostTest {
     assertEquals(offsetBefore - 36, list.scrollY)
   }
 
+  @Test
+  fun an_offset_moved_before_the_start_comes_back_to_it() = onMain {
+    val list = makeList(Rows(2_000, ROW_SIZE))
+    list.adjustOffsetBy(-37.0)
+    assertEquals(0, list.scrollY)
+    assertEquals(0.0, list.exactOffset, 0.0)
+    assertEquals(0, list.visibleCells.minOf { it.top })
+  }
+
   // endregion
 
   // region Layout pass hook

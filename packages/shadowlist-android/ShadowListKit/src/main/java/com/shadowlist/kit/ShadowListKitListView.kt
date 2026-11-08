@@ -1045,10 +1045,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val target = exactTarget.roundToInt()
     /*
      * Content that shrank under a resting view clamps it to the new end, like a scroll view's
-     * content size write. The core runs again on the clamped offset before the frame is drawn.
+     * content size write, and an offset a host moved before the start comes back to it. The core
+     * runs again on the clamped offset before the frame is drawn.
      */
-    if (target > maxOffset && !gesture.isTracking && !clampingPass) {
-      writeOffset(maxOffset)
+    if ((target > maxOffset || exactTarget < 0) && !gesture.isTracking && !clampingPass) {
+      writeOffset(min(max(target, 0), maxOffset))
       offsetFraction = 0.0
       clampingPass = true
       runPasses()
