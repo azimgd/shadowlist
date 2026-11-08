@@ -1,9 +1,10 @@
 /*
- * ListSelection tests: selected rows by key.
+ * ListSelection tests: selected rows by key, and the keyboard's moves between them.
  */
 
 #include "TestFramework.hpp"
 
+#include <shadowlist-core/host/KeyNavigation.hpp>
 #include <shadowlist-core/host/ListSelection.hpp>
 
 #include <algorithm>
@@ -272,4 +273,32 @@ TEST(selection_anchor_drops_when_its_row_leaves_the_data) {
   selection.clear(deselected);
   CHECK(!selection.hasAnchor());
   CHECK(selection.getAnchorKey().empty());
+}
+
+TEST(key_navigation_steps_to_selectable_rows_and_keeps_a_grid_column) {
+  auto every = [](std::size_t) { return true; };
+  auto noHeaders = [](std::size_t row) { return row % 4 != 0; };
+  CHECK_EQ(stepRow(UNDEFINED_INDEX, 1, 10, every), std::size_t{0});
+  CHECK_EQ(stepRow(UNDEFINED_INDEX, -3, 10, every), std::size_t{9});
+  CHECK_EQ(stepRow(5, 1, 10, every), std::size_t{6});
+  CHECK_EQ(stepRow(9, 1, 10, every), UNDEFINED_INDEX);
+  // A step of three columns stays in the lead's column and skips a row that cannot be selected.
+  CHECK_EQ(stepRow(1, 3, 10, [](std::size_t row) { return row != 4; }), std::size_t{7});
+  CHECK_EQ(stepRow(3, 1, 10, noHeaders), std::size_t{5});
+  CHECK_EQ(endRow(false, 10, noHeaders), std::size_t{1});
+  CHECK_EQ(endRow(true, 10, noHeaders), std::size_t{9});
+  CHECK_EQ(stepRow(0, 1, 0, every), UNDEFINED_INDEX);
+}
+
+TEST(key_navigation_pages_a_viewport_from_the_lead_and_reveals_at_the_nearest_edge) {
+  auto leadingAt = [](std::size_t row) { return static_cast<double>(row) * 50.0; };
+  auto every = [](std::size_t) { return true; };
+  CHECK_EQ(pageRow(2, 1, 100, 200.0, leadingAt, every), std::size_t{6});
+  CHECK_EQ(pageRow(6, -1, 100, 200.0, leadingAt, every), std::size_t{2});
+  CHECK_EQ(pageRow(UNDEFINED_INDEX, 1, 100, 200.0, leadingAt, every), std::size_t{0});
+  CHECK_EQ(pageRow(UNDEFINED_INDEX, -1, 100, 200.0, leadingAt, every), std::size_t{99});
+  CHECK_EQ(pageRow(2, 1, 100, 200.0, leadingAt, [](std::size_t row) { return row == 3; }), std::size_t{3});
+  CHECK(revealEdge(100.0, 50.0, 120.0, 400.0) == RevealEdge::Start);
+  CHECK(revealEdge(500.0, 50.0, 120.0, 400.0) == RevealEdge::End);
+  CHECK(revealEdge(200.0, 50.0, 120.0, 400.0) == RevealEdge::None);
 }

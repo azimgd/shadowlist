@@ -2,6 +2,8 @@
 
 #import <ShadowListKit/ShadowListKitListView+Testing.h>
 
+#include <shadowlist-core/host/KeyNavigation.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -688,27 +690,22 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 }
 
 /*
- * The selectable row a step of rows away from the lead, or the next one past it by the same step.
- * The core places a grid's rows, section rows included, in its columns in turn, and a step of
- * numberOfColumns stays in the lead's column. Past the last row there is none. Without a lead a
- * step forward starts at the first item and back at the last.
+ * The lead as the core's row, UNDEFINED_INDEX without one.
+ */
+- (std::size_t)leadIndex
+{
+  NSInteger lead = [self leadRow];
+  return lead == NSNotFound ? UNDEFINED_INDEX : (std::size_t)lead;
+}
+
+/*
+ * The core's stepRow from the lead. A step of numberOfColumns stays in the lead's column.
  */
 - (NSInteger)rowStepping:(NSInteger)step
 {
-  NSInteger count = (NSInteger)_driver.getKeyCount();
-  if (count == 0 || step == 0) {
-    return NSNotFound;
-  }
-  NSInteger lead = [self leadRow];
-  NSInteger direction = step > 0 ? 1 : -1;
-  NSInteger target = lead == NSNotFound ? (step > 0 ? 0 : count - 1) : lead + step;
-  NSInteger stride = lead == NSNotFound ? direction : step;
-  for (NSInteger row = target; row >= 0 && row < count; row += stride) {
-    if ([self shouldSelectRow:(std::size_t)row]) {
-      return row;
-    }
-  }
-  return NSNotFound;
+  std::size_t row = stepRow([self leadIndex], (long)step, _driver.getKeyCount(),
+    [self](std::size_t candidate) { return (bool)[self shouldSelectRow:candidate]; });
+  return row == UNDEFINED_INDEX ? NSNotFound : (NSInteger)row;
 }
 
 - (void)moveByRows:(NSInteger)step extending:(BOOL)extending
@@ -724,38 +721,24 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
  */
 - (void)moveToEnd:(BOOL)end extending:(BOOL)extending
 {
-  NSInteger count = (NSInteger)_driver.getKeyCount();
-  NSInteger direction = end ? -1 : 1;
-  for (NSInteger row = end ? count - 1 : 0; row >= 0 && row < count; row += direction) {
-    if ([self shouldSelectRow:(std::size_t)row]) {
-      [self moveToRow:(std::size_t)row extending:extending];
-      return;
-    }
+  std::size_t row = endRow(end, _driver.getKeyCount(),
+    [self](std::size_t candidate) { return (bool)[self shouldSelectRow:candidate]; });
+  if (row != UNDEFINED_INDEX) {
+    [self moveToRow:row extending:extending];
   }
 }
 
 /*
- * Move a viewport along the axis from the lead.
+ * Move a viewport along the axis from the lead, by the core's pageRow.
  */
 - (void)moveByPage:(NSInteger)direction extending:(BOOL)extending
 {
-  NSInteger lead = [self leadRow];
-  NSInteger count = (NSInteger)MIN(_driver.getKeyCount(), _driver.getRowCount());
-  if (lead == NSNotFound || lead >= count) {
-    [self moveToEnd:direction < 0 extending:extending];
-    return;
-  }
-  double start = _driver.getLeadingAt((std::size_t)lead);
-  NSInteger row = lead;
-  while (row + direction >= 0 && row + direction < count &&
-         std::fabs(_driver.getLeadingAt((std::size_t)(row + direction)) - start) <= _windowAlong) {
-    row += direction;
-  }
-  for (; row != lead; row -= direction) {
-    if ([self shouldSelectRow:(std::size_t)row]) {
-      [self moveToRow:(std::size_t)row extending:extending];
-      return;
-    }
+  std::size_t count = std::min(_driver.getKeyCount(), _driver.getRowCount());
+  std::size_t row = pageRow([self leadIndex], (int)direction, count, _windowAlong,
+    [self](std::size_t at) { return _driver.getLeadingAt(at); },
+    [self](std::size_t candidate) { return (bool)[self shouldSelectRow:candidate]; });
+  if (row != UNDEFINED_INDEX) {
+    [self moveToRow:row extending:extending];
   }
 }
 
@@ -777,13 +760,9 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   if (row >= _driver.getRowCount() || _windowAlong <= 0) {
     return;
   }
-  double leading = _driver.getLeadingAt(row);
-  double trailing = leading + _driver.getExtentAt(row);
-  double start = [self offset];
-  if (leading < start) {
-    [self scrollToRow:row viewPosition:0 animated:NO];
-  } else if (trailing > start + _windowAlong) {
-    [self scrollToRow:row viewPosition:1 animated:NO];
+  RevealEdge edge = revealEdge(_driver.getLeadingAt(row), _driver.getExtentAt(row), [self offset], _windowAlong);
+  if (edge != RevealEdge::None) {
+    [self scrollToRow:row viewPosition:edge == RevealEdge::Start ? 0 : 1 animated:NO];
   }
 }
 
