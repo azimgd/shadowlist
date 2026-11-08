@@ -235,6 +235,11 @@ ScrollStep ScrollPhysics::wheel(const WheelEvent& event, double now) {
   double x = x_;
   double y = y_;
   if (!gesture) {
+    // A mouse wheel takes over from trackpad momentum, which is dropped.
+    if (inMomentum_ || momentumDeadline_ >= 0.0) {
+      dropsMomentum_ = true;
+      momentumDeadline_ = -1.0;
+    }
     animating_ = false;
     snapping_ = false;
     springing_ = false;
@@ -349,6 +354,10 @@ void ScrollPhysics::startAnimation(double x, double y, double now) {
 }
 
 ScrollStep ScrollPhysics::animateTo(double x, double y, double now) {
+  if (touching_) {
+    // Fingers on the trackpad hold the view. The animation does not start.
+    return ScrollStep{};
+  }
   ScrollStep result = stop();
   x = axisX_ ? std::clamp(x, 0.0, maxX_) : x_;
   y = axisY_ ? std::clamp(y, 0.0, maxY_) : y_;

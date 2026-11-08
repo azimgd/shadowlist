@@ -167,7 +167,9 @@ struct ScrollStep {
  *   system sends after it is Settling, and momentum that reaches an edge springs back. Fingers
  *   that lift past an edge spring back too. Fingers that touch a settling view stop it.
  * - A mouse wheel moves by lines, stops at the edges and is Dragging until it is quiet.
- * - animateTo eases to an offset over SCROLL_ANIMATION_DURATION_MS in the Idle phase.
+ * - animateTo eases to an offset over SCROLL_ANIMATION_DURATION_MS in the Idle phase. While
+ *   fingers are on the trackpad it does nothing, as fingers stop a running animation too.
+ * - A mouse wheel turned during trackpad momentum drops the rest of that momentum.
  * - When a gesture comes to rest the SnapOffset callback may move its resting offset. The
  *   physics animates there and stays Settling until it arrives.
  *

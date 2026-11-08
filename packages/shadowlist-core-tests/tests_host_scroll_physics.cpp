@@ -345,3 +345,31 @@ TEST(scroll_fingers_on_a_settling_view_stop_it) {
   CHECK(physics.getPhase() == ScrollPhase::Idle);
   CHECK(!physics.needsFrames());
 }
+
+TEST(scroll_an_animation_asked_for_while_fingers_are_down_does_not_start) {
+  ScrollPhysics physics = verticalPhysics();
+  physics.wheel(gestureEvent(WheelPhase::Began, 0, 10), 0);
+  physics.animateTo(0, 600, 8);
+  CHECK(!physics.isAnimating());
+  physics.wheel(gestureEvent(WheelPhase::Changed, 0, 10), 16);
+  physics.step(100);
+  CHECK_NEAR(physics.getOffsetY(), 20, 1e-9);
+  CHECK(physics.getPhase() == ScrollPhase::Dragging);
+}
+
+TEST(scroll_a_mouse_wheel_during_momentum_drops_the_momentum) {
+  ScrollPhysics physics = verticalPhysics();
+  physics.wheel(gestureEvent(WheelPhase::Began, 0, 10), 0);
+  physics.wheel(gestureEvent(WheelPhase::Ended, 0, 0), 8);
+  physics.wheel(momentumEvent(WheelPhase::Began, 0, 30), 10);
+  CHECK_NEAR(physics.getOffsetY(), 40, 1e-9);
+  physics.wheel(momentumEvent(WheelPhase::None, 0, 16), 18);
+  CHECK_NEAR(physics.getOffsetY(), 56, 1e-9);
+  ScrollStep late = physics.wheel(momentumEvent(WheelPhase::Changed, 0, 30), 26);
+  CHECK(!late.moved);
+  CHECK_NEAR(physics.getOffsetY(), 56, 1e-9);
+  physics.wheel(momentumEvent(WheelPhase::Ended, 0, 0), 34);
+  runFrames(physics, 34);
+  CHECK(physics.getPhase() == ScrollPhase::Idle);
+  CHECK_NEAR(physics.getOffsetY(), 56, 1e-9);
+}
