@@ -351,6 +351,23 @@ final class AccessibilityTests: XCTestCase {
     XCTAssertEqual(names(posted()), [.rowCountChanged])
   }
 
+  func testARowKeepsItsElementUntilItsItemIsDeleted() throws {
+    let (harness, _) = makeHarness()
+    let list = harness.list
+    autoreleasepool {
+      rows(list)[3].setAccessibilityIdentifier("kept")
+    }
+    XCTAssertEqual(try row(list, 3).accessibilityIdentifier(), "kept")
+    XCTAssertTrue(list.cellForItem(at: 3)?.accessibilityParent() as? NSAccessibilityElement === (try row(list, 3)))
+    let key = harness.source.keys.remove(at: 3)
+    list.deleteItems(at: IndexSet(integer: 3))
+    harness.layout()
+    harness.source.keys.insert(key, at: 3)
+    list.insertItems(at: IndexSet(integer: 3))
+    harness.layout()
+    XCTAssertNil(try row(list, 3).accessibilityIdentifier())
+  }
+
   func testAPointOverARowFindsItsCell() throws {
     let (harness, _) = makeHarness()
     let list = harness.list

@@ -96,8 +96,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * _swipeMomentum the momentum after a swipe the list takes. _swipeLink animates the row to
  * _swipeRest from _swipeSettleFrom, _swipeSettleElapsed into the animation. _swipeKeyMonitor
  * holds Escape while a row is open.
- * _rowElements holds the rows' accessibility elements by key, kept while accessibility holds
- * them. _accessibilityHidden is set while a host hides the list from accessibility.
+ * _rowElements holds the rows' accessibility elements by key, kept until the key leaves the
+ * data. _accessibilityHidden is set while a host hides the list from accessibility.
  * _accessibilityRowCount is the row count accessibility last heard of, and
  * _accessibilitySelectionPending a selection change waiting to be posted.
  * _accessibilityNotificationHandler hears every notification the list posts, for tests.
@@ -292,7 +292,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * Every row as an accessibility element, mounted or not. accessibilityElementForRow: is the
  * element of a row, made on first use. focusAccessibilityRowForKey: scrolls a row into view and
  * points accessibility at it. selectionChangedForAccessibility posts one selection change for
- * all made in a turn. rowsChangedForAccessibility posts a new row count after a data change.
+ * all made in a turn. rowsChangedForAccessibility drops the elements of deleted rows and posts a
+ * new row count after a data change.
  * accessibilityParentOfCell: is the element of a mounted cell's row, or nil for a cell that is
  * not mounted.
  */

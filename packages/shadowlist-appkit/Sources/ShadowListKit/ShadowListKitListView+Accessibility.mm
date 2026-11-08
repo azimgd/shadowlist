@@ -315,12 +315,13 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 #pragma mark - Rows
 
 /*
- * The element of a row by its key, made on first use and kept while accessibility holds it.
+ * The element of a row by its key, made on first use and kept until the key leaves the data. An
+ * assistive app finds the same element on every query.
  */
 - (ShadowListKitRowAccessibilityElement *)accessibilityElementForRow:(std::size_t)row
 {
   if (!_rowElements) {
-    _rowElements = [NSMapTable strongToWeakObjectsMapTable];
+    _rowElements = [NSMapTable strongToStrongObjectsMapTable];
   }
   NSString *key = ShadowListKitString(_driver.getKeyAt(row));
   ShadowListKitRowAccessibilityElement *element = [_rowElements objectForKey:key];
@@ -542,6 +543,17 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 
 - (void)rowsChangedForAccessibility
 {
+  if (_rowElements.count > 0) {
+    NSMutableArray<NSString *> *deleted = [NSMutableArray array];
+    for (NSString *key in _rowElements) {
+      if ([self accessibilityRowOfKey:key] == UNDEFINED_INDEX) {
+        [deleted addObject:key];
+      }
+    }
+    for (NSString *key in deleted) {
+      [_rowElements removeObjectForKey:key];
+    }
+  }
   std::size_t count = _driver.getKeyCount();
   if (count == _accessibilityRowCount) {
     return;
