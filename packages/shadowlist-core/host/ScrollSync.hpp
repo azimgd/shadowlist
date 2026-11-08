@@ -246,7 +246,8 @@ public:
 
   /*
    * Mark a scroll we start ourselves, like a snap or scrollToOffset. Its frames are not the
-   * user. An animated one lasts until it lands on the target.
+   * user. An animated one lasts until it lands on the target, or until a frame in the
+   * Dragging phase shows a finger took over.
    */
   void arm(double offsetX, double offsetY, bool animated, std::uint64_t token = 0, bool exact = false);
 
@@ -409,7 +410,8 @@ private:
 
   /*
    * The newest animated command whose animation started or was given up. An animation starts
-   * only for a newer one. landing_ is set from the start until land or a finger takes over.
+   * only for a newer one. landing_ is set from the start until land or a finger takes over,
+   * and no correction is written while it is set.
    */
   double animatedSequence_ = 0.0;
   bool landing_ = false;
