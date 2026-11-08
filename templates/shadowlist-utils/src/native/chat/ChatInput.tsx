@@ -126,7 +126,6 @@ const useStyles = createStyles(({ colors, typography, radius, spacing }) =>
       marginRight: spacing.sm,
       minHeight: 36,
       maxHeight: 120,
-      // One line shorter than the least height (the Mac's 16-point body) sits in the middle.
       justifyContent: 'center',
     },
     input: {

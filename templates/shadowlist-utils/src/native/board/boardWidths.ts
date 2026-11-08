@@ -10,11 +10,8 @@ export const COLUMN_MAX_WIDTH = 360;
 export const SIDE_PADDING = 24;
 
 export interface BoardColumnLayout {
-  /** Every column's width in points. */
   columnWidth: number;
-  /** The scroll content's padding before the first column and after the last. */
   sidePadding: number;
-  /** The horizontal scroll's snapToInterval: a column and the gap after it. */
   snapInterval: number;
 }
 

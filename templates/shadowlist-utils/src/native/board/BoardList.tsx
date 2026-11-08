@@ -24,16 +24,7 @@ export interface BoardListProps<ItemT> {
   keyExtractor?: (item: ItemT) => string;
   onMoveItem?: (info: BoardMoveInfo<ItemT>) => void;
   idPrefix?: string;
-  /*
-   * Every column's width in points, used as it is for the columns and the snap interval. Not
-   * set, or not a positive number, a column takes 78% of the board, at most 360.
-   */
   columnWidth?: number;
-  /*
-   * The inset in points before the first column and after the last, used as it is. Not set,
-   * or not a finite number of zero or more, it is 24 for a column narrower than 78% of the
-   * board, and a wider column is centred.
-   */
   sidePadding?: number;
   columnHeight?: BoardColumnHeight;
   minColumnHeight?: number;

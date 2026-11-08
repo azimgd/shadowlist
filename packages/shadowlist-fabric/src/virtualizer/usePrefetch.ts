@@ -11,9 +11,6 @@ interface UsePrefetchOptions {
 }
 
 interface UsePrefetchResult {
-  /*
-   * Rows on each side of the mounted ones native tracks, 0 for none.
-   */
   nativePrefetchRows: number;
   handlePrefetchChange:
     CodegenTypes.DirectEventHandler<OnPrefetchChange, never> | undefined;

@@ -383,11 +383,6 @@ const useStyles = createStyles((theme) =>
       paddingHorizontal: theme.spacing.sm,
       paddingBottom: theme.spacing.sm,
     },
-    /*
-     * A multiline field draws from its top, so one line sits in the middle of the field's least
-     * height only when the padding above and below takes up the rest: 7 points over the phone's
-     * 22-point line, 10 over the Mac's 16. A fixed 4 left the Mac's line against the top edge.
-     */
     input: {
       color: theme.colors.label,
       ...theme.typography.body,

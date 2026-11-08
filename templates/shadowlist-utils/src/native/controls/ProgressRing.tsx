@@ -144,7 +144,6 @@ function ringStyles(
     rightHalf: {
       left: radius,
     },
-    // A full-size box inside a half. Turning it turns about the ring's center.
     turn: {
       position: 'absolute',
       top: 0,

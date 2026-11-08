@@ -105,7 +105,6 @@ const useStyles = createStyles(({ colors, fontWeight }) =>
       paddingHorizontal: 10,
       borderRadius: 6,
     },
-    // Opaque and raised, the way UIKit lifts the selection off the track.
     segmentSelected: {
       backgroundColor: colors.background,
       shadowColor: '#000',

@@ -103,7 +103,6 @@ const radius = {
 } as const;
 
 const fonts = {
-  // SF Mono under the generic monospace family, which AppKit maps to Menlo anyway.
   mono: 'Menlo',
 } as const;
 
@@ -133,25 +132,18 @@ const grouped = {
  * underneath, which is what AppKit does too. Never stack two of these on each other.
  */
 const colors = {
-  // The window body. AppKit darkens it while the window is not key.
   background: semantic('windowBackgroundColor'),
-  // The surface inside a scroll view: an outline view's or a table's own background.
   elevated: semantic('controlBackgroundColor', 'textBackgroundColor'),
-  // The alternating row, which a list uses to group rows without drawing lines.
   elevated2: semantic('underPageBackgroundColor', 'gridColor'),
-  // macOS has no card-on-group idiom. The grouped roles collapse to the window.
   groupedBackground: semantic('windowBackgroundColor'),
   groupedCell: semantic('controlBackgroundColor', 'textBackgroundColor'),
-  // labelColor dims in an inactive window; headerTextColor stays legible on a bar.
   label: semantic('labelColor'),
   secondaryLabel: semantic('secondaryLabelColor'),
   tertiaryLabel: semantic('tertiaryLabelColor', 'disabledControlTextColor'),
   separator: semantic('separatorColor', 'gridColor'),
   fill: semantic('quaternaryLabelColor', 'separatorColor'),
-  // Follows the user's System accent color, the way an AppKit selection does.
   accent: semantic('controlAccentColor', 'selectedContentBackgroundColor'),
   accentSoft: semantic('selectedContentBackgroundColor', 'controlAccentColor'),
-  // Readable on any accent color, including a yellow or graphite accent.
   onAccent: semantic('alternateSelectedControlTextColor'),
   blue: semantic('controlAccentColor', 'systemBlueColor'),
   green: semantic('systemGreenColor'),

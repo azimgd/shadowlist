@@ -61,7 +61,6 @@ const useStyles = createStyles(({ colors, typography, fonts }) =>
       letterSpacing: typography.body.letterSpacing,
       color: colors.label,
     },
-    // Tall enough for a few rows of pasted text.
     block: {
       height: 104,
       paddingTop: 10,

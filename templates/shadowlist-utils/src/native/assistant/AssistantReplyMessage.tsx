@@ -480,7 +480,6 @@ const useStyles = createStyles((theme) =>
       gap: theme.spacing.xs,
       marginLeft: -theme.spacing.sm,
     },
-    // Invisible but still takes up its row. Finishing a reply changes no height.
     actionsHidden: {
       opacity: 0,
     },
