@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnMountedRangeChange } from '../ShadowListViewNativeComponent';
+import type { MountedRangeChangeEvent } from '../ShadowListViewNativeComponent';
 import { SHADOWLIST_OVERSCAN, slTrace, slTraceEnabled } from './helpers';
 
 /*
@@ -155,7 +155,7 @@ interface UseMountedRangeResult {
   mountedIndices: number[];
   mountedRangeProps: MountedRangeProps;
   handleMountedRangeChange: CodegenTypes.DirectEventHandler<
-    OnMountedRangeChange,
+    MountedRangeChangeEvent,
     never
   >;
   seedAroundIndex: (index: number, viewPosition: number) => void;
@@ -348,7 +348,7 @@ export function useMountedRange({
   generationRef.current = generation;
 
   const handleMountedRangeChange: CodegenTypes.DirectEventHandler<
-    OnMountedRangeChange,
+    MountedRangeChangeEvent,
     never
   > = useCallback((event) => {
     const {

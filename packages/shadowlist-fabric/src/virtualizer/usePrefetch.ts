@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnPrefetchChange } from '../ShadowListViewNativeComponent';
+import type { PrefetchChangeEvent } from '../ShadowListViewNativeComponent';
 import type { PrefetchDataSource } from '../types';
 import type { RowSource } from './rowSource';
 
@@ -13,7 +13,7 @@ interface UsePrefetchOptions {
 interface UsePrefetchResult {
   nativePrefetchRows: number;
   handlePrefetchChange:
-    CodegenTypes.DirectEventHandler<OnPrefetchChange, never> | undefined;
+    CodegenTypes.DirectEventHandler<PrefetchChangeEvent, never> | undefined;
 }
 
 /*
@@ -50,7 +50,7 @@ export function usePrefetch({
   const sourceRef = useRef(source);
   sourceRef.current = source;
   const handlePrefetchChange = useCallback(
-    (event: { nativeEvent: OnPrefetchChange }) => {
+    (event: { nativeEvent: PrefetchChangeEvent }) => {
       const { prefetch, cancel, prefetchKeys, cancelKeys } = event.nativeEvent;
       const dataSource = prefetchDataSourceRef.current;
       const rows = sourceRef.current;

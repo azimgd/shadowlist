@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### ShadowList (React Native)
+
+- The codegen event payload types are named `<Name>Event` (`DragEndEvent`, `MountedRangeChangeEvent`, `NativeScrollEvent` for the payload `ScrollEvent` wraps) and the package index no longer re-exports them. `ShadowListView` and its `Commands` are still exported.
+
 ### ShadowListKit for AppKit
 
 - A driven list costs about what a host that places its rows itself does. While the host moves it, the content moves by its layer's `sublayerTransform` and cells move and hide by their layers. No view geometry changes. When it did, AppKit walked every view of the window on each frame to update its tracking areas. The views take their layers' geometry once the list rests for a tenth of a second, and `visibleCells`, `cellForItemAtIndex:`, hit testing, menus, drags and accessibility see the cells where they show before that.

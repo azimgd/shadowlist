@@ -11,10 +11,12 @@ export type {
   KeyboardViewProps,
 } from './keyboard';
 
-export { default as ShadowListView } from './ShadowListViewNativeComponent';
+export {
+  default as ShadowListView,
+  Commands,
+} from './ShadowListViewNativeComponent';
 export { default as ShadowListCellView } from './ShadowListCellViewNativeComponent';
 export { default as ShadowListTemplateView } from './ShadowListTemplateView';
 
 export * from './ShadowList';
 export * from './types';
-export * from './ShadowListViewNativeComponent';

@@ -8,7 +8,7 @@ import {
   jest,
 } from '@jest/globals';
 import TestRenderer, { act } from 'react-test-renderer';
-import type { OnDragEnd } from '../ShadowListViewNativeComponent';
+import type { DragEndEvent } from '../ShadowListViewNativeComponent';
 import type { MoveItemInfo, MoveItemToListInfo } from '../types';
 import { useDragReorder } from '../virtualizer/useDragReorder';
 import { useDragBoardChecks } from '../virtualizer/useDragBoardChecks';
@@ -35,7 +35,7 @@ function sourceOf(data: Card[] | null, keys: string[]): RowSource<Card> {
 
 const cards = (...ids: string[]): Card[] => ids.map((id) => ({ id }));
 
-type DragEndHandler = CodegenTypes.DirectEventHandler<OnDragEnd, never>;
+type DragEndHandler = CodegenTypes.DirectEventHandler<DragEndEvent, never>;
 
 /*
  * Renders the hook and returns its drop handler.
@@ -67,13 +67,13 @@ function renderDrop(options: {
   return handler;
 }
 
-function drop(handler: DragEndHandler, event: OnDragEnd) {
+function drop(handler: DragEndHandler, event: DragEndEvent) {
   act(() => {
     handler({ nativeEvent: event } as Parameters<DragEndHandler>[0]);
   });
 }
 
-const within = (sourceKey: string, destinationKey: string): OnDragEnd => ({
+const within = (sourceKey: string, destinationKey: string): DragEndEvent => ({
   sourceKey,
   destinationKey,
   destinationListId: '',

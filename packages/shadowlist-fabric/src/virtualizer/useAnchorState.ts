@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type ComponentRef } from 'react';
 import ShadowListView, {
   Commands,
-  type OnAnchorState,
+  type AnchorStateEvent,
 } from '../ShadowListViewNativeComponent';
 import type { AnchorState } from '../types';
 import { keysIdentityOf, type RowSource } from './rowSource';
@@ -18,7 +18,7 @@ interface UseAnchorStateOptions {
 }
 
 interface UseAnchorStateResult {
-  handleAnchorState: (event: { nativeEvent: OnAnchorState }) => void;
+  handleAnchorState: (event: { nativeEvent: AnchorStateEvent }) => void;
   requestAnchorState: () => Promise<AnchorState | null>;
   restoreAnchorState: (state: AnchorState) => void;
 }
@@ -35,7 +35,7 @@ export function useAnchorState({
 }: UseAnchorStateOptions): UseAnchorStateResult {
   const anchorWaitersRef = useRef<((state: AnchorState | null) => void)[]>([]);
   const handleAnchorState = useCallback(
-    (event: { nativeEvent: OnAnchorState }) => {
+    (event: { nativeEvent: AnchorStateEvent }) => {
       const { found, key, offset } = event.nativeEvent;
       const waiters = anchorWaitersRef.current;
       anchorWaitersRef.current = [];

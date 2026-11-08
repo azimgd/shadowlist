@@ -16,9 +16,9 @@ import {
   type ViewStyle,
 } from 'react-native';
 import ShadowListView, {
-  type OnAtEndChange,
-  type OnContentSizeChange,
-  type OnScroll,
+  type AtEndChangeEvent,
+  type ContentSizeChangeEvent,
+  type NativeScrollEvent,
 } from './ShadowListViewNativeComponent';
 import ShadowListTemplateView from './ShadowListTemplateViewNativeComponent';
 import type {
@@ -102,12 +102,12 @@ type ScrollHandler = ((event: ScrollEvent) => void) | undefined;
  */
 function withScrollInset(
   handler: ScrollHandler,
-  inset: OnScroll['contentInset'] | null
+  inset: NativeScrollEvent['contentInset'] | null
 ): ScrollHandler {
   if (!handler || !inset) return handler;
   return (event) => {
     (
-      event.nativeEvent as { contentInset: OnScroll['contentInset'] }
+      event.nativeEvent as { contentInset: NativeScrollEvent['contentInset'] }
     ).contentInset = inset;
     handler(event);
   };
@@ -297,7 +297,7 @@ function ShadowListBaseInner<ItemT>(
     edgeHandlersRef.current.onEndReached?.();
   }, []);
   const handleAtEndChange = useCallback(
-    (event: { nativeEvent: OnAtEndChange }) => {
+    (event: { nativeEvent: AtEndChangeEvent }) => {
       if (slTraceEnabled()) {
         slTrace(
           `at end ${event.nativeEvent.atEnd ? 1 : 0} id=${nativeTagOf(shadowlistViewRef.current)}`
@@ -539,7 +539,7 @@ function ShadowListBaseInner<ItemT>(
   const onContentSizeChangeRef = useRef(onContentSizeChange);
   onContentSizeChangeRef.current = onContentSizeChange;
   const handleContentSizeChange = useCallback(
-    (event: { nativeEvent: OnContentSizeChange }) => {
+    (event: { nativeEvent: ContentSizeChangeEvent }) => {
       const { width, height } = event.nativeEvent;
       contentLengthRef.current = horizontal ? width : height;
       onContentSizeChangeRef.current?.(width, height);

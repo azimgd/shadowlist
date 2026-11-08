@@ -93,6 +93,12 @@ Every platform uses the same word for each concept and only changes the shape to
 - A new public concept gets one row here before it ships on any platform.
 - A rename is a hard break: no alias and a minor version bump.
 
+Codegen specs, the same in shadowlist and shadowgrid:
+
+- A native event's payload type is `<Name>Event` (`DragEndEvent` for `onDragEnd`), or `Native<Name>Event` where the public API already wraps one under that name (`NativeScrollEvent` in `ScrollEvent`). Payload types stay out of the package index.
+- Row and column indices cross as `Int32`, as do counts of rows and columns. `Double` is only for a count that can pass 2^31, and its comment says so.
+- A callback for a state that changed is `on<State>Change` with one event object, in the present tense. Names a library takes from an upstream API keep the upstream form: FlatList's `onViewableItemsChanged`, AG Grid's `onXChanged` on DataGrid.
+
 ## C++
 
 - `#pragma once` in every header, including the Objective-C++ headers in `shadowlist-fabric`.

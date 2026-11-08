@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnDragStart, OnDragEnd } from '../ShadowListViewNativeComponent';
+import type {
+  DragStartEvent,
+  DragEndEvent,
+} from '../ShadowListViewNativeComponent';
 import { arrayMove, mergeSortedIndices } from './helpers';
 import type { RowSource } from './rowSource';
 import type { MoveItemInfo, MoveItemToListInfo } from '../types';
@@ -19,8 +22,8 @@ interface UseDragReorderOptions<ItemT> {
 
 interface UseDragReorderResult {
   renderIndices: number[];
-  handleDragStart: CodegenTypes.DirectEventHandler<OnDragStart, never>;
-  handleDragEnd: CodegenTypes.DirectEventHandler<OnDragEnd, never>;
+  handleDragStart: CodegenTypes.DirectEventHandler<DragStartEvent, never>;
+  handleDragEnd: CodegenTypes.DirectEventHandler<DragEndEvent, never>;
 }
 
 /*
@@ -68,18 +71,20 @@ export function useDragReorder<ItemT>({
   }, [mountedIndices, draggingIndex, source.count]);
 
   // On pickup, keep the row mounted. The data order doesn't change yet.
-  const handleDragStart: CodegenTypes.DirectEventHandler<OnDragStart, never> =
-    useCallback((event) => {
-      const { key } = event.nativeEvent;
-      setDraggingKey(key);
-    }, []);
+  const handleDragStart: CodegenTypes.DirectEventHandler<
+    DragStartEvent,
+    never
+  > = useCallback((event) => {
+    const { key } = event.nativeEvent;
+    setDraggingKey(key);
+  }, []);
 
   /*
    * On drop, look up both keys and move the row once. A drop in another list of the board
    * names that list. The row leaves this list's data, and the caller adds it to the other
    * before destinationKey, a key of the other list, or at the end when it is ''.
    */
-  const handleDragEnd: CodegenTypes.DirectEventHandler<OnDragEnd, never> =
+  const handleDragEnd: CodegenTypes.DirectEventHandler<DragEndEvent, never> =
     useCallback(
       (event) => {
         const { sourceKey, destinationKey, destinationListId } =

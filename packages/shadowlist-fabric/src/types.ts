@@ -8,7 +8,7 @@ import type {
   Insets,
   ViewProps,
 } from 'react-native';
-import type { OnScroll } from './ShadowListViewNativeComponent';
+import type { NativeScrollEvent } from './ShadowListViewNativeComponent';
 
 export interface ViewToken<ItemT> {
   item: ItemT;
@@ -155,7 +155,7 @@ export interface PrefetchDataSource {
   cancelPrefetchingForItems?: (indices: number[]) => void;
 }
 
-export type ScrollEvent = { nativeEvent: OnScroll };
+export type ScrollEvent = { nativeEvent: NativeScrollEvent };
 
 export interface ItemSizeSpec {
   text: string;
