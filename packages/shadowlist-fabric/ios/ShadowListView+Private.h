@@ -361,6 +361,13 @@ static inline BOOL SLFrameTraceEnabled(void)
              destinationKey:(nullable NSString *)destinationKey
           destinationListId:(nullable NSString *)destinationListId
            destinationIndex:(NSInteger)destinationIndex;
+- (void)commitDragEventType:(int)type
+                  sourceKey:(nullable NSString *)sourceKey
+             destinationKey:(nullable NSString *)destinationKey
+          destinationListId:(nullable NSString *)destinationListId
+           destinationIndex:(NSInteger)destinationIndex
+                      async:(BOOL)async;
+- (BOOL)dragOwnsScrollOffset;
 
 - (void)pokeMountDriver;
 - (void)stopMountTicks;

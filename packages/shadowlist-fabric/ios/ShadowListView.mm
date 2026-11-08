@@ -564,7 +564,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   // Fingers on the trackpad move the view like a UIKit drag. A correction shifts the live offset.
   motion.moving = macPhase != ShadowListMacScrollPhaseIdle;
 #endif
-  motion.ownsOffset = _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
+  motion.ownsOffset = [self dragOwnsScrollOffset];
   motion.jumpPending = _scrollToTopJumpPending;
   motion.jumpOffset = _scrollToTopJumpY;
   auto action = _scrollSync.correction(motion);
@@ -709,10 +709,10 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   // Pull to refresh, scroll to top and drag to reorder all lean on every frame.
   frame.commitEveryFrame = _refreshing || _refreshAwaitingSettle ||
     (_refreshControl && _refreshControl.isRefreshing) || _scrollingToTop || _scrollToTopJumpPending ||
-    _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
+    [self dragOwnsScrollOffset];
 #else
   frame.scrollPhase = SLScrollPhaseForMacPhase(((ShadowListMacScrollView *)scrollView).phase);
-  frame.commitEveryFrame = _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
+  frame.commitEveryFrame = [self dragOwnsScrollOffset];
 #endif
   /*
    * Every frame goes into the live report, and only frames the core needs become a state
@@ -896,20 +896,47 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   [self emitHeldScroll];
 }
 
+/*
+ * A drag holds the offset: a row held, a drop waiting to land, a row from another list of the
+ * drag board, or a gap a row left for another list. Core corrections stay off, and every frame
+ * goes to the core.
+ */
+- (BOOL)dragOwnsScrollOffset
+{
+  return _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
+}
+
 - (void)commitDragEventType:(int)type sourceKey:(NSString *)sourceKey destinationKey:(NSString *)destinationKey
 {
   [self commitDragEventType:type sourceKey:sourceKey destinationKey:destinationKey destinationListId:@"" destinationIndex:-1];
 }
 
+- (void)commitDragEventType:(int)type
+                  sourceKey:(NSString *)sourceKey
+             destinationKey:(NSString *)destinationKey
+          destinationListId:(NSString *)destinationListId
+           destinationIndex:(NSInteger)destinationIndex
+{
+  [self commitDragEventType:type
+                  sourceKey:sourceKey
+             destinationKey:destinationKey
+          destinationListId:destinationListId
+           destinationIndex:destinationIndex
+                      async:NO];
+}
+
 /*
  * A drag event for JS. destinationListId and destinationIndex name the other list of the drag
- * board a row dropped in, and stay empty and -1 for every other event.
+ * board a row dropped in, and stay empty and -1 for every other event. async sends it with the
+ * next commit, for a caller that can run inside a mount, where an immediate commit is not
+ * allowed.
  */
 - (void)commitDragEventType:(int)type
                   sourceKey:(NSString *)sourceKey
              destinationKey:(NSString *)destinationKey
           destinationListId:(NSString *)destinationListId
            destinationIndex:(NSInteger)destinationIndex
+                      async:(BOOL)async
 {
   if (!_state) {
     return;
@@ -936,7 +963,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
       nextData->dragDestinationIndex_ = dragDestinationIndex;
       return nextData;
     },
-    [self stateUpdateMode]);
+    async ? EventQueue::UpdateMode::Asynchronous : [self stateUpdateMode]);
 }
 
 #if !TARGET_OS_OSX
