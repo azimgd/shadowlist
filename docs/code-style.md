@@ -29,6 +29,18 @@ One word per concept in every language: `previous` (not `prev`, `old`, `last`), 
 
 A size with no unit in its name is a logical size: points on iOS and macOS, dp on Android, CSS pixels on the web. They are the same length at zoom 1, so the wasm docs say CSS pixels where the native docs and the Fabric specs say points, and the same rule holds in shadowgrid. A size in device pixels is named `xPx`.
 
+## Words across shadowlist and shadowgrid
+
+shadowgrid draws on shadowlist, so one call stack holds both repos' words with different meanings. Read them by
+layer. This section is the same in both repos' `docs/code-style.md`; change it in both.
+
+| shadowgrid                                | shadowlist                                       |
+| ----------------------------------------- | ------------------------------------------------ |
+| `row`, one line of the grid's data        | `item`, one entry of the list's data             |
+| a display row, a row's place after sort   | `row`, a placed slot in the list's layout        |
+| `cell`, one row and one column, its value | none: a list `cell` is the view that shows a row |
+| `key`, a row's identity across updates    | `key`, an item's or row's identity               |
+
 ## Public API words
 
 Four nouns, the same in every layer:
