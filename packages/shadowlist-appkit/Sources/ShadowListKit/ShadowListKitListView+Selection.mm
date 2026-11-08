@@ -552,10 +552,18 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   return YES;
 }
 
+/*
+ * A list leaving its window hears no mouse up. The row it holds goes back and a press ends: the
+ * next click would otherwise drop the row where the drag last left it.
+ */
 - (void)viewWillMoveToWindow:(NSWindow *)window
 {
   [super viewWillMoveToWindow:window];
   NSWindow *previous = self.window;
+  if (window != previous) {
+    _dragPressed = NO;
+    [self endDrag:NO];
+  }
   if (previous) {
     [NSNotificationCenter.defaultCenter removeObserver:self name:NSWindowDidBecomeKeyNotification object:previous];
     [NSNotificationCenter.defaultCenter removeObserver:self name:NSWindowDidResignKeyNotification object:previous];

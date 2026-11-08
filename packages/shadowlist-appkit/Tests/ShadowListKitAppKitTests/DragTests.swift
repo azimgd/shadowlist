@@ -117,6 +117,29 @@ final class DragTests: XCTestCase {
     XCTAssertEqual(list.shadowListKit_heldIndex, NSNotFound)
   }
 
+  /*
+   * A list taken out of its window hears no mouse up. The row goes back, and a click once the
+   * list is back moves nothing.
+   */
+  func testLeavingTheWindowMidDragPutsTheRowBack() throws {
+    let (harness, recorder) = makeHarness()
+    let list = harness.list
+    let start = try center(list, 2)
+    list.shadowListKit_mouseDown(at: start)
+    list.shadowListKit_mouseDrag(to: moved(start, y: 150))
+    XCTAssertEqual(list.shadowListKit_heldIndex, 2)
+    let container = try XCTUnwrap(list.superview)
+    list.removeFromSuperview()
+    XCTAssertEqual(list.shadowListKit_heldIndex, NSNotFound)
+    container.addSubview(list)
+    harness.layout()
+    let other = try center(list, 6)
+    list.shadowListKit_mouseDown(at: other)
+    list.shadowListKit_mouseUp(at: other)
+    XCTAssertEqual(list.shadowListKit_heldIndex, NSNotFound)
+    XCTAssertTrue(recorder.moves.isEmpty)
+  }
+
   func testAPressBelowTheSlopIsAClick() throws {
     let (harness, recorder) = makeHarness()
     let list = harness.list
