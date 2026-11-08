@@ -26,8 +26,9 @@ struct SelectionTap {
  * its rows across inserts and moves, and a removed row leaves it. With single selection,
  * selecting a row deselects every other one.
  *
- * Every host keeps its selection here: UIKit and the Android kit beside their core, which they
- * drop and make again, and Fabric's JS through the ShadowListStore module, one per list store.
+ * Every host keeps its selection here: the UIKit, AppKit and Android kits beside their core,
+ * which they drop and make again, and Fabric's JS through the ShadowListStore module, one per
+ * list store. Each calls retainKeys after a data change.
  */
 class ListSelection final {
 public:

@@ -414,8 +414,8 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
 }
 
 /*
- * The data changed. Sticky rows follow the sections and a waiting saved position lands once its
- * row is there.
+ * The data changed. Sticky rows follow the sections, the selection drops deleted rows and a
+ * waiting saved position lands once its row is there.
  */
 - (void)structureChanged
 {
@@ -426,6 +426,9 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   }
   if (_stickyIndices.count > 0 || _stickySectionHeaders) {
     [self updateStickyRows];
+  }
+  if (_selection.retainKeys(_driver.getKeys())) {
+    [self selectionChangedForAccessibility];
   }
   [self restorePendingAnchor];
   [self invalidateFrame];

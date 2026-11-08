@@ -328,6 +328,26 @@ final class SelectionTests: XCTestCase {
     XCTAssertEqual(harness.selection, [3])
   }
 
+  func testDeletedItemsLeaveTheSelectionAndTheAnchor() {
+    let harness = SelectionHarness(count: 30) { $0.allowsMultipleSelection = true }
+    let list = harness.list
+    harness.click(5)
+    harness.click(2, .command)
+    harness.source.keys.remove(at: 2)
+    list.deleteItems(at: IndexSet(integer: 2))
+    harness.layout()
+    XCTAssertEqual(harness.selection, [4])
+    XCTAssertEqual(list.accessibilitySelectedRows()?.count, 1)
+    // The same key coming back is a new item, not selected.
+    harness.source.keys.insert("item-2", at: 2)
+    list.insertItems(at: IndexSet(integer: 2))
+    harness.layout()
+    XCTAssertEqual(harness.selection, [5])
+    // The anchor left with its item. A Shift-click selects one item.
+    harness.click(8, .shift)
+    XCTAssertEqual(harness.selection, [8])
+  }
+
   func testEmphasisFollowsTheFirstResponderAndTheKeyWindow() throws {
     let harness = SelectionHarness()
     let list = harness.list
