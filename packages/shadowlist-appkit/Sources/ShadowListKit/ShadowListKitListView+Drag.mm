@@ -471,7 +471,8 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
 
 /*
  * Every row slides home over the drop's duration. The dropped row loses its shadow once there,
- * unless it was picked up again.
+ * unless it was picked up again. A new drag may shift it by then, and it may be pinned or show
+ * another row, which keep their transform and place in the stack.
  */
 - (void)dropCell:(ShadowListKitListCell *)cell
 {
@@ -480,7 +481,7 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   [CATransaction setCompletionBlock:^{
     ShadowListKitListView *list = weakSelf;
     if (list && list->_heldCell != cell) {
-      [list resetDragLookOfCell:cell];
+      [list clearLiftOfCell:cell];
     }
   }];
   for (auto& entry : _mounted) {
@@ -490,6 +491,20 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   }
   // The dropped row slides once, from where it was let go.
   ShadowListKitSetTransform(cell.layer, CATransform3DIdentity, SHADOWLIST_KIT_DROP_DURATION);
+  [CATransaction commit];
+}
+
+- (void)clearLiftOfCell:(ShadowListKitListCell *)cell
+{
+  CALayer *layer = cell.layer;
+  CGFloat zPosition = cell == _stickyCell ? 1 : 0;
+  if (layer.shadowOpacity == 0 && layer.zPosition == zPosition) {
+    return;
+  }
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  layer.zPosition = zPosition;
+  layer.shadowOpacity = 0;
   [CATransaction commit];
 }
 
