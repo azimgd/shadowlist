@@ -18,6 +18,7 @@ final class SwipeTests: XCTestCase {
     let source: TestSource
     var performed: [String] = []
     var completes = true
+    var held: [(Bool) -> Void] = []
     var deletes = false
     var menus = false
 
@@ -37,6 +38,8 @@ final class SwipeTests: XCTestCase {
         }
         if self.completes {
           completion(true)
+        } else {
+          self.held.append(completion)
         }
       }
     }
@@ -441,6 +444,39 @@ final class SwipeTests: XCTestCase {
     XCTAssertEqual(host.performed, ["Pin-3"])
     let none = try XCTUnwrap(list.accessibilityRows()?[7] as? NSAccessibilityElement)
     XCTAssertEqual(none.accessibilityCustomActions()?.map(\.name), ["Move up", "Move down"])
+  }
+
+  func testAnActionRunElsewhereLeavesTheOpenItemOpen() throws {
+    let (harness, host, _) = makeHarness()
+    let list = harness.list
+    list.shadowListKit_swipeItem(at: 3, distance: -100, velocity: 0)
+    list.shadowListKit_runSwipeFrames(for: 0.5)
+    let row = try XCTUnwrap(list.accessibilityRows()?[5] as? NSAccessibilityElement)
+    XCTAssertTrue(try XCTUnwrap(row.accessibilityCustomActions()?.first).handler?() ?? false)
+    XCTAssertEqual(host.performed, ["Delete-5"])
+    spinMainQueue()
+    list.shadowListKit_runSwipeFrames(for: 0.5)
+    XCTAssertEqual(list.shadowListKit_swipedIndex, 3)
+  }
+
+  func testALateCompletionLeavesALaterSwipeOpen() throws {
+    let (harness, host, _) = makeHarness()
+    let list = harness.list
+    host.completes = false
+    list.shadowListKit_swipeItem(at: 3, distance: -100, velocity: 0)
+    list.shadowListKit_runSwipeFrames(for: 0.5)
+    let point = try center(list, 3)
+    let edge = CGPoint(x: list.bounds.width - 10, y: point.y)
+    list.shadowListKit_mouseDown(at: edge)
+    list.shadowListKit_mouseUp(at: edge)
+    XCTAssertEqual(host.held.count, 1)
+    list.closeSwipeActions(animated: false)
+    list.shadowListKit_swipeItem(at: 3, distance: -100, velocity: 0)
+    list.shadowListKit_runSwipeFrames(for: 0.5)
+    host.held.removeFirst()(true)
+    spinMainQueue()
+    list.shadowListKit_runSwipeFrames(for: 0.5)
+    XCTAssertEqual(list.shadowListKit_swipedIndex, 3)
   }
 
   func testAccessibilityHitsTheButtonsOfAnOpenItem() throws {

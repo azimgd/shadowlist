@@ -74,7 +74,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 - (void)swipeLinkTick:(CADisplayLink *)link;
 - (void)advanceSwipeSettleBy:(double)seconds;
 - (void)scriptSwipeOfCell:(ShadowListKitListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity;
-- (void)performSwipeAction:(nullable ShadowListKitSwipeAction *)action;
+- (void)performSwipeAction:(nullable ShadowListKitSwipeAction *)action from:(nullable ShadowListKitSwipeActionsView *)view;
 @end
 
 /*
@@ -317,8 +317,9 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   }
   ShadowListKitSwipeActionsView *view = [[ShadowListKitSwipeActionsView alloc] initWithLeading:leading trailing:trailing horizontal:_horizontal];
   __weak ShadowListKitListView *weakSelf = self;
+  __weak ShadowListKitSwipeActionsView *weakView = view;
   view.onAction = ^(ShadowListKitSwipeAction *action) {
-    [weakSelf performSwipeAction:action];
+    [weakSelf performSwipeAction:action from:weakView];
   };
   view.hidden = YES;
   ShadowListKitPlace(view, cell.frame);
@@ -370,7 +371,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   if (rest.full) {
     ShadowListKitSwipeActionsConfiguration *configuration = rest.side == SwipeSide::Leading ? _swipeActionsView.leading
                                                                                             : _swipeActionsView.trailing;
-    [self performSwipeAction:configuration.actions.firstObject];
+    [self performSwipeAction:configuration.actions.firstObject from:_swipeActionsView];
   }
 }
 
@@ -407,24 +408,28 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 }
 
 /*
- * Run an action. Its completion closes the row, unless the action deleted it. An action run from
- * a menu or by accessibility has no open row to close.
+ * Run an action. Its completion closes the row it was swiped open on, unless the action deleted
+ * the row or the row closed and opened again since. An action run from a menu or by
+ * accessibility comes from no actions view and leaves an open row alone.
  */
-- (void)performSwipeAction:(ShadowListKitSwipeAction *)action
+- (void)performSwipeAction:(ShadowListKitSwipeAction *)action from:(ShadowListKitSwipeActionsView *)view
 {
-  ShadowListKitListCell *cell = _swipeCell;
   if (!action) {
     return;
   }
   if (!action.handler) {
-    [self closeSwipeAnimated:YES];
+    if (view && view == _swipeActionsView) {
+      [self closeSwipeAnimated:YES];
+    }
     return;
   }
   __weak ShadowListKitListView *weakSelf = self;
+  __weak ShadowListKitSwipeActionsView *weakView = view;
   action.handler(action, ^(BOOL) {
     dispatch_async(dispatch_get_main_queue(), ^{
       ShadowListKitListView *list = weakSelf;
-      if (list && cell && list->_swipeCell == cell) {
+      ShadowListKitSwipeActionsView *opened = weakView;
+      if (list && opened && list->_swipeActionsView == opened) {
         [list closeSwipeAnimated:YES];
       }
     });
@@ -563,7 +568,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
         continue;
       }
       [actions addObject:[[NSAccessibilityCustomAction alloc] initWithName:name handler:^BOOL {
-        [weakSelf performSwipeAction:action];
+        [weakSelf performSwipeAction:action from:nil];
         return YES;
       }]];
     }
@@ -641,7 +646,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 
 - (void)performSwipeMenuItem:(NSMenuItem *)menuItem
 {
-  [self performSwipeAction:menuItem.representedObject];
+  [self performSwipeAction:menuItem.representedObject from:nil];
 }
 
 /*
