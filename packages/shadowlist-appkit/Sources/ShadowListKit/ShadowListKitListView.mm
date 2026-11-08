@@ -13,6 +13,11 @@
 
 using namespace azimgd::shadowlist;
 
+static_assert(static_cast<int>(ShadowListKitScrollPhaseIdle) == static_cast<int>(ScrollPhase::Idle) &&
+                static_cast<int>(ShadowListKitScrollPhaseDragging) == static_cast<int>(ScrollPhase::Dragging) &&
+                static_cast<int>(ShadowListKitScrollPhaseSettling) == static_cast<int>(ScrollPhase::Settling),
+  "ShadowListKitScrollPhase mirrors the core's ScrollPhase");
+
 /*
  * How long after the last move of a driven list its views take their layers' geometry.
  */

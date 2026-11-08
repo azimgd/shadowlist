@@ -9,6 +9,11 @@
 
 using namespace azimgd::shadowlist;
 
+static_assert(static_cast<int>(ShadowListKitSnapAlignmentStart) == static_cast<int>(SnapAlignment::Start) &&
+                static_cast<int>(ShadowListKitSnapAlignmentCenter) == static_cast<int>(SnapAlignment::Center) &&
+                static_cast<int>(ShadowListKitSnapAlignmentEnd) == static_cast<int>(SnapAlignment::End),
+  "ShadowListKitSnapAlignment mirrors the core's SnapAlignment");
+
 /*
  * Referenced from ShadowListKitListView.mm to keep this file linked without -ObjC.
  */
