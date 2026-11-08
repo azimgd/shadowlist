@@ -30,6 +30,7 @@
 ### Core (C++)
 
 - `MountPlan` has a `band`: the offsets where a plan mounts the same rows.
+- `host/ScrollPhysics` has the scroller thumb's inset, least length and fade (`SCROLLER_THUMB_INSET`, `SCROLLER_THUMB_MIN_LENGTH`, `SCROLLER_THUMB_FADE_SECONDS`), which `ShadowListKitScrollerView` and a grid drawing its own thumbs read.
 
 ## 0.10.0
 

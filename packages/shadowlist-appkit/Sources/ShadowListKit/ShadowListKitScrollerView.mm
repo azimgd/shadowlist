@@ -13,16 +13,16 @@ using namespace azimgd::shadowlist;
 
 /*
  * The thumbs: drawn this thick, thicker under the pointer, this far in from the edges and never
- * shorter than the least length. A pointer this far from the edge a shown thumb runs along takes
+ * shorter than the least length (the core's SCROLLER_THUMB_*). A pointer this far from the edge a shown thumb runs along takes
  * its track. They fade out this long after the offset rests.
  */
 static const CGFloat SHADOWLIST_KIT_THUMB_BREADTH = 7;
 static const CGFloat SHADOWLIST_KIT_THUMB_HOVER_BREADTH = 11;
-static const CGFloat SHADOWLIST_KIT_THUMB_INSET = 2;
-static const CGFloat SHADOWLIST_KIT_THUMB_MIN_LENGTH = 36;
+static const CGFloat SHADOWLIST_KIT_THUMB_INSET = SCROLLER_THUMB_INSET;
+static const CGFloat SHADOWLIST_KIT_THUMB_MIN_LENGTH = SCROLLER_THUMB_MIN_LENGTH;
 static const CGFloat SHADOWLIST_KIT_THUMB_GRAB_DEPTH = 15;
 static const NSTimeInterval SHADOWLIST_KIT_THUMB_HIDE_DELAY = 0.8;
-static const NSTimeInterval SHADOWLIST_KIT_THUMB_FADE_DURATION = 0.3;
+static const NSTimeInterval SHADOWLIST_KIT_THUMB_FADE_DURATION = SCROLLER_THUMB_FADE_SECONDS;
 
 /*
  * Which thumb a point takes.

@@ -86,6 +86,15 @@ double springKeep(double intervalMs);
 double easeOut(double t);
 
 /*
+ * A scroller thumb's look on every kit that draws one: this far in from the edges, never
+ * shorter than SCROLLER_THUMB_MIN_LENGTH, and fading out over SCROLLER_THUMB_FADE_SECONDS, in
+ * points (dp, CSS pixels) and seconds. How thick a thumb is and when it hides are each kit's.
+ */
+constexpr double SCROLLER_THUMB_INSET = 2.0;
+constexpr double SCROLLER_THUMB_MIN_LENGTH = 36.0;
+constexpr double SCROLLER_THUMB_FADE_SECONDS = 0.3;
+
+/*
  * A scroller along one axis of content `total` long shown `view` at a time at `offset`: its start
  * from the view's edge and its length, at least minLength. The track starts at trackStart and is
  * inset from both ends. Hidden when the axis does not scroll. Content past an edge shortens it,
