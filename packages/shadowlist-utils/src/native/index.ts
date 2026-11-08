@@ -49,6 +49,7 @@ export { ItemSeparator } from './primitives/ItemSeparator';
 export type { ItemSeparatorProps } from './primitives/ItemSeparator';
 export { SectionHeader } from './primitives/SectionHeader';
 export type { SectionHeaderProps } from './primitives/SectionHeader';
+export { PortalHost, usePortal } from './primitives/Portal';
 export { TemplateList } from './primitives/TemplateList';
 export type {
   TemplateListProps,

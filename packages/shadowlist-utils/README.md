@@ -198,6 +198,7 @@ Merged labels keep the same identity while their values don't change. An inline 
 | `ListHeader({ title, subtitle? })`, `ListFooter({ text })` | Header and footer blocks for lists. |
 | `SectionHeader({ title, count? })`, `ItemSeparator({ highlighted? })` | Section header and separator line. |
 | `TemplateList({ data, templates, horizontal?, listRef? })` (`TemplateRow`, `TemplateMap`) | A ShadowList of mixed rows. Each row has a `kind`, and `templates` maps each kind to its renderer. Selection, keyboard selection, swipe actions, menus, `contentContainerStyle`, `persistentKeys`, `ListHeaderComponent`, `onScroll`, `scrollEventThrottle` and `keyboardDismissMode` pass through to the list. |
+| `PortalHost()`, `usePortal(node)` | A layer over the whole window: mount one `PortalHost` last in the root view, and `usePortal` draws a sheet or menu there while its caller is mounted, answering whether a host took it. For desktops, where no system modal window covers the app. |
 | `useLargeText(threshold = 1.3)` | True at accessibility text sizes. Shares one `Dimensions` listener across callers. |
 | `useKeyboardVisible()` | True while the keyboard is on screen. |
 | `useKeyboardLift({ gap? })` | Returns an animated `translateY` that lifts a composer above the keyboard. |

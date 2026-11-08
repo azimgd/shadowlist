@@ -4,6 +4,7 @@
 
 ### ShadowListUtils
 
+- `PortalHost` and `usePortal` (a layer over the whole window for sheets and menus on a desktop) come from `shadowlist-utils/native`. They were in shadowgrid, which draws no such surface.
 - The package lives in `packages/shadowlist-utils` with the other published packages (it was under `templates/`), and `yarn release:utils` publishes it. A checkout dependency is `file:../shadowlist/packages/shadowlist-utils`.
 
 ### ShadowList (React Native)
