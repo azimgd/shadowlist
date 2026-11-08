@@ -1,6 +1,6 @@
 # ShadowListUtils
 
-ShadowListUtils is the hooks and helpers package for [ShadowList](../../packages/shadowlist-fabric/README.md), plus
+ShadowListUtils is the hooks and helpers package for [ShadowList](../shadowlist-fabric/README.md), plus
 themed React Native list kits. Install it from npm as `shadowlist-utils`.
 
 Contents: [Install](#install) · [Usage](#usage) · [API](#api) · [Native kits](#native-kits)
@@ -35,11 +35,11 @@ yarn add react-native-gesture-handler react-native-reanimated@^4 react-native-wo
 ```
 
 Use `react-native-worklets/plugin` last in the Babel plugins and wrap the app in `GestureHandlerRootView` and
-`SafeAreaProvider`. See the tested [Babel configuration](../shadowlist-fabric-example/babel.config.js).
+`SafeAreaProvider`. See the tested [Babel configuration](../../templates/shadowlist-fabric-example/babel.config.js).
 The root helpers do not need these wrappers.
 
 macOS uses source `.macos` variants without those UI kit peers; see the
-[macOS Metro configuration](../shadowlist-macos-example/metro.config.js). Pull to refresh and keyboard avoidance are
+[macOS Metro configuration](../../templates/shadowlist-macos-example/metro.config.js). Pull to refresh and keyboard avoidance are
 unavailable on macOS, and snapping lands without an animation; Inbox keeps selection and its menu opens on a right
 click, without swipe actions.
 
@@ -79,8 +79,8 @@ export function FeedScreen({ fetchPage }: { fetchPage: (cursor?: string) => Prom
 ```
 
 Install `@tanstack/react-query` for this example and render it inside a `QueryClientProvider`.
-See [FeedScreen](../shadowlist-fabric-example/src/screens/FeedScreen.tsx) and its
-[query setup](../shadowlist-fabric-example/src/queries/feed.ts) for loading/error UI and cache updates.
+See [FeedScreen](../../templates/shadowlist-fabric-example/src/screens/FeedScreen.tsx) and its
+[query setup](../../templates/shadowlist-fabric-example/src/queries/feed.ts) for loading/error UI and cache updates.
 
 ## API
 
@@ -108,7 +108,7 @@ ignore calls while fetching or when no page remains. `refreshing` tracks pull to
 All edit helpers keep the identity of any page or row they don't change. They return `data` itself when nothing changed, and they pass `undefined` through.
 
 Use edit helpers inside `queryClient.setQueryData`. For optimistic updates and retries of failed messages, see
-[chat mutations](../shadowlist-fabric-example/src/queries/chat.ts).
+[chat mutations](../../templates/shadowlist-fabric-example/src/queries/chat.ts).
 
 ### List state and scrolling
 
@@ -126,7 +126,7 @@ set loading/scrolling flags manually. See [controller types](src/useListControll
 
 For local data, connect `data`, `handleRefresh`, `handleStartReached` and `handleEndReached` from
 `useListController` to the corresponding list props. See
-[AssistantScreen](../shadowlist-fabric-example/src/screens/AssistantScreen.tsx) for local state.
+[AssistantScreen](../../templates/shadowlist-fabric-example/src/screens/AssistantScreen.tsx) for local state.
 
 ### Sections and trees
 
@@ -152,7 +152,7 @@ const theme = createTheme(darkTheme, { colors: { accent: '#ff7a00' } });
 <ThemeProvider theme={theme}><App /></ThemeProvider>;
 ```
 
-See [app theming](../shadowlist-fabric-example/src/appTheme.ts) for the full theme and cached `createStyles` setup.
+See [app theming](../../templates/shadowlist-fabric-example/src/appTheme.ts) for the full theme and cached `createStyles` setup.
 
 Without a provider, `useTheme` follows the system color scheme. With a provider, the app chooses its theme.
 Overrides merge deeply; arrays such as `avatarPalette` are replaced. Styles are cached per theme object.
@@ -237,7 +237,7 @@ Inset grouped cards, as iOS Settings draws them. Metrics come from `theme.groupe
 </Form.Card>
 ```
 
-See [TemplatesScreen](../shadowlist-fabric-example/src/screens/TemplatesScreen.tsx) for imports, controls and handlers.
+See [TemplatesScreen](../../templates/shadowlist-fabric-example/src/screens/TemplatesScreen.tsx) for imports, controls and handlers.
 
 | Export | Description |
 | --- | --- |
@@ -278,7 +278,7 @@ for the rest of a run from one author. `renderText(text)` draws the text as nest
 `children` draw inside the bubble under the text. If you replace the row, supply a matching `getChatMessageSizeSpec`,
 including any caption and `showsAuthor`. The spec predicts the text and the bubble around it, not `children`: a
 bubble with children takes its measured size once it mounts.
-See [ChatScreen](../shadowlist-fabric-example/src/screens/ChatScreen.tsx) for paging, keyboard space, captions and retry.
+See [ChatScreen](../../templates/shadowlist-fabric-example/src/screens/ChatScreen.tsx) for paging, keyboard space, captions and retry.
 [Chat types](src/native/chat/types.ts) define messages, authors and statuses.
 
 ### Assistant (streaming AI chat)
@@ -298,7 +298,7 @@ export function AssistantHistory({ messages }: { messages: AssistantMessage[] })
 ```
 
 This renders saved messages. For streaming, follow
-[AssistantScreen](../shadowlist-fabric-example/src/screens/AssistantScreen.tsx): `startReply` commits in `onFinish`
+[AssistantScreen](../../templates/shadowlist-fabric-example/src/screens/AssistantScreen.tsx): `startReply` commits in `onFinish`
 and queues the finished message id; the effect keyed by `list.data` then calls `store.remove(id)` **after the data
 commit**. Its unmount effect stops the active stream and clears timers. Keep the store stable and cancel the
 transport as well as finishing the writer when stopping a reply.
@@ -333,7 +333,7 @@ custom handler before opening them.
 ### Board (drag between columns)
 
 `Board.List` lays columns side by side in a horizontal scroll that snaps to each column. Every column is a
-`DraggableList` on one [drag board](../../packages/shadowlist-fabric/README.md#drag-boards), with a header that shows
+`DraggableList` on one [drag board](../shadowlist-fabric/README.md#drag-boards), with a header that shows
 its title and count and a "Drop cards here" hint while it is empty. A card moves within its column or into another
 one. Boards are implemented on iOS, Android and macOS and have been exercised on iOS. `useDragBoardState` holds the columns and applies each move:
 
@@ -387,19 +387,19 @@ page. Until a column has measured its cards, each counts `estimatedItemHeight` (
 | `moveBoardItem(columns, move, keyExtractor?)` | Applies one move. The item leaves every column that holds its key and goes before `destinationKey`, at the end for `''`, or at `destinationIndex` for a key no longer there. Untouched columns keep their identity, and the board comes back as is when nothing moved. |
 
 Labels: `defaultBoardLabels` (`emptyColumn`, `emptyColumnReadOnly`, `columnSummary(title, count)`). See
-[BoardScreen](../shadowlist-fabric-example/src/screens/BoardScreen.tsx).
+[BoardScreen](../../templates/shadowlist-fabric-example/src/screens/BoardScreen.tsx).
 
 ### Other kits
 
 | Kit | Input / behavior | Example / source |
 | --- | --- | --- |
-| `Feed.List` | `FeedItem[]`; posts and images | [FeedScreen](../shadowlist-fabric-example/src/screens/FeedScreen.tsx) |
-| `Activity.List` | `ActivityItem[]`; sticky header/footer and separators | [ActivityScreen](../shadowlist-fabric-example/src/screens/ActivityScreen.tsx) |
-| `Nested.Row` | `NestedItem` with horizontal cards | [NestedScreen](../shadowlist-fabric-example/src/screens/NestedScreen.tsx) |
-| `Masonry.List` | `MasonryItem[]`; three columns by default | [MasonryScreen](../shadowlist-fabric-example/src/screens/MasonryScreen.tsx) |
-| `Contacts.List`, `Contacts.SectionList` | `ContactItem[]` or sections; `onDelete` enables swipe to delete | [ContactsScreen](../shadowlist-fabric-example/src/screens/ContactsScreen.tsx) |
-| `Reorder.List` | `ContactItem[]`; save `onMoveItem` data | [ReorderScreen](../shadowlist-fabric-example/src/screens/ReorderScreen.tsx) |
-| `Tree.List` | `TreeNode[]`; controlled expansion via `expandedKeys` / `onExpandedChange` | [TreeScreen](../shadowlist-fabric-example/src/screens/TreeScreen.tsx) |
+| `Feed.List` | `FeedItem[]`; posts and images | [FeedScreen](../../templates/shadowlist-fabric-example/src/screens/FeedScreen.tsx) |
+| `Activity.List` | `ActivityItem[]`; sticky header/footer and separators | [ActivityScreen](../../templates/shadowlist-fabric-example/src/screens/ActivityScreen.tsx) |
+| `Nested.Row` | `NestedItem` with horizontal cards | [NestedScreen](../../templates/shadowlist-fabric-example/src/screens/NestedScreen.tsx) |
+| `Masonry.List` | `MasonryItem[]`; three columns by default | [MasonryScreen](../../templates/shadowlist-fabric-example/src/screens/MasonryScreen.tsx) |
+| `Contacts.List`, `Contacts.SectionList` | `ContactItem[]` or sections; `onDelete` enables swipe to delete | [ContactsScreen](../../templates/shadowlist-fabric-example/src/screens/ContactsScreen.tsx) |
+| `Reorder.List` | `ContactItem[]`; save `onMoveItem` data | [ReorderScreen](../../templates/shadowlist-fabric-example/src/screens/ReorderScreen.tsx) |
+| `Tree.List` | `TreeNode[]`; controlled expansion via `expandedKeys` / `onExpandedChange` | [TreeScreen](../../templates/shadowlist-fabric-example/src/screens/TreeScreen.tsx) |
 | `Poll.List` | `poll: { question, options, selectedId }` and `onVote` | [PollListProps](src/native/poll/PollList.tsx) |
-| `Snap.List` | `SnapItem[]`; `snapToItem` | [SnapScreen](../shadowlist-fabric-example/src/screens/SnapScreen.tsx) |
-| `Inbox.List` | `InboxMessage[]`; read/flag/delete and controlled selection | [InboxScreen](../shadowlist-fabric-example/src/screens/InboxScreen.tsx) |
+| `Snap.List` | `SnapItem[]`; `snapToItem` | [SnapScreen](../../templates/shadowlist-fabric-example/src/screens/SnapScreen.tsx) |
+| `Inbox.List` | `InboxMessage[]`; read/flag/delete and controlled selection | [InboxScreen](../../templates/shadowlist-fabric-example/src/screens/InboxScreen.tsx) |
