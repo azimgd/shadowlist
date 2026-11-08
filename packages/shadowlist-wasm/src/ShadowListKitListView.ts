@@ -58,9 +58,13 @@ export interface ShadowListKitListViewDataSource {
 }
 
 /*
- * Hears what the list does. didEndScrolling fires once the list came to rest after a scroll or
- * an animated command, on an item edge when snapToItem is set. didReachStart and didReachEnd fire
- * when the scroll position came within startReachedThreshold or endReachedThreshold of an edge.
+ * Hears what the list does. The scroll events are the native kits' (listViewDidScroll: on the
+ * Apple lists, didScroll on Android): didScroll follows every change of the offset.
+ * willBeginDragging and didEndDragging follow a finger or the scrollbar moving the list, and
+ * willDecelerate says the list goes on moving after. didEndDecelerating follows the list coming to
+ * rest, on an item edge when snapToItem is set. didEndScrollingAnimation follows an animated scroll
+ * command. didReachStart and didReachEnd fire when the scroll position came within
+ * startReachedThreshold or endReachedThreshold of an edge.
  */
 export interface ShadowListKitListViewDelegate {
   willDisplayCell?(
@@ -74,7 +78,13 @@ export interface ShadowListKitListViewDelegate {
     index: number
   ): void;
   didScroll?(listView: ShadowListKitListView): void;
-  didEndScrolling?(listView: ShadowListKitListView): void;
+  willBeginDragging?(listView: ShadowListKitListView): void;
+  didEndDragging?(
+    listView: ShadowListKitListView,
+    willDecelerate: boolean
+  ): void;
+  didEndDecelerating?(listView: ShadowListKitListView): void;
+  didEndScrollingAnimation?(listView: ShadowListKitListView): void;
   didReachStart?(listView: ShadowListKitListView): void;
   didReachEnd?(listView: ShadowListKitListView): void;
 }
@@ -1291,13 +1301,28 @@ export class ShadowListKitListView extends HTMLElement {
   // region Scroll events
 
   /*
-   * A scroll or an animated scroll ended. The core needs an idle frame to let a held correction
-   * go, and an animated command lands on its row.
+   * A scroll came to rest, or an animated command ended when command is true. The core needs an
+   * idle frame to let a held correction go, and an animated command lands on its row.
    */
-  scrollingEnded(): void {
+  scrollingEnded(command: boolean): void {
     this.liveCore?.land();
     this.invalidateFrame();
-    this.delegate?.didEndScrolling?.(this);
+    if (command) {
+      this.delegate?.didEndScrollingAnimation?.(this);
+    } else {
+      this.delegate?.didEndDecelerating?.(this);
+    }
+  }
+
+  /*
+   * A finger or the scrollbar took hold of the list, and let go of it.
+   */
+  draggingBegan(): void {
+    this.delegate?.willBeginDragging?.(this);
+  }
+
+  draggingEnded(willDecelerate: boolean): void {
+    this.delegate?.didEndDragging?.(this, willDecelerate);
   }
 
   gestureBegan(): void {

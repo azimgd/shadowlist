@@ -58,7 +58,8 @@ list.reloadData();
 The data source gives `numberOfItems`, `keyForItem` and `cellForItem`, and optionally `sizeForItem` for sizes
 without cells, `reconfigureCell` for payload reloads and `contentVersionForItem` for `applyChanges`. Without
 `sizeForItem` every item is measured once through its cell's view at the list's cross size. The delegate has
-`willDisplayCell`, `didEndDisplayingCell`, `didScroll`, `didEndScrolling`, `didReachStart` and `didReachEnd`, all
+`willDisplayCell`, `didEndDisplayingCell`, the scroll events of the native kits (`didScroll`, `willBeginDragging`,
+`didEndDragging`, `didEndDecelerating`, `didEndScrollingAnimation`), `didReachStart` and `didReachEnd`, all
 optional. `prefetchDataSource` hears `prefetchItems` and `cancelPrefetchingForItems`.
 
 Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`,

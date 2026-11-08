@@ -81,11 +81,13 @@ export class ShadowListKitScrollGesture {
     this.beginGesture();
     this.clearIdleTimer();
     this.isTracking = true;
+    this.list.draggingBegan();
   };
 
   private onTouchEnd = (event: TouchEvent): void => {
     if (event.touches.length > 0) return;
     this.isTracking = false;
+    this.list.draggingEnded(this.isSettling);
     this.release();
   };
 
@@ -109,11 +111,13 @@ export class ShadowListKitScrollGesture {
     if (event.pointerType !== 'mouse' || event.target !== this.list) return;
     this.beginGesture();
     this.isTracking = true;
+    this.list.draggingBegan();
   };
 
   private onPointerUp = (event: PointerEvent): void => {
     if (event.pointerType !== 'mouse' || !this.isTracking) return;
     this.isTracking = false;
+    this.list.draggingEnded(this.isSettling);
     this.release();
   };
 
@@ -173,11 +177,11 @@ export class ShadowListKitScrollGesture {
       this.start(snapped, ShadowListKitCore.SETTLE_DURATION_MS);
       return;
     }
-    this.list.scrollingEnded();
+    this.list.scrollingEnded(false);
   }
 
   /*
-   * Animate to an offset for a scroll command. It ends in list.scrollingEnded.
+   * Animate to an offset for a scroll command. It ends in list.scrollingEnded, as a command.
    */
   animateTo(target: () => number): void {
     this.start(target(), ShadowListKitCore.COMMAND_DURATION_MS, target);
@@ -236,7 +240,7 @@ export class ShadowListKitScrollGesture {
       return;
     }
     this.isAnimating = false;
-    this.list.scrollingEnded();
+    this.list.scrollingEnded(this.animationTarget !== null);
   };
 
   stop(): void {
