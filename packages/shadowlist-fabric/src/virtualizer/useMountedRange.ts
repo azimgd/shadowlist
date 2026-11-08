@@ -88,7 +88,8 @@ export function shouldReseedFromOffsetIndex(
 /*
  * How many appended rows an inverted list at its end mounts on top of its range. A bigger
  * burst, like a reconnect syncing hundreds of messages, moves the range to the tail instead.
- * MAX_FOLLOWED_APPEND in host/MountedRange.hpp is the same number.
+ * It is MAX_FOLLOWED_APPEND in the core's host/MountedRange.hpp, and coreConstants.test holds
+ * the two equal.
  */
 export const MAX_FOLLOWED_APPEND = 50;
 
