@@ -17,6 +17,7 @@ final class DragTests: XCTestCase {
     var moves: [[Int]] = []
     var fixed: Set<Int> = []
     var corrections = 0
+    var applies = false
 
     init(source: TestSource) {
       self.source = source
@@ -28,6 +29,9 @@ final class DragTests: XCTestCase {
       moves.append([sourceIndex, destinationIndex])
       let key = source.keys.remove(at: sourceIndex)
       source.keys.insert(key, at: destinationIndex)
+      if applies {
+        _ = listView.applyChanges()
+      }
     }
 
     func listView(_ listView: ShadowListKitListView, didCorrectOffset contentOffset: CGPoint) {
@@ -203,6 +207,24 @@ final class DragTests: XCTestCase {
     let from = try XCTUnwrap((slide.fromValue as? NSValue)?.caTransform3DValue)
     XCTAssertTrue(CATransform3DEqualToTransform(from, held))
     XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(cell.layer?.transform)))
+  }
+
+  func testADropTheHostAppliesDoesNotAnimateAsAChange() throws {
+    let (harness, recorder) = makeHarness { $0.animatesChanges = true }
+    recorder.applies = true
+    let list = harness.list
+    let start = try center(list, 2)
+    list.shadowListKit_mouseDown(at: start)
+    list.shadowListKit_mouseDrag(to: moved(start, y: 140))
+    let cell = try XCTUnwrap(list.cellForItem(at: 2))
+    let held = try XCTUnwrap(cell.layer?.transform)
+    list.shadowListKit_mouseUp(at: moved(start, y: 140))
+    XCTAssertEqual(recorder.moves, [[2, 5]])
+    XCTAssertTrue(list.cellForItem(at: 5) === cell)
+    XCTAssertNil(cell.layer?.animation(forKey: "shadowListKitMove"))
+    let slide = try XCTUnwrap(cell.layer?.animation(forKey: "transform") as? CABasicAnimation)
+    let from = try XCTUnwrap((slide.fromValue as? NSValue)?.caTransform3DValue)
+    XCTAssertEqual(from.m42, held.m42 - 3 * 44, accuracy: 0.5)
   }
 
   func testADropInPlaceMovesNothing() throws {

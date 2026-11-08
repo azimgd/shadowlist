@@ -1872,10 +1872,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val from = itemForRow(fromRow)
     val to = if (isSectioned) core.itemForDrop(fromRow, toRow) else toRow
     if (from < 0 || to < 0 || from == to) return false
-    delegate?.moveItem(this, from, to)
-    // The drop animates the rows itself.
+    // The drop animates the rows itself, a change the delegate applies while it moves the item too.
     val animates = animatesChanges
     animatesChanges = false
+    delegate?.moveItem(this, from, to)
     reloadData()
     animatesChanges = animates
     layoutPass()

@@ -452,13 +452,13 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
 - (void)commitMoveOfCell:(ShadowListKitListCell *)cell from:(NSInteger)from to:(NSInteger)to
 {
   CGRect shown = cell.layer.frame;
+  // The drop animates the rows itself, a change the delegate applies while it moves the item too.
+  BOOL animates = _animatesChanges;
+  _animatesChanges = NO;
   [_delegate listView:self moveItemAtIndex:from toIndex:to];
   for (auto& entry : _mounted) {
     ShadowListKitSetTransform(entry.second.layer, CATransform3DIdentity, 0);
   }
-  // The drop animates the rows itself.
-  BOOL animates = _animatesChanges;
-  _animatesChanges = NO;
   [self reloadData];
   [self layoutSubtreeIfNeeded];
   _animatesChanges = animates;
