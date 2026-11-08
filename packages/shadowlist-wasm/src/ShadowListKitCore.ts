@@ -41,30 +41,64 @@ let scratchBytes = 0;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/*
- * Load the shadowlist core. Lists need it before they lay out. locateFile finds
- * shadowlistkit.wasm when it is not served next to shadowlistkit.mjs.
- */
-export function loadShadowListKit(options?: {
+export interface ShadowListKitLoadOptions {
+  source?: BufferSource | WebAssembly.Module;
   locateFile?: (path: string, scriptDirectory: string) => string;
-}): Promise<void> {
-  loading ??= createShadowListKitModule(options).then((loaded) => {
-    loaded.shadowListKitMeasureRows = (
-      handle,
-      rows,
-      crossSizes,
-      count,
-      sizes
-    ) =>
-      cores.get(handle)?.deref()?.measureRowsAt(rows, crossSizes, count, sizes);
-    loaded.shadowListKitPrefetchRows = (handle, packed) =>
-      cores.get(handle)?.deref()?.prefetchRowsAt(packed);
-    const at = loaded._malloc(constants.length * 8);
-    loaded._ShadowListKitCore_nativeConstants(at);
-    constants.set(loaded.HEAPF64.subarray(at / 8, at / 8 + constants.length));
-    loaded._free(at);
-    wasmModule = loaded;
-  });
+}
+
+/*
+ * The Emscripten options for a load: source as the module's bytes or the compiled module, else
+ * locateFile, else shadowlistkit.wasm next to shadowlistkit.mjs.
+ */
+function moduleOptions(
+  options: ShadowListKitLoadOptions | undefined
+): Parameters<typeof createShadowListKitModule>[0] {
+  const source = options?.source;
+  if (source instanceof WebAssembly.Module) {
+    return {
+      instantiateWasm: (imports, done) => {
+        WebAssembly.instantiate(source, imports).then((instance) =>
+          done(instance, source)
+        );
+        return {};
+      },
+    };
+  }
+  if (source !== undefined) return { wasmBinary: source };
+  return { locateFile: options?.locateFile };
+}
+
+/*
+ * Load the shadowlist core once. Lists need it before they lay out. source is the module's
+ * bytes or the compiled module, as loadShadowGridKit in shadowgrid-wasm takes it. Without it,
+ * locateFile finds shadowlistkit.wasm when it is not served next to shadowlistkit.mjs. The
+ * package exports the file as shadowlist-wasm/shadowlistkit.wasm.
+ */
+export function loadShadowListKit(
+  options?: ShadowListKitLoadOptions
+): Promise<void> {
+  loading ??= createShadowListKitModule(moduleOptions(options)).then(
+    (loaded) => {
+      loaded.shadowListKitMeasureRows = (
+        handle,
+        rows,
+        crossSizes,
+        count,
+        sizes
+      ) =>
+        cores
+          .get(handle)
+          ?.deref()
+          ?.measureRowsAt(rows, crossSizes, count, sizes);
+      loaded.shadowListKitPrefetchRows = (handle, packed) =>
+        cores.get(handle)?.deref()?.prefetchRowsAt(packed);
+      const at = loaded._malloc(constants.length * 8);
+      loaded._ShadowListKitCore_nativeConstants(at);
+      constants.set(loaded.HEAPF64.subarray(at / 8, at / 8 + constants.length));
+      loaded._free(at);
+      wasmModule = loaded;
+    }
+  );
   return loading;
 }
 

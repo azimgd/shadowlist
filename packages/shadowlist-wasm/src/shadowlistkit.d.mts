@@ -197,4 +197,9 @@ export interface ShadowListKitModule {
 
 export default function createShadowListKitModule(options?: {
   locateFile?: (path: string, scriptDirectory: string) => string;
+  wasmBinary?: BufferSource;
+  instantiateWasm?: (
+    imports: WebAssembly.Imports,
+    done: (instance: WebAssembly.Instance, module: WebAssembly.Module) => void
+  ) => object;
 }): Promise<ShadowListKitModule>;

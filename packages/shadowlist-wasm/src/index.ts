@@ -2,6 +2,7 @@ export { ShadowListKitAnchorState } from './ShadowListKitAnchorState.js';
 export {
   isShadowListKitLoaded,
   loadShadowListKit,
+  type ShadowListKitLoadOptions,
 } from './ShadowListKitCore.js';
 export { ShadowListKitListCell } from './ShadowListKitListCell.js';
 export { ShadowListKitListChanges } from './ShadowListKitListChanges.js';

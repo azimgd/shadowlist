@@ -14,7 +14,9 @@ cd packages/shadowlist-wasm
 - `build.sh` needs Emscripten. It uses `emcmake` from the `PATH`, or sources `emsdk_env.sh` from `$EMSDK`
   (default `~/emsdk`).
 - `dist/` then holds the ES modules, their types, `shadowlistkit.mjs` and `shadowlistkit.wasm`. Serve
-  `shadowlistkit.wasm` next to `shadowlistkit.mjs`, or pass `locateFile` to `loadShadowListKit`.
+  `shadowlistkit.wasm` next to `shadowlistkit.mjs`, pass `locateFile` to `loadShadowListKit`, or pass the module
+  itself as `source` (its bytes or a compiled `WebAssembly.Module`). The package exports the file as
+  `shadowlist-wasm/shadowlistkit.wasm` for a bundler or a server to copy.
 
 ## Usage
 

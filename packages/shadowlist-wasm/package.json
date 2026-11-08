@@ -10,6 +10,7 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./shadowlistkit.wasm": "./dist/shadowlistkit.wasm",
     "./package.json": "./package.json"
   },
   "files": [
