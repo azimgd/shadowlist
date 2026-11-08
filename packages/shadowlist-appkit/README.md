@@ -208,6 +208,17 @@ moves it:
 - `allowsSelection = NO` leaves the mouse, the keyboard and the hover to the host, which selects by itself.
 - `accessibilityElement = NO` hides the list and its rows when the host gives its own elements.
 
+A new `contentOffset` lays the list out at once, unless it waits for a layout already. An offset that stays
+where the same rows are mounted, with nothing else waiting, runs no layout pass at all and only moves the content.
+While the host moves it, the list moves its content and its cells by their layers: the content view's
+`sublayerTransform` and each cell's layer position and `hidden`. No view's frame, bounds or hidden state changes,
+which spares AppKit a walk over every view of the window to update tracking areas on each frame. Once the list rests
+for a tenth of a second, the views take their layers' geometry. Until then a cell's `frame` and `hidden` lag
+behind what shows. `visibleCells`, `cellForItemAtIndex:`, hit testing, menus, swipes, drags and accessibility see
+the cells where they show. A host that walks the list's subviews reads their layers, or `visibleCells`, which
+brings the views up to date. A held row, an open swipe and `animatesChanges` place the views as a list that
+scrolls by itself does. Rows are drawn on their own device pixels.
+
 A scroll command on a driven list moves at once, without an animation. Change animations, sticky rows and drag
 reorder work the same as in a list that scrolls by itself. Trackpad swipes do not reach a driven list's items.
 

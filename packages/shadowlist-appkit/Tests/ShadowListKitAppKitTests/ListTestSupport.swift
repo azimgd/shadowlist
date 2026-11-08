@@ -318,6 +318,14 @@ final class ListHarness {
   }
 
   /*
+   * Run the run loop past the moment a driven list's views take their layers' geometry, once it
+   * rests.
+   */
+  func rest() {
+    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
+  }
+
+  /*
    * Run the scroll engine's frames, a layout each, then settle.
    */
   func runScrollFrames(for duration: TimeInterval = 0.5) {

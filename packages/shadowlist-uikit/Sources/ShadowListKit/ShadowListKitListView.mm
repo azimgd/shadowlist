@@ -541,6 +541,16 @@ struct ShadowListKitPassGeometry {
   cell.transform = CGAffineTransformIdentity;
 }
 
+- (void)placeCell:(ShadowListKitListCell *)cell frame:(CGRect)frame
+{
+  ShadowListKitPlace(cell, frame);
+}
+
+- (void)setCell:(ShadowListKitListCell *)cell hidden:(BOOL)hidden
+{
+  cell.hidden = hidden;
+}
+
 #pragma mark - Layout
 
 - (void)layoutSubviews
@@ -573,6 +583,7 @@ struct ShadowListKitPassGeometry {
     return;
   }
   _inLayoutPass = YES;
+  ++_layoutPasses;
   BOOL geometryChanged = [self readGeometry];
   [self trackUserScroll];
   if (_windowCross > 0 && _windowAlong > 0) {

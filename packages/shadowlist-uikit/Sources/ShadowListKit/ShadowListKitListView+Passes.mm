@@ -54,7 +54,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   NSInteger index = cell.mountGeneration != 0 ? cell.index : NSNotFound;
   cell.mountGeneration = 0;
   [self clearCellForReuse:cell];
-  cell.hidden = YES;
+  [self setCell:cell hidden:YES];
   cell.index = NSNotFound;
   cell.row = NSNotFound;
   cell.separatorLayer.hidden = YES;
@@ -230,6 +230,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   input.leadingInset = [self leadingInset];
   input.trailingInset = [self trailingInset];
   PassResult result = _driver.runPasses(input);
+  ++_corePasses;
   _userScrolled = NO;
   _needsFrame = NO;
   [self applyPassResult:result];
@@ -342,6 +343,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   }
   MountPlan plan = _driver.planMount([self offset], _windowAlong, _windowAlong * self.mountOverscan, [self leadingInset],
     [self trailingInset]);
+  _mountBand = plan.band;
   if (![self mountNeeded:plan]) {
     return;
   }
@@ -373,6 +375,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 - (void)mountPlan:(const MountPlan&)plan
 {
+  ++_mountPasses;
   NSUInteger generation = ++_mountGeneration;
   for (std::size_t index = plan.low; plan.low != UNDEFINED_INDEX && index <= plan.high; ++index) {
     if (_driver.shouldMount(plan, index)) {
@@ -411,12 +414,12 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   cell.row = (NSInteger)index;
   cell.index = item == UNDEFINED_INDEX ? NSNotFound : (NSInteger)item;
   cell.mountGeneration = generation;
-  ShadowListKitPlace(cell, [self rowRect:index]);
+  [self placeCell:cell frame:[self rowRect:index]];
   [self placeSeparatorOfCell:cell row:index];
   if (!appearing) {
     return;
   }
-  cell.hidden = NO;
+  [self setCell:cell hidden:NO];
   [self applyStateToCell:cell key:key];
   // A reload recycled the held row's cell. The new one takes its place under the finger or the
   // mouse.
@@ -464,6 +467,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     [self recycleCell:entry.second];
   }
   _mounted.clear();
+  _mountBand = OffsetBand();
   _mountedLow = UNDEFINED_INDEX;
   _mountedHigh = UNDEFINED_INDEX;
   _mountedSticky = UNDEFINED_INDEX;
@@ -621,8 +625,14 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 #pragma mark - Queries
 
+/*
+ * The Mac's views take their layers' geometry first. A caller reads their frames.
+ */
 - (ShadowListKitListCell *)cellForItemAtIndex:(NSInteger)index
 {
+#if TARGET_OS_OSX
+  [self catchUpViews];
+#endif
   NSInteger row = [self rowForItem:index];
   if (row == NSNotFound) {
     return nil;
@@ -633,6 +643,9 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 - (NSArray<ShadowListKitListCell *> *)visibleCells
 {
+#if TARGET_OS_OSX
+  [self catchUpViews];
+#endif
   NSMutableArray<ShadowListKitListCell *> *cells = [NSMutableArray arrayWithCapacity:_mounted.size()];
   CGRect visible = [self cellContainer].bounds;
   for (auto& entry : _mounted) {

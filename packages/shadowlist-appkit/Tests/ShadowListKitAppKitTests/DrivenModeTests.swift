@@ -152,4 +152,135 @@ final class DrivenModeTests: XCTestCase {
     XCTAssertEqual(catcher.wheels, 1)
     XCTAssertEqual(list.contentOffset.y, 0)
   }
+  /*
+   * A move that keeps the same rows mounted runs no layout pass: the content moves by its layer.
+   * Once a row comes in a pass mounts it.
+   */
+  func testAMoveInsideTheMountedRowsRunsNoPass() throws {
+    let harness = makeDriven()
+    let list = harness.list
+    drag(harness, to: 1200)
+    list.scrollPhase = .idle
+    harness.layout()
+    // The pass after a correction settled publishes the band.
+    list.contentOffset = CGPoint(x: 0, y: 1201)
+    list.layoutSubtreeIfNeeded()
+    let passes = list.shadowListKit_layoutPassCount
+    let mounts = list.shadowListKit_mountPassCount
+    let cores = list.shadowListKit_corePassCount
+    for step in 2...4 {
+      list.contentOffset = CGPoint(x: 0, y: 1200 + CGFloat(step))
+      XCTAssertFalse(list.needsLayout)
+      list.layoutSubtreeIfNeeded()
+    }
+    XCTAssertEqual(list.shadowListKit_layoutPassCount, passes)
+    XCTAssertEqual(list.shadowListKit_mountPassCount, mounts)
+    XCTAssertEqual(list.shadowListKit_corePassCount, cores)
+    let first = list.visibleRange.location
+    let screenY = try XCTUnwrap(harness.screenY(ofItem: first))
+    XCTAssertEqual(screenY, list.rectForItem(at: first).minY - 1204, accuracy: 0.5)
+
+    // Far enough for new rows: one pass mounts them right away, and they cover the viewport.
+    list.contentOffset = CGPoint(x: 0, y: 1500)
+    XCTAssertFalse(list.needsLayout)
+    list.layoutSubtreeIfNeeded()
+    XCTAssertEqual(list.shadowListKit_layoutPassCount, passes + 1)
+    XCTAssertEqual(list.shadowListKit_mountPassCount, mounts + 1)
+    let range = list.visibleRange
+    for index in range.location..<NSMaxRange(range) {
+      let y = try XCTUnwrap(harness.screenY(ofItem: index))
+      XCTAssertEqual(y, list.rectForItem(at: index).minY - 1500, accuracy: 0.5)
+    }
+    let last = NSMaxRange(range) - 1
+    XCTAssertGreaterThanOrEqual(list.rectForItem(at: last).maxY - 1500, list.bounds.height - 0.5)
+  }
+
+  /*
+   * A list that is not driven runs a pass for every move, as before.
+   */
+  func testAListThatIsNotDrivenLaysOutEveryMove() {
+    let harness = ListHarness(source: SizedTestSource(count: 600))
+    let list = harness.list
+    list.contentOffset = CGPoint(x: 0, y: 1200)
+    harness.layout()
+    let passes = list.shadowListKit_layoutPassCount
+    list.contentOffset = CGPoint(x: 0, y: 1201)
+    XCTAssertTrue(list.needsLayout)
+    list.layoutSubtreeIfNeeded()
+    XCTAssertEqual(list.shadowListKit_layoutPassCount, passes + 1)
+    XCTAssertFalse(list.shadowListKit_viewsBehind)
+  }
+
+  /*
+   * While the host moves it, the list moves the content and its cells by their layers, which
+   * changes no view geometry. Once it rests the views take the layers' geometry.
+   */
+  func testTheViewsCatchUpWithTheLayersOnceTheListRests() throws {
+    let harness = makeDriven()
+    let list = harness.list
+    let content = try XCTUnwrap(list.subviews.first)
+    harness.rest()
+    XCTAssertFalse(list.shadowListKit_viewsBehind)
+    let origin = content.bounds.origin
+    drag(harness, to: 900, step: 60)
+    XCTAssertTrue(list.shadowListKit_viewsBehind)
+    XCTAssertEqual(content.bounds.origin, origin)
+    let transform = try XCTUnwrap(content.layer?.sublayerTransform)
+    XCTAssertEqual(transform.m42, origin.y - 900, accuracy: 0.01)
+    // Cells mounted on the way sit where their rows are, by their layers.
+    let cells = content.subviews.compactMap { $0 as? TestCell }.filter { $0.layer?.isHidden == false }
+    XCTAssertFalse(cells.isEmpty)
+    for cell in cells {
+      let index = try XCTUnwrap(harness.source.keys.firstIndex(of: cell.key))
+      XCTAssertEqual(try XCTUnwrap(cell.layer).position.y, list.rectForItem(at: index).minY, accuracy: 0.5)
+    }
+
+    harness.rest()
+    XCTAssertFalse(list.shadowListKit_viewsBehind)
+    XCTAssertEqual(content.bounds.origin.y, 900, accuracy: 0.01)
+    XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(content.layer?.sublayerTransform)))
+    for cell in content.subviews.compactMap({ $0 as? TestCell }) {
+      XCTAssertEqual(cell.isHidden, cell.layer?.isHidden)
+      XCTAssertEqual(cell.frame.minY, try XCTUnwrap(cell.layer).position.y, accuracy: 0.01)
+    }
+    let first = list.visibleRange.location
+    XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: first)), list.rectForItem(at: first).minY - 900, accuracy: 0.5)
+  }
+
+  /*
+   * AppKit writes a view's frame and hidden state into its layer when it syncs them. A cell the
+   * list moved by its layer stays where the list put it.
+   */
+  func testACellPlacedByItsLayerKeepsItsPlaceThroughAppKitWrites() throws {
+    let harness = makeDriven()
+    let list = harness.list
+    let content = try XCTUnwrap(list.subviews.first)
+    drag(harness, to: 900, step: 60)
+    let moved = content.subviews.compactMap { $0 as? TestCell }.first {
+      $0.layer?.isHidden == false && abs($0.frame.minY - ($0.layer?.position.y ?? 0)) > 1
+    }
+    let cell = try XCTUnwrap(moved)
+    let layer = try XCTUnwrap(cell.layer)
+    let position = layer.position
+    layer.position = cell.frame.origin
+    layer.isHidden = true
+    XCTAssertEqual(layer.position, position)
+    XCTAssertFalse(layer.isHidden)
+  }
+
+  /*
+   * A click while the views lag lands on the cell the layers show under it.
+   */
+  func testAHitTestFindsTheCellWhereItsLayerShows() throws {
+    let harness = makeDriven()
+    let list = harness.list
+    drag(harness, to: 1300, step: 50)
+    XCTAssertTrue(list.shadowListKit_viewsBehind)
+    let index = list.visibleRange.location + 3
+    let rect = list.rectForItem(at: index)
+    let point = list.convert(NSPoint(x: 40, y: rect.midY - 1300), to: list.superview)
+    let hit = try XCTUnwrap(list.hitTest(point) as? TestCell)
+    XCTAssertEqual(hit.key, harness.source.keys[index])
+    XCTAssertTrue(list.shadowListKit_viewsBehind)
+  }
 }

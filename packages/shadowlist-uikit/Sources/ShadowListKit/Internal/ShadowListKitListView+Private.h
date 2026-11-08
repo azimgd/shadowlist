@@ -63,7 +63,9 @@ extern const char ShadowListKitListViewSelectionLink;
  * each kit's own state follows the shared state.
  * _mounted holds the mounted cells by key. A cell follows its key across inserts above it.
  * _mountGeneration counts the mount passes, and _mounted* is what the last one covered: the pass
- * is skipped while all of it holds. _mountedShift is the pixel shift it placed rows with.
+ * is skipped while all of it holds. _mountedShift is the pixel shift it placed rows with, and
+ * _mountBand the offsets where its plan mounts the same rows. _layoutPasses, _corePasses and
+ * _mountPasses count the layout passes, the runs of the core and the mount passes, for tests.
  * _cellClasses holds the registered cell classes and _reusePool the recycled cells, both by
  * reuse identifier. _prefetchRows and _cancelRows are the prefetch changes of a mount pass.
  * _band is the band of offsets where the core has nothing to do, and _needsFrame runs the core
@@ -82,7 +84,10 @@ extern const char ShadowListKitListViewSelectionLink;
  * scroll, counts as the user's scrolling. A driven Mac list reports the offset to its delegate
  * instead. recycleCell: hides a cell and puts it back in its reuse pool. itemCellAtPoint: is the
  * shown item cell under a point in the list's own coordinates. settleFrame runs the layout pass
- * the settle display link waited for.
+ * the settle display link waited for. On the Mac, catchUpViews gives every view that lags behind
+ * its layer the layer's geometry, contentPointAt: is the content point shown at a point in the
+ * list, through _contentShift, and hitTestThroughLayers: hit tests the views where their layers
+ * show them while they lag.
  * mountedCellAtIndex: is the mounted cell of a row, or nil. mountedCellForKey: is the mounted
  * cell of a key, or nil. itemsOfRows: is the items among rows.
  * _headerView and _footerView are the views before the first row and after the last.
@@ -113,7 +118,10 @@ extern const char ShadowListKitListViewSelectionLink;
  * _rowElements keeps the stand-ins of rows off screen while accessibility holds them.
  *
  * Mac: _contentView holds the cells and the header and footer views. Its bounds origin is the
- * content offset. _changes exists only while
+ * content offset. A driven list moves the content by _contentShift in its layer's sublayer
+ * transform instead while nothing holds its cells, and moves and hides cells by their layers.
+ * _viewsBehind is set while any view lags behind its layer, and _catchUpTimer gives the views
+ * their layers' geometry once the list rests. _changes exists only while
  * animatesChanges is set, which leaves a list without animations no work for them. _engine
  * scrolls the list and _scrollers shows where it is, both unused while the list is driven.
  * _hoveredCell is the item under _hoverPoint, the pointer in the list's coordinates while
@@ -157,6 +165,10 @@ extern const char ShadowListKitListViewSelectionLink;
   std::uint64_t _mountedGeometry;
   NSUInteger _mountedStructure;
   double _mountedShift;
+  azimgd::shadowlist::OffsetBand _mountBand;
+  NSUInteger _layoutPasses;
+  NSUInteger _corePasses;
+  NSUInteger _mountPasses;
   NSMutableDictionary<NSString *, Class> *_cellClasses;
   NSMutableDictionary<NSString *, NSMutableArray<ShadowListKitListCell *> *> *_reusePool;
   std::vector<std::size_t> _prefetchRows;
@@ -218,6 +230,9 @@ extern const char ShadowListKitListViewSelectionLink;
 
 #if TARGET_OS_OSX
   NSView *_contentView;
+  CGFloat _contentShift;
+  BOOL _viewsBehind;
+  NSTimer *_catchUpTimer;
   ShadowListKitScrollEngine *_engine;
   ShadowListKitScrollerView *_scrollers;
 
@@ -297,8 +312,14 @@ extern const char ShadowListKitListViewSelectionLink;
 - (CGColorRef)separatorCGColor;
 - (ShadowListKitView *)cellContainer;
 - (void)clearCellForReuse:(ShadowListKitListCell *)cell;
+- (void)placeCell:(ShadowListKitListCell *)cell frame:(CGRect)frame;
+- (void)setCell:(ShadowListKitListCell *)cell hidden:(BOOL)hidden;
 - (void)placeSeparatorOfCell:(ShadowListKitListCell *)cell row:(std::size_t)row;
-#if !TARGET_OS_OSX
+#if TARGET_OS_OSX
+- (void)catchUpViews;
+- (CGPoint)contentPointAt:(CGPoint)point;
+- (nullable NSView *)hitTestThroughLayers:(NSPoint)point;
+#else
 - (nullable ShadowListKitListCell *)cellAtPoint:(CGPoint)point;
 #endif
 
@@ -315,7 +336,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * prefetch data source. measureRow:key:cross: is a row's size for the core. dispatchReached
  * tells the delegate the list reached its start or its end.
  * Each kit gives the view the cells sit in with cellContainer, clears its own state off a
- * recycled cell in clearCellForReuse:, shows a cell's state in applyStateToCell:key:, says what
+ * recycled cell in clearCellForReuse:, places and hides a cell with placeCell:frame: and
+ * setCell:hidden:, shows a cell's state in applyStateToCell:key:, says what
  * moves the offset with corePhase, sizes a header or footer view with templateSize:cross:, takes
  * the content size in applyContentSize: and gives the separator color with separatorCGColor.
  */

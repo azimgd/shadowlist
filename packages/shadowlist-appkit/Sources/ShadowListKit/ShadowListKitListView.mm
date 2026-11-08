@@ -14,6 +14,11 @@
 using namespace azimgd::shadowlist;
 
 /*
+ * How long after the last move of a driven list its views take their layers' geometry.
+ */
+static const NSTimeInterval SHADOWLIST_KIT_VIEW_CATCH_UP_DELAY = 0.1;
+
+/*
  * Keeps every category file linked into apps that link the kit as a static library without -ObjC.
  */
 __attribute__((used)) static const char *const ShadowListKitListViewCategoryLinks[] = {
@@ -136,6 +141,7 @@ struct ShadowListKitPassGeometry {
 
 - (void)dealloc
 {
+  [_catchUpTimer invalidate];
   [_settleLink invalidate];
   [_dragLink invalidate];
   [_swipeLink invalidate];
@@ -222,14 +228,15 @@ struct ShadowListKitPassGeometry {
 
 /*
  * How far the exact offset is past the device pixel the content view shows, under one device
- * pixel. Rows are drawn this much earlier.
+ * pixel. Rows are drawn this much earlier. A driven list draws rows on their own device pixels,
+ * which leaves them in place while only the offset moves.
  */
 - (double)pixelShift
 {
   if (_passGeometry.valid) {
     return _passGeometry.shift;
   }
-  return _offsetAlong - [self pixelAligned:_offsetAlong];
+  return _scrollDriven ? 0.0 : _offsetAlong - [self pixelAligned:_offsetAlong];
 }
 
 - (CGFloat)displayScale
@@ -298,7 +305,8 @@ struct ShadowListKitPassGeometry {
 
 /*
  * A content offset set during a layout pass, by the pass itself or by a delegate it called, makes
- * the pass read its geometry again.
+ * the pass read its geometry again. A driven list lays out as its host moves it, unless it waits
+ * for a layout already.
  */
 - (void)setContentOffset:(CGPoint)contentOffset
 {
@@ -312,8 +320,12 @@ struct ShadowListKitPassGeometry {
     [self readPassGeometry];
   }
   [self scrollGeometryChanged];
-  if (!_inLayoutPass) {
-    self.needsLayout = YES;
+  if (!_inLayoutPass && ![self movedWithoutPass]) {
+    if (_scrollDriven && !self.needsLayout) {
+      [self layoutPass];
+    } else {
+      self.needsLayout = YES;
+    }
   }
   if ([_userDelegate respondsToSelector:@selector(listViewDidScroll:)]) {
     [_userDelegate listViewDidScroll:self];
@@ -369,6 +381,8 @@ struct ShadowListKitPassGeometry {
 
 /*
  * The content view covers the list. Its bounds origin is the content offset on device pixels.
+ * While a driven list places its cells by their layers, the bounds origin keeps its place along
+ * the axis and the layer's sublayer transform moves the content by the rest.
  */
 - (void)placeContentView
 {
@@ -376,6 +390,12 @@ struct ShadowListKitPassGeometry {
   CGPoint offset = self.contentOffset;
   CGFloat along = [self pixelAligned:[self along:offset]];
   NSPoint origin = _horizontal ? NSMakePoint(along, offset.y) : NSMakePoint(offset.x, along);
+  CGFloat shift = 0;
+  if ([self placesByLayer]) {
+    NSPoint kept = _contentView.bounds.origin;
+    shift = [self along:kept] - along;
+    origin = _horizontal ? NSMakePoint(kept.x, origin.y) : NSMakePoint(origin.x, kept.y);
+  }
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
   if (!NSEqualRects(_contentView.frame, frame)) {
@@ -384,7 +404,83 @@ struct ShadowListKitPassGeometry {
   if (!NSEqualPoints(_contentView.bounds.origin, origin)) {
     [_contentView setBoundsOrigin:origin];
   }
+  if (shift != _contentShift) {
+    _contentShift = shift;
+    _contentView.layer.sublayerTransform =
+      _horizontal ? CATransform3DMakeTranslation(shift, 0, 0) : CATransform3DMakeTranslation(0, shift, 0);
+    if (shift != 0) {
+      [self noteViewsBehind];
+    }
+  }
   [CATransaction commit];
+}
+
+/*
+ * Whether a driven list moves its content and cells by their layers now. A held row, an open
+ * swipe and change animations read and move the views, which then place them.
+ */
+- (BOOL)placesByLayer
+{
+  return _scrollDriven && !_changes && !_swipeCell && ![self hasHeldRow];
+}
+
+/*
+ * A view lags behind its layer. Once the list rests the views take the layers' geometry.
+ */
+- (void)noteViewsBehind
+{
+  _viewsBehind = YES;
+  NSDate *rest = [NSDate dateWithTimeIntervalSinceNow:SHADOWLIST_KIT_VIEW_CATCH_UP_DELAY];
+  if (_catchUpTimer.valid) {
+    _catchUpTimer.fireDate = rest;
+    return;
+  }
+  __weak ShadowListKitListView *weakSelf = self;
+  _catchUpTimer = [[NSTimer alloc] initWithFireDate:rest interval:0 repeats:NO block:^(NSTimer *timer) {
+    [weakSelf catchUpViews];
+  }];
+  [NSRunLoop.mainRunLoop addTimer:_catchUpTimer forMode:NSDefaultRunLoopMode];
+}
+
+/*
+ * Every cell and the content view take their layers' geometry. Nothing moves on screen.
+ */
+- (void)catchUpViews
+{
+  if (!_viewsBehind) {
+    return;
+  }
+  _viewsBehind = NO;
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  for (NSView *view in _contentView.subviews) {
+    if ([view isKindOfClass:[ShadowListKitListCell class]]) {
+      [(ShadowListKitListCell *)view catchUpView];
+    }
+  }
+  if (_contentShift != 0) {
+    NSPoint origin = _contentView.bounds.origin;
+    if (_horizontal) {
+      origin.x -= _contentShift;
+    } else {
+      origin.y -= _contentShift;
+    }
+    _contentShift = 0;
+    _contentView.layer.sublayerTransform = CATransform3DIdentity;
+    [_contentView setBoundsOrigin:origin];
+  }
+  [CATransaction commit];
+}
+
+- (CGPoint)contentPointAt:(CGPoint)point
+{
+  NSPoint content = [_contentView convertPoint:point fromView:self];
+  if (_horizontal) {
+    content.x -= _contentShift;
+  } else {
+    content.y -= _contentShift;
+  }
+  return content;
 }
 
 #pragma mark - Properties
@@ -500,6 +596,7 @@ struct ShadowListKitPassGeometry {
  */
 - (void)setAnimatesChanges:(BOOL)animatesChanges
 {
+  [self catchUpViews];
   _animatesChanges = animatesChanges;
   if (animatesChanges && !_changes) {
     _changes = [[ShadowListKitChangeAnimator alloc] initWithList:self];
@@ -586,6 +683,7 @@ struct ShadowListKitPassGeometry {
     return;
   }
   [self stopScrolling];
+  [self catchUpViews];
   _scrollDriven = scrollDriven;
   self.scrollPhase = ShadowListKitScrollPhaseIdle;
   [self scrollGeometryChanged];
@@ -621,6 +719,44 @@ struct ShadowListKitPassGeometry {
   [self resetDragLookOfCell:cell];
 }
 
+/*
+ * A driven list moves a cell that keeps its size by its layer. A cell of a new size, or one
+ * placed while views place the cells, catches up and takes its frame.
+ */
+- (void)placeCell:(ShadowListKitListCell *)cell frame:(CGRect)frame
+{
+  if ([self placesByLayerCell:cell] && NSEqualSizes(cell.frame.size, frame.size)) {
+    if (!NSEqualPoints(cell.shownFrame.origin, frame.origin)) {
+      [cell placeLayerAtOrigin:frame.origin];
+      [self noteViewsBehind];
+    }
+    return;
+  }
+  [cell catchUpView];
+  ShadowListKitPlace(cell, frame);
+}
+
+- (void)setCell:(ShadowListKitListCell *)cell hidden:(BOOL)hidden
+{
+  if ([self placesByLayerCell:cell]) {
+    if (cell.shown == hidden) {
+      [cell setLayerHidden:hidden];
+      [self noteViewsBehind];
+    }
+    return;
+  }
+  [cell catchUpView];
+  cell.hidden = hidden;
+}
+
+/*
+ * A cell made without a reuse identifier leaves the list when recycled, with its view in place.
+ */
+- (BOOL)placesByLayerCell:(ShadowListKitListCell *)cell
+{
+  return [self placesByLayer] && cell.reuseIdentifier != nil && [cell canPlaceByLayer];
+}
+
 #pragma mark - Layout
 
 - (void)layout
@@ -648,6 +784,10 @@ struct ShadowListKitPassGeometry {
     return;
   }
   _inLayoutPass = YES;
+  ++_layoutPasses;
+  if (_viewsBehind && ![self placesByLayer]) {
+    [self catchUpViews];
+  }
   BOOL geometryChanged = [self readGeometry];
   [self placeContentView];
   [self trackUserScroll];
@@ -679,6 +819,28 @@ struct ShadowListKitPassGeometry {
   if ([_userDelegate respondsToSelector:@selector(listViewDidLayOut:)]) {
     [_userDelegate listViewDidLayOut:self];
   }
+}
+
+/*
+ * A driven list moved inside the core's band and the band of its mount plan, with nothing else
+ * waiting. The content moved already, the same rows stay mounted and no pass runs. Returns
+ * whether that was the case.
+ */
+- (BOOL)movedWithoutPass
+{
+  if (!_scrollDriven || _needsFrame || self.needsLayout || _windowAlong <= 0 || _windowCross <= 0) {
+    return NO;
+  }
+  if (_driver.hasSticky() || [self hasHeldRow] || _swipeCell || _changes || _hoverActive || _hoveredCell) {
+    return NO;
+  }
+  double offset = [self offset];
+  if (!_band.contains(offset) || !_mountBand.contains(offset) || _driver.getGeometryVersion() != _mountedGeometry ||
+      _structureVersion != _mountedStructure) {
+    return NO;
+  }
+  [self trackUserScroll];
+  return YES;
 }
 
 /*
@@ -771,7 +933,7 @@ struct ShadowListKitPassGeometry {
   } else {
     rect.y = pinned;
   }
-  ShadowListKitPlace(cell, [self displayRect:rect.x y:rect.y width:rect.width height:rect.height]);
+  [self placeCell:cell frame:[self displayRect:rect.x y:rect.y width:rect.width height:rect.height]];
   if (cell.layer.zPosition != 1) {
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -783,7 +945,7 @@ struct ShadowListKitPassGeometry {
 - (void)unpinCell:(ShadowListKitListCell *)cell
 {
   if (cell.row != NSNotFound && (std::size_t)cell.row < _driver.getRowCount()) {
-    ShadowListKitPlace(cell, [self rowRect:(std::size_t)cell.row]);
+    [self placeCell:cell frame:[self rowRect:(std::size_t)cell.row]];
   }
   if (cell != _heldCell) {
     [CATransaction begin];
@@ -832,6 +994,7 @@ struct ShadowListKitPassGeometry {
 - (void)viewDidChangeBackingProperties
 {
   [super viewDidChangeBackingProperties];
+  [self catchUpViews];
   ++_structureVersion;
   [self placeContentView];
   [self invalidateFrame];
@@ -903,21 +1066,81 @@ struct ShadowListKitPassGeometry {
 
 /*
  * The shown item cell at a point in the list's coordinates, or nil. A pinned header covers the
- * items under it.
+ * items under it. Cells are where their layers show them.
  */
 - (ShadowListKitListCell *)itemCellAtPoint:(NSPoint)point
 {
-  NSPoint content = [_contentView convertPoint:point fromView:self];
-  if (_stickyCell && !_stickyCell.hidden && NSPointInRect(content, _stickyCell.frame)) {
+  NSPoint content = [self contentPointAt:point];
+  if (_stickyCell && _stickyCell.shown && NSPointInRect(content, _stickyCell.shownFrame)) {
     return _stickyCell.index != NSNotFound && _stickyCell.mountGeneration != 0 ? _stickyCell : nil;
   }
   for (auto& entry : _mounted) {
     ShadowListKitListCell *cell = entry.second;
-    if (!cell.hidden && cell.index != NSNotFound && cell.mountGeneration != 0 && NSPointInRect(content, cell.frame)) {
+    if (cell.shown && cell.index != NSNotFound && cell.mountGeneration != 0 &&
+        NSPointInRect(content, cell.shownFrame)) {
       return cell;
     }
   }
   return nil;
+}
+
+/*
+ * A view hidden while its layer shows takes no hit test of its own. Its subviews do, and the
+ * view takes the rest.
+ */
+- (NSView *)hitTestHiddenView:(NSView *)view at:(NSPoint)point
+{
+  NSPoint local = [view convertPoint:point fromView:view.superview];
+  for (NSView *subview in view.subviews.reverseObjectEnumerator) {
+    NSView *hit = [subview hitTest:local];
+    if (hit) {
+      return hit;
+    }
+  }
+  return view;
+}
+
+/*
+ * A hit test while views lag behind their layers: the view under a point where the layers show
+ * it. The pinned row covers the rows under it.
+ */
+- (NSView *)hitTestThroughLayers:(NSPoint)point
+{
+  NSPoint local = [self convertPoint:point fromView:self.superview];
+  if (!NSMouseInRect(local, self.bounds, self.flipped)) {
+    return nil;
+  }
+  for (NSView *view in self.subviews.reverseObjectEnumerator) {
+    if (view != _contentView) {
+      NSView *hit = view.hidden ? nil : [view hitTest:local];
+      if (hit) {
+        return hit;
+      }
+      continue;
+    }
+    NSPoint content = [self contentPointAt:local];
+    NSMutableArray<NSView *> *views = [NSMutableArray arrayWithCapacity:_contentView.subviews.count + 1];
+    if (_stickyCell) {
+      [views addObject:_stickyCell];
+    }
+    [views addObjectsFromArray:_contentView.subviews.reverseObjectEnumerator.allObjects];
+    for (NSView *subview in views) {
+      BOOL isCell = [subview isKindOfClass:[ShadowListKitListCell class]];
+      ShadowListKitListCell *cell = isCell ? (ShadowListKitListCell *)subview : nil;
+      NSRect shown = cell ? cell.shownFrame : subview.frame;
+      if ((cell ? !cell.shown : subview.hidden) || !NSMouseInRect(content, shown, YES)) {
+        continue;
+      }
+      NSRect frame = subview.frame;
+      NSPoint place = NSMakePoint(content.x - NSMinX(shown) + NSMinX(frame), content.y - NSMinY(shown) + NSMinY(frame));
+      NSView *hit = subview.hidden ? [self hitTestHiddenView:subview at:place] : [subview hitTest:place];
+      if (hit) {
+        return hit;
+      }
+    }
+    return _contentView;
+  }
+  return self;
 }
 
 @end

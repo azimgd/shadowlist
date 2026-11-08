@@ -172,6 +172,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   if (_accessibilityHidden) {
     return @[];
   }
+  [self catchUpViews];
   NSMutableArray *children = [NSMutableArray arrayWithCapacity:_driver.getKeyCount() + 4];
   if (_headerView) {
     [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[_headerView])];
@@ -277,6 +278,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   if (_accessibilityHidden) {
     return NSAccessibilityUnignoredAncestor(self.superview);
   }
+  [self catchUpViews];
   NSRect screen = NSMakeRect(point.x, point.y, 0, 0);
   NSPoint local = self.window ? [self convertRect:[self.window convertRectFromScreen:screen] fromView:nil].origin : NSZeroPoint;
   if (!_scrollers.hidden && [_scrollers hitTest:local]) {
@@ -346,6 +348,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
  */
 - (ShadowListKitListCell *)accessibilityCellOfRow:(std::size_t)row
 {
+  [self catchUpViews];
   ShadowListKitListCell *cell = [self mountedCellAtIndex:row];
   return cell && !cell.hidden && cell.mountGeneration != 0 ? cell : nil;
 }
@@ -364,6 +367,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
  */
 - (NSRect)accessibilityFrameOfRow:(std::size_t)row
 {
+  [self catchUpViews];
   ShadowListKitListCell *cell = [self accessibilityCellOfRow:row];
   if (cell) {
     return NSAccessibilityFrameInView(_contentView, cell.frame);

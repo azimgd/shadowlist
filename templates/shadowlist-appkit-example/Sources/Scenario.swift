@@ -34,7 +34,9 @@ import ShadowListKit
  * -SLShot scrolls a little first, which shows the overlay scrollers in the picture. With keys,
  * menu, reorder, sections or swipe it shoots the end state instead: a selection with a hovered
  * item, an open menu's outline, a lifted post with its shadow over the gap it opened, a pinned
- * section header over the rows scrolled under it, or a post swiped open over its actions.
+ * section header over the rows scrolled under it, or a post swiped open over its actions. On
+ * -SLRoute Driven the host drags the rows there a frame at a time and the shot comes two frames
+ * after the last one, while the list still shows its rows where their layers moved them.
  */
 enum Scenario {
   static func start(_ screen: NSView & ListScreen) {
@@ -43,11 +45,11 @@ enum Scenario {
     if let path = Settings.shotPath, Settings.scenario == nil {
       after(1.5) {
         if let driven = screen as? DrivenScreen {
-          driven.scroll(to: CGPoint(x: 160, y: 900))
+          dragThenShoot(driven, to: path)
         } else {
           screen.list.contentOffset = CGPoint(x: 0, y: 900)
+          after(0.2) { shoot(screen, to: path) }
         }
-        after(0.2) { shoot(screen, to: path) }
       }
       return
     }
@@ -119,6 +121,24 @@ enum Scenario {
           }
           finish(result)
         }
+      }
+    }
+  }
+
+  /*
+   * A drag to the shot's offset in 30 steps a frame apart, then the shot two frames later.
+   */
+  private static func dragThenShoot(_ screen: DrivenScreen, to path: String) {
+    let steps = 30
+    var step = 0
+    screen.list.scrollPhase = .dragging
+    Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { timer in
+      step += 1
+      let progress = CGFloat(step) / CGFloat(steps)
+      screen.scroll(to: CGPoint(x: 160 * progress, y: 900 * progress))
+      if step == steps {
+        timer.invalidate()
+        after(2.0 / 60.0) { shoot(screen, to: path) }
       }
     }
   }

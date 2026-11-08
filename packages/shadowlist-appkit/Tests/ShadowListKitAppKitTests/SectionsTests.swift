@@ -200,6 +200,8 @@ final class SectionsTests: XCTestCase {
     for offset: CGFloat in [120, 460, 1000, -30] {
       list.contentOffset = CGPoint(x: 0, y: offset)
       harness.layout()
+      // The views lag behind their layers until the list rests.
+      harness.rest()
       XCTAssertEqual(list.contentOffset.y, offset, accuracy: 0.01)
       switch offset {
       case 120: XCTAssertEqual(frame(try XCTUnwrap(pinned(list)), in: list).minY, 0, accuracy: 0.01)

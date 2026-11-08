@@ -16,11 +16,17 @@ FOUNDATION_EXPORT NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventP
 
 /*
  * The list's scrollers, a wheel event sent through scrollWheel: and laid out, and frames of its
- * engine with a layout each.
+ * engine with a layout each. The counts are the layout passes, the runs of the core and the
+ * mount passes since the list was made. viewsBehind says a driven list moved its content or
+ * cells by their layers and their views have not caught up yet.
  */
 @interface ShadowListKitListView (Testing)
 
 @property (nonatomic, readonly) ShadowListKitScrollerView *shadowListKit_scrollerView;
+@property (nonatomic, readonly) NSUInteger shadowListKit_layoutPassCount;
+@property (nonatomic, readonly) NSUInteger shadowListKit_corePassCount;
+@property (nonatomic, readonly) NSUInteger shadowListKit_mountPassCount;
+@property (nonatomic, readonly) BOOL shadowListKit_viewsBehind;
 
 - (void)shadowListKit_scrollWheelDelta:(CGPoint)delta phase:(NSEventPhase)phase momentumPhase:(NSEventPhase)momentumPhase;
 - (void)shadowListKit_runScrollFramesFor:(NSTimeInterval)duration;

@@ -236,6 +236,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   if ([self hasHeldRow] || _dragPressed) {
     return NO;
   }
+  [self catchUpViews];
   ShadowListKitListCell *cell = [self itemCellAtPoint:point];
   if (!cell) {
     [self closeSwipeAnimated:YES];
@@ -498,6 +499,9 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
  */
 - (NSView *)hitTest:(NSPoint)point
 {
+  if (_viewsBehind) {
+    return [self hitTestThroughLayers:point];
+  }
   NSView *hit = [super hitTest:point];
   if (_swipeCell && hit && hit != self && [hit isDescendantOf:_contentView]) {
     return self;
@@ -658,6 +662,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 - (NSMenu *)menuForEvent:(NSEvent *)event
 {
   [self closeSwipeAnimated:YES];
+  [self catchUpViews];
   ShadowListKitListCell *cell = [self itemCellAtPoint:[self convertPoint:event.locationInWindow fromView:nil]];
   // A data change since the last layout pass may have dropped the cell's row.
   NSMenu *menu = cell && (std::size_t)cell.row < _driver.getKeyCount() ? [self menuForCell:cell] : nil;
@@ -674,6 +679,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 - (void)showMenuForRow:(std::size_t)row
 {
   [self revealRow:row];
+  [self catchUpViews];
   ShadowListKitListCell *cell = [self mountedCellAtIndex:row];
   NSMenu *menu = cell.hidden ? nil : [self menuForCell:cell];
   if (!menu) {

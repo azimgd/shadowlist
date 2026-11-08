@@ -197,6 +197,12 @@ final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, S
   private(set) var corrections = 0
   private var previousIndex = -1
 
+  /*
+   * The cells the list shows, from willDisplay and didEndDisplaying. Asking for visibleCells on
+   * every move would bring each view up to the layer the list moved it by.
+   */
+  private let shownCells = NSHashTable<GridRowCell>.weakObjects()
+
   var keys: [String] { rows }
 
   init(count: Int) {
@@ -256,7 +262,7 @@ final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, S
   private func move(to point: CGPoint) {
     columnOffset = point.x
     list.contentOffset = CGPoint(x: 0, y: point.y)
-    for case let cell as GridRowCell in list.visibleCells {
+    for cell in shownCells.allObjects {
       cell.shift = columnOffset
     }
     syncScrolling()
@@ -332,7 +338,13 @@ final class DrivenScreen: NSView, ListScreen, ShadowListKitListViewDataSource, S
   }
 
   func listView(_ listView: ShadowListKitListView, willDisplay cell: ShadowListKitListCell, at index: Int) {
-    (cell as? GridRowCell)?.shift = columnOffset
+    guard let cell = cell as? GridRowCell else { return }
+    cell.shift = columnOffset
+    shownCells.add(cell)
+  }
+
+  func listView(_ listView: ShadowListKitListView, didEndDisplaying cell: ShadowListKitListCell, at index: Int) {
+    (cell as? GridRowCell).map(shownCells.remove)
   }
 }
 

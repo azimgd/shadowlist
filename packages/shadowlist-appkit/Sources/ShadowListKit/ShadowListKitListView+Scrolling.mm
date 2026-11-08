@@ -36,20 +36,23 @@ extern "C" const char ShadowListKitListViewScrollingLink = 0;
 }
 
 /*
- * Hand the engine and the scrollers the content, the viewport and the offset.
+ * Hand the engine and the scrollers the content, the viewport and the offset. A driven list
+ * uses neither and hides the scrollers.
  */
 - (void)scrollGeometryChanged
 {
+  BOOL driven = self.scrollDriven;
+  if (_scrollers.hidden != driven) {
+    _scrollers.hidden = driven;
+  }
+  if (driven) {
+    return;
+  }
   CGPoint offset = [self enginePointAt:[self offset]];
   CGSize content = self.contentSize;
   _engine.viewportSize = _horizontal ? CGSizeMake(_windowAlong, _windowCross) : CGSizeMake(_windowCross, _windowAlong);
   _engine.contentSize = content;
   _engine.offset = offset;
-  BOOL driven = self.scrollDriven;
-  _scrollers.hidden = driven;
-  if (driven) {
-    return;
-  }
   NSRect bounds = self.bounds;
   if (!NSEqualRects(_scrollers.frame, bounds)) {
     _scrollers.frame = bounds;
@@ -140,6 +143,26 @@ extern "C" const char ShadowListKitListViewScrollingLink = 0;
 - (ShadowListKitScrollerView *)shadowListKit_scrollerView
 {
   return _scrollers;
+}
+
+- (NSUInteger)shadowListKit_layoutPassCount
+{
+  return _layoutPasses;
+}
+
+- (NSUInteger)shadowListKit_corePassCount
+{
+  return _corePasses;
+}
+
+- (NSUInteger)shadowListKit_mountPassCount
+{
+  return _mountPasses;
+}
+
+- (BOOL)shadowListKit_viewsBehind
+{
+  return _viewsBehind;
 }
 
 - (void)shadowListKit_scrollWheelDelta:(CGPoint)delta phase:(NSEventPhase)phase momentumPhase:(NSEventPhase)momentumPhase
