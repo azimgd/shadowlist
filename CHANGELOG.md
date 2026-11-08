@@ -12,6 +12,10 @@
 ### ShadowListKit (Android)
 
 - A driven list moved by `adjustOffsetBy` inside the content lays out once, and runs the core only once the offset leaves the core's band. Every adjustment laid out twice and ran the core in the second pass before. A layout pass whose offset keeps the same rows mounted plans no mount.
+- A mount pass shows and hides cells with `setTransitionVisibility` from API 29. `setVisibility` dispatched the change through every view of the cell, which cost more than the rest of the pass. A cell holding focus still changes through `setVisibility`.
+- A driven list draws its children into a `RenderNode` of its own from API 29 and records it again only when a child comes, goes, shows or hides. A frame that only moves the offset records the list around that node, and a child that drew again is brought up to date on its own. A lifted row, separators, an open swipe and a layout transition draw the usual way.
+- A driven list of one column without sticky rows mounts a fifth of a viewport ahead on the side it moves to, and plans again only once the rows it mounted stop covering the viewport. A move longer than that mounts nothing ahead.
+- Recycling a cell cancels its animator only when something asked the cell for one.
 
 ### Core (C++)
 
