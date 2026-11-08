@@ -154,7 +154,7 @@ class HorizontalScreen(context: Context, private val engine: Engine) : Screen, S
       LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
     page.addView(list, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 140.dp))
     list.horizontal = true
-    list.estimatedItemSize = 150.dpf
+    list.estimatedItemSizePx = 150.dpf
     list.registerCell("strip") { StripCell(it) }
   }
 

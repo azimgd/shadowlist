@@ -19,6 +19,7 @@
 
 ### ShadowListKit (Android)
 
+- Breaking: the length settings are named for their pixels: `estimatedItemSize` is `estimatedItemSizePx`, and `separatorInsetStart`, `separatorInsetEnd` and `separatorThickness` are `separatorInsetStartPx`, `separatorInsetEndPx` and `separatorThicknessPx`. The Apple lists take points.
 - Breaking: `Delegate.didEndScrolling` is gone. The delegate hears `willBeginDragging`, `didEndDragging(listView, willDecelerate)`, `didEndDecelerating` and `didEndScrollingAnimation` beside `didScroll`, the same calls as the Apple lists'. A lift without settling is `didEndDragging` with `willDecelerate` false.
 - A driven list moved by `adjustOffsetBy` inside the content lays out once, and runs the core only once the offset leaves the core's band. Every adjustment laid out twice and ran the core in the second pass before. A layout pass whose offset keeps the same rows mounted plans no mount.
 - A mount pass shows and hides cells with `setTransitionVisibility` from API 29. `setVisibility` dispatched the change through every view of the cell, which cost more than the rest of the pass. A cell holding focus still changes through `setVisibility`.

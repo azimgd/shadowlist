@@ -34,7 +34,8 @@ import kotlin.math.roundToInt
  * A virtualized list on the shadowlist core. Items are placed by the core, which keeps the
  * visible content still while items are measured, inserted or deleted. Measurement, offset
  * corrections and mounting all happen in one layout pass on the UI thread. A scroll frame
- * that stays inside the core's offset band does no core work at all. Sizes are in pixels.
+ * that stays inside the core's offset band does no core work at all. Sizes are in pixels, like a
+ * view's, and the length settings say so with a Px suffix.
  *
  * Item indices are the public indices. In a list with sections the core places rows: section
  * header rows, items and section footer rows. The list converts between the two at its edges.
@@ -220,9 +221,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { field = max(1, value); sendSettings() }
 
   /*
-   * Size along the scroll axis assumed for items not measured yet, in pixels.
+   * Size along the scroll axis assumed for items not measured yet, in pixels. Default 120dp.
    */
-  var estimatedItemSize = 120 * resources.displayMetrics.density
+  var estimatedItemSizePx = 120 * resources.displayMetrics.density
     set(value) { field = value; sendSettings() }
 
   /*
@@ -370,17 +371,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Lines between items, drawn over the trailing edge of each item's cell. Insets are along the
-   * cross axis from its start and end. Thickness defaults to one pixel.
+   * cross axis from its start and end, in pixels. The start inset defaults to 16dp, the thickness
+   * to one pixel.
    */
   var showsSeparators = false
     set(value) { field = value; invalidate() }
   var separatorColor = Color.argb(0x4a, 0x3c, 0x3c, 0x43)
     set(value) { field = value; separatorPaint.color = value; invalidate() }
-  var separatorInsetStart = (16 * resources.displayMetrics.density).roundToInt()
+  var separatorInsetStartPx = (16 * resources.displayMetrics.density).roundToInt()
     set(value) { field = value; invalidate() }
-  var separatorInsetEnd = 0
+  var separatorInsetEndPx = 0
     set(value) { field = value; invalidate() }
-  var separatorThickness = 1
+  var separatorThicknessPx = 1
     set(value) { field = max(1, value); invalidate() }
 
   /*
@@ -672,7 +674,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   private fun applySettings(target: ShadowListKitCore) {
-    target.setSettings(estimatedItemSize.toDouble(), overscan, startReachedThreshold, endReachedThreshold,
+    target.setSettings(estimatedItemSizePx.toDouble(), overscan, startReachedThreshold, endReachedThreshold,
       numberOfColumns, inverted, followAppends, horizontal, snapToItem, snapAlignment.ordinal)
   }
 
@@ -1826,11 +1828,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val y = cell.top + cell.translationY
     // The line never runs backwards when the insets are wider than the cell.
     if (horizontal) {
-      val length = max(0, cell.height - separatorInsetStart - separatorInsetEnd)
-      separatorRect.set(x + cell.width - separatorThickness, y + separatorInsetStart, x + cell.width, y + separatorInsetStart + length)
+      val length = max(0, cell.height - separatorInsetStartPx - separatorInsetEndPx)
+      separatorRect.set(x + cell.width - separatorThicknessPx, y + separatorInsetStartPx, x + cell.width, y + separatorInsetStartPx + length)
     } else {
-      val length = max(0, cell.width - separatorInsetStart - separatorInsetEnd)
-      separatorRect.set(x + separatorInsetStart, y + cell.height - separatorThickness, x + separatorInsetStart + length, y + cell.height)
+      val length = max(0, cell.width - separatorInsetStartPx - separatorInsetEndPx)
+      separatorRect.set(x + separatorInsetStartPx, y + cell.height - separatorThicknessPx, x + separatorInsetStartPx + length, y + cell.height)
     }
     separatorPaint.alpha = (Color.alpha(separatorColor) * cell.alpha).roundToInt()
     canvas.drawRect(separatorRect, separatorPaint)

@@ -59,7 +59,8 @@ class FeedScreen(context: Context, private val posts: List<Post>) : ShadowListKi
 ## API
 
 The table summarizes the API; [ShadowListKitListView.kt](ShadowListKit/src/main/java/com/shadowlist/kit/ShadowListKitListView.kt)
-has full signatures and defaults.
+has full signatures and defaults. Every size, offset and rect is in pixels, like a view's, where the Apple lists
+take points. The length settings carry a `Px` suffix to say so.
 
 | Area | API | Notes |
 | --- | --- | --- |
@@ -70,7 +71,7 @@ has full signatures and defaults.
 | Delegate | `willDisplayCell`, `didEndDisplayingCell`, `didSelectItem`, `didDeselectItem`, `shouldSelectItem`, `shouldHighlightItem`, `canMoveItem`, `moveItem`, `didReachStart`, `didReachEnd` | Every method has a default. |
 | Scroll events | `didScroll`, `willBeginDragging`, `didEndDragging(listView, willDecelerate)`, `didEndDecelerating`, `didEndScrollingAnimation` | The same calls as the Apple lists' `listViewDidScroll:` family. Every method has a default. |
 | Cells | `registerCell`, `dequeueReusableCell` |  |
-| Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Call `requestLayout` on the list after `headerView` or `footerView` changes size. |
+| Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSizePx`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Call `requestLayout` on the list after `headerView` or `footerView` changes size. |
 | Changes | `reloadData`, `insertItems`, `deleteItems`, `reloadItems(indices, payload)`, `moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates`, `applyChanges` | An insert past the end goes at the end, a delete past the end is dropped. `applyChanges` diffs every key and returns a `ShadowListKitListChanges`. |
 | Animations | `animatesChanges`, `itemAnimator` | Off by default. Inserted items fade in, deleted items fade out and items that stay slide. `ShadowListKitDefaultItemAnimator` unless replaced. |
 | Selection | `allowsSelection`, `allowsMultipleSelection`, `editing`, `selectedIndices`, `selectItem`, `deselectItem`, `setEditing` | Selection follows keys and survives detach. The select and deselect calls skip the delegate. `editing` turns swipe actions and reordering off. |
@@ -78,7 +79,7 @@ has full signatures and defaults.
 | Context menus | Delegate `contextMenuForItem` | Fills a `PopupMenu` on a hold. A reorderable item lifts on the hold and shows the menu when let go in place. |
 | Prefetching | `prefetchDataSource`: `prefetchItems`, `cancelPrefetchingForItems` | Items in the measured range past the mounted ones, prefetched by the layout pass that brings them in, after it measures the items it will show and before it measures these. Without `sizeForItem` that is before `cellForItem` makes their cells. Cancelled when one leaves the range unseen. |
 | Pull to refresh | `refreshEnabled`, `refreshing`, delegate `didBeginRefreshing` | Draws its own spinner, without a SwipeRefreshLayout dependency. Works in horizontal lists too. |
-| Separators | `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`, `separatorThickness`, delegate `showsSeparatorAfterItem`, `addItemDecoration` | Only between items of one section. `ShadowListKitItemDecoration` draws below or above the rows, like RecyclerView's ItemDecoration without item offsets. |
+| Separators | `showsSeparators`, `separatorColor`, `separatorInsetStartPx`, `separatorInsetEndPx`, `separatorThicknessPx`, delegate `showsSeparatorAfterItem`, `addItemDecoration` | Only between items of one section. `ShadowListKitItemDecoration` draws below or above the rows, like RecyclerView's ItemDecoration without item offsets. |
 | Queries | `cellForItem`, `visibleCells`, `visibleRange`, `rectForItem`, `contentSize`, `numberOfSections`, `sectionForItem`, `firstItemIndexInSection`, `rectForHeaderInSection`, `rectForFooterInSection` | `visibleRange` runs low to high, null before the first layout. Section header and footer rows do not count. |
 | Scrolling | `scrollToItem(index, viewPosition, animated)`, `scrollToSection`, `scrollToStart`, `scrollToEnd`, `adjustOffsetBy(delta)`, `scrollEnabled`, `scrollDriven` | `viewPosition` goes from 0 at the viewport start to 1 at the end. The core keeps correcting until the item lands. `scrollEnabled` off stops the reader's scrolling and keeps taps, swipe actions and reordering. See [Driven mode](#driven-mode) for the last three. |
 | Saved position | `anchorState`, `restoreAnchorState` | The key at the viewport start and the distance into it. Lands now or once a reload brings the key. Saved in `onSaveInstanceState` when the list has an id. |
