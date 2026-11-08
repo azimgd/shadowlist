@@ -485,7 +485,9 @@ final class SwipeTests: XCTestCase {
     list.shadowListKit_swipeItem(at: 3, distance: -100, velocity: 0)
     list.shadowListKit_runSwipeFrames(for: 0.5)
     let point = try center(list, 3)
-    let local = CGPoint(x: list.bounds.width - 10, y: point.y)
+    // Inside the Delete button and clear of the scroller's track along the trailing edge, which
+    // takes the point while the scrollers show.
+    let local = CGPoint(x: list.bounds.width - 40, y: point.y)
     let screen = harness.window.convertPoint(toScreen: list.convert(local, to: nil))
     let hit = list.accessibilityHitTest(screen)
     // AppKit answers for a button through its cell.
