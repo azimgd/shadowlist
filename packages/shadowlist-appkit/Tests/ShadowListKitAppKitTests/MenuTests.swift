@@ -11,8 +11,11 @@ final class MenuTests: XCTestCase {
     NotificationCenter.default.post(name: NSMenu.didEndTrackingNotification, object: menu)
   }
 
+  // Runs the main queue past every block queued before it, however busy the machine is.
   private func spin() {
-    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+    let drained = expectation(description: "main queue drained")
+    DispatchQueue.main.async { drained.fulfill() }
+    wait(for: [drained], timeout: 5)
   }
 
   func testARightClickGetsTheDelegatesMenuAndMarksTheItem() throws {
