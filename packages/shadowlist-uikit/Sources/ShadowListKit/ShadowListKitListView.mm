@@ -128,6 +128,19 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   [_dragLink invalidate];
 }
 
+/*
+ * A list leaving its window puts back the row it holds and closes its swipe actions, as the
+ * AppKit kit does. No touch of a removed view ends.
+ */
+- (void)willMoveToWindow:(UIWindow *)newWindow
+{
+  [super willMoveToWindow:newWindow];
+  if (!newWindow) {
+    [self cancelHeldRow];
+    [self closeSwipeAnimated:NO];
+  }
+}
+
 #pragma mark - Delegate
 
 - (void)setDataSource:(id<ShadowListKitListViewDataSource>)dataSource
@@ -421,6 +434,9 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated
 {
   _editing = editing;
+  if (editing) {
+    [self cancelHeldRow];
+  }
   [self closeSwipeAnimated:animated];
   for (auto& entry : _mounted) {
     if (entry.second.isEditing != editing) {

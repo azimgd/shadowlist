@@ -18,7 +18,7 @@ static const CGFloat SHADOWLIST_KIT_LIFT_SCALE = DRAG_LIFT_SCALE;
 static const NSTimeInterval SHADOWLIST_KIT_LIFT_DURATION = DRAG_LIFT_DURATION_MS / 1000.0;
 static const NSTimeInterval SHADOWLIST_KIT_SHIFT_DURATION = DRAG_SHIFT_DURATION_MS / 1000.0;
 static const NSTimeInterval SHADOWLIST_KIT_DROP_DURATION = DRAG_DROP_DURATION_MS / 1000.0;
-static const NSTimeInterval SHADOWLIST_KIT_PRESS_DURATION = 0.35;
+static const NSTimeInterval SHADOWLIST_KIT_PRESS_DURATION = DRAG_PRESS_DURATION_MS / 1000.0;
 
 /*
  * How far a held row may move and still count as held in place, which shows its menu on release.
@@ -67,6 +67,7 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   if (enabled && !_dragPress) {
     _dragPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragPress:)];
     _dragPress.minimumPressDuration = SHADOWLIST_KIT_PRESS_DURATION;
+    _dragPress.allowableMovement = DRAG_PRESS_SLOP;
     [self addGestureRecognizer:_dragPress];
   }
   _dragPress.enabled = enabled;
@@ -75,6 +76,19 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 - (BOOL)hasHeldRow
 {
   return _heldCell != nil;
+}
+
+/*
+ * Put a held row back without a move and fail the press that holds it.
+ */
+- (void)cancelHeldRow
+{
+  if (![self hasHeldRow]) {
+    return;
+  }
+  [self endDrag:NO];
+  _dragPress.enabled = NO;
+  _dragPress.enabled = self.reorderEnabled;
 }
 
 - (CGAffineTransform)transformAlong:(double)along cross:(double)cross
@@ -98,6 +112,12 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   [self setDragTouch:location];
   switch (press.state) {
     case UIGestureRecognizerStateBegan:
+      if (![self dragPressHeldStill]) {
+        // The finger scrolled the list during the hold. Fail the press, the scroll goes on.
+        press.enabled = NO;
+        press.enabled = self.reorderEnabled;
+        break;
+      }
       _dragStart = location;
       _dragMoved = NO;
       [self beginDragAtPoint:location];
@@ -120,6 +140,20 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   }
 }
 
+/*
+ * A finger that scrolled the list farther than the core's DRAG_PRESS_SCROLL_SLOP along the scroll
+ * axis during the hold is a scroll, not a press.
+ */
+- (BOOL)dragPressHeldStill
+{
+  UIPanGestureRecognizer *pan = self.panGestureRecognizer;
+  if (pan.state != UIGestureRecognizerStateBegan && pan.state != UIGestureRecognizerStateChanged) {
+    return YES;
+  }
+  CGPoint moved = [pan translationInView:self];
+  return dragPressHolds(_horizontal ? moved.x : moved.y, _horizontal ? moved.y : moved.x);
+}
+
 #pragma mark - Pick up
 
 /*
@@ -137,6 +171,7 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   [self closeSwipeAnimated:YES];
   _driver.dragBegin((std::size_t)cell.row, [self along:location], [self cross:location]);
   _heldCell = cell;
+  _dragFeedback.reset(_driver.getDragOriginIndex());
   [self liftCell:cell];
   ShadowListKitDragLinkTarget *target = [ShadowListKitDragLinkTarget new];
   target.list = self;
@@ -185,15 +220,16 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 {
   cell.layer.zPosition = 2;
   cell.layer.shadowColor = UIColor.blackColor.CGColor;
-  cell.layer.shadowOpacity = 0.18f;
-  cell.layer.shadowRadius = 12;
-  cell.layer.shadowOffset = CGSizeMake(0, 4);
+  cell.layer.shadowOpacity = (float)DRAG_LIFT_SHADOW_OPACITY;
+  cell.layer.shadowRadius = DRAG_LIFT_SHADOW_RADIUS;
+  cell.layer.shadowOffset = CGSizeMake(0, DRAG_LIFT_SHADOW_OFFSET);
 }
 
 #pragma mark - Follow
 
 /*
- * Place the held row under the finger and slide the others to open the gap.
+ * Place the held row under the finger and slide the others to open the gap. A new drop spot
+ * ticks.
  */
 - (void)updateDrag
 {
@@ -208,7 +244,11 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   [self placeHeldCell];
   std::size_t insertion = _driver.getDragInsertionIndex();
   _driver.dragUpdateInsertion([self mountedIndices]);
-  [self applyDragShiftsAnimated:_driver.getDragInsertionIndex() != insertion];
+  std::size_t next = _driver.getDragInsertionIndex();
+  if (_dragFeedback.shouldTick(next, CACurrentMediaTime() * 1000.0)) {
+    [[UISelectionFeedbackGenerator new] selectionChanged];
+  }
+  [self applyDragShiftsAnimated:next != insertion];
 }
 
 - (void)placeHeldCell

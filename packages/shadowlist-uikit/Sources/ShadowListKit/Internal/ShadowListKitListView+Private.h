@@ -233,6 +233,7 @@ struct ShadowListKitPassGeometry {
   __weak ShadowListKitListCell *_highlightedCell;
 
   ShadowListKitListCell *_heldCell;
+  azimgd::shadowlist::DragFeedback _dragFeedback;
   CGPoint _dragTouch;
   CGPoint _dragStart;
   CADisplayLink *_dragLink;
@@ -269,7 +270,6 @@ struct ShadowListKitPassGeometry {
   BOOL _reorderEnabled;
   BOOL _dragPressed;
   id _dragKeyMonitor;
-  azimgd::shadowlist::DragFeedback _dragFeedback;
 
   BOOL _swipesItems;
   BOOL _swipeTracking;
@@ -569,11 +569,13 @@ struct ShadowListKitPassGeometry {
 #else
 /*
  * hasHeldRow says whether a row is held. UIScrollView's isDragging is the scroll gesture, not
- * this. adoptHeldCell: lifts the new cell a reload gave the held row.
+ * this. cancelHeldRow puts a held row back without a move. adoptHeldCell: lifts the new cell a
+ * reload gave the held row.
  */
 @interface ShadowListKitListView (Drag)
 
 - (BOOL)hasHeldRow;
+- (void)cancelHeldRow;
 - (void)updateDrag;
 - (void)adoptHeldCell:(ShadowListKitListCell *)cell;
 - (void)enableDragPress:(BOOL)enabled;

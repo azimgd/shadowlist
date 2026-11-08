@@ -226,7 +226,7 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
 
 - (void)settleSwipeTo:(SwipeRest)rest
 {
-  ShadowListKitListCell *cell = _swipeCell;
+  ShadowListKitSwipeActionsView *view = _swipeActionsView;
   [UIView animateWithDuration:SHADOWLIST_KIT_SWIPE_DURATION delay:0 usingSpringWithDamping:1 initialSpringVelocity:0
                       options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
                    animations:^{
@@ -234,7 +234,7 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
                      [self->_swipeActionsView layoutIfNeeded];
                    }
                    completion:^(BOOL) {
-                     if (rest.side == SwipeSide::None && cell == self->_swipeCell && self->_swipeOffset == 0) {
+                     if (rest.side == SwipeSide::None && view == self->_swipeActionsView && self->_swipeOffset == 0) {
                        [self tearDownSwipe];
                      }
                    }];
@@ -246,12 +246,14 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
 }
 
 /*
- * Run an action. Its completion closes the row, unless the action deleted it.
+ * Run an action. Its completion closes the row it was swiped open on, unless the action deleted
+ * the row or the row closed and opened again since. A reused cell can show another row by then,
+ * and the actions view of the swipe tells them apart.
  */
 - (void)performSwipeAction:(ShadowListKitSwipeAction *)action
 {
-  ShadowListKitListCell *cell = _swipeCell;
-  if (!action || !cell) {
+  ShadowListKitSwipeActionsView *view = _swipeActionsView;
+  if (!action || !_swipeCell) {
     return;
   }
   if (!action.handler) {
@@ -259,10 +261,12 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
     return;
   }
   __weak ShadowListKitListView *weakSelf = self;
+  __weak ShadowListKitSwipeActionsView *weakView = view;
   action.handler(action, ^(BOOL) {
     dispatch_async(dispatch_get_main_queue(), ^{
       ShadowListKitListView *list = weakSelf;
-      if (list && list->_swipeCell == cell) {
+      ShadowListKitSwipeActionsView *opened = weakView;
+      if (list && opened && list->_swipeActionsView == opened) {
         [list closeSwipeAnimated:YES];
       }
     });

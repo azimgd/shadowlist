@@ -295,7 +295,7 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
 
 /*
  * The list may not be the first responder, which leaves Escape to another view. The monitor
- * sees every key of the app while a row is held.
+ * holds every key of the list's window while a row is held. Other windows keep theirs.
  */
 - (void)startDragKeyMonitor
 {
@@ -305,7 +305,7 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   __weak ShadowListKitListView *weakSelf = self;
   _dragKeyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent *(NSEvent *event) {
     ShadowListKitListView *list = weakSelf;
-    if (![list hasHeldRow]) {
+    if (![list hasHeldRow] || event.window != list.window) {
       return event;
     }
     if (event.keyCode == SHADOWLIST_KIT_ESCAPE_KEY_CODE) {

@@ -563,6 +563,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   if (window != previous) {
     _dragPressed = NO;
     [self endDrag:NO];
+    [self closeSwipeAnimated:NO];
   }
   if (previous) {
     [NSNotificationCenter.defaultCenter removeObserver:self name:NSWindowDidBecomeKeyNotification object:previous];
