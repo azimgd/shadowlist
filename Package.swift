@@ -5,6 +5,8 @@ import PackageDescription
 /*
  * The core includes itself as <shadowlist-core/...>, which resolves from the packages folder.
  * The AppKit kit links the platform neutral files of the UIKit kit, which compile once in each.
+ * The ShadowListKit product builds for iOS only and ShadowListKitAppKit for macOS only. A Mac
+ * app links ShadowListKitAppKit, and swift build on a Mac names it with --target.
  */
 let package = Package(
   name: "ShadowListKit",

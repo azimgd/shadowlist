@@ -5,7 +5,8 @@ It is written in Objective-C++ on the shared C++ core.
 
 ## Install
 
-Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the ShadowListKit product.
+Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the ShadowListKit product. It builds for iOS only.
+A Mac app takes the ShadowListKitAppKit product of the same package.
 
 ```swift
 .package(url: "https://github.com/azimgd/shadowlist", from: "0.9.0")

@@ -11,7 +11,9 @@ over it. With `scrollDriven` a host such as a two axis grid moves it instead.
 
 ## Install
 
-Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the ShadowListKitAppKit product.
+Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the ShadowListKitAppKit product. The package's
+ShadowListKit product is the UIKit kit and builds for iOS only, and `swift build` on a Mac takes
+`--target ShadowListKitAppKit`.
 
 ```swift
 .package(url: "https://github.com/azimgd/shadowlist", from: "0.9.0")
