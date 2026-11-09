@@ -23,6 +23,7 @@ export const Avatar = memo(
   ({ name, uri, color, size = 40, style }: AvatarProps) => {
     const theme = useTheme();
     const styles = useStyles();
+    // The initials stay underneath and show while the image loads or when it fails.
     return (
       <View
         style={[
@@ -39,7 +40,6 @@ export const Avatar = memo(
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
-        {/* Initials stay underneath and show while the image loads or when it fails. */}
         <Text
           style={[styles.initials, { fontSize: Math.floor(size * 0.43) }]}
           allowFontScaling={false}

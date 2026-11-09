@@ -147,10 +147,10 @@ has full signatures and defaults. Rows marked Mac only have no UIKit counterpart
 | Scrolling | `scrollToItemAtIndex:viewPosition:animated:`, `scrollToSection:animated:`, `scrollToStartAnimated:`, `scrollToEndAnimated:` | `viewPosition` goes from 0 at the viewport start to 1 at the end. The core keeps correcting until the item lands. |
 | Saved position | `anchorState`, `restoreAnchorState:` | The key at the viewport start and the distance into it. Lands now or once a reload brings the key. Saved with the window's state restoration when the list has an `identifier`. |
 | Accessibility | A table of one column, every item a row | See [Accessibility](#accessibility). |
-| Scroll engine | `ShadowListKitScrollEngine`: `axes`, `offset`, `contentSize`, `viewportSize`, `maxOffset`, `lineScroll`, `phase`, `animating`, `handleScrollWheel:`, `animateToOffset:`, `stopScrolling` | Mac only. See [Scrolling](#scrolling). |
+| Scroll engine | `ShadowListKitScrollEngine`: `initWithView:`, `axes`, `offset`, `contentSize`, `viewportSize`, `maxOffset`, `lineScroll`, `phase`, `animating`, `handleScrollWheel:`, `animateToOffset:`, `stopScrolling` | Mac only. See [Scrolling](#scrolling). |
 | Scroll engine delegate | `scrollEngine:didScrollToOffset:`, `scrollEngine:didChangePhase:`, `scrollEngineDidEndAnimation:`, `scrollEngine:restingOffsetForOffset:` | Mac only. The first is required. `scrollEngine:restingOffsetForOffset:` moves where a gesture rests, like an item edge. |
 | Scrollers | `ShadowListKitScrollerView`: `axes`, `contentSize`, `offset`, `scrollerInsets`, `showsScrollersAlways`, `flashScrollers` | Mac only. Overlay scrollers for a view that owns its scroll position. |
-| Scrollers delegate | `scrollerView:didScrollToOffset:`, `scrollerViewDidScrollForAccessibility:` | Mac only. The first is required. The host moves its content to the offset. |
+| Scrollers delegate | `scrollerView:didScrollToOffset:`, `scrollerViewDidScrollForAccessibility:`, `scrollerViewWillBeginDragging:`, `scrollerViewDidEndDragging:` | Mac only. The first is required. The host moves its content to the offset. |
 | Text | `ShadowListKitTextLayout`, `ShadowListKitTextView` | Text typeset off the main thread with an `NSFont` and shown as a bitmap at the window's backing scale, the same CoreText code as the UIKit kit. |
 
 Masonry is round robin by row: row `r`, counting section header and footer rows, goes in column
@@ -298,7 +298,7 @@ from where they showed, the same changes the UIKit kit animates with the core's 
 position, additive for a slide, which leaves the frame the list gives a cell and the transform a drag shifts it
 by to the list. A deleted item's cell goes back to the pool once its fade ends. `itemAnimator` takes another
 animator with the same calls as the UIKit kit, and `performBatchUpdates:completion:` finishes after the default
-animator's animation. A driven list animates the same way and reports its corrections as before. Off, the
+animator's animation. A driven list animates the same way and reports its corrections the same way. Off, the
 default, the list has no animator state and adds no work to a layout pass.
 
 ## Accessibility
@@ -334,7 +334,7 @@ Left out on the Mac:
 | Scroll to top on a status bar tap | A Mac window has no status bar. `scrollToStartAnimated:` remains. |
 | `UIScrollViewDelegate` | The list is not a scroll view. Its delegate has the scroll calls under `listView` names. |
 
-Only on the Mac so far, not in the UIKit or Android kits:
+Only on the Mac, not in the UIKit or Android kits:
 
 - The swipe actions as an item's menu when the delegate gives it none.
 - The swipe actions as accessibility custom actions.
@@ -365,8 +365,7 @@ cd packages/shadowlist-appkit && swift test
 
 `swift test` runs the kit's XCTest suites on this Mac: mounting, data changes, sections, driven mode, scrolling,
 the scroll engine and scrollers, selection, hover, menus, drag reorder, change animations, accessibility, swipe
-actions, the text layout and the models. The kit has no Bench app yet. The UIKit and Android kits measure theirs
-there.
+actions, the text layout and the models.
 
 [ShadowListKitListView+Testing.h](Sources/ShadowListKit/include/ShadowListKit/ShadowListKitListView+Testing.h)
 drives the list without a trackpad, a mouse or a keyboard, for tests and scripted checks. Frames run at once
@@ -379,6 +378,7 @@ instead of on the display link.
 | Menus | `shadowListKit_menuForItemAtIndex:modifierFlags:`, `shadowListKit_menuOutline` | A right click, or a Control-click with the Control flag. |
 | Swipe actions | `shadowListKit_swipeItemAtIndex:distance:velocity:`, `shadowListKit_swipeWheelDelta:phase:momentumPhase:atPoint:`, `shadowListKit_runSwipeFramesFor:`, `shadowListKit_swipedIndex`, `shadowListKit_swipeOffset`, `shadowListKit_swipeActionsView` | The first is the UIKit kit's selector. `swipedIndex` is `NSNotFound` with no item open. |
 | Drag reorder | `shadowListKit_beginDragAtPoint:`, `shadowListKit_moveDragToPoint:`, `shadowListKit_endDrag`, `shadowListKit_mouseDownAtPoint:`, `shadowListKit_mouseDragToPoint:`, `shadowListKit_mouseUpAtPoint:`, `shadowListKit_runDragFramesFor:`, `shadowListKit_heldIndex`, `shadowListKit_dropIndex` | The first three are the UIKit kit's selectors and lift at once. The mouse calls lift past the drag slop. |
+| Counters | `shadowListKit_layoutPassCount`, `shadowListKit_corePassCount`, `shadowListKit_mountPassCount`, `shadowListKit_viewsBehind` | The layout, core and mount passes since the list was made. `viewsBehind` says a driven list's views lag behind their layers. |
 | Accessibility | `shadowListKit_accessibilityNotificationHandler` | Hears every notification the list posts, with its user info. |
 | Scroll engine | `shadowListKit_runFramesFor:` | On `ShadowListKitScrollEngine`. |
 | Scrollers | `shadowListKit_verticalThumbFrame`, `shadowListKit_horizontalThumbFrame`, `shadowListKit_setScrollerStyle:`, `shadowListKit_hideScrollers` | On `ShadowListKitScrollerView`. A thumb's frame is `CGRectNull` while hidden. |

@@ -48,17 +48,20 @@ export interface ShadowListKitLoadOptions {
 
 /*
  * The Emscripten options for a load: source as the module's bytes or the compiled module, else
- * locateFile, else shadowlistkit.wasm next to shadowlistkit.mjs.
+ * locateFile, else shadowlistkit.wasm next to shadowlistkit.mjs. instantiateWasm has no way to
+ * fail the load. A compiled module that does not instantiate calls fail instead.
  */
 function moduleOptions(
-  options: ShadowListKitLoadOptions | undefined
+  options: ShadowListKitLoadOptions | undefined,
+  fail: (reason: unknown) => void
 ): Parameters<typeof createShadowListKitModule>[0] {
   const source = options?.source;
   if (source instanceof WebAssembly.Module) {
     return {
       instantiateWasm: (imports, done) => {
-        WebAssembly.instantiate(source, imports).then((instance) =>
-          done(instance, source)
+        WebAssembly.instantiate(source, imports).then(
+          (instance) => done(instance, source),
+          fail
         );
         return {};
       },
@@ -66,6 +69,21 @@ function moduleOptions(
   }
   if (source !== undefined) return { wasmBinary: source };
   return { locateFile: options?.locateFile };
+}
+
+/*
+ * Wire a loaded module to the cores and read the core's constants.
+ */
+function install(loaded: ShadowListKitModule) {
+  loaded.shadowListKitMeasureRows = (handle, rows, crossSizes, count, sizes) =>
+    cores.get(handle)?.deref()?.measureRowsAt(rows, crossSizes, count, sizes);
+  loaded.shadowListKitPrefetchRows = (handle, packed) =>
+    cores.get(handle)?.deref()?.prefetchRowsAt(packed);
+  const at = loaded._malloc(constants.length * 8);
+  loaded._ShadowListKitCore_nativeConstants(at);
+  constants.set(loaded.HEAPF64.subarray(at / 8, at / 8 + constants.length));
+  loaded._free(at);
+  wasmModule = loaded;
 }
 
 /*
@@ -77,29 +95,21 @@ function moduleOptions(
 export function loadShadowListKit(
   options?: ShadowListKitLoadOptions
 ): Promise<void> {
-  loading ??= createShadowListKitModule(moduleOptions(options)).then(
-    (loaded) => {
-      loaded.shadowListKitMeasureRows = (
-        handle,
-        rows,
-        crossSizes,
-        count,
-        sizes
-      ) =>
-        cores
-          .get(handle)
-          ?.deref()
-          ?.measureRowsAt(rows, crossSizes, count, sizes);
-      loaded.shadowListKitPrefetchRows = (handle, packed) =>
-        cores.get(handle)?.deref()?.prefetchRowsAt(packed);
-      const at = loaded._malloc(constants.length * 8);
-      loaded._ShadowListKitCore_nativeConstants(at);
-      constants.set(loaded.HEAPF64.subarray(at / 8, at / 8 + constants.length));
-      loaded._free(at);
-      wasmModule = loaded;
-    }
-  );
-  return loading;
+  if (loading) return loading;
+  // A failed load is forgotten. The next call tries again.
+  const attempt = new Promise<ShadowListKitModule>((resolve, reject) => {
+    createShadowListKitModule(moduleOptions(options, reject)).then(
+      resolve,
+      reject
+    );
+  })
+    .then(install)
+    .catch((error: unknown) => {
+      if (loading === attempt) loading = null;
+      throw error;
+    });
+  loading = attempt;
+  return attempt;
 }
 
 export function isShadowListKitLoaded(): boolean {

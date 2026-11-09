@@ -44,7 +44,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 @property (nonatomic, weak) ShadowListKitListView *list;
 @end
 
-// The legacy action calls are the only way to take AXScrollToVisible before macOS 26.
+// The informal protocol's action calls are the only way to take AXScrollToVisible before macOS 26.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-implementations"
 

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <string>
 
+#include "ShadowListJavaStrings.h"
 #include "ShadowListStoreJsi.h"
 #include "ShadowListStoreModule.h"
 
@@ -42,12 +43,7 @@ JNIEXPORT jint JNICALL SL_KEYS_JNI(nativeIndexOfKey)(JNIEnv* env, jclass, jlong 
   if (!snapshot || key == nullptr) {
     return -1;
   }
-  const char* chars = env->GetStringUTFChars(key, nullptr);
-  std::string value = chars != nullptr ? chars : "";
-  if (chars != nullptr) {
-    env->ReleaseStringUTFChars(key, chars);
-  }
-  std::size_t row = snapshot->indexOfKey(value);
+  std::size_t row = snapshot->indexOfKey(azimgd::shadowlist::stringFromJava(env, key));
   return row == azimgd::shadowlist::UNDEFINED_INDEX ? -1 : static_cast<jint>(row);
 }
 

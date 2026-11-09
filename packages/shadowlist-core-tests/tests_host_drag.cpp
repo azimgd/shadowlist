@@ -223,7 +223,7 @@ TEST(drag_a_row_at_the_edge_it_started_at_stays) {
 }
 
 TEST(drag_with_no_room_to_move_has_no_edge_to_reach) {
-  // Content no longer than the row, or not measured yet: only the midpoints count, as they did.
+  // Content no longer than the row, or not measured yet: only the midpoints count.
   CHECK_EQ(droppedAt({100.0, 0.0}, 0, 5000.0), std::size_t{0});
   DragReorder drag;
   drag.begin(3, "k3", 300.0, 100.0, 350.0);

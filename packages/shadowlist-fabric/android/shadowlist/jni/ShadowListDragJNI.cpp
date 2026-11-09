@@ -15,6 +15,8 @@
 
 #include <shadowlist-core/host/DragReorder.hpp>
 
+#include "ShadowListJavaStrings.h"
+
 namespace {
 
 namespace sl = azimgd::shadowlist;
@@ -41,19 +43,6 @@ std::size_t indexFromJint(jint index) {
 
 jint jintFromIndex(std::size_t index) {
   return index == sl::UNDEFINED_INDEX ? -1 : static_cast<jint>(index);
-}
-
-std::string stringFromJava(JNIEnv* env, jstring value) {
-  if (value == nullptr) {
-    return {};
-  }
-  const char* chars = env->GetStringUTFChars(value, nullptr);
-  if (chars == nullptr) {
-    return {};
-  }
-  std::string result(chars);
-  env->ReleaseStringUTFChars(value, chars);
-  return result;
 }
 
 /*
@@ -145,7 +134,7 @@ JNIEXPORT void JNICALL SL_DRAG_JNI(nativeBegin)(
   jdouble touchAlong,
   jdouble touchCross,
   jint columns) {
-  sl::DragRow resting{indexFromJint(index), stringFromJava(env, key), leading, extent, crossLeading, crossExtent};
+  sl::DragRow resting{indexFromJint(index), sl::stringFromJava(env, key), leading, extent, crossLeading, crossExtent};
   Peer* peer = peerOf(handle);
   peer->drag.begin(resting, touchAlong, touchCross, columns > 0 ? static_cast<std::size_t>(columns) : 1);
   peer->feedback.reset(peer->drag.getOriginIndex());
@@ -153,7 +142,7 @@ JNIEXPORT void JNICALL SL_DRAG_JNI(nativeBegin)(
 }
 
 JNIEXPORT void JNICALL SL_DRAG_JNI(nativeUpdateOrigin)(JNIEnv* env, jclass, jlong handle, jint index, jstring key) {
-  peerOf(handle)->drag.updateOrigin(indexFromJint(index), stringFromJava(env, key));
+  peerOf(handle)->drag.updateOrigin(indexFromJint(index), sl::stringFromJava(env, key));
 }
 
 /*
@@ -216,7 +205,7 @@ JNIEXPORT void JNICALL SL_DRAG_JNI(nativeUpdateInsertion)(
       sl::DragRow& target = peer->rows[row];
       target.index = indexFromJint(indices[row]);
       auto key = static_cast<jstring>(env->GetObjectArrayElement(keysArray, static_cast<jsize>(row)));
-      target.key = stringFromJava(env, key);
+      target.key = sl::stringFromJava(env, key);
       if (key != nullptr) {
         env->DeleteLocalRef(key);
       }
@@ -288,11 +277,11 @@ JNIEXPORT jint JNICALL SL_DRAG_JNI(nativeInsertionIndex)(JNIEnv*, jclass, jlong 
 }
 
 JNIEXPORT jstring JNICALL SL_DRAG_JNI(nativeOriginKey)(JNIEnv* env, jclass, jlong handle) {
-  return env->NewStringUTF(peerOf(handle)->drag.getOriginKey().c_str());
+  return sl::stringToJava(env, peerOf(handle)->drag.getOriginKey());
 }
 
 JNIEXPORT jstring JNICALL SL_DRAG_JNI(nativeInsertionKey)(JNIEnv* env, jclass, jlong handle) {
-  return env->NewStringUTF(peerOf(handle)->drag.getInsertionKey().c_str());
+  return sl::stringToJava(env, peerOf(handle)->drag.getInsertionKey());
 }
 
 JNIEXPORT jdouble JNICALL SL_DRAG_JNI(nativeLeading)(JNIEnv*, jclass, jlong handle) {

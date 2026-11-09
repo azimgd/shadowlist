@@ -44,6 +44,10 @@ export const ProgressRing = memo(
       [size, strokeWidth, color, trackColor, colors]
     );
     const degrees = clampFraction(fraction) * 360;
+    /*
+     * The arc is two half rings. From twelve to six the left half ring turns into the right
+     * half. From six back to twelve the right half ring turns into the left half.
+     */
     return (
       <View
         style={[styles.frame, style]}
@@ -53,7 +57,6 @@ export const ProgressRing = memo(
         <View style={[styles.ring, styles.track]} />
         {degrees > 0 ? (
           <>
-            {/* Twelve to six: the left half ring, turned into the right half. */}
             <View style={[styles.half, styles.rightHalf]}>
               <View
                 style={[
@@ -67,7 +70,6 @@ export const ProgressRing = memo(
                 </View>
               </View>
             </View>
-            {/* Six back to twelve: the right half ring, turned into the left half. */}
             {degrees > 180 ? (
               <View style={[styles.half, styles.leftHalf]}>
                 <View

@@ -172,6 +172,9 @@ A few tokens choose a platform's idiom rather than a metric. Each default draws 
 | `createTheme(base, overrides)` | Applies partial overrides to a base theme. |
 | `createStyles(factory)` → `useStyles` | Builds a hook that creates styles from the theme and caches them per theme object. |
 | `lightTheme`, `darkTheme` | The included themes. |
+| `macOSAppKitTheme`, `systemTheme()` | One macOS theme of AppKit semantic colors for both appearances, and the theme `useTheme` returns without a provider. |
+| `semantic(...names)`, `dynamic(tuple)`, `withEffect(color, effect)` | macOS colors: AppKit semantic colors, one authored color per appearance, and a system effect on a color. |
+| `cssColor(color)` | Narrows a token to the plain CSS string that React Navigation takes. It does not convert AppKit semantic colors. |
 
 ### Labels (i18n)
 
@@ -195,13 +198,14 @@ Merged labels keep the same identity while their values don't change. An inline 
 | --- | --- |
 | `Avatar({ name, uri?, color?, size? })` | Shows initials, with the image on top when `uri` is set. The color is derived from `name`. |
 | `Spinner({ size?, color?, labels? })`, `defaultSpinnerLabels` | Centered activity indicator. |
+| `RedactedText({ children, numberOfLines? })` | Draws one bar per line of the given words, for a placeholder row. The words are laid out and hidden. |
 | `ListHeader({ title, subtitle? })`, `ListFooter({ text })` | Header and footer blocks for lists. |
 | `SectionHeader({ title, count? })`, `ItemSeparator({ highlighted? })` | Section header and separator line. |
 | `TemplateList({ data, templates, horizontal?, listRef? })` (`TemplateRow`, `TemplateMap`) | A ShadowList of mixed rows. Each row has a `kind`, and `templates` maps each kind to its renderer. Selection, keyboard selection, swipe actions, menus, `contentContainerStyle`, `persistentKeys`, `ListHeaderComponent`, `onScroll`, `scrollEventThrottle` and `keyboardDismissMode` pass through to the list. |
 | `PortalHost()`, `usePortal(node)` | A layer over the whole window: mount one `PortalHost` last in the root view, and `usePortal` draws a sheet or menu there while its caller is mounted, answering whether a host took it. For desktops, where no system modal window covers the app. |
 | `useLargeText(threshold = 1.3)` | True at accessibility text sizes. Shares one `Dimensions` listener across callers. |
 | `useKeyboardVisible()` | True while the keyboard is on screen. |
-| `useKeyboardLift({ gap? })` | Returns an animated `translateY` that lifts a composer above the keyboard. |
+| `useKeyboardLift({ gap? })`, `useKeyboardSpace({ gap? })` | Returns an animated `translateY` that lifts a composer above the keyboard, or the same lift as bottom padding that shrinks the list. |
 
 See [native exports](src/native/index.ts) for icons and their prop types.
 
@@ -212,13 +216,13 @@ See [native exports](src/native/index.ts) for icons and their prop types.
 | `PillButton({ label, onPress, variant?, disabled? })` | `primary`, `tinted`, `plain` or `destructive` pill. |
 | `IconButton({ icon, onPress, accessibilityLabel })` | Round tinted button around a glyph. |
 | `DashedButton({ label, onPress, disabled? })` | Dashed outline across the full width that adds one more of something. |
-| `Chip({ label, onPress, variant?, mono? })`, `ChipRow` | Shortcut chips in a row that wraps. |
+| `Chip({ label, onPress?, onClear?, selected?, variant?, size?, mono? })`, `ChipRow` | Shortcut chips in a row that wraps. `onClear` adds a clear button. |
 | `ChoiceChip({ label, tint, selected, onPress })` | One choice in its own color, ringed and ticked when selected. |
 | `SearchField({ value, onChange, icon?, labels? })` | Filled search box. `defaultSearchFieldLabels`. |
-| `TextField({ value, onChange, placeholder?, multiline? })` | Filled text box for a value typed verbatim. |
+| `TextField({ value, onChange, placeholder?, keyboardType?, multiline? })` | Filled text box for a value typed verbatim. |
 | `Segmented({ options, value, onChange, size? })` | Drawn segmented control. `compact` sizes it to its labels. |
 | `ProgressBar({ fraction, accessibilityLabel, color?, height? })` | Rounded bar with a progressbar role. |
-| `ProgressRing({ fraction, size?, strokeWidth?, color? })` | Ring that fills clockwise. Hidden from screen readers. |
+| `ProgressRing({ fraction, size?, strokeWidth?, color?, trackColor? })` | Ring that fills clockwise. Hidden from screen readers. |
 | `IndexBadge({ index })` | Position in an ordered list. |
 | `EmptyState({ icon?, title, message? })` | What a screen says before it has anything to show. |
 
@@ -243,7 +247,7 @@ See [TemplatesScreen](../../templates/shadowlist-fabric-example/src/screens/Temp
 | Export | Description |
 | --- | --- |
 | `Grouped.Card`, `Grouped.Caption({ title })`, `Grouped.Section({ title? })` | A card, the caption over it (uppercase unless `grouped.captionCase` is `'none'`), and the two together. |
-| `Grouped.Row({ title, subtitle?, leading?, trailing?, chevron?, separated?, onLongPress?, longPressLabel?, testID? })` | A row that leads somewhere. The long press is also a screen reader action. Swipe actions and a menu work as in `Grouped.Actions`. |
+| `Grouped.Row({ title, subtitle?, leading?, trailing?, chevron?, onPress?, disabled?, separated?, onLongPress?, longPressLabel?, testID? })` | A row that leads somewhere. The long press is also a screen reader action. Swipe actions and a menu work as in `Grouped.Actions`. |
 | `Grouped.Actions({ leadingSwipeActions?, trailingSwipeActions?, contextMenu? })` | Gives a custom card row the swipe actions and menu of a list row: a swipe on iOS and Android, a right click on macOS. A destructive action takes the theme's red. The row needs its own background. |
 | `Grouped.Separator({ inset? })` | Hairline that starts at `inset`, the row inset by default. |
 | `Form.Card`, `Form.Row({ label, stacked? })` | A form card that draws its own separators, and a row with a label and a value. Large text stacks the label. |
@@ -336,7 +340,7 @@ custom handler before opening them.
 `Board.List` lays columns side by side in a horizontal scroll that snaps to each column. Every column is a
 `DraggableList` on one [drag board](../shadowlist-fabric/README.md#drag-boards), with a header that shows
 its title and count and a "Drop cards here" hint while it is empty. A card moves within its column or into another
-one. Boards are implemented on iOS, Android and macOS and have been exercised on iOS. `useDragBoardState` holds the columns and applies each move:
+one. Boards work on iOS, Android and macOS. `useDragBoardState` holds the columns and applies each move:
 
 ```tsx
 import { Board, useDragBoardState, type BoardColumn } from 'shadowlist-utils/native';
@@ -361,7 +365,7 @@ the Move to action of VoiceOver and TalkBack. Without `onMoveItem` the cards sta
 cards" instead of where to drop them.
 
 `renderColumnFooter(column)` draws a view under a column's cards, such as an add row. It sits outside the column's
-list, so it never lifts, never drags and takes no place among the cards. A card let go over it lands in that column
+list. It never lifts, never drags and takes no place among the cards. A card let go over it lands in that column
 where its gap last showed, which is the end for a card brought down past the last one. A drag board cannot keep
 one row from lifting: a card that must stay put either stays out of `items` or has its move refused in
 `onMoveItem`. `renderColumnHeader(column)` takes the default header's place, and then the header's accessibility
@@ -371,13 +375,13 @@ A column takes 78% of the board, at most 360 points, with the next column's edge
 column's width in points instead, for a board that lines its columns up with the rest of a page, and the snap to
 each column follows it. A column narrower than 78% of the board keeps 24 points of padding before the first column,
 and one as wide or wider is centred. `sidePadding` sets that inset in points instead, before the first column and
-after the last, so the first column starts at the page's own gutter. A `columnWidth` that is not a positive number
+after the last. The first column then starts at the page's own gutter. A `columnWidth` that is not a positive number
 and a `sidePadding` that is negative or not finite are ignored.
 
 By default the columns fill the height the board is given. A board inside a page sets `columnHeight="content"`
 and sizes itself to its cards: every column's cards are as tall as the tallest column's, measured by its list,
-between `minColumnHeight` (120) and `maxColumnHeight` (60% of the window height, of the screen on macOS), so each column is a drop target down the
-whole board. A column taller than that scrolls inside, and one that fits does not, so a swipe on it scrolls the
+between `minColumnHeight` (120) and `maxColumnHeight` (60% of the window height, of the screen on macOS). Each column is a drop target down the
+whole board. A column taller than that scrolls inside. One that fits does not, and a swipe on it scrolls the
 page. Until a column has measured its cards, each counts `estimatedItemHeight` (64).
 
 | Export | Description |

@@ -16,6 +16,8 @@
 #include <shadowlist-core/host/DragBoard.hpp>
 #include <shadowlist-core/host/DragReorder.hpp>
 
+#include "ShadowListJavaStrings.h"
+
 namespace {
 
 namespace sl = azimgd::shadowlist;
@@ -41,19 +43,6 @@ std::size_t indexFromJint(jint index) {
 
 jint jintFromIndex(std::size_t index) {
   return index == sl::UNDEFINED_INDEX ? -1 : static_cast<jint>(index);
-}
-
-std::string stringFromJava(JNIEnv* env, jstring value) {
-  if (value == nullptr) {
-    return {};
-  }
-  const char* chars = env->GetStringUTFChars(value, nullptr);
-  if (chars == nullptr) {
-    return {};
-  }
-  std::string result(chars);
-  env->ReleaseStringUTFChars(value, chars);
-  return result;
 }
 
 /*
@@ -120,7 +109,7 @@ JNIEXPORT void JNICALL SL_DRAG_BOARD_JNI(nativeBegin)(
   jdouble heldCenterY) {
   Peer* peer = peerOf(handle);
   peer->board.begin(
-    stringFromJava(env, homeId), stringFromJava(env, heldKey), {fingerX, fingerY}, {heldCenterX, heldCenterY});
+    sl::stringFromJava(env, homeId), sl::stringFromJava(env, heldKey), {fingerX, fingerY}, {heldCenterX, heldCenterY});
   peer->scroll.begin(fingerX);
   peer->step = {};
   peer->release = {};
@@ -148,7 +137,7 @@ JNIEXPORT jint JNICALL SL_DRAG_BOARD_JNI(nativeFrame)(
   if (candidatesArray != nullptr && count > 0 && env->GetArrayLength(candidatesArray) >= count) {
     for (jint position = 0; position < count; ++position) {
       auto id = static_cast<jstring>(env->GetObjectArrayElement(candidatesArray, position));
-      candidates.push_back(stringFromJava(env, id));
+      candidates.push_back(sl::stringFromJava(env, id));
       if (id != nullptr) {
         env->DeleteLocalRef(id);
       }
@@ -168,7 +157,7 @@ JNIEXPORT jint JNICALL SL_DRAG_BOARD_JNI(nativeFrame)(
 }
 
 JNIEXPORT jstring JNICALL SL_DRAG_BOARD_JNI(nativeStepNext)(JNIEnv* env, jclass, jlong handle) {
-  return env->NewStringUTF(peerOf(handle)->step.next.c_str());
+  return sl::stringToJava(env, peerOf(handle)->step.next);
 }
 
 /*
@@ -203,12 +192,12 @@ JNIEXPORT jint JNICALL SL_DRAG_BOARD_JNI(nativeRelease)(
   jdouble nowMs) {
   Peer* peer = peerOf(handle);
   peer->release = peer->board.release(
-    indexFromJint(insertionIndex), stringFromJava(env, insertionKey), indexFromJint(rowCount), nowMs);
+    indexFromJint(insertionIndex), sl::stringFromJava(env, insertionKey), indexFromJint(rowCount), nowMs);
   return static_cast<jint>(peer->release.kind);
 }
 
 JNIEXPORT jstring JNICALL SL_DRAG_BOARD_JNI(nativeReleaseListId)(JNIEnv* env, jclass, jlong handle) {
-  return env->NewStringUTF(peerOf(handle)->release.listId.c_str());
+  return sl::stringToJava(env, peerOf(handle)->release.listId);
 }
 
 JNIEXPORT jint JNICALL SL_DRAG_BOARD_JNI(nativeReleaseIndex)(JNIEnv*, jclass, jlong handle) {
@@ -216,7 +205,7 @@ JNIEXPORT jint JNICALL SL_DRAG_BOARD_JNI(nativeReleaseIndex)(JNIEnv*, jclass, jl
 }
 
 JNIEXPORT jstring JNICALL SL_DRAG_BOARD_JNI(nativeReleaseKey)(JNIEnv* env, jclass, jlong handle) {
-  return env->NewStringUTF(peerOf(handle)->release.key.c_str());
+  return sl::stringToJava(env, peerOf(handle)->release.key);
 }
 
 JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeLanded)(
@@ -225,8 +214,8 @@ JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeLanded)(
   jlong handle,
   jstring listId,
   jboolean keysHoldHeldKey) {
-  return peerOf(handle)->board.landed(stringFromJava(env, listId), keysHoldHeldKey == JNI_TRUE) ? JNI_TRUE
-                                                                                                : JNI_FALSE;
+  const bool landed = peerOf(handle)->board.landed(sl::stringFromJava(env, listId), keysHoldHeldKey == JNI_TRUE);
+  return landed ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeExpired)(JNIEnv*, jclass, jlong handle, jdouble nowMs) {
@@ -243,7 +232,7 @@ JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeIsOverlaySettling)(JNIEnv*, j
 
 JNIEXPORT jstring JNICALL SL_DRAG_BOARD_JNI(nativeCancel)(JNIEnv* env, jclass, jlong handle) {
   std::string target = peerOf(handle)->board.cancel();
-  return env->NewStringUTF(target.c_str());
+  return sl::stringToJava(env, target);
 }
 
 JNIEXPORT void JNICALL SL_DRAG_BOARD_JNI(nativeEndFlight)(JNIEnv*, jclass, jlong handle) {
@@ -251,7 +240,7 @@ JNIEXPORT void JNICALL SL_DRAG_BOARD_JNI(nativeEndFlight)(JNIEnv*, jclass, jlong
 }
 
 JNIEXPORT void JNICALL SL_DRAG_BOARD_JNI(nativeLeave)(JNIEnv* env, jclass, jlong handle, jstring listId) {
-  peerOf(handle)->board.leave(stringFromJava(env, listId));
+  peerOf(handle)->board.leave(sl::stringFromJava(env, listId));
 }
 
 /*
@@ -262,11 +251,11 @@ JNIEXPORT jint JNICALL SL_DRAG_BOARD_JNI(nativePhase)(JNIEnv*, jclass, jlong han
 }
 
 JNIEXPORT jstring JNICALL SL_DRAG_BOARD_JNI(nativeHeldKey)(JNIEnv* env, jclass, jlong handle) {
-  return env->NewStringUTF(peerOf(handle)->board.getHeldKey().c_str());
+  return sl::stringToJava(env, peerOf(handle)->board.getHeldKey());
 }
 
 JNIEXPORT jstring JNICALL SL_DRAG_BOARD_JNI(nativeTargetId)(JNIEnv* env, jclass, jlong handle) {
-  return env->NewStringUTF(peerOf(handle)->board.getTargetId().c_str());
+  return sl::stringToJava(env, peerOf(handle)->board.getTargetId());
 }
 
 JNIEXPORT jlong JNICALL SL_DRAG_BOARD_JNI(nativeFlight)(JNIEnv*, jclass, jlong handle) {

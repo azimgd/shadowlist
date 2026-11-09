@@ -921,7 +921,7 @@ function ShadowListBaseInner<ItemT>(
         renderIndices.map((index) => {
           const item = source.itemAt(index);
 
-          if (!item) return null;
+          if (item === undefined) return null;
 
           const rowKey = source.keyAt(index)!;
           const last = index >= rowCount - 1;

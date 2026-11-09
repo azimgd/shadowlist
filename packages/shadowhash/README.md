@@ -1,8 +1,8 @@
 # shadowhash
 
 Placeholders for text and feed posts, in the spirit of BlurHash. A hash keeps the length of each word, where
-paragraphs break, the author's name length and each image's aspect ratio and mean colour. It keeps no line breaks,
-so each device wraps the stand-in words at its own width and font, and a placeholder row is the height the real row
+paragraphs break, the author's name length and each image's aspect ratio and mean colour. It keeps no line breaks.
+Each device wraps the stand-in words at its own width and font, and a placeholder row is the height the real row
 will be on a phone, a tablet or the web.
 
 | Post | Hash size |
@@ -62,12 +62,13 @@ throw anything else. A hash of any content decodes in time and memory bounded by
 
 The encoder stays inside them. A post keeps its first 64 images, `maxNibbles` above 1024 counts as 1024, and a name,
 handle, text without spaces or cut text past 65536 characters or words keeps 65536. The longest hash it writes is
-963 characters. Every hash within the limits decodes as before.
+963 characters.
 
 ## Caching on the device
 
-`createHashStore` keeps the first rows of a list between launches, through MMKV or any `getString`, `set` and
-`remove` storage. On a cold start the list draws those rows before its first request returns.
+`createHashStore(storage, { limit?, prefix? })` keeps the first rows of a list between launches, through MMKV or any
+`getString`, `set` and `remove` storage. `limit` defaults to 30 rows and `prefix` to `'shadowhash:'`. `memoryStorage()`
+is a storage that lives only in memory. On a cold start the list draws those rows before its first request returns.
 
 ```ts
 import { createMMKV } from 'react-native-mmkv';
@@ -83,8 +84,11 @@ const store = createHashStore({
 });
 ```
 
+`store.remember(listKey, entries)` saves the first `limit` `{ id, hash }` rows of a list, `store.recall(listKey)`
+reads them back and `store.forget(listKey)` drops them.
+
 The Feed screen in `templates/shadowlist-fabric-example` uses both: cached hashes on a cold start, and each page
-carries the hashes of the page after it so scrolling past the end shows rows of their real size.
+carries the hashes of the page after it. Scrolling past the end then shows rows of their real size.
 
 ## Benchmarks
 

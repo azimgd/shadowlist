@@ -9,8 +9,8 @@
  *
  * `--fix` rewrites the tables compact before it checks.
  *
- * shadowlist, shadowgrid and ream each keep a copy of this script. Only the configuration block
- * differs between them. Change the rest in all three.
+ * Other repos keep copies of this script. Only the configuration block differs between them;
+ * change the rest in every copy.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';

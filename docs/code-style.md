@@ -105,7 +105,7 @@ Every platform uses the same word for each concept and only changes the shape to
 | Hidden from accessibility | `accessibilityElement`                                                   | macOS `accessibilityElement` set to `NO` on the list                                                                                                                                                                | the host sets `importantForAccessibility` to `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS`                                          | —                                                                                                                                                                                                                                         |
 
 - A new public concept gets one row here before it ships on any platform.
-- A rename is a hard break: no alias and a minor version bump.
+- A rename moves every caller in the same change and leaves no alias.
 
 Codegen specs, the same in shadowlist and shadowgrid:
 
