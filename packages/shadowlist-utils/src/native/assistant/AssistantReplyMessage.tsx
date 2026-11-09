@@ -140,11 +140,19 @@ export const AssistantReplyMessage = memo(
     const followUps = turn.status === 'done' ? (turn.followUps ?? []) : [];
     const variantCount = message.variants.length;
 
+    /*
+     * Text and tool calls render in the order they happened. Only the last piece of text still
+     * grows. Everything above it stays put while the reply streams.
+     * The actions row stays mounted but invisible while streaming. Mounting it at the end would
+     * add a 32pt row and shift the text the reader is on. Hidden views still take touches and
+     * get read out. Both are turned off.
+     * Follow ups only exist once the turn is done, after scrolling has settled. Reserving space
+     * for them would leave a gap under every reply.
+     */
     return (
       <View style={[styles.container, style]}>
         <View style={styles.header}>
           <View style={styles.avatar}>
-            {/* The accent's own foreground stays readable on the accent disc in both modes. */}
             <SparkleIcon size={14} color={colors.onAccent} />
           </View>
           <Text style={styles.name}>{l.assistantName}</Text>
@@ -164,10 +172,6 @@ export const AssistantReplyMessage = memo(
 
         {waiting ? <AssistantTypingIndicator labels={l} /> : null}
 
-        {/*
-         * Text and tool calls in the order they happened. Only the last piece of text still
-         * grows. Everything above it stays put while the reply streams.
-         */}
         {stepsOf(turn.content, toolCalls).map((step, index, steps) =>
           step.kind === 'calls' ? (
             <View key={step.calls[0]!.id} style={styles.toolGroup}>
@@ -243,11 +247,6 @@ export const AssistantReplyMessage = memo(
           </View>
         ) : null}
 
-        {/*
-         * Stays mounted but invisible while streaming. Mounting it at the end would add a
-         * 32pt row and shift the text the reader is on. Hidden views still take touches and
-         * get read out. Both are turned off.
-         */}
         <View
           style={[styles.actions, streaming && styles.actionsHidden]}
           pointerEvents={streaming ? 'none' : 'auto'}
@@ -370,10 +369,6 @@ export const AssistantReplyMessage = memo(
           ) : null}
         </View>
 
-        {/*
-         * Follow ups only exist once the turn is done, after scrolling has settled. Reserving
-         * space for them would leave a gap under every reply.
-         */}
         {followUps.length > 0 ? (
           <AssistantLatest messageId={message.id} isLatest={isLatest}>
             {(latest) =>

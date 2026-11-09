@@ -39,13 +39,13 @@ export const AssistantMarkdownCodeBlock = ({
     return () => clearTimeout(id);
   }, [copied]);
 
+  // The copy button waits for the closing fence. Nobody wants half a block.
   return (
     <View style={styles.codeBlock}>
       <View style={styles.codeHeader}>
         <Text style={styles.codeLanguage}>
           {language || labels.codeLanguageFallback}
         </Text>
-        {/* Nobody wants half a block. Wait for the closing fence. */}
         {closed ? (
           <Pressable
             onPress={() => {

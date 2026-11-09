@@ -205,6 +205,29 @@ static inline BOOL SLFrameTraceEnabled(void)
  * once per props, see rowIndexOfKey.
  * On macOS _macDragEnded and _macMomentum track whether the live scroll's fingers lifted
  * and whether momentum followed.
+ *
+ * _rowKeysSnapshot is the key store snapshot currentRowKeysSnapshot last found, which keeps
+ * its keys alive.
+ *
+ * _mountTickLink ticks the list's ShadowListMountDriver on display frames while it has a paced
+ * step or a viewability report waiting, see pokeMountDriver.
+ *
+ * _dragTouchInWindow is the finger in window points. A drag board scrolls the view around this
+ * list, which moves _dragTouchInViewport under a finger that holds still. Each drag frame on a
+ * board reads it again from the window point. _dragBoardScroll scrolls the view around the
+ * board sideways once the finger heads for its edge. _dragFeedback decides the haptic ticks.
+ * _dropSettle waits for a drop's reorder to land. _dragLastTickTime is the previous drag
+ * frame's time, for edge scroll speeds given per second, 0 before the first frame.
+ *
+ * _dragBoard is the drag board this list is on, see ShadowListDragBoard. It is nil while
+ * dragBoardId is empty. _dragBoardToken names this list for the board's core, unique on the
+ * board where dragListId may not be. _dragBoardHiddenView is the row the board hid while its
+ * picture floats above the window. _dragBoardDropPending holds the gap a row left in its home
+ * list until the data change that removes it lands. _dragBoardLandingKey is the key of the row
+ * dropped in this list, until it mounts here. _dragBoardAnimateShifts makes the next shuffle
+ * slide, when the row came home or left this list as a target. _dragListLabel names this list
+ * in the Move to actions of the board's other lists. _dragBoardMovedKey is the key of a row
+ * VoiceOver moved into this list, until its data holds it or _dragBoardMovedDeadline passes.
  */
 @interface ShadowListView () <RCTUIScrollViewDelegate> {
 @package
@@ -276,7 +299,6 @@ static inline BOOL SLFrameTraceEnabled(void)
   BOOL _pageAnnouncementPending;
   facebook::react::Props::Shared _pageKeyIndicesProps;
   std::unordered_map<std::string, NSInteger> _pageKeyIndices;
-  // The key store snapshot currentRowKeysSnapshot last found, which keeps its keys alive.
   std::shared_ptr<const azimgd::shadowlist::RowKeysSnapshot> _rowKeysSnapshot;
 #if TARGET_OS_OSX
   BOOL _macDragEnded;
@@ -290,22 +312,10 @@ static inline BOOL SLFrameTraceEnabled(void)
   __weak RCTUIView *_droppedView;
   SLDisplayLink *_dropSettleLink;
 
-  /*
-   * Ticks the list's ShadowListMountDriver on display frames while it has a paced step or a
-   * viewability report waiting, see pokeMountDriver.
-   */
   SLDisplayLink *_mountTickLink;
   BOOL _dragging;
   azimgd::shadowlist::DragReorder _drag;
   CGPoint _dragTouchInViewport;
-  /*
-   * The finger in window points. A drag board scrolls the view around this list, which moves
-   * _dragTouchInViewport under a finger that holds still. Each drag frame on a board reads it
-   * again from the window point. _dragBoardScroll scrolls the view around the board sideways
-   * once the finger heads for its edge. _dragFeedback decides the haptic ticks. _dropSettle
-   * waits for a drop's reorder to land. _dragLastTickTime is the previous drag frame's time,
-   * for edge scroll speeds given per second, 0 before the first frame.
-   */
   CGPoint _dragTouchInWindow;
   azimgd::shadowlist::DragBoardScroll _dragBoardScroll;
   azimgd::shadowlist::DragFeedback _dragFeedback;
@@ -316,18 +326,6 @@ static inline BOOL SLFrameTraceEnabled(void)
   CGFloat _dropReleaseCross;
   NSInteger _numberOfColumns;
 
-  /*
-   * The drag board this list is on, see ShadowListDragBoard. _dragBoard is nil while
-   * dragBoardId is empty. _dragBoardToken names this list for the board's core, unique on the
-   * board where dragListId may not be. _dragBoardHiddenView is the row the board hid while its
-   * picture floats above the window. _dragBoardDropPending holds the gap a row left in its
-   * home list until the data change that removes it lands. _dragBoardLandingKey is the key of
-   * the row dropped in this list, until it mounts here. _dragBoardAnimateShifts makes the
-   * next shuffle slide, when the row came home or left this list as a target. _dragListLabel
-   * names this list in the Move to actions of the board's other lists. _dragBoardMovedKey is
-   * the key of a row VoiceOver moved into this list, until its data holds it or
-   * _dragBoardMovedDeadline passes.
-   */
   NSString *_dragBoardId;
   NSString *_dragListId;
   NSString *_dragListLabel;
