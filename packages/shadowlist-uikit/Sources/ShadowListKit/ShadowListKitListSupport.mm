@@ -6,7 +6,7 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
 
 #pragma mark - Settle frame target
 
-@implementation ShadowListKitSettleTarget
+@implementation ShadowListKitSettleLinkTarget
 
 - (void)tick:(CADisplayLink *)link
 {
@@ -45,6 +45,12 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
   return CGSizeMake(size.width, MAX(28, ceil(text.height) + 12));
 }
 
+- (void)setTitle:(NSString *)title
+{
+  _label.text = title;
+  [self setNeedsLayout];
+}
+
 - (void)layoutSubviews
 {
   [super layoutSubviews];
@@ -59,7 +65,8 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
 
 static BOOL ShadowListKitListHandles(SEL selector)
 {
-  return selector == @selector(scrollViewWillEndDragging:withVelocity:targetContentOffset:) ||
+  return selector == @selector(scrollViewDidScroll:) ||
+    selector == @selector(scrollViewWillEndDragging:withVelocity:targetContentOffset:) ||
     selector == @selector(scrollViewDidEndDragging:willDecelerate:) ||
     selector == @selector(scrollViewDidEndDecelerating:) ||
     selector == @selector(scrollViewDidEndScrollingAnimation:) ||

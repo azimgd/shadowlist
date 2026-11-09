@@ -65,6 +65,9 @@ enum ConstantSlot {
   CONSTANT_LIFT_ELEVATION,
   CONSTANT_SHIFT_DURATION_MS,
   CONSTANT_DROP_DURATION_MS,
+  CONSTANT_EVENT_START,
+  CONSTANT_EVENT_END,
+  CONSTANT_EVENT_LAND,
   CONSTANT_SLOTS,
 };
 
@@ -103,6 +106,9 @@ JNIEXPORT void JNICALL SL_DRAG_JNI(nativeConstants)(JNIEnv* env, jclass, jdouble
   values[CONSTANT_LIFT_ELEVATION] = sl::DRAG_LIFT_ELEVATION;
   values[CONSTANT_SHIFT_DURATION_MS] = sl::DRAG_SHIFT_DURATION_MS;
   values[CONSTANT_DROP_DURATION_MS] = sl::DRAG_DROP_DURATION_MS;
+  values[CONSTANT_EVENT_START] = sl::DRAG_EVENT_START;
+  values[CONSTANT_EVENT_END] = sl::DRAG_EVENT_END;
+  values[CONSTANT_EVENT_LAND] = sl::DRAG_EVENT_LAND;
   env->SetDoubleArrayRegion(out, 0, CONSTANT_SLOTS, values);
 }
 
@@ -262,7 +268,7 @@ JNIEXPORT void JNICALL SL_DRAG_JNI(nativePlaceForeignCenter)(
 }
 
 JNIEXPORT void JNICALL SL_DRAG_JNI(nativeEndForeign)(JNIEnv*, jclass, jlong handle) {
-  peerOf(handle)->drag.endForeign();
+  peerOf(handle)->drag.end();
 }
 
 JNIEXPORT jboolean JNICALL SL_DRAG_JNI(nativeIsForeign)(JNIEnv*, jclass, jlong handle) {

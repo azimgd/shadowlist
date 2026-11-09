@@ -61,8 +61,9 @@ std::size_t dragBoardDropIndex(std::size_t insertionIndex, const std::string& in
  * Where the held row is in a board drag. AtHome is over its home list, where the normal drag
  * goes on. Floating is lifted out over the board, with the last list it hovered as the
  * target. Landing is after a drop into the target, until the row shows up in the target's
- * keys or DRAG_BOARD_LAND_TIMEOUT_MS passes. Settling is the picture flying onto the landed
- * row, until the host calls endFlight. Idle is before begin and after the flight ends.
+ * keys or DRAG_BOARD_LAND_TIMEOUT_MS passes. Settling is the row landed, first waiting for its
+ * cell to mount and then, once the host calls beginOverlaySettle, the picture flying onto it,
+ * until the host calls endFlight. Idle is before begin and after the flight ends.
  */
 enum class DragBoardPhase { Idle, AtHome, Floating, Landing, Settling };
 
@@ -176,9 +177,22 @@ public:
   bool landed(const std::string& listId, bool keysHoldHeldKey);
 
   /*
-   * While Landing, whether the wait ran out at nowMs. The first true ends the flight.
+   * Whether the wait ran out at nowMs: Landing, or Settling with no picture flying yet because
+   * the landed row never mounted. Both wait DRAG_BOARD_LAND_TIMEOUT_MS from the drop. The first
+   * true ends the flight.
    */
   bool expired(double nowMs);
+
+  /*
+   * While Settling, the host starts flying the picture onto the landed row. Returns false when
+   * it already flies or the row has not landed, and the host starts nothing.
+   */
+  bool beginOverlaySettle();
+
+  /*
+   * The picture flies onto the landed row, from beginOverlaySettle until the flight ends.
+   */
+  bool isOverlaySettling() const { return overlaySettling_; }
 
   /*
    * The drag stops without a drop. The board goes idle and returns the target, empty for
@@ -242,6 +256,7 @@ private:
   bool returnMeasured_ = false;
 
   double landDeadlineMs_ = 0.0;
+  bool overlaySettling_ = false;
 };
 
 }

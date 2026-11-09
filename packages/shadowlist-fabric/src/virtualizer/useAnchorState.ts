@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type ComponentRef } from 'react';
 import ShadowListView, {
   Commands,
-  type OnAnchorState,
+  type AnchorStateEvent,
 } from '../ShadowListViewNativeComponent';
 import type { AnchorState } from '../types';
 import { keysIdentityOf, type RowSource } from './rowSource';
@@ -18,7 +18,7 @@ interface UseAnchorStateOptions {
 }
 
 interface UseAnchorStateResult {
-  handleAnchorState: (event: { nativeEvent: OnAnchorState }) => void;
+  handleAnchorState: (event: { nativeEvent: AnchorStateEvent }) => void;
   requestAnchorState: () => Promise<AnchorState | null>;
   restoreAnchorState: (state: AnchorState) => void;
 }
@@ -35,7 +35,7 @@ export function useAnchorState({
 }: UseAnchorStateOptions): UseAnchorStateResult {
   const anchorWaitersRef = useRef<((state: AnchorState | null) => void)[]>([]);
   const handleAnchorState = useCallback(
-    (event: { nativeEvent: OnAnchorState }) => {
+    (event: { nativeEvent: AnchorStateEvent }) => {
       const { found, key, offset } = event.nativeEvent;
       const waiters = anchorWaitersRef.current;
       anchorWaitersRef.current = [];
@@ -53,13 +53,15 @@ export function useAnchorState({
         return;
       }
       let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = (state: AnchorState | null) => {
         if (settled) return;
         settled = true;
+        if (timer !== undefined) clearTimeout(timer);
         resolve(state);
       };
       anchorWaitersRef.current.push(finish);
-      setTimeout(() => finish(null), ANCHOR_STATE_TIMEOUT_MS);
+      timer = setTimeout(() => finish(null), ANCHOR_STATE_TIMEOUT_MS);
       Commands.requestAnchorState(view);
     });
 

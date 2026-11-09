@@ -99,12 +99,12 @@ void Virtualizer::layoutRows(Container& container) {
    * their width from the window's cross size. That one counts.
    */
   bool layoutParamsChanged =
-    container.headerSize != container.previousLayoutHeaderSize ||
+    container.headerSize != container.state.previousLayoutHeaderSize ||
     (container.horizontal
-      ? container.revision.windowHeight != container.previousLayoutWindowHeight
-      : container.revision.windowWidth != container.previousLayoutWindowWidth) ||
-    container.numberOfColumns != container.previousLayoutNumberOfColumns ||
-    container.horizontal != container.previousLayoutHorizontal;
+      ? container.revision.windowHeight != container.state.previousLayoutWindowHeight
+      : container.revision.windowWidth != container.state.previousLayoutWindowWidth) ||
+    container.numberOfColumns != container.state.previousLayoutNumberOfColumns ||
+    container.horizontal != container.state.previousLayoutHorizontal;
 
   /*
    * The sizing loop visits every row. Only run it when it can change something:
@@ -112,25 +112,25 @@ void Virtualizer::layoutRows(Container& container) {
    * would walk the whole list for nothing.
    */
   bool fallbackDimensionsChanged =
-    fallbackWidth != container.previousFallbackWidth ||
-    fallbackHeight != container.previousFallbackHeight;
+    fallbackWidth != container.state.previousFallbackWidth ||
+    fallbackHeight != container.state.previousFallbackHeight;
 
   /*
    * Rows before the first one a structure change touched kept their size and place. A
    * removed row may have been the widest one, and only a full pass finds the new widest.
    */
   std::size_t structureFrom = UNDEFINED_INDEX;
-  if (container.rowStructureDirty) {
+  if (container.state.rowStructureDirty) {
     double crossWindow = container.horizontal ? container.revision.windowHeight
                                               : container.revision.windowWidth;
-    structureFrom = container.maxCrossAxisExtent > crossWindow ? 0 : container.rowStructureDirtyFromIndex;
+    structureFrom = container.state.maxCrossAxisExtent > crossWindow ? 0 : container.state.rowStructureDirtyFromIndex;
   }
   bool fullSizing = fallbackDimensionsChanged || layoutParamsChanged;
   std::size_t sizingFrom = fullSizing ? 0 : std::min(structureFrom, rowCount);
 
   bool anyNewlyEstimated = false;
 
-  if (fullSizing || container.rowStructureDirty) {
+  if (fullSizing || container.state.rowStructureDirty) {
     if (container.numberOfColumns > 1) {
       double Row::*size = container.horizontal ? &Row::width : &Row::height;
       double Row::*crossSize = container.horizontal ? &Row::height : &Row::width;
@@ -158,20 +158,20 @@ void Virtualizer::layoutRows(Container& container) {
       }
     }
 
-    container.previousFallbackWidth = fallbackWidth;
-    container.previousFallbackHeight = fallbackHeight;
+    container.state.previousFallbackWidth = fallbackWidth;
+    container.state.previousFallbackHeight = fallbackHeight;
   }
 
   // Recomputing offsets walks every row. Skip it unless a size, row or setting changed.
-  bool sizesDirty = container.rowSizeDirtyFromIndex != UNDEFINED_INDEX;
+  bool sizesDirty = container.state.rowSizeDirtyFromIndex != UNDEFINED_INDEX;
 
-  if (anyNewlyEstimated || layoutParamsChanged || container.rowStructureDirty || sizesDirty) {
+  if (anyNewlyEstimated || layoutParamsChanged || container.state.rowStructureDirty || sizesDirty) {
     /*
      * Reflow from the first row that moved. Setting or fallback changes can move anything.
      * They start at 0. A structure or size change only moves the rows after it. After a
      * structure change every later row may be another row. Walk them all.
      */
-    std::size_t reflowFrom = std::min(structureFrom, container.rowSizeDirtyFromIndex);
+    std::size_t reflowFrom = std::min(structureFrom, container.state.rowSizeDirtyFromIndex);
     if (anyNewlyEstimated) {
       reflowFrom = std::min(reflowFrom, sizingFrom);
     }
@@ -179,17 +179,18 @@ void Virtualizer::layoutRows(Container& container) {
       reflowFrom = 0;
     }
     std::size_t changedThroughIndex =
-      container.rowStructureDirty ? UNDEFINED_INDEX : container.rowSizeDirtyToIndex;
+      container.state.rowStructureDirty ? UNDEFINED_INDEX : container.state.rowSizeDirtyToIndex;
 
+    container.state.rowExtentChanged = container.state.rowExtentChanged || anyNewlyEstimated;
     recomputeRowOffsets(container, reflowFrom, changedThroughIndex);
-    container.previousLayoutHeaderSize = container.headerSize;
-    container.previousLayoutWindowWidth = container.revision.windowWidth;
-    container.previousLayoutWindowHeight = container.revision.windowHeight;
-    container.previousLayoutNumberOfColumns = container.numberOfColumns;
-    container.previousLayoutHorizontal = container.horizontal;
-    container.rowStructureDirty = false;
-    container.rowSizeDirtyFromIndex = UNDEFINED_INDEX;
-    container.rowSizeDirtyToIndex = 0;
+    container.state.previousLayoutHeaderSize = container.headerSize;
+    container.state.previousLayoutWindowWidth = container.revision.windowWidth;
+    container.state.previousLayoutWindowHeight = container.revision.windowHeight;
+    container.state.previousLayoutNumberOfColumns = container.numberOfColumns;
+    container.state.previousLayoutHorizontal = container.horizontal;
+    container.state.rowStructureDirty = false;
+    container.state.rowSizeDirtyFromIndex = UNDEFINED_INDEX;
+    container.state.rowSizeDirtyToIndex = 0;
   }
 }
 
@@ -201,18 +202,18 @@ void Virtualizer::recomputeRowOffsets(
 
   /*
    * All row positions are written here. This is where snap and sticky caches go stale.
-   * Only bump the geometry version when an offset really changed, or those caches get
-   * thrown away for nothing.
+   * Only bump the geometry version when an offset or a row's size really changed, or those
+   * caches get thrown away for nothing.
    */
   bool anyOffsetChanged = false;
 
   std::size_t rowCount = container.revision.rows.size();
 
   // A full pass rebuilds the widest extent. A partial pass can only grow it.
-  double crossMax = fromIndex == 0 ? 0.0 : container.maxCrossAxisExtent;
+  double crossMax = fromIndex == 0 ? 0.0 : container.state.maxCrossAxisExtent;
 
   if (fromIndex >= rowCount) {
-    container.maxCrossAxisExtent = crossMax;
+    container.state.maxCrossAxisExtent = crossMax;
     return;
   }
 
@@ -248,7 +249,7 @@ void Virtualizer::recomputeRowOffsets(
      * every row to rebuild the widest extent, and rows an insert, remove or reorder moved
      * may match their old offsets by chance.
      */
-    bool canStopEarly = fromIndex > 0 && changedThroughIndex != UNDEFINED_INDEX && !container.rowStructureDirty;
+    bool canStopEarly = fromIndex > 0 && changedThroughIndex != UNDEFINED_INDEX && !container.state.rowStructureDirty;
 
     if (container.horizontal) {
       reflowSingleTrack<&Row::offsetX, &Row::width, &Row::offsetY, &Row::height>(
@@ -259,11 +260,12 @@ void Virtualizer::recomputeRowOffsets(
     }
   }
 
-  container.maxCrossAxisExtent = crossMax;
+  container.state.maxCrossAxisExtent = crossMax;
 
-  if (anyOffsetChanged) {
-    container.geometryVersion++;
+  if (anyOffsetChanged || container.state.rowExtentChanged) {
+    container.state.geometryVersion++;
   }
+  container.state.rowExtentChanged = false;
 }
 
 void Virtualizer::recomputeContentSize(Container& container) {
@@ -280,11 +282,11 @@ void Virtualizer::recomputeContentSize(Container& container) {
   if (container.horizontal) {
     container.revision.contentWidth = std::max(extent.width, container.headerSize) + container.footerSize;
     container.revision.contentHeight =
-      std::max({extent.height, container.maxCrossAxisExtent, container.revision.windowHeight});
+      std::max({extent.height, container.state.maxCrossAxisExtent, container.revision.windowHeight});
   } else {
     container.revision.contentHeight = std::max(extent.height, container.headerSize) + container.footerSize;
     container.revision.contentWidth =
-      std::max({extent.width, container.maxCrossAxisExtent, container.revision.windowWidth});
+      std::max({extent.width, container.state.maxCrossAxisExtent, container.revision.windowWidth});
   }
 
   /*

@@ -10,7 +10,7 @@ namespace azimgd::shadowlist {
 
 /*
  * Gesture phase values a host reports. Stored as doubles in the list state.
- * Android's ShadowListView.SCROLL_PHASE_* constants must match.
+ * Android reads them through ShadowListScrollSync.nativeConstants.
  */
 constexpr double SCROLL_PHASE_IDLE = 0.0;
 constexpr double SCROLL_PHASE_DRAGGING = 1.0;

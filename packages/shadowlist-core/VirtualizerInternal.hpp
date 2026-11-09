@@ -36,7 +36,7 @@ inline double& scrollAxisOffset(Container& container) {
  */
 inline void correctOffset(Container& container, double offset) {
   scrollAxisOffset(container) = offset;
-  container.offsetCorrected = true;
+  container.state.offsetCorrected = true;
 }
 
 /*
@@ -72,7 +72,7 @@ inline bool isLastAnchorable(const Container& container, std::size_t index) {
  * It then keeps the bottom as any row is inserted or grows in place, not only the newest.
  */
 inline bool followsBottom(const Container& container) {
-  return container.inverted && container.followAppends && container.restingAtInvertedBottom;
+  return container.inverted && container.followAppends && container.state.restingAtInvertedBottom;
 }
 
 /*

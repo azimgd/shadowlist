@@ -3,8 +3,10 @@
   "compilerOptions": {
     "paths": {
       "shadowlist": ["../../packages/shadowlist-fabric/src/index"],
-      "shadowlist-utils": ["../shadowlist-utils/src/index"],
-      "shadowlist-utils/native": ["../shadowlist-utils/src/native/index"],
+      "shadowlist-utils": ["../../packages/shadowlist-utils/src/index"],
+      "shadowlist-utils/native": [
+        "../../packages/shadowlist-utils/src/native/index"
+      ],
       "react": ["./node_modules/@types/react"],
       "react/*": ["./node_modules/@types/react/*"],
       "react-native": [

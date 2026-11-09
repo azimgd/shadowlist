@@ -404,7 +404,12 @@ void SLDragSelectionFeedback(void)
 - (void)updateDrag
 {
   RCTUIView *view = _draggedView;
-  if (!_dragging || !view) {
+  if (!_dragging) {
+    return;
+  }
+  if (!view) {
+    // The held row's view went away under the drag. Nothing follows the finger any more.
+    [self cancelDrag];
     return;
   }
 
@@ -494,7 +499,16 @@ void SLDragSelectionFeedback(void)
  */
 - (void)applyDragShuffle
 {
-  BOOL animated = _dragBoard && (_drag.isForeign() || _drag.isHeldAway() || _dragBoardAnimateShifts);
+  [self applyDragShuffleAnimated:NO];
+}
+
+/*
+ * The same, sliding the rows when animated is set. On a board they slide anyway while a row
+ * is away or comes from another list, or on the frame a row came home.
+ */
+- (void)applyDragShuffleAnimated:(BOOL)forceAnimated
+{
+  BOOL animated = forceAnimated || (_dragBoard && (_drag.isForeign() || _drag.isHeldAway() || _dragBoardAnimateShifts));
   for (RCTUIView *subview in _contentView.subviews) {
     if (subview == _draggedView ||
         ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
@@ -713,10 +727,12 @@ void SLDragSelectionFeedback(void)
   BOOL wasDragging = _dragging;
   if (_dragging && _state) {
     NSString *originKey = SLDragKey(_drag.getOriginKey());
-    BOOL wasInMountObserver = _inMountObserver;
-    _inMountObserver = YES;
-    [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END sourceKey:originKey destinationKey:originKey];
-    _inMountObserver = wasInMountObserver;
+    [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END
+                    sourceKey:originKey
+               destinationKey:originKey
+            destinationListId:@""
+             destinationIndex:-1
+                        async:YES];
   }
   // A row floating over another list of the drag board flies back to its place.
   [self cancelDragBoard];

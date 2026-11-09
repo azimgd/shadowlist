@@ -30,17 +30,17 @@ bool applyLayoutInputs(Container& core, double headerSize, double footerSize, do
      * The next layout has nothing left to reflow for these inputs. The measured range still
      * comes from before they changed, and the next frame picks it again.
      */
-    core.previousLayoutHeaderSize = headerSize;
-    core.previousLayoutWindowWidth = windowWidth;
-    core.previousLayoutWindowHeight = windowHeight;
-    core.measuredRangeStale = true;
+    core.state.previousLayoutHeaderSize = headerSize;
+    core.state.previousLayoutWindowWidth = windowWidth;
+    core.state.previousLayoutWindowHeight = windowHeight;
+    core.state.measuredRangeStale = true;
   }
   // The core's frame ran with the previous header size. Settle the change now.
   Virtualizer::applyHeaderSizeChange(core, previousHeaderSize);
   // A chat resting at its bottom keeps it as the composer resizes the list.
   Virtualizer::applyWindowSizeChange(core, previousWindowSize);
   // While the user is scrolled this just writes the current offset again.
-  core.offsetCorrected = true;
+  core.state.offsetCorrected = true;
   return true;
 }
 
@@ -112,13 +112,13 @@ TemplateOffsets templateOffsets(const Container& core, double headerSize, double
 bool PublishedGeometry::refresh(const Container& core) {
   double windowSize = core.getWindowSize();
   double totalSize = core.horizontal ? core.revision.contentWidth : core.revision.contentHeight;
-  bool stale = geometryVersion_ != core.geometryVersion || snapToItem_ != core.snapToItem ||
+  bool stale = geometryVersion_ != core.state.geometryVersion || snapToItem_ != core.snapToItem ||
     snapAlignment_ != core.snapAlignment || inverted_ != core.inverted || horizontal_ != core.horizontal ||
     windowSize_ != windowSize || totalSize_ != totalSize || sourceStickyIndices_ != core.stickyIndices;
   if (!stale) {
     return false;
   }
-  geometryVersion_ = core.geometryVersion;
+  geometryVersion_ = core.state.geometryVersion;
   snapToItem_ = core.snapToItem;
   snapAlignment_ = core.snapAlignment;
   inverted_ = core.inverted;

@@ -20,6 +20,7 @@ __attribute__((used)) static const char *const ShadowListKitListViewCategoryLink
   &ShadowListKitListViewCommandsLink,
   &ShadowListKitListViewDataLink,
   &ShadowListKitListViewDragLink,
+  &ShadowListKitListViewPassesLink,
   &ShadowListKitListViewSectionsLink,
   &ShadowListKitListViewSelectionLink,
 };
@@ -36,55 +37,6 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   }
 }
 
-std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set)
-{
-  std::vector<NSUInteger> raw(set.count);
-  [set getIndexes:raw.data() maxCount:raw.size() inIndexRange:nil];
-  return std::vector<std::size_t>(raw.begin(), raw.end());
-}
-
-NSString *ShadowListKitString(const std::string& value)
-{
-  return [[NSString alloc] initWithBytes:value.data() length:value.size() encoding:NSUTF8StringEncoding] ?: @"";
-}
-
-/*
- * The string as UTF-8, embedded NULs kept. An ASCII string hands out its bytes without a copy.
- * Any other is converted straight into the result, with no autoreleased buffer in between.
- */
-std::string ShadowListKitStdString(NSString *string)
-{
-  if (!string) {
-    return std::string();
-  }
-  CFStringRef cfString = (__bridge CFStringRef)string;
-  CFIndex length = CFStringGetLength(cfString);
-  const char *ascii = CFStringGetCStringPtr(cfString, kCFStringEncodingASCII);
-  if (ascii) {
-    return std::string(ascii, (std::size_t)length);
-  }
-  std::string result([string maximumLengthOfBytesUsingEncoding:NSUTF8StringEncoding], '\0');
-  NSUInteger used = 0;
-  [string getBytes:result.data() maxLength:result.size() usedLength:&used encoding:NSUTF8StringEncoding
-           options:NSStringEncodingConversionAllowLossy range:NSMakeRange(0, (NSUInteger)length) remainingRange:NULL];
-  result.resize(used);
-  return result;
-}
-
-/*
- * What a layout pass reads for every row, read once after the core ran: the offset, the pixel
- * shift, the display scale and the insets. Valid until the pass ends. A content offset or inset
- * that changes during the pass reads them again.
- */
-struct ShadowListKitPassGeometry {
-  double offset = 0.0;
-  double shift = 0.0;
-  CGFloat scale = 1.0;
-  CGFloat leadingInset = 0.0;
-  CGFloat trailingInset = 0.0;
-  bool valid = false;
-};
-
 #pragma mark - List
 
 // The categories in ShadowListKitListView+*.mm implement the rest of the class interface.
@@ -92,46 +44,6 @@ struct ShadowListKitPassGeometry {
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
 @implementation ShadowListKitListView {
   ShadowListKitDelegateProxy *_proxy;
-
-  NSUInteger _mountGeneration;
-
-  /*
-   * What the last mount pass covered. The pass is skipped while all of it holds.
-   */
-  std::size_t _mountedLow;
-  std::size_t _mountedHigh;
-  std::size_t _mountedSticky;
-  std::uint64_t _mountedGeometry;
-  NSUInteger _mountedStructure;
-
-  NSMutableDictionary<NSString *, Class> *_cellClasses;
-  NSMutableDictionary<NSString *, NSMutableArray<ShadowListKitListCell *> *> *_reusePool;
-
-  ShadowListKitListCell *_stickyCell;
-
-  /*
-   * The band of offsets where the core has nothing to do.
-   */
-  OffsetBand _band;
-  BOOL _needsFrame;
-
-  CGFloat _headerSize;
-  CGFloat _footerSize;
-  CGFloat _contentAlong;
-  double _footerStart;
-
-  /*
-   * The settings the core runs with, sent again only when one changed.
-   */
-  ListSettings _sentSettings;
-  BOOL _hasSentSettings;
-
-  ShadowListKitPassGeometry _passGeometry;
-
-  /*
-   * The last offset seen, to tell the user's scrolling from our own writes.
-   */
-  double _previousOffset;
 
   /*
    * The offset the core last asked for and the device pixel aligned content offset written
@@ -144,29 +56,8 @@ struct ShadowListKitPassGeometry {
   CGFloat _writtenAlong;
   CGFloat _writtenInset;
   BOOL _hasWrittenOffset;
-  /*
-   * The pixel shift the last mount pass placed rows with.
-   */
-  double _mountedShift;
-  BOOL _userScrolled;
-
-  BOOL _inLayoutPass;
-  /*
-   * Set while the pass after a clamp to the end runs.
-   */
-  BOOL _clampingPass;
-  /*
-   * A settle frame waits for the next display frame, at most one at a time.
-   */
-  BOOL _settleScheduled;
-  CADisplayLink *_settleLink;
-  BOOL _reachedStart;
-  BOOL _reachedEnd;
 
   UIRefreshControl *_refresh;
-
-  std::vector<std::size_t> _prefetchRows;
-  std::vector<std::size_t> _cancelRows;
 }
 #pragma clang diagnostic pop
 
@@ -235,6 +126,19 @@ struct ShadowListKitPassGeometry {
 {
   [_settleLink invalidate];
   [_dragLink invalidate];
+}
+
+/*
+ * A list leaving its window puts back the row it holds and closes its swipe actions, as the
+ * AppKit kit does. No touch of a removed view ends.
+ */
+- (void)willMoveToWindow:(UIWindow *)newWindow
+{
+  [super willMoveToWindow:newWindow];
+  if (!newWindow) {
+    [self cancelHeldRow];
+    [self closeSwipeAnimated:NO];
+  }
 }
 
 #pragma mark - Delegate
@@ -408,7 +312,10 @@ struct ShadowListKitPassGeometry {
   return point;
 }
 
-- (ScrollPhase)scrollPhase
+/*
+ * What moves the offset now, in the core's words.
+ */
+- (ScrollPhase)corePhase
 {
   if (self.isTracking || self.isDragging) {
     return ScrollPhase::Dragging;
@@ -527,6 +434,9 @@ struct ShadowListKitPassGeometry {
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated
 {
   _editing = editing;
+  if (editing) {
+    [self cancelHeldRow];
+  }
   [self closeSwipeAnimated:animated];
   for (auto& entry : _mounted) {
     if (entry.second.isEditing != editing) {
@@ -609,157 +519,48 @@ struct ShadowListKitPassGeometry {
   [self structureChanged];
 }
 
-/*
- * Run the core on the next layout pass even inside the band.
- */
-- (void)invalidateFrame
-{
-  _needsFrame = YES;
-  [self setNeedsLayout];
-}
-
-- (ListSettings)listSettings
-{
-  ListSettings settings;
-  settings.estimatedRowSize = _estimatedItemSize;
-  settings.overscan = _overscan;
-  settings.startReachedThreshold = _startReachedThreshold;
-  settings.endReachedThreshold = _endReachedThreshold;
-  settings.numberOfColumns = (std::size_t)_numberOfColumns;
-  settings.inverted = _inverted;
-  settings.followAppends = _followAppends;
-  settings.horizontal = _horizontal;
-  settings.snapToItem = _snapToItem;
-  settings.snapAlignment = static_cast<SnapAlignment>(_snapAlignment);
-  return settings;
-}
-
 #pragma mark - Cells
 
-- (void)registerClass:(Class)cellClass forCellReuseIdentifier:(NSString *)identifier
+/*
+ * The cells sit in the scroll view itself.
+ */
+- (UIView *)cellContainer
 {
-  _cellClasses[identifier] = cellClass;
+  return self;
 }
 
-- (__kindof ShadowListKitListCell *)dequeueReusableCellWithIdentifier:(NSString *)identifier
+/*
+ * A recycled cell loses its pinned slot, its swipe, its animations and its drag look.
+ */
+- (void)clearCellForReuse:(ShadowListKitListCell *)cell
 {
-  NSMutableArray<ShadowListKitListCell *> *pool = _reusePool[identifier];
-  ShadowListKitListCell *cell = pool.lastObject;
-  if (cell) {
-    [pool removeLastObject];
-    [cell prepareForReuse];
-    return cell;
+  if (cell == _stickyCell) {
+    _stickyCell = nil;
   }
-  Class cellClass = _cellClasses[identifier] ?: [ShadowListKitListCell class];
-  cell = [[cellClass alloc] initWithReuseIdentifier:identifier];
-  cell.hidden = YES;
-  [self addSubview:cell];
-  return cell;
-}
-
-- (void)recycleCell:(ShadowListKitListCell *)cell
-{
-  // A cell only measured was never displayed.
-  NSInteger index = cell.mountGeneration != 0 ? cell.index : NSNotFound;
-  cell.mountGeneration = 0;
   [self swipeCellWillRecycle:cell];
   [cell.layer removeAllAnimations];
   cell.alpha = 1;
   cell.transform = CGAffineTransformIdentity;
-  cell.hidden = YES;
-  cell.index = NSNotFound;
-  cell.row = NSNotFound;
-  cell.separatorLayer.hidden = YES;
-  if (cell.isHighlighted) {
-    [cell setHighlighted:NO animated:NO];
-  }
-  if (cell.isSelected) {
-    [cell setSelected:NO animated:NO];
-  }
-  if (index != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:didEndDisplayingCell:atIndex:)]) {
-    [_userDelegate listView:self didEndDisplayingCell:cell atIndex:index];
-  }
-  if (!cell.reuseIdentifier) {
-    [cell removeFromSuperview];
-    return;
-  }
-  NSMutableArray<ShadowListKitListCell *> *pool = _reusePool[cell.reuseIdentifier];
-  if (!pool) {
-    pool = [NSMutableArray new];
-    _reusePool[cell.reuseIdentifier] = pool;
-  }
-  [pool addObject:cell];
 }
 
-/*
- * The cell of a row: an item's from the data source, or a section header or footer.
- */
-- (ShadowListKitListCell *)makeCellAtRow:(NSInteger)row
+- (void)placeCell:(ShadowListKitListCell *)cell frame:(CGRect)frame
 {
-  RowPlace place = _sections.placeOfRow((std::size_t)row);
-  ShadowListKitListCell *cell = nil;
-  switch (place.kind) {
-    case RowKind::Item:
-      cell = [_dataSource listView:self cellForItemAtIndex:(NSInteger)place.item];
-      break;
-    case RowKind::Header:
-    case RowKind::Footer:
-      cell = [self sectionCellAtSection:(NSInteger)place.section footer:place.kind == RowKind::Footer];
-      break;
-  }
-  if (cell.superview != self) {
-    [self addSubview:cell];
-  }
-  cell.row = row;
-  cell.index = place.item == UNDEFINED_INDEX ? NSNotFound : (NSInteger)place.item;
-  return cell;
+  ShadowListKitPlace(cell, frame);
 }
 
-- (ShadowListKitListCell *)sectionCellAtSection:(NSInteger)section footer:(BOOL)footer
+- (void)setCell:(ShadowListKitListCell *)cell hidden:(BOOL)hidden
 {
-  if (!footer && [_dataSource respondsToSelector:@selector(listView:cellForHeaderInSection:)]) {
-    return [_dataSource listView:self cellForHeaderInSection:section];
-  }
-  if (footer && [_dataSource respondsToSelector:@selector(listView:cellForFooterInSection:)]) {
-    return [_dataSource listView:self cellForFooterInSection:section];
-  }
-  NSString *identifier = footer ? SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER : SHADOWLIST_KIT_SECTION_HEADER_IDENTIFIER;
-  if (!_cellClasses[identifier]) {
-    _cellClasses[identifier] = [ShadowListKitSectionTitleCell class];
-  }
-  ShadowListKitSectionTitleCell *cell = [self dequeueReusableCellWithIdentifier:identifier];
-  cell.label.text = footer ? [_dataSource listView:self titleForFooterInSection:section]
-                           : [_dataSource listView:self titleForHeaderInSection:section];
-  [cell setNeedsLayout];
-  return cell;
-}
-
-/*
- * The mounted cell of a row, or nil.
- */
-- (ShadowListKitListCell *)mountedCellAtIndex:(std::size_t)index
-{
-  if (index >= _driver.getKeyCount()) {
-    return nil;
-  }
-  auto mounted = _mounted.find(_driver.getKeyAt(index));
-  return mounted != _mounted.end() ? mounted->second : nil;
-}
-
-- (ShadowListKitListCell *)mountedCellForKey:(const std::string&)key
-{
-  auto mounted = _mounted.find(key);
-  return mounted != _mounted.end() ? mounted->second : nil;
+  cell.hidden = hidden;
 }
 
 #pragma mark - Layout
 
 - (void)layoutSubviews
 {
-  _inLayoutSubviews = YES;
+  _inLayout = YES;
   [super layoutSubviews];
   [self layoutPass];
-  _inLayoutSubviews = NO;
+  _inLayout = NO;
 }
 
 /*
@@ -772,72 +573,6 @@ struct ShadowListKitPassGeometry {
     [self readPassGeometry];
   }
   [self invalidateFrame];
-}
-
-/*
- * One pass runs the core when the offset left the band, then mounts. Everything lands
- * before the frame is drawn.
- */
-- (void)layoutPass
-{
-  if (_inLayoutPass) {
-    return;
-  }
-  _inLayoutPass = YES;
-  BOOL geometryChanged = [self readGeometry];
-  [self trackUserScroll];
-  if (_windowCross > 0 && _windowAlong > 0) {
-    if (_needsFrame || geometryChanged || !_band.contains([self offset])) {
-      [self runPasses];
-    }
-    [self readPassGeometry];
-    [self layoutTemplates];
-    [self mountCells];
-    [self layoutSticky];
-    if ([self hasHeldRow]) {
-      [self applyDragShiftsAnimated:NO];
-    }
-    [_changes run];
-    [self layoutSwipe];
-    [self layoutSectionIndex];
-  }
-  _passGeometry.valid = false;
-  _inLayoutPass = NO;
-  [self dispatchReached];
-}
-
-/*
- * Read the viewport and template sizes. Returns whether any changed since the last pass.
- */
-- (BOOL)readGeometry
-{
-  CGSize bounds = self.bounds.size;
-  UIEdgeInsets inset = self.adjustedContentInset;
-  CGFloat along = _horizontal ? bounds.width - inset.left - inset.right : bounds.height - inset.top - inset.bottom;
-  CGFloat cross = _horizontal ? bounds.height - inset.top - inset.bottom : bounds.width - inset.left - inset.right;
-  if (cross != _windowCross && _windowCross > 0) {
-    [self resetKeepingPosition];
-  }
-  CGFloat header = [self templateSize:_headerView cross:cross];
-  CGFloat footer = [self templateSize:_footerView cross:cross];
-  BOOL changed = along != _windowAlong || cross != _windowCross || header != _headerSize || footer != _footerSize;
-  _windowAlong = along;
-  _windowCross = cross;
-  _headerSize = header;
-  _footerSize = footer;
-  return changed;
-}
-
-- (void)trackUserScroll
-{
-  double current = [self offset];
-  if (std::fabs(current - _previousOffset) < OFFSET_MOVED_THRESHOLD) {
-    return;
-  }
-  if ([self scrollPhase] != ScrollPhase::Idle) {
-    _userScrolled = YES;
-  }
-  _previousOffset = current;
 }
 
 - (CGFloat)templateSize:(UIView *)view cross:(CGFloat)cross
@@ -854,86 +589,6 @@ struct ShadowListKitPassGeometry {
   return _horizontal ? fits.width : fits.height;
 }
 
-- (void)layoutTemplates
-{
-  if (_headerView) {
-    CGRect frame = _horizontal ? [self displayRect:0 y:0 width:_headerSize height:_windowCross]
-                               : [self displayRect:0 y:0 width:_windowCross height:_headerSize];
-    if (!CGRectEqualToRect(_headerView.frame, frame)) {
-      _headerView.frame = frame;
-    }
-  }
-  if (_footerView) {
-    CGRect frame = _horizontal ? [self displayRect:_footerStart y:0 width:_footerSize height:_windowCross]
-                               : [self displayRect:0 y:_footerStart width:_windowCross height:_footerSize];
-    if (!CGRectEqualToRect(_footerView.frame, frame)) {
-      _footerView.frame = frame;
-    }
-  }
-}
-
-/*
- * Run the core until the measured range has sizes and any correction landed. Everything happens
- * before the frame is drawn. The reader never sees an estimate or a correction.
- */
-- (void)runPasses
-{
-  ListSettings settings = [self listSettings];
-  if (!_hasSentSettings || settings != _sentSettings) {
-    _driver.setSettings(settings);
-    _sentSettings = settings;
-    _hasSentSettings = YES;
-  }
-  PassInput input;
-  input.offset = [self offset];
-  input.windowAlong = _windowAlong;
-  input.windowCross = _windowCross;
-  input.headerSize = _headerSize;
-  input.footerSize = _footerSize;
-  input.phase = [self scrollPhase];
-  input.userScrolled = _userScrolled;
-  input.tracking = self.isTracking;
-  // The mount pass's padding, which the core prefetches around before it measures.
-  input.prefetch = _prefetchDataSource != nil;
-  input.mountPad = _windowAlong * _mountOverscan;
-  input.leadingInset = [self leadingInset];
-  input.trailingInset = [self trailingInset];
-  PassResult result = _driver.runPasses(input);
-  _userScrolled = NO;
-  _needsFrame = NO;
-  [self applyPassResult:result];
-}
-
-/*
- * The content size goes first. The offset write is then inside the scroll range.
- */
-- (void)applyPassResult:(const PassResult&)result
-{
-  [self applyContentSize:(CGFloat)result.contentAlong];
-  /*
-   * Content that shrank under a resting view clamps it to the new end. The core leaves that
-   * to the host for inverted lists. It runs again on the clamped offset before the frame is
-   * drawn. A drag or a bounce past the end is left to the scroll view.
-   */
-  if (result.offset > [self maxOffset] + 0.5 && [self scrollPhase] == ScrollPhase::Idle && !_clampingPass) {
-    [self writeOffset:[self maxOffset] byUser:NO];
-    _clampingPass = YES;
-    [self runPasses];
-    _clampingPass = NO;
-    return;
-  }
-  if (std::fabs(result.offset - [self offset]) >= 0.01) {
-    [self writeOffset:result.offset byUser:NO];
-  }
-  _band = result.band;
-  _footerStart = result.footerStart;
-  _reachedStart = _reachedStart || result.reachedStart;
-  _reachedEnd = _reachedEnd || result.reachedEnd;
-  if (result.settling) {
-    [self scheduleSettleFrame];
-  }
-}
-
 - (void)applyContentSize:(CGFloat)along
 {
   if (along == _contentAlong && !CGSizeEqualToSize(self.contentSize, CGSizeZero)) {
@@ -943,413 +598,27 @@ struct ShadowListKitPassGeometry {
   self.contentSize = _horizontal ? CGSizeMake(along, _windowCross) : CGSizeMake(_windowCross, along);
 }
 
-/*
- * A correction waits for one more report. Give it the next display frame, once.
- */
-- (void)scheduleSettleFrame
-{
-  _needsFrame = YES;
-  if (_settleScheduled) {
-    return;
-  }
-  _settleScheduled = YES;
-  if (!_settleLink) {
-    ShadowListKitSettleTarget *target = [ShadowListKitSettleTarget new];
-    target.list = self;
-    _settleLink = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
-    [_settleLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
-  }
-  _settleLink.paused = NO;
-}
-
-- (void)settleFrame
-{
-  _settleLink.paused = YES;
-  _settleScheduled = NO;
-  [self setNeedsLayout];
-  [self layoutIfNeeded];
-}
-
-/*
- * Drop all sizes after a cross size change and hold the first visible row.
- */
-- (void)resetKeepingPosition
-{
-  _driver.resetKeepingPosition();
-  _band = OffsetBand();
-  _needsFrame = YES;
-  ++_structureVersion;
-}
-
-#pragma mark - Mounting
-
-- (CGRect)rowRect:(std::size_t)index
-{
-  RowRect rect = _driver.getRowRect(index);
-  return [self displayRect:rect.x y:rect.y width:rect.width height:rect.height];
-}
-
-/*
- * A frame in the content as drawn: moved by the pixel shift and with its edges on device
- * pixels. Rows that touch in the core still touch.
- */
-- (CGRect)displayRect:(double)x y:(double)y width:(double)width height:(double)height
-{
-  double shift = [self pixelShift];
-  double shiftX = _horizontal ? shift : 0.0;
-  double shiftY = _horizontal ? 0.0 : shift;
-  CGFloat scale = [self displayScale];
-  auto aligned = [scale](double value) { return (CGFloat)(std::round(value * scale) / scale); };
-  CGFloat left = aligned(x - shiftX);
-  CGFloat top = aligned(y - shiftY);
-  CGFloat right = aligned(x + width - shiftX);
-  CGFloat bottom = aligned(y + height - shiftY);
-  return CGRectMake(left, top, right - left, bottom - top);
-}
-
-/*
- * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
- * which keeps the content of a cell that only moved. Rows under translucent bars show and
- * are mounted too.
- */
-- (void)mountCells
-{
-  if (!_driver.getMeasuredRange()) {
-    [self unmountAll];
-    return;
-  }
-  MountPlan plan = _driver.planMount([self offset], _windowAlong, _windowAlong * _mountOverscan, [self leadingInset],
-    [self trailingInset]);
-  if (![self mountNeeded:plan]) {
-    return;
-  }
-  [self recordMount:plan];
-  [self mountPlan:plan];
-  [self prefetchAround:plan];
-}
-
-/*
- * Whether anything the last mount pass covered changed: the rows, the pinned header, the
- * geometry, the data or the pixel shift. A drag mounts every pass.
- */
-- (BOOL)mountNeeded:(const MountPlan&)plan
-{
-  return plan.low != _mountedLow || plan.high != _mountedHigh || plan.sticky != _mountedSticky ||
-    _driver.getGeometryVersion() != _mountedGeometry || _structureVersion != _mountedStructure ||
-    [self pixelShift] != _mountedShift || [self hasHeldRow];
-}
-
-- (void)recordMount:(const MountPlan&)plan
-{
-  _mountedLow = plan.low;
-  _mountedHigh = plan.high;
-  _mountedSticky = plan.sticky;
-  _mountedGeometry = _driver.getGeometryVersion();
-  _mountedStructure = _structureVersion;
-  _mountedShift = [self pixelShift];
-}
-
-- (void)mountPlan:(const MountPlan&)plan
-{
-  NSUInteger generation = ++_mountGeneration;
-  for (std::size_t index = plan.low; plan.low != UNDEFINED_INDEX && index <= plan.high; ++index) {
-    if (_driver.shouldMount(plan, index)) {
-      [self mountRow:index generation:generation];
-    }
-  }
-  if (plan.sticky != UNDEFINED_INDEX) {
-    [self mountRow:plan.sticky generation:generation];
-  }
-  // The held row stays mounted wherever the finger takes it.
-  std::size_t held = _driver.getHeldIndex();
-  if (held != UNDEFINED_INDEX) {
-    [self mountRow:held generation:generation];
-  }
-  [self recycleStaleCells:generation];
-}
-
-- (void)mountRow:(std::size_t)index generation:(NSUInteger)generation
-{
-  if (index >= _driver.getRowCount() || index >= _driver.getKeyCount()) {
-    return;
-  }
-  const std::string& key = _driver.getKeyAt(index);
-  ShadowListKitListCell *cell = nil;
-  BOOL appearing = NO;
-  auto mounted = _mounted.find(key);
-  if (mounted != _mounted.end()) {
-    cell = mounted->second;
-    appearing = cell.mountGeneration == 0;
-  } else {
-    cell = [self makeCellAtRow:(NSInteger)index];
-    _mounted.emplace(key, cell);
-    appearing = YES;
-  }
-  std::size_t item = _sections.itemForRow(index);
-  cell.row = (NSInteger)index;
-  cell.index = item == UNDEFINED_INDEX ? NSNotFound : (NSInteger)item;
-  cell.mountGeneration = generation;
-  ShadowListKitPlace(cell, [self rowRect:index]);
-  [self placeSeparatorOfCell:cell row:index];
-  if (!appearing) {
-    return;
-  }
-  cell.hidden = NO;
-  [self applyStateToCell:cell key:key];
-  if (cell.index != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:willDisplayCell:atIndex:)]) {
-    [_userDelegate listView:self willDisplayCell:cell atIndex:cell.index];
-  }
-}
-
-/*
- * A cell coming on screen shows its row's selection and the list's editing state.
- */
-- (void)applyStateToCell:(ShadowListKitListCell *)cell key:(const std::string&)key
-{
-  BOOL selected = cell.index != NSNotFound && _selection.contains(key);
-  if (cell.isSelected != selected) {
-    [cell setSelected:selected animated:NO];
-  }
-  if (cell.isEditing != _editing) {
-    [cell setEditing:_editing animated:NO];
-  }
-}
-
-- (void)recycleStaleCells:(NSUInteger)generation
-{
-  for (auto entry = _mounted.begin(); entry != _mounted.end();) {
-    if (entry->second.mountGeneration != generation) {
-      // A cell measured ahead keeps its configuration until its row comes into view.
-      if (entry->second.mountGeneration == 0 && [self keptAfterMeasure:entry->second key:entry->first]) {
-        ++entry;
-        continue;
-      }
-      // A deleted row's cell fades out first, then goes back to the pool. One swiped out does not.
-      if ([self isSwipedOutCell:entry->second] || ![_changes fadeOutKey:entry->first cell:entry->second]) {
-        [self recycleCell:entry->second];
-      }
-      entry = _mounted.erase(entry);
-    } else {
-      ++entry;
-    }
-  }
-}
-
-- (BOOL)keptAfterMeasure:(ShadowListKitListCell *)cell key:(const std::string&)key
-{
-  std::optional<MountedRange> measured = _driver.getMeasuredRange();
-  if (!measured || cell.row == NSNotFound) {
-    return NO;
-  }
-  std::size_t row = (std::size_t)cell.row;
-  return row >= measured->low && row <= measured->high && row < _driver.getKeyCount() && _driver.getKeyAt(row) == key;
-}
-
-- (void)unmountAll
-{
-  for (auto& entry : _mounted) {
-    [self recycleCell:entry.second];
-  }
-  _mounted.clear();
-  _mountedLow = UNDEFINED_INDEX;
-  _mountedHigh = UNDEFINED_INDEX;
-  _mountedSticky = UNDEFINED_INDEX;
-}
-
-#pragma mark - Prefetching
-
-/*
- * Tell the prefetch data source about items the measured range brought in that are not
- * mounted, and the ones that left it unseen. runPasses already told it about the rows it
- * brought in before it measured them, which is before their cells exist. This finds what the
- * mount changed.
- */
-- (void)prefetchAround:(const MountPlan&)plan
-{
-  if (!_prefetchDataSource) {
-    return;
-  }
-  _driver.updatePrefetch(plan.low, plan.high, _prefetchRows, _cancelRows);
-  [self reportPrefetchRows:_prefetchRows cancel:_cancelRows];
-}
-
-/*
- * Hand prefetch changes to the prefetch data source as items.
- */
-- (void)reportPrefetchRows:(const std::vector<std::size_t>&)rows cancel:(const std::vector<std::size_t>&)cancelRows
-{
-  id<ShadowListKitListViewPrefetchDataSource> prefetch = _prefetchDataSource;
-  if (!prefetch) {
-    return;
-  }
-  NSIndexSet *items = [self itemsOfRows:rows];
-  if (items.count > 0) {
-    [prefetch listView:self prefetchItemsAtIndices:items];
-  }
-  NSIndexSet *cancelled = [self itemsOfRows:cancelRows];
-  if (cancelled.count > 0 && [prefetch respondsToSelector:@selector(listView:cancelPrefetchingForItemsAtIndices:)]) {
-    [prefetch listView:self cancelPrefetchingForItemsAtIndices:cancelled];
-  }
-}
-
-- (NSIndexSet *)itemsOfRows:(const std::vector<std::size_t>&)rows
-{
-  NSMutableIndexSet *items = [NSMutableIndexSet indexSet];
-  for (std::size_t item : _sections.itemsOfRows(rows)) {
-    [items addIndex:item];
-  }
-  return items;
-}
-
-#pragma mark - Measurement
-
-/*
- * Called by the core for every row in its measured range that has no size yet. Reads the size from
- * the data source or measures the row through its cell.
- */
-- (CGFloat)measureRow:(NSInteger)row key:(const std::string&)key cross:(CGFloat)cross
-{
-  RowPlace place = _sections.placeOfRow((std::size_t)row);
-  switch (place.kind) {
-    case RowKind::Item:
-      if (_sizesFromDataSource) {
-        return [_dataSource listView:self sizeForItemAtIndex:(NSInteger)place.item crossSize:cross];
-      }
-      break;
-    case RowKind::Header:
-      if ([_dataSource respondsToSelector:@selector(listView:sizeForHeaderInSection:crossSize:)]) {
-        return [_dataSource listView:self sizeForHeaderInSection:(NSInteger)place.section crossSize:cross];
-      }
-      break;
-    case RowKind::Footer:
-      if ([_dataSource respondsToSelector:@selector(listView:sizeForFooterInSection:crossSize:)]) {
-        return [_dataSource listView:self sizeForFooterInSection:(NSInteger)place.section crossSize:cross];
-      }
-      break;
-  }
-  return [self measureCellAtRow:row key:key cross:cross];
-}
-
-/*
- * Measure a row through its cell. The cell is mounted right after when the row is in view,
- * which rarely wastes the configure work.
- */
-- (CGFloat)measureCellAtRow:(NSInteger)row key:(const std::string&)key cross:(CGFloat)cross
-{
-  ShadowListKitListCell *cell = nil;
-  auto mounted = _mounted.find(key);
-  if (mounted != _mounted.end()) {
-    cell = mounted->second;
-  } else {
-    cell = [self makeCellAtRow:row];
-    cell.mountGeneration = 0;
-    _mounted.emplace(key, cell);
-  }
-  CGSize fits = [cell sizeThatFits:_horizontal ? CGSizeMake(CGFLOAT_MAX, cross) : CGSizeMake(cross, CGFLOAT_MAX)];
-  return _horizontal ? fits.width : fits.height;
-}
-
-#pragma mark - Sticky
-
-/*
- * Pin the active section header and put the one it replaced back in its row.
- */
-- (void)layoutSticky
-{
-  if (!_driver.hasSticky()) {
-    return;
-  }
-  double offset = [self offset];
-  std::size_t active = _driver.activeStickyIndex(offset);
-  ShadowListKitListCell *cell = active != UNDEFINED_INDEX ? [self mountedCellAtIndex:active] : nil;
-  if (_stickyCell && _stickyCell != cell) {
-    [self unpinCell:_stickyCell];
-  }
-  _stickyCell = cell;
-  if (!cell) {
-    return;
-  }
-  RowRect rect = _driver.getRowRect(active);
-  double pinned = _driver.stickyLeading(active, offset);
-  if (_horizontal) {
-    rect.x = pinned;
-  } else {
-    rect.y = pinned;
-  }
-  ShadowListKitPlace(cell, [self displayRect:rect.x y:rect.y width:rect.width height:rect.height]);
-  cell.layer.zPosition = 1;
-}
-
-- (void)unpinCell:(ShadowListKitListCell *)cell
-{
-  if (cell.row != NSNotFound && (std::size_t)cell.row < _driver.getRowCount()) {
-    ShadowListKitPlace(cell, [self rowRect:(std::size_t)cell.row]);
-  }
-  cell.layer.zPosition = 0;
-}
-
 #pragma mark - Separators
 
 /*
- * The line over an item's trailing edge when another item of its section follows. Grids have
- * none.
+ * The separator color as the list's traits show it.
  */
-- (void)placeSeparatorOfCell:(ShadowListKitListCell *)cell row:(std::size_t)row
+- (CGColorRef)separatorCGColor
 {
-  BOOL shows = _showsSeparators && _numberOfColumns == 1 && row + 1 < _driver.getKeyCount() &&
-    _sections.isItemBeforeItem(row);
-  if (shows && cell.index != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:showsSeparatorAfterItemAtIndex:)]) {
-    shows = [_userDelegate listView:self showsSeparatorAfterItemAtIndex:cell.index];
-  }
-  if (!shows) {
-    cell.separatorLayer.hidden = YES;
-    return;
-  }
-  CALayer *line = cell.separatorLayer;
-  [CATransaction begin];
-  [CATransaction setDisableActions:YES];
-  if (!line) {
-    line = [CALayer layer];
-    line.zPosition = 1000;
-    cell.separatorLayer = line;
-    [cell.layer addSublayer:line];
-  }
-  CGFloat thickness = _separatorThickness > 0 ? _separatorThickness : 1 / [self displayScale];
-  CGSize size = cell.bounds.size;
-  CGRect frame = _horizontal
-    ? CGRectMake(size.width - thickness, _separatorInsetStart, thickness,
-        MAX(0, size.height - _separatorInsetStart - _separatorInsetEnd))
-    : CGRectMake(_separatorInsetStart, size.height - thickness,
-        MAX(0, size.width - _separatorInsetStart - _separatorInsetEnd), thickness);
-  line.hidden = NO;
-  line.frame = frame;
-  line.backgroundColor = [_separatorColor resolvedColorWithTraitCollection:self.traitCollection].CGColor;
-  [CATransaction commit];
+  return [self.separatorColor resolvedColorWithTraitCollection:self.traitCollection].CGColor;
 }
 
 #pragma mark - Events
 
-- (void)dispatchReached
-{
-  if (_reachedStart) {
-    _reachedStart = NO;
-    if ([_userDelegate respondsToSelector:@selector(listViewDidReachStart:)]) {
-      [_userDelegate listViewDidReachStart:self];
-    }
-  }
-  if (_reachedEnd) {
-    _reachedEnd = NO;
-    if ([_userDelegate respondsToSelector:@selector(listViewDidReachEnd:)]) {
-      [_userDelegate listViewDidReachEnd:self];
-    }
-  }
-}
-
 /*
- * The visible cell under a point in the list's own coordinates.
+ * The visible cell under a point in the list's own coordinates. A pinned header covers the
+ * items under it.
  */
 - (ShadowListKitListCell *)cellAtPoint:(CGPoint)point
 {
+  if (_stickyCell && !_stickyCell.hidden && _stickyCell.row != NSNotFound && CGRectContainsPoint(_stickyCell.frame, point)) {
+    return _stickyCell;
+  }
   for (auto& entry : _mounted) {
     ShadowListKitListCell *cell = entry.second;
     if (!cell.hidden && cell.row != NSNotFound && CGRectContainsPoint(cell.frame, point)) {
@@ -1396,11 +665,26 @@ struct ShadowListKitPassGeometry {
   return [super gestureRecognizerShouldBegin:gesture];
 }
 
+/*
+ * The scroll view's events reach the delegate as the kit's own scroll callbacks, the same ones
+ * the AppKit list sends.
+ */
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView
+{
+  if ([_userDelegate respondsToSelector:@selector(listViewDidScroll:)]) {
+    [_userDelegate listViewDidScroll:self];
+  }
+}
+
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
 {
   _driver.cancelLanding();
+  [self dropPendingAnchor];
   [self unhighlight];
   [self closeSwipeAnimated:YES];
+  if ([_userDelegate respondsToSelector:@selector(listViewWillBeginDragging:)]) {
+    [_userDelegate listViewWillBeginDragging:self];
+  }
 }
 
 - (void)scrollViewWillEndDragging:(UIScrollView *)scrollView
@@ -1425,11 +709,17 @@ struct ShadowListKitPassGeometry {
     // The gesture ended. The core needs an idle frame to let a held correction go.
     [self invalidateFrame];
   }
+  if ([_userDelegate respondsToSelector:@selector(listViewDidEndDragging:willDecelerate:)]) {
+    [_userDelegate listViewDidEndDragging:self willDecelerate:decelerate];
+  }
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
 {
   [self invalidateFrame];
+  if ([_userDelegate respondsToSelector:@selector(listViewDidEndDecelerating:)]) {
+    [_userDelegate listViewDidEndDecelerating:self];
+  }
 }
 
 /*
@@ -1440,56 +730,9 @@ struct ShadowListKitPassGeometry {
   if (_driver.land()) {
     [self invalidateFrame];
   }
-}
-
-#pragma mark - Queries
-
-- (ShadowListKitListCell *)cellForItemAtIndex:(NSInteger)index
-{
-  NSInteger row = [self rowForItem:index];
-  if (row == NSNotFound) {
-    return nil;
+  if ([_userDelegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
+    [_userDelegate listViewDidEndScrollingAnimation:self];
   }
-  ShadowListKitListCell *cell = [self mountedCellAtIndex:(std::size_t)row];
-  return cell.hidden ? nil : cell;
-}
-
-- (NSArray<ShadowListKitListCell *> *)visibleCells
-{
-  NSMutableArray<ShadowListKitListCell *> *cells = [NSMutableArray arrayWithCapacity:_mounted.size()];
-  CGRect visible = self.bounds;
-  for (auto& entry : _mounted) {
-    ShadowListKitListCell *cell = entry.second;
-    if (!cell.hidden && cell.index != NSNotFound && CGRectIntersectsRect(cell.frame, visible)) {
-      [cells addObject:cell];
-    }
-  }
-  [cells sortUsingComparator:^NSComparisonResult(ShadowListKitListCell *a, ShadowListKitListCell *b) {
-    return a.row < b.row ? NSOrderedAscending : a.row > b.row ? NSOrderedDescending : NSOrderedSame;
-  }];
-  return cells;
-}
-
-/*
- * The items among the rows overlapping the viewport. Headers and footers do not count.
- */
-- (NSRange)visibleRange
-{
-  std::optional<MountedRange> visible = _driver.getVisibleRange();
-  std::optional<MountedRange> items = visible ? _sections.itemRangeOfRows(visible->low, visible->high) : std::nullopt;
-  if (!items) {
-    return NSMakeRange(NSNotFound, 0);
-  }
-  return NSMakeRange(items->low, items->high - items->low + 1);
-}
-
-- (CGRect)rectForItemAtIndex:(NSInteger)index
-{
-  NSInteger row = [self rowForItem:index];
-  if (row == NSNotFound || (std::size_t)row >= _driver.getRowCount()) {
-    return CGRectNull;
-  }
-  return [self rowRect:(std::size_t)row];
 }
 
 @end

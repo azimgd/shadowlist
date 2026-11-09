@@ -1,6 +1,6 @@
 {
   "name": "shadowlist",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Virtualized React Native lists for the New Architecture, laid out by a shared C++ core: ShadowList, SectionList, TreeList and DraggableList.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",

@@ -199,7 +199,8 @@ static inline BOOL SLFrameTraceEnabled(void)
  * throttles onScroll, which this view sends from its scroll callback while _scrollEventEnabled.
  * _landCommandSequence is the sequence of the newest command that lands an animated one, 0
  * once a mounted state carries it. The animation's momentum end waits for that state, which
- * holds the exact offset. _pageAnnouncementPending holds a VoiceOver page scroll until its
+ * holds the exact offset. _momentumRunning is set from a fling's momentumScrollBegin to its
+ * momentumScrollEnd, which a fling stopped by an offset write sends itself. _pageAnnouncementPending holds a VoiceOver page scroll until its
  * rows mount. _pageKeyIndices maps the rowKeys of a list without a key store to indices, built
  * once per props, see rowIndexOfKey.
  * On macOS _macDragEnded and _macMomentum track whether the live scroll's fingers lifted
@@ -271,6 +272,7 @@ static inline BOOL SLFrameTraceEnabled(void)
   facebook::react::ShadowListScrollTracker _scrollTracker;
   double _landCommandSequence;
   BOOL _momentumEndAfterLand;
+  BOOL _momentumRunning;
   BOOL _pageAnnouncementPending;
   facebook::react::Props::Shared _pageKeyIndicesProps;
   std::unordered_map<std::string, NSInteger> _pageKeyIndices;
@@ -361,6 +363,17 @@ static inline BOOL SLFrameTraceEnabled(void)
              destinationKey:(nullable NSString *)destinationKey
           destinationListId:(nullable NSString *)destinationListId
            destinationIndex:(NSInteger)destinationIndex;
+- (void)commitDragEventType:(int)type
+                  sourceKey:(nullable NSString *)sourceKey
+             destinationKey:(nullable NSString *)destinationKey
+          destinationListId:(nullable NSString *)destinationListId
+           destinationIndex:(NSInteger)destinationIndex
+                      async:(BOOL)async;
+- (BOOL)dragOwnsScrollOffset;
+- (void)emitScrollEvent:(const char *)name velocity:(CGPoint)velocity;
+#if !TARGET_OS_OSX
+- (void)endStoppedMomentum;
+#endif
 
 - (void)pokeMountDriver;
 - (void)stopMountTicks;
@@ -379,6 +392,7 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (void)updateDrag;
 - (void)updateDragInsertion;
 - (void)applyDragShuffle;
+- (void)applyDragShuffleAnimated:(BOOL)forceAnimated;
 - (CGRect)restingFrameForView:(RCTUIView *)view;
 - (void)applyDragAutoScrollForTouch:(CGPoint)touch dtSeconds:(double)dtSeconds;
 - (void)noteDragInsertionForFeedback;

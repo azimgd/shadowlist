@@ -239,7 +239,7 @@ TEST(a_window_resize_through_update_publishes_the_bottom_follow) {
   input.inverted = true;
   input.windowHeight = WINDOW_HEIGHT - 300.0;
   Virtualizer::update(container, input);
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(container.revision.offsetY, bottom + 300.0, 1.0);
   ContainerStateUpdate state = container.resolveStateUpdate(offset, offset,
     container.revision.contentWidth, container.revision.contentHeight);

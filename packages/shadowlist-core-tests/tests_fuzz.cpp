@@ -138,7 +138,8 @@ struct SimHost {
     frame.inverted = inverted;
     frame.followAppends = followAppends;
     frame.offsetEnabled = ownWrite;
-    frame.commitToken = ownWrite ? (container.operation ? container.operation->commitToken : 0) : echoedToken;
+    std::uint64_t running = container.state.operation ? container.state.operation->commitToken : 0;
+    frame.commitToken = ownWrite ? running : echoedToken;
     frame.scrollPhase = phase;
     frame.userScrolled = userScrolled;
     return frame;
@@ -236,21 +237,22 @@ struct SimHost {
     }
     Virtualizer::update(container, input(ownWrite));
     layoutPass();
-    bool corrected = container.offsetCorrected;
+    bool corrected = container.state.offsetCorrected;
     mountState();
     if (traceSeed != 0 && tracing) {
       const Container& core = container;
       std::printf("      %s off=%.1f core=%.1f total=%.1f max=%.1f n=%zu op=%s%llu pend=%d rest=%d rel=%d init=%d tok=%llu win=[%zd..%zd] anchor=%s sub=%.1f\n",
         ownWrite ? "own " : "host", hostOffset, core.revision.offsetY, core.revision.contentHeight,
         maxOffset(), core.revision.rows.size(),
-        core.operation ? (core.operation->type == OperationType::MaintainAnchor ? "hold:" :
-          core.operation->type == OperationType::ScrollToKey ? "key:" : core.operation->type == OperationType::ScrollToEnd ? "end:" :
-          core.operation->type == OperationType::BottomPin ? "pin:" : core.operation->type == OperationType::ShrinkClamp ? "clamp:" : "start:") : "none",
-        static_cast<unsigned long long>(core.operation ? core.operation->commitToken : 0),
-        core.pendingScrollToEnd ? 1 : 0, core.restingAtInvertedBottom ? 1 : 0, core.invertedBottomReleased ? 1 : 0,
-        core.invertedInitialized ? 1 : 0, static_cast<unsigned long long>(echoedToken),
+        core.state.operation ? (core.state.operation->type == OperationType::MaintainAnchor ? "hold:" :
+          core.state.operation->type == OperationType::ScrollToKey ? "key:" : core.state.operation->type == OperationType::ScrollToEnd ? "end:" :
+          core.state.operation->type == OperationType::BottomPin ? "pin:" : core.state.operation->type == OperationType::ShrinkClamp ? "clamp:" : "start:") : "none",
+        static_cast<unsigned long long>(core.state.operation ? core.state.operation->commitToken : 0),
+        core.state.pendingScrollToEnd ? 1 : 0, core.state.restingAtInvertedBottom ? 1 : 0,
+        core.state.invertedBottomReleased ? 1 : 0,
+        core.state.invertedInitialized ? 1 : 0, static_cast<unsigned long long>(echoedToken),
         static_cast<std::ptrdiff_t>(core.getMeasuredRange().low), static_cast<std::ptrdiff_t>(core.getMeasuredRange().high),
-        core.anchor.key.c_str(), core.anchor.offset);
+        core.state.anchor.key.c_str(), core.state.anchor.offset);
     }
     // The own write commit is what Fabric runs when state changes, without a host report.
     if (ownWrite) {
@@ -269,7 +271,7 @@ struct SimHost {
     for (int frame = 0; frame < MAX_SETTLE_FRAMES; ++frame) {
       bool corrected = commit(true);
       bool reported = commit(false);
-      if (!corrected && !reported && !container.operation && !container.pendingScrollToEnd) {
+      if (!corrected && !reported && !container.state.operation && !container.state.pendingScrollToEnd) {
         return frame;
       }
     }
@@ -283,7 +285,7 @@ struct SimHost {
 std::string checkGeometry(const SimHost& host) {
   const Container& core = host.container;
   const std::vector<Row>& rows = core.revision.rows;
-  if (core.rowStructureDirty || core.rowSizeDirtyFromIndex != UNDEFINED_INDEX) {
+  if (core.state.rowStructureDirty || core.state.rowSizeDirtyFromIndex != UNDEFINED_INDEX) {
     return "";
   }
   double expected = core.headerSize;
@@ -434,7 +436,7 @@ void changeAndHold(
    * bottom by shrinking content is still counted as away, see the release tests.
    */
   bool wasAtBottom = host.inverted && host.hostOffset >= maxBefore - INVERTED_FOLLOW_BAND &&
-    !host.container.invertedBottomReleased;
+    !host.container.state.invertedBottomReleased;
   bool appendOnly = nextKeys.size() > host.keys.size() &&
     std::equal(host.keys.begin(), host.keys.end(), nextKeys.begin());
   bool followsToBottom = wasAtBottom && host.followAppends && appendOnly;
@@ -1007,7 +1009,7 @@ bool axisCommit(AxisHost& host, bool ownWrite) {
   }
   Virtualizer::recomputeContentSize(core);
 
-  bool corrected = core.offsetCorrected;
+  bool corrected = core.state.offsetCorrected;
   ContainerStateUpdate state = core.resolveStateUpdate(host.stateOffset, host.stateOffset,
     core.revision.contentWidth, core.revision.contentHeight);
   double maxOffset = std::max(0.0, axisTotal(core) - host.windowSize);
@@ -1028,8 +1030,8 @@ bool axisCommit(AxisHost& host, bool ownWrite) {
   if (host.tracing) {
     std::printf("      %s off=%.1f core=%.1f total=%.1f max=%.1f n=%zu op=%llu corrected=%d applied=%d anchor=%s sub=%.1f win=[%zd..%zd]\n",
       ownWrite ? "own " : "host", host.hostOffset, axisOffset(core), axisTotal(core), maxOffset, core.revision.rows.size(),
-      static_cast<unsigned long long>(core.operation ? core.operation->commitToken : 0), corrected ? 1 : 0,
-      state.applyOffset ? 1 : 0, core.anchor.key.c_str(), core.anchor.offset,
+      static_cast<unsigned long long>(core.state.operation ? core.state.operation->commitToken : 0), corrected ? 1 : 0,
+      state.applyOffset ? 1 : 0, core.state.anchor.key.c_str(), core.state.anchor.offset,
       static_cast<std::ptrdiff_t>(core.getMeasuredRange().low), static_cast<std::ptrdiff_t>(core.getMeasuredRange().high));
   }
   return corrected;
@@ -1039,7 +1041,7 @@ int axisSettle(AxisHost& host) {
   for (int frame = 0; frame < MAX_SETTLE_FRAMES; ++frame) {
     bool corrected = axisCommit(host, true);
     bool reported = axisCommit(host, false);
-    if (!corrected && !reported && !host.container.operation && !host.container.pendingScrollToEnd) {
+    if (!corrected && !reported && !host.container.state.operation && !host.container.state.pendingScrollToEnd) {
       return frame;
     }
   }
@@ -1051,7 +1053,7 @@ int axisSettle(AxisHost& host) {
  */
 std::string checkAxisGeometry(const AxisHost& host) {
   const Container& core = host.container;
-  if (core.rowStructureDirty || core.rowSizeDirtyFromIndex != UNDEFINED_INDEX) {
+  if (core.state.rowStructureDirty || core.state.rowSizeDirtyFromIndex != UNDEFINED_INDEX) {
     return "";
   }
   std::size_t columns = std::max<std::size_t>(1, core.numberOfColumns);
@@ -1080,8 +1082,8 @@ std::string checkAxisGeometry(const AxisHost& host) {
 ScreenRow firstAxisRow(const AxisHost& host) {
   const Container& core = host.container;
   // A grid keeps holding the row it already holds while that row is on screen.
-  if (host.numberOfColumns > 1 && !core.anchor.key.empty()) {
-    std::size_t index = core.indexOfKey(core.anchor.key);
+  if (host.numberOfColumns > 1 && !core.state.anchor.key.empty()) {
+    std::size_t index = core.indexOfKey(core.state.anchor.key);
     if (index != UNDEFINED_INDEX) {
       const Row& row = core.revision.rows[index];
       double start = core.horizontal ? row.offsetX : row.offsetY;
@@ -1328,7 +1330,7 @@ TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
         frame.nonAnchorKeys = pills;
         Virtualizer::update(host.container, frame);
         host.layoutPass();
-        bool corrected = host.container.offsetCorrected;
+        bool corrected = host.container.state.offsetCorrected;
         host.mountState();
         if (!ownWrite) {
           host.userScrolled = false;
@@ -1340,7 +1342,7 @@ TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
       for (int frame = 0; frame < MAX_SETTLE_FRAMES; ++frame) {
         bool corrected = framed(true);
         bool reported = framed(false);
-        if (!corrected && !reported && !host.container.operation && !host.container.pendingScrollToEnd) {
+        if (!corrected && !reported && !host.container.state.operation && !host.container.state.pendingScrollToEnd) {
           settled = frame;
           break;
         }
@@ -1349,8 +1351,9 @@ TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
         failWith(host, seed, what + ": never settled");
       }
       checkFrame(host, seed, true);
-      if (host.container.isAnchorable(host.container.anchor.key) == false && !host.container.anchor.key.empty() &&
-          host.container.anchor.key.rfind("pill", 0) == 0) {
+      const std::string& anchorKey = host.container.state.anchor.key;
+      if (host.container.isAnchorable(anchorKey) == false && !anchorKey.empty() &&
+          host.container.state.anchor.key.rfind("pill", 0) == 0) {
         // Only allowed when nothing else is on screen.
         bool contentVisible = false;
         for (const ScreenRow& row : visibleRows(host)) {
@@ -1413,7 +1416,7 @@ TEST(fuzz_window_resizes_keep_the_reader) {
       }
       double previousWindow = host.windowSize;
       bool atBottom = host.inverted && host.hostOffset >= host.maxOffset() - INVERTED_FOLLOW_BAND &&
-        !host.container.invertedBottomReleased;
+        !host.container.state.invertedBottomReleased;
       ScreenRow row = firstVisibleRow(host);
       host.windowSize = coin(host.rng) < 50 ? WINDOW_HEIGHT : WINDOW_HEIGHT - 300.0 - static_cast<double>(coin(host.rng));
       if (host.windowSize == previousWindow) {
@@ -1962,8 +1965,9 @@ TEST(fuzz_inverted_header_and_footer_changes_keep_the_reader) {
         scrollTo(host, seed, target);
         continue;
       }
-      bool atBottom = host.hostOffset >= host.maxOffset() - INVERTED_FOLLOW_BAND && !host.container.invertedBottomReleased;
-      bool openingPin = atBottom && host.container.invertedOpeningPin;
+      bool atBottom =
+        host.hostOffset >= host.maxOffset() - INVERTED_FOLLOW_BAND && !host.container.state.invertedBottomReleased;
+      bool openingPin = atBottom && host.container.state.invertedOpeningPin;
       ScreenRow row = firstVisibleRow(host);
       double offsetBefore = host.hostOffset;
       double previousHeader = host.header;

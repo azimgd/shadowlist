@@ -1,8 +1,15 @@
+import { Commands as ShadowListViewCommands } from './ShadowListViewNativeComponent';
+
 export { default as ShadowList } from './ShadowList';
 export { default as SectionList } from './SectionList';
 export { default as TreeList } from './TreeList';
 export { default as DraggableList } from './DraggableList';
 export { default as ItemActionsView } from './ItemActionsView';
+export {
+  ShadowListDefaultsProvider,
+  useShadowListDefaults,
+  type ShadowListDefaults,
+} from './ShadowListDefaults';
 
 export { useKeyboardAnimation, KeyboardView } from './keyboard';
 export type {
@@ -12,9 +19,9 @@ export type {
 } from './keyboard';
 
 export { default as ShadowListView } from './ShadowListViewNativeComponent';
+export { ShadowListViewCommands as Commands };
 export { default as ShadowListCellView } from './ShadowListCellViewNativeComponent';
 export { default as ShadowListTemplateView } from './ShadowListTemplateView';
 
 export * from './ShadowList';
 export * from './types';
-export * from './ShadowListViewNativeComponent';

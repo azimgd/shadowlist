@@ -65,7 +65,13 @@ export interface ShadowListKitModule {
     trailingInset: number,
     out: number
   ): void;
-  _ShadowListKitCore_nativeOffsetMovedThreshold(): number;
+  _ShadowListKitCore_nativeShouldMount(
+    handle: number,
+    index: number,
+    viewLow: number,
+    viewHigh: number
+  ): number;
+  _ShadowListKitCore_nativeConstants(out: number): void;
   _ShadowListKitCore_nativeVisibleRange(handle: number, out: number): number;
   _ShadowListKitCore_nativeIndexOfKey(
     handle: number,
@@ -191,4 +197,9 @@ export interface ShadowListKitModule {
 
 export default function createShadowListKitModule(options?: {
   locateFile?: (path: string, scriptDirectory: string) => string;
+  wasmBinary?: BufferSource;
+  instantiateWasm?: (
+    imports: WebAssembly.Imports,
+    done: (instance: WebAssembly.Instance, module: WebAssembly.Module) => void
+  ) => object;
 }): Promise<ShadowListKitModule>;

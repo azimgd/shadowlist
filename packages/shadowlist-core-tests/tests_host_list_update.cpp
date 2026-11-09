@@ -198,6 +198,22 @@ TEST(batch_collector_keeps_a_reload_inside_the_batch) {
 }
 
 /*
+ * A reload drops the changes around it, and nothing is taken while a block still runs.
+ */
+TEST(batch_collector_reload_drops_the_changes_and_take_waits_for_the_outermost_block) {
+  BatchCollector collector;
+  collector.begin();
+  collector.addDeleted({1});
+  collector.markNeedsReload();
+  collector.addInserted({0});
+  collector.addMoved(2, 3);
+  CHECK(collector.take().isEmpty());
+  CHECK(collector.end());
+  CollectedBatch batch = collector.take();
+  CHECK(batch.needsReload && batch.update.isEmpty());
+}
+
+/*
  * The keys the Android and wasm kits hold beside their core. A change brings only the middle,
  * and the diff, the content versions and the selection read the keys held.
  */

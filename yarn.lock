@@ -9354,9 +9354,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"shadowlist-utils@workspace:templates/shadowlist-utils":
+"shadowlist-utils@workspace:packages/shadowlist-utils":
   version: 0.0.0-use.local
-  resolution: "shadowlist-utils@workspace:templates/shadowlist-utils"
+  resolution: "shadowlist-utils@workspace:packages/shadowlist-utils"
   dependencies:
     "@types/jest": "npm:^29.5.14"
     "@types/react": "npm:^19.2.17"

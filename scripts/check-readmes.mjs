@@ -44,14 +44,14 @@ const EXAMPLES_TSCONFIG = 'templates/shadowlist-fabric-example/tsconfig.json';
  */
 function requiredLines() {
   const fabric = json('packages/shadowlist-fabric/package.json');
-  const utils = json('templates/shadowlist-utils/package.json');
+  const utils = json('packages/shadowlist-utils/package.json');
   const kitBuild = 'packages/shadowlist-android/ShadowListKit/build.gradle.kts';
   const kitProperties =
     'packages/shadowlist-android/ShadowListKit/gradle.properties';
-  const iosMinimum = capture(
-    'Package.swift',
-    /platforms: \[\.iOS\(\.v(\d+)\)\]/
-  );
+  const iosMinimum = capture('Package.swift', /platforms: \[\.iOS\(\.v(\d+)\)/);
+  const macMinimum = capture('Package.swift', /\.macOS\(\.v(\d+)\)/);
+  const podIosMinimum = capture('ShadowListKit.podspec', /:ios => "(\d+)\.0"/);
+  const podMacMinimum = capture('ShadowListKit.podspec', /:osx => "(\d+)\.0"/);
   const androidMinimum = capture(kitBuild, /minSdk = (\d+)/);
   const javaMinimum = capture(
     kitBuild,
@@ -66,9 +66,9 @@ function requiredLines() {
     }));
   return [
     ...peers('packages/shadowlist-fabric/README.md'),
-    ...peers('templates/shadowlist-utils/README.md'),
+    ...peers('packages/shadowlist-utils/README.md'),
     {
-      file: 'templates/shadowlist-utils/README.md',
+      file: 'packages/shadowlist-utils/README.md',
       text: `| \`shadowlist\` | \`${utils.peerDependencies.shadowlist}\``,
       what: 'shadowlist peer range',
     },
@@ -79,6 +79,26 @@ function requiredLines() {
     },
     {
       file: 'packages/shadowlist-uikit/README.md',
+      text: `from: "${fabric.version}"`,
+      what: 'SwiftPM install version',
+    },
+    {
+      file: 'packages/shadowlist-uikit/README.md',
+      text: podIosMinimum && `| iOS | ${podIosMinimum} or newer |`,
+      what: 'iOS requirement (ShadowListKit.podspec)',
+    },
+    {
+      file: 'packages/shadowlist-appkit/README.md',
+      text: macMinimum && `| macOS | ${macMinimum} or newer |`,
+      what: 'macOS requirement (Package.swift)',
+    },
+    {
+      file: 'packages/shadowlist-appkit/README.md',
+      text: podMacMinimum && `platform :osx, '${podMacMinimum}.0'`,
+      what: 'macOS requirement (ShadowListKit.podspec)',
+    },
+    {
+      file: 'packages/shadowlist-appkit/README.md',
       text: `from: "${fabric.version}"`,
       what: 'SwiftPM install version',
     },

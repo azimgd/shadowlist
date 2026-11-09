@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, type ComponentRef } from 'react';
+import { TextInput } from 'react-native';
 import ShadowListView, { Commands } from '../ShadowListViewNativeComponent';
 import type { RowSelection } from './CellRenderer';
 import {
@@ -62,6 +63,13 @@ export function useKeySelection<ItemT>({
       const current =
         selectedKey === undefined ? -1 : source.rows.indexOfKey(selectedKey);
       const { key } = event.nativeEvent;
+      /*
+       * react-native-macos calls onKeyDown for every key that bubbles up to the list, a text
+       * field's in a row too: answer only the selection keys, and none while a field has the
+       * keyboard, whose arrows move its caret.
+       */
+      if (!SELECTION_KEYS.some((handled) => handled.key === key)) return;
+      if (TextInput.State.currentlyFocusedInput() != null) return;
       if (key === 'ArrowUp' || key === 'ArrowDown') {
         const step = key === 'ArrowUp' ? -1 : 1;
         const next = nextSelectableIndex(

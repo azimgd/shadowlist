@@ -2,7 +2,7 @@ import {
   ShadowListKitCore,
   ShadowListKitListState,
   isShadowListKitLoaded,
-  unchangedEnds,
+  keySplice,
 } from './ShadowListKitCore.js';
 import { ShadowListKitListChanges } from './ShadowListKitListChanges.js';
 import type { ShadowListKitListView } from './ShadowListKitListView.js';
@@ -103,7 +103,7 @@ export class ShadowListKitListData {
       this.list.liveCore,
       this.keys,
       next,
-      unchangedEnds(this.keys, next),
+      keySplice(this.keys, next),
       change
     );
     this.keys = next;
@@ -198,13 +198,12 @@ export class ShadowListKitListData {
       this.performUnloadedBatch(updates);
     } else {
       this.state.beginBatch();
-      let outermost = false;
       try {
         updates();
       } finally {
-        outermost = this.state.endBatch();
+        // A block that threw changed the data as far as it got. Its batch commits too.
+        if (this.state.endBatch()) this.commitBatch();
       }
-      if (outermost) this.commitBatch();
     }
     if (!completion) return;
     this.list.runCommandNow();

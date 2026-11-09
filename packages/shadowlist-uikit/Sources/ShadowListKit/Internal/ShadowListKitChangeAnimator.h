@@ -1,6 +1,6 @@
 #pragma once
 
-#import <UIKit/UIKit.h>
+#import "ShadowListKitPlatform.h"
 
 #include <string>
 #include <vector>
@@ -19,14 +19,16 @@ NS_ASSUME_NONNULL_BEGIN
  * captureDeleted:inserted: runs before a change reaches the core. Several changes before one
  * layout add up, and the first one records the screen. fadeOutKey:cell: keeps a deleted row's
  * cell on screen where it was and fades it out, then recycles it. It returns NO when the cell
- * should go back to the pool right away. run slides the rows that stay and fades in the new
- * ones after the layout pass.
+ * should go back to the pool right away. finishFades recycles every cell still fading at once,
+ * and a fade's completion that comes after finds nothing to do. run slides the rows that stay
+ * and fades in the new ones after the layout pass.
  */
 @interface ShadowListKitChangeAnimator : NSObject
 
 - (instancetype)initWithList:(ShadowListKitListView *)list;
 - (void)captureDeleted:(const std::vector<std::string>&)deleted inserted:(const std::vector<std::string>&)inserted;
 - (BOOL)fadeOutKey:(const std::string&)key cell:(ShadowListKitListCell *)cell;
+- (void)finishFades;
 - (void)run;
 
 @end

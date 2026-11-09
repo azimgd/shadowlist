@@ -36,7 +36,7 @@ FrameInput report(const std::vector<std::string>& keys, double offset, double he
 FrameInput ownWrite(const Container& container, const std::vector<std::string>& keys, double header = HEADER) {
   FrameInput input = report(keys, container.revision.offsetY, header);
   input.offsetEnabled = true;
-  input.commitToken = container.operation ? container.operation->commitToken : 0;
+  input.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
   return input;
 }
 
@@ -72,7 +72,7 @@ void layoutPass(
     Virtualizer::recomputeRowOffsets(container, 0);
     Virtualizer::applyHeaderSizeChange(container, previousHeader);
     Virtualizer::applyWindowSizeChange(container, previousWindow);
-    container.offsetCorrected = true;
+    container.state.offsetCorrected = true;
   }
   auto visible = container.getMeasuredRange();
   if (mountedFrom == UNDEFINED_INDEX && visible.low != UNDEFINED_INDEX) {
@@ -117,7 +117,7 @@ TEST(scroll_to_index_holds_its_row_when_the_rows_above_shrink_to_the_average) {
   Virtualizer::update(container, first);
   // The first layout mounts the rows around the target, a few of them above it.
   layoutPass(container, HEADER, 26, 49);
-  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
+  std::uint64_t token = container.state.operation ? container.state.operation->commitToken : 0;
   CHECK(token != 0);
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
 
@@ -126,12 +126,12 @@ TEST(scroll_to_index_holds_its_row_when_the_rows_above_shrink_to_the_average) {
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
 
   for (int commit = 0; commit < 4; ++commit) {
-    std::uint64_t current = container.operation ? container.operation->commitToken : token;
+    std::uint64_t current = container.state.operation ? container.state.operation->commitToken : token;
     Virtualizer::update(container, echo(container, keys, current));
     layoutPass(container, HEADER, 26, 49);
   }
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
-  CHECK(!container.offsetCorrected);
+  CHECK(!container.state.offsetCorrected);
 }
 
 /*
@@ -157,14 +157,14 @@ TEST(rows_above_shrinking_near_the_end_keep_the_visible_row) {
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
 
   for (int commit = 0; commit < 4; ++commit) {
-    std::uint64_t current = container.operation ? container.operation->commitToken : 0;
-    if (container.offsetCorrected) {
+    std::uint64_t current = container.state.operation ? container.state.operation->commitToken : 0;
+    if (container.state.offsetCorrected) {
       Virtualizer::update(container, ownWrite(container, keys));
     }
     Virtualizer::update(container, echo(container, keys, current));
   }
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
-  CHECK(!container.offsetCorrected);
+  CHECK(!container.state.offsetCorrected);
 }
 
 /*
@@ -183,7 +183,7 @@ TEST(refresh_that_drops_the_anchor_row_holds_the_next_visible_row) {
   refreshed.insert(refreshed.end(), keys.begin() + 1, keys.end());
   Virtualizer::update(container, report(refreshed, 0.0));
   CHECK_NEAR(onScreen(container, "k1"), k1Before, 0.5);
-  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
+  std::uint64_t token = container.state.operation ? container.state.operation->commitToken : 0;
   CHECK(token != 0);
   layoutPass(container, HEADER, 0, 20, 100.0);
   Virtualizer::update(container, ownWrite(container, refreshed));
@@ -191,7 +191,7 @@ TEST(refresh_that_drops_the_anchor_row_holds_the_next_visible_row) {
   Virtualizer::update(container, echo(container, refreshed, token));
   Virtualizer::update(container, echo(container, refreshed, token));
   CHECK_NEAR(onScreen(container, "k1"), k1Before, 0.5);
-  CHECK(!container.offsetCorrected);
+  CHECK(!container.state.offsetCorrected);
 }
 
 /*
@@ -286,8 +286,8 @@ void settleMidList(Container& container, const Variant& variant, const std::vect
  */
 void settleCommits(Container& container, const Variant& variant, const std::vector<std::string>& keys) {
   for (int round = 0; round < 3; ++round) {
-    std::uint64_t token = container.operation ? container.operation->commitToken : 0;
-    if (container.offsetCorrected) {
+    std::uint64_t token = container.state.operation ? container.state.operation->commitToken : 0;
+    if (container.state.offsetCorrected) {
       FrameInput write = variantFrame(variant, keys, scrollOffset(container));
       write.offsetEnabled = true;
       write.commitToken = token;
@@ -397,11 +397,11 @@ TEST(an_older_command_sequence_does_not_run_the_scroll_command_again) {
   container.requestScrollToRow(30, 1.0, UNDEFINED_INDEX);
   Virtualizer::update(container, report(keys, 0.0));
   double target = container.revision.offsetY;
-  CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
-  std::uint64_t token = container.operation->commitToken;
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ScrollToKey);
+  std::uint64_t token = container.state.operation->commitToken;
   Virtualizer::update(container, ownWrite(container, keys));
   Virtualizer::update(container, echo(container, keys, token));
-  CHECK(!container.operation);
+  CHECK(!container.state.operation);
 
   // A report built on the state before the command, then one built on the state after it.
   container.requestScrollToRow(0, 0.0, UNDEFINED_INDEX);
@@ -412,13 +412,13 @@ TEST(an_older_command_sequence_does_not_run_the_scroll_command_again) {
   away.userScrolled = true;
   Virtualizer::update(container, away);
   Virtualizer::update(container, report(keys, target + 400.0));
-  CHECK(!container.operation);
+  CHECK(!container.state.operation);
   CHECK_NEAR(container.revision.offsetY, target + 400.0, 0.5);
 
   // A newer sequence still runs, even for the same index.
   container.requestScrollToRow(30, 2.0, UNDEFINED_INDEX);
   Virtualizer::update(container, report(keys, target + 400.0));
-  CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ScrollToKey);
 }
 
 namespace {
@@ -463,14 +463,14 @@ TEST(dropping_the_top_row_lower_keeps_the_offset_while_estimates_correct) {
   Virtualizer::update(container, report(keys, 0.0, SCREEN_HEADER));
   layoutPass(container, SCREEN_HEADER, 0, 11, SCREEN_ROW);
   Virtualizer::update(container, report(keys, 0.0, SCREEN_HEADER));
-  CHECK_EQ(container.anchor.key, std::string("k0"));
+  CHECK_EQ(container.state.anchor.key, std::string("k0"));
   double estimatedTotal = container.revision.contentHeight;
 
   Virtualizer::update(container, drop(keys, 0.0, "k0", SCREEN_HEADER));
   std::vector<std::string> reordered = movedKeys(keys, 0, 6);
   Virtualizer::update(container, report(reordered, 0.0, SCREEN_HEADER));
   CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
-  CHECK(!container.offsetCorrected);
+  CHECK(!container.state.offsetCorrected);
 
   // The rows below get measured in the same settle. The total shrinks toward the real one.
   layoutPass(container, SCREEN_HEADER, 0, 79, SCREEN_ROW);
@@ -479,7 +479,7 @@ TEST(dropping_the_top_row_lower_keeps_the_offset_while_estimates_correct) {
     Virtualizer::update(container, report(reordered, 0.0, SCREEN_HEADER));
   }
   CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
-  CHECK(!container.offsetCorrected);
+  CHECK(!container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k0"), SCREEN_HEADER + 6 * SCREEN_ROW, 0.5);
 }
 
@@ -495,7 +495,7 @@ TEST(dropping_the_anchor_row_lower_keeps_the_offset_when_scrolled) {
   double offset = HEADER + 10 * 100.0 + 40.0;
   Virtualizer::update(container, report(keys, offset));
   Virtualizer::update(container, report(keys, offset));
-  CHECK_EQ(container.anchor.key, std::string("k10"));
+  CHECK_EQ(container.state.anchor.key, std::string("k10"));
 
   Virtualizer::update(container, drop(keys, offset, "k10"));
   std::vector<std::string> reordered = movedKeys(keys, 10, 13);
@@ -503,7 +503,7 @@ TEST(dropping_the_anchor_row_lower_keeps_the_offset_when_scrolled) {
   layoutPass(container, HEADER, 0, 59, 100.0);
   Virtualizer::update(container, report(reordered, offset));
   CHECK_NEAR(container.revision.offsetY, offset, 0.5);
-  CHECK(!container.offsetCorrected);
+  CHECK(!container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k10"), 3 * 100.0 - 40.0, 0.5);
 }
 
@@ -519,13 +519,13 @@ TEST(dropping_a_row_into_the_anchor_slot_keeps_the_offset) {
   double offset = HEADER + 10 * 100.0 + 40.0;
   Virtualizer::update(container, report(keys, offset));
   Virtualizer::update(container, report(keys, offset));
-  CHECK_EQ(container.anchor.key, std::string("k10"));
+  CHECK_EQ(container.state.anchor.key, std::string("k10"));
 
   Virtualizer::update(container, drop(keys, offset, "k15"));
   std::vector<std::string> reordered = movedKeys(keys, 15, 10);
   Virtualizer::update(container, report(reordered, offset));
   CHECK_NEAR(container.revision.offsetY, offset, 0.5);
-  CHECK(!container.offsetCorrected);
+  CHECK(!container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k15"), -40.0, 0.5);
 }
 
@@ -547,13 +547,13 @@ TEST(a_reorder_without_a_pending_drop_still_holds_the_anchor_row) {
   std::vector<std::string> appended = keys;
   appended.push_back("extra");
   Virtualizer::update(container, report(appended, offset));
-  CHECK(container.pendingDrop.kind == DropHint::Kind::None);
+  CHECK(container.state.pendingDrop.kind == DropHint::Kind::None);
   CHECK_NEAR(container.revision.offsetY, offset, 0.5);
 
   double k10Before = onScreen(container, "k10");
   std::vector<std::string> reordered = movedKeys(appended, 10, 13);
   Virtualizer::update(container, report(reordered, offset));
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k10"), k10Before, 0.5);
 }
 
@@ -604,7 +604,7 @@ TEST(a_row_landing_in_the_anchor_slot_from_another_list_keeps_the_offset) {
   double offset = 0.0;
   Container container;
   scrollIntoK10(container, keys, offset);
-  CHECK_EQ(container.anchor.key, std::string("k10"));
+  CHECK_EQ(container.state.anchor.key, std::string("k10"));
   Virtualizer::update(container, drop(keys, offset, "incoming", HEADER, DropHint::Kind::Inserted));
   std::vector<std::string> next = keys;
   next.insert(next.begin() + 10, "incoming");
@@ -651,17 +651,17 @@ TEST(a_rejected_drop_then_a_server_sort_holds_the_anchor_row) {
   FrameInput rangeMoved = report(keys, offset);
   rangeMoved.frameTimeMs = 1100.0;
   Virtualizer::update(container, rangeMoved);
-  CHECK(container.pendingDrop.kind == DropHint::Kind::Moved);
+  CHECK(container.state.pendingDrop.kind == DropHint::Kind::Moved);
   FrameInput idle = report(keys, offset);
   idle.frameTimeMs = 1000.0 + DROP_HINT_TIMEOUT_MS + 500.0;
   Virtualizer::update(container, idle);
-  CHECK(container.pendingDrop.kind == DropHint::Kind::None);
+  CHECK(container.state.pendingDrop.kind == DropHint::Kind::None);
 
   double k10Before = onScreen(container, "k10");
   FrameInput sorted = report(movedKeys(keys, 10, 13), offset);
   sorted.frameTimeMs = idle.frameTimeMs + 5000.0;
   Virtualizer::update(container, sorted);
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k10"), k10Before, 0.5);
 }
 
@@ -679,15 +679,15 @@ TEST(a_drop_hint_expires_after_its_timeout) {
   FrameInput soon = report(keys, offset);
   soon.frameTimeMs = 1000.0 + DROP_HINT_TIMEOUT_MS / 2.0;
   Virtualizer::update(container, soon);
-  CHECK(container.pendingDrop.kind == DropHint::Kind::Moved);
+  CHECK(container.state.pendingDrop.kind == DropHint::Kind::Moved);
   FrameInput late = report(keys, offset);
   late.frameTimeMs = 1000.0 + DROP_HINT_TIMEOUT_MS + 1.0;
   Virtualizer::update(container, late);
-  CHECK(container.pendingDrop.kind == DropHint::Kind::None);
+  CHECK(container.state.pendingDrop.kind == DropHint::Kind::None);
 
   double k10Before = onScreen(container, "k10");
   Virtualizer::update(container, report(movedKeys(keys, 10, 13), offset));
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k10"), k10Before, 0.5);
 }
 
@@ -706,8 +706,8 @@ TEST(a_permutation_of_several_rows_after_a_drop_holds_the_anchor_row) {
   std::swap(sorted[20], sorted[21]);
   double k10Before = onScreen(container, "k10");
   Virtualizer::update(container, report(sorted, offset));
-  CHECK(container.pendingDrop.kind == DropHint::Kind::None);
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.pendingDrop.kind == DropHint::Kind::None);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k10"), k10Before, 0.5);
 }
 
@@ -726,6 +726,6 @@ TEST(a_removal_of_more_than_the_dragged_row_is_not_the_drop) {
   next.erase(next.begin() + 2);
   double k11Before = onScreen(container, "k11");
   Virtualizer::update(container, report(next, offset));
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k11"), k11Before, 0.5);
 }

@@ -2,9 +2,54 @@
 
 ## Unreleased
 
-### shadowlist-utils
+### ShadowListUtils
 
-- `Form.Row` sets its label in the label colour instead of the secondary one, so a row reads as a settings list sets it: what it is in the primary ink, its value (`Form.Value`) in the secondary. A label and its value in the same gray read as one faint line.
+- `PortalHost` and `usePortal` (a layer over the whole window for sheets and menus on a desktop) come from `shadowlist-utils/native`. They were in shadowgrid, which draws no such surface.
+- The package lives in `packages/shadowlist-utils` with the other published packages (it was under `templates/`), and `yarn release:utils` publishes it. A checkout dependency is `file:../shadowlist/packages/shadowlist-utils`.
+
+### ShadowList (React Native)
+
+- `ShadowListDefaultsProvider` sets `showsVerticalScrollIndicator` and `showsHorizontalScrollIndicator` for every list under it that does not set its own (`useShadowListDefaults` reads them), so an app that hides scroll bars on one platform says so once instead of wrapping each list.
+- The codegen event payload types are named `<Name>Event` (`DragEndEvent`, `MountedRangeChangeEvent`, `NativeScrollEvent` for the payload `ScrollEvent` wraps) and the package index no longer re-exports them. `ShadowListView` and its `Commands` are still exported.
+
+### ShadowListKit for UIKit
+
+- The delegate hears the scroll events as `listViewDidScroll:`, `listViewWillBeginDragging:`, `listViewDidEndDragging:willDecelerate:`, `listViewDidEndDecelerating:` and `listViewDidEndScrollingAnimation:`, the same calls as the AppKit list's. `UIScrollViewDelegate`'s calls still arrive.
+
+### ShadowListKit for AppKit
+
+- A driven list costs about what a host that places its rows itself does. While the host moves it, the content moves by its layer's `sublayerTransform` and cells move and hide by their layers. No view geometry changes. When it did, AppKit walked every view of the window on each frame to update its tracking areas. The views take their layers' geometry once the list rests for a tenth of a second, and `visibleCells`, `cellForItemAtIndex:`, hit testing, menus, drags and accessibility see the cells where they show before that.
+- A driven list lays out as soon as its host sets `contentOffset`, without AppKit's layout machinery, and an offset that keeps the same rows mounted runs no layout pass. Its rows sit on their own device pixels.
+- `ShadowListKitScrollerView` hides its thumbs with one timer it puts off on each move instead of a cancelled and repeated perform request.
+- `(Testing)` counts layout passes, runs of the core and mount passes, and says whether the views lag behind their layers.
+
+### ShadowListKit (Android)
+
+- Breaking: the length settings are named for their pixels: `estimatedItemSize` is `estimatedItemSizePx`, and `separatorInsetStart`, `separatorInsetEnd` and `separatorThickness` are `separatorInsetStartPx`, `separatorInsetEndPx` and `separatorThicknessPx`. The Apple lists take points.
+- Breaking: `Delegate.didEndScrolling` is gone. The delegate hears `willBeginDragging`, `didEndDragging(listView, willDecelerate)`, `didEndDecelerating` and `didEndScrollingAnimation` beside `didScroll`, the same calls as the Apple lists'. A lift without settling is `didEndDragging` with `willDecelerate` false.
+- A driven list moved by `adjustOffsetBy` inside the content lays out once, and runs the core only once the offset leaves the core's band. Every adjustment laid out twice and ran the core in the second pass before. A layout pass whose offset keeps the same rows mounted plans no mount.
+- A mount pass shows and hides cells with `setTransitionVisibility` from API 29. `setVisibility` dispatched the change through every view of the cell, which cost more than the rest of the pass. A cell holding focus still changes through `setVisibility`.
+- A driven list draws its children into a `RenderNode` of its own from API 29 and records it again only when a child comes, goes, shows or hides. A frame that only moves the offset records the list around that node, and a child that drew again is brought up to date on its own. A lifted row, separators, an open swipe and a layout transition draw the usual way.
+- A driven list of one column without sticky rows mounts a fifth of a viewport ahead on the side it moves to, and plans again only once the rows it mounted stop covering the viewport. A move longer than that mounts nothing ahead.
+- Recycling a cell cancels its animator only when something asked the cell for one.
+
+### Core (C++)
+
+- `MountPlan` has a `band`: the offsets where a plan mounts the same rows.
+- `host/ScrollPhysics` has the scroller thumb's inset, least length and fade (`SCROLLER_THUMB_INSET`, `SCROLLER_THUMB_MIN_LENGTH`, `SCROLLER_THUMB_FADE_SECONDS`), which `ShadowListKitScrollerView` and a grid drawing its own thumbs read.
+
+## 0.10.0
+
+### Breaking
+
+- Android: `scrollGestureEnabled` is `scrollDriven`, inverted, with no alias. `scrollDriven` hands the scrolling to a host and `scrollEnabled` off turns the reader's scrolling off.
+- AppKit: the getter of `scrollDriven` is `isScrollDriven`, so Swift spells the property `isScrollDriven` instead of `scrollDriven`.
+- Android: `ShadowListKitDefaultItemAnimator.CHANGE_DURATION_MS` is a `val` read from the core instead of a `const val`.
+- Android and the web: `retainSelection` and the per-change key repacking are gone. One `commitKeys` call sends the changed keys.
+- React Native: the raw `ShadowListView` sends `onMountedRangeChange`, `onViewabilityChange` (only `addedKeys` and `removedKeys`) and `onPrefetchChange` instead of `onMeasuredRangeChange` and `onViewableIndicesChange`, takes its keys through `keysStore`, `keysVersion` and `sizeSpecsVersion`, and the raw `ShadowListCellView` has no `index` prop. SectionList row keys are `\x1fh:`, `\x1fi:` and `\x1ff:` with the section key instead of `sh:`, `si:` and `sf:`.
+- React Native: SectionList and TreeList drop the props they do not support, with a `__DEV__` warning.
+- Core: scroll command and prop indices are `std::size_t` with `UNDEFINED_INDEX`, `prefetchWindow` is `prefetchRange`, `SL_LOG` is `SHADOWLIST_LOG`, `endEdit` and `Row::index` are removed, `ListDriver::reloadKeys` takes a splice and `KeyList` is a read-only view.
+- shadowhash: `decodePost` and `decodeText` refuse a hash over the exported `LIMITS` with `InvalidHashError`: over 1024 characters, a number over 3 bytes or not written the shortest way, more than 64 images, 1024 word nibbles or 65536 characters, words or breaks. The encoder keeps a run of breaks at 255 instead of wrapping past a byte.
 
 ### ShadowList (React Native)
 
@@ -32,6 +77,10 @@
 
 ### ShadowListKit (iOS and Android)
 
+- Android: `Sizing.exactSizeForItem` gives an item a size with its fraction of a pixel, and rows sit on whole pixels rounded from the exact sum of the sizes before them.
+- Android: a view that owns the scrolling can host the list. `scrollDriven` hands it the scrolling, `scrollEnabled` turns the reader's scrolling off and keeps taps, swipe actions and reordering, `adjustOffsetBy(delta)` moves the offset by a fractional delta and a subclass's `didLayOut()` runs after every layout pass.
+- Android: a host library builds the kit's native library against its own copy of the core with `SHADOWLIST_KIT_CORE_DIR` and adds definitions with `SHADOWLIST_KIT_COMPILE_DEFINITIONS`.
+- iOS: the swipe action, swipe configuration, anchor state and list changes classes live in `ShadowListKitListModels.h`, which `ShadowListKitListView.h` imports. The API is the same.
 - `followAppends` also keeps items growing at the end in view.
 - Android keeps the selection, the batch `performBatchUpdates` collects and the content versions in the core's `ListSelection`, `BatchCollector` and `ContentVersions` through the JNI, beside the core and outliving it. UIKit takes its batches from `BatchCollector` too.
 - The default change animation duration is the core's `CHANGE_DURATION_MS` in both kits. On Android `ShadowListKitDefaultItemAnimator.CHANGE_DURATION_MS` is a `val` read from the core instead of a `const val`, still 250 ms.
@@ -42,8 +91,22 @@
 - Items are prefetched before their cells are made: a pass measures the rows about to show, reports prefetching and cancels, and only then builds the remaining cells. Without `prefetchDataSource` nothing changes.
 - Android TalkBack's "Moved to" announcement waits for the row to land in the target list, like VoiceOver, and stays silent after the landing timeout.
 
+### ShadowListKit for AppKit
+
+- New `packages/shadowlist-appkit` package: `ShadowListKitListView` for the Mac, a flipped, layer backed `NSView` that owns its scroll position, with the UIKit kit's class names, selectors and data source. Swift Package Manager product `ShadowListKitAppKit`, and the `ShadowListKit` pod on macOS 14.
+- Keys, measurement through cells or `listView:sizeForItemAtIndex:crossSize:`, reloads, inserts, deletes, moves, batches, `applyChanges`, inverted lists, grids, horizontal lists, sections with sticky headers, sticky items, header and footer views, separators, prefetching, snapping, saved positions with window state restoration and scroll commands.
+- `ShadowListKitScrollEngine` scrolls a view that owns its scroll position from trackpad gestures and the mouse wheel, on one axis or two, and `ShadowListKitScrollerView` draws overlay scrollers over it. The list uses both.
+- `scrollDriven` lets a host such as a two axis grid move the list: the host sets `contentOffset` and `scrollPhase`, and the list reports the offsets it wants to `listView:didCorrectOffset:`. `listViewDidLayOut:` follows every layout pass.
+- Selection with the mouse and the keyboard the way `NSTableView` selects, with `listView:didActivateItemAtIndex:`, type select through `listView:typeSelectStringForItemAtIndex:`, hover, emphasis and context menus with `clickedIndex` and the cell's `menuTarget`.
+- Drag reorder with the mouse, change animations with `animatesChanges` and `itemAnimator`, and swipe actions on a two finger trackpad swipe. An item without its own menu shows its swipe actions as one.
+- Accessibility as a table of one column with every item a row, scroll bars that page, the swipe actions as custom actions and Move actions with `reorderEnabled`. `accessibilityElement` set to `NO` hides the list for a host with its own elements.
+- `ShadowListKitTextLayout` and `ShadowListKitTextView` with `NSFont`, on the UIKit kit's CoreText code.
+- `templates/shadowlist-appkit-example` runs the kit with scripted checks through `-SLScenario`.
+
 ### Core (C++)
 
+- `host/ScrollPhysics` scrolls a view on one or two axes from scroll wheel events: trackpad gestures that rubber band past the edges, the momentum after them, a mouse wheel by lines, animations to an offset, snapping at rest and the scroller thumb geometry.
+- `host/ListSelection` keeps an anchor and selects a range from it with `setAnchor` and `selectRange`, the way a Shift-click extends a selection on the Mac. The anchor follows its key and drops with its row.
 - Scroll command and prop indices are `std::size_t` with `UNDEFINED_INDEX` for none: `ScrollCommand::index`, `ScrollPatch::commandIndex`, `Container::requestScrollToRow` and `commandTargetOffset`. `SCROLL_TO_END_INDEX` and `SCROLL_TO_OFFSET_INDEX` are `std::size_t` sentinels. The platforms still carry -3 and -4 in a double and convert with `scrollCommandIndexFromDouble` and `scrollCommandIndexToDouble`.
 - `prefetchWindow` is `prefetchRange`, and the debug log macro `SL_LOG` is `SHADOWLIST_LOG`.
 - `KeyEdit` has a `Splice` kind with `start`, `deleted` and `inserted`, which every `ListDriver` edit hands to the core through `keyEditOf`. `endEdit` is gone. `ListDriver::reloadKeys` takes the splice.
@@ -53,6 +116,7 @@
 
 ### ShadowListUtils
 
+- `Form.Row` sets its label in the label colour instead of the secondary one, so a row reads as a settings list sets it: what it is in the primary ink, its value (`Form.Value`) in the secondary. A label and its value in the same gray read as one faint line.
 - `TemplateList` passes selection, keyboard selection, swipe actions, menus and `contentContainerStyle` through to the list.
 - `Grouped.Actions`, and swipe actions and a menu on `Grouped.Row`.
 - `Assistant.List` dismisses the keyboard on drag.
@@ -80,6 +144,7 @@
 
 ### shadowhash
 
+- The decoder bounds what a hash can make it do. A 10 character hash could ask for 30 million words past the nibbles and a 10 byte one for a trillion, and a text without spaces could claim 2^40 characters and break the placeholder's string. `decodePost` and `decodeText` now refuse a hash over 1024 characters, a number over 3 bytes or not written the shortest way, more than 64 images, 1024 word nibbles or 65536 characters, words or breaks, with `InvalidHashError`. The limits are exported as `LIMITS` and listed in the README. The encoder stays inside them, and every hash it wrote with the default `maxNibbles` decodes as before. A cut text whose runs of breaks average more than 255 keeps 255 instead of wrapping past a byte.
 - Fidelity is scored on a held-out corpus of 233 hand-written posts in 13 groups instead of the corpus `LETTERS` was calibrated on. The README gives the held-out numbers beside the chars-only baseline, and says every number comes from CoreText with the macOS system font.
 
 ## 0.9.0

@@ -87,7 +87,7 @@ std::vector<std::string> keysFromPlan(
 
 /*
  * A batch performBatchUpdates collected, see BatchCollector. needsReload is a reloadData inside
- * the batch, after which the host reads everything again.
+ * the batch, after which the host reads everything again and update is empty.
  */
 struct CollectedBatch {
   BatchUpdate update;
@@ -112,7 +112,9 @@ public:
   void begin() { ++depth_; }
 
   /*
-   * A block returned. Returns whether it was the outermost, after which the host takes the batch.
+   * A block returned, or threw. Returns whether it was the outermost, after which the host
+   * takes the batch. A host commits the batch of an outermost block that threw too, since the
+   * data changed as far as the block got.
    */
   bool end();
 
@@ -125,10 +127,15 @@ public:
   void addInserted(const std::vector<std::size_t>& indices);
   void addMoved(std::size_t from, std::size_t to);
   void addReloaded(const std::vector<std::size_t>& indices);
-  void markNeedsReload() { batch_.needsReload = true; }
 
   /*
-   * The changes collected, leaving none.
+   * A reloadData inside the batch. The changes collected before and after it are dropped,
+   * as the host reads everything again.
+   */
+  void markNeedsReload();
+
+  /*
+   * The changes collected, leaving none. Nothing while a block still runs.
    */
   CollectedBatch take();
 

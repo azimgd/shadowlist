@@ -555,3 +555,52 @@ TEST(scroll_sync_anchor_requests_sequence_up_and_ride_along) {
   CHECK_EQ(sync.requestAnchor(0.0, 10.0).anchorRequestSequence, 2.0);
   CHECK_EQ(sync.livePatch(0.0, 12.0).anchorRequestSequence, 2.0);
 }
+
+/*
+ * An animated command that reached its target still owns the view until it lands. A
+ * correction mounted in between waits for the landing command.
+ */
+TEST(scroll_sync_an_arrived_animated_command_holds_corrections_until_it_lands) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  sync.beginMount(restingState(0.0), live);
+  sync.endMount();
+  sync.issueCommand({40, 0.0, 0.0, true}, 0.0, 0.0, false);
+  MountedScroll estimated = restingState(0.0);
+  estimated.commandSequence = 1.0;
+  estimated.animationSequence = 1.0;
+  estimated.animationOffset = 3200.0;
+  sync.beginMount(estimated, live);
+  CHECK(sync.correction(viewAt(0.0)).kind == MountAction::Kind::Animate);
+  sync.endMount();
+  sync.arm(0.0, 3200.0, true);
+  CHECK(sync.onScroll(frameAt(3200.0)).landed);
+  CHECK(!sync.isArmed());
+
+  MountedScroll corrected = correctionState(3300.0, 3200.0, 9);
+  corrected.commandSequence = 1.0;
+  corrected.animationSequence = 1.0;
+  corrected.animationOffset = 3200.0;
+  sync.beginMount(corrected, live);
+  CHECK(sync.correction(viewAt(3200.0)).kind == MountAction::Kind::None);
+  sync.endMount();
+  CHECK(sync.land(0.0, 3200.0).has_value());
+  CHECK(!sync.isLanding());
+}
+
+/*
+ * A frame in the Dragging phase during an animated scroll of ours is a finger, even when the
+ * host never called disarm. That frame and the ones after it are the user's.
+ */
+TEST(scroll_sync_a_dragging_frame_gives_an_animated_scroll_up) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  sync.beginMount(restingState(0.0), live);
+  sync.endMount();
+  sync.arm(0.0, 3200.0, true);
+  CHECK(!sync.onScroll(frameAt(800.0)).userScrolled);
+  FrameReport dragged = sync.onScroll(frameAt(900.0, SCROLL_PHASE_DRAGGING));
+  CHECK(dragged.userScrolled);
+  CHECK(!sync.isArmed());
+  CHECK(sync.onScroll(frameAt(950.0)).userScrolled);
+}

@@ -8,7 +8,7 @@ import type {
   Insets,
   ViewProps,
 } from 'react-native';
-import type { OnScroll } from './ShadowListViewNativeComponent';
+import type { NativeScrollEvent } from './ShadowListViewNativeComponent';
 
 export interface ViewToken<ItemT> {
   item: ItemT;
@@ -146,10 +146,6 @@ export interface ItemActionsViewProps<ItemT = undefined> extends ViewProps {
   leadingSwipeActions?: SwipeActionsConfiguration<ItemT> | null;
   trailingSwipeActions?: SwipeActionsConfiguration<ItemT> | null;
   contextMenu?: ContextMenu<ItemT> | null;
-  /*
-   * The menu is about to show, on iOS, with the finger possibly still down. The touch can end in
-   * the moment before UIKit cancels it, so a press inside that goes by this ignores that release.
-   */
   onContextMenuWillShow?: () => void;
   children?: ReactNode;
 }
@@ -159,7 +155,7 @@ export interface PrefetchDataSource {
   cancelPrefetchingForItems?: (indices: number[]) => void;
 }
 
-export type ScrollEvent = { nativeEvent: OnScroll };
+export type ScrollEvent = { nativeEvent: NativeScrollEvent };
 
 export interface ItemSizeSpec {
   text: string;

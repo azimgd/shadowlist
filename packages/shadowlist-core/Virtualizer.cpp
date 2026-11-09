@@ -74,10 +74,10 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
     input.offsetX, input.offsetY,
     input.windowWidth, input.windowHeight,
     input.inverted ? 1 : 0, input.numberOfColumns, input.headerSize, input.footerSize,
-    container.invertedInitialized ? 1 : 0,
+    container.state.invertedInitialized ? 1 : 0,
     container.horizontal ? container.revision.contentWidth : container.revision.contentHeight,
-    static_cast<std::ptrdiff_t>(container.rowSizeDirtyFromIndex), input.offsetEnabled ? 1 : 0,
-    container.offsetCorrected ? 1 : 0, container.getOffset());
+    static_cast<std::ptrdiff_t>(container.state.rowSizeDirtyFromIndex), input.offsetEnabled ? 1 : 0,
+    container.state.offsetCorrected ? 1 : 0, container.getOffset());
 
   // Keep the previous header size to settle a change after the rows reflow.
   double previousHeaderSize = container.headerSize;
@@ -94,16 +94,16 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   bool restingAtBottom = applyInvertedBottomPin(container, input, inputOffset, gestureTakeover);
   // Our own write is not where the host is. Don't record it.
   if (!coreOffsetWrite) {
-    container.previousReportedOffset = inputOffset;
+    container.state.previousReportedOffset = inputOffset;
   }
 
   // Capture the anchor row so the same content stays in view through the reconcile.
   bool hadRowsBefore = !container.revision.rows.empty();
   std::size_t anchorIndex = captureAnchor(container, inputOffset);
 
-  std::string& anchorKey = container.frameAnchorKey;
-  anchorKey = container.anchor.key;
-  double anchorDelta = container.anchor.offset;
+  std::string& anchorKey = container.state.frameAnchorKey;
+  anchorKey = container.state.anchor.key;
+  double anchorDelta = container.state.anchor.offset;
   // Lookups by key find the first of repeated keys. Keep to that row.
   if (anchorKey.empty()) {
     anchorIndex = UNDEFINED_INDEX;
@@ -118,11 +118,11 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   // The commit token is just the running operation's id. No operation means no token.
   SHADOWLIST_LOG("  resolved: offset=(%.1f,%.1f) corrected=%d invInit=%d token=%llu",
     container.revision.offsetX, container.revision.offsetY,
-    container.offsetCorrected ? 1 : 0, container.invertedInitialized ? 1 : 0,
-    static_cast<unsigned long long>(container.operation ? container.operation->commitToken : 0));
+    container.state.offsetCorrected ? 1 : 0, container.state.invertedInitialized ? 1 : 0,
+    static_cast<unsigned long long>(container.state.operation ? container.state.operation->commitToken : 0));
 
-  if (container.gestureActive && container.operation) {
-    container.gestureCommitToken = container.operation->commitToken;
+  if (container.state.gestureActive && container.state.operation) {
+    container.state.gestureCommitToken = container.state.operation->commitToken;
   }
 
   container.endRevision();
@@ -133,7 +133,7 @@ void Virtualizer::applyFrameInput(Container& container, const FrameInput& input)
 
   // Flipping the list order moves the bottom. Start following the bottom again.
   if (container.inverted != input.inverted) {
-    container.invertedBottomReleased = false;
+    container.state.invertedBottomReleased = false;
   }
 
   container.inverted = input.inverted;
@@ -175,11 +175,12 @@ void Virtualizer::applyFrameInput(Container& container, const FrameInput& input)
 
   // A drop waits for the frame whose keys make its change, see reconcileFrameKeys.
   if (input.dropHint.kind != DropHint::Kind::None && !input.dropHint.key.empty()) {
-    container.pendingDrop = input.dropHint;
-    container.pendingDropAtMs = input.frameTimeMs;
-  } else if (container.pendingDrop.kind != DropHint::Kind::None && input.frameTimeMs > 0.0 &&
-             container.pendingDropAtMs > 0.0 && input.frameTimeMs - container.pendingDropAtMs > DROP_HINT_TIMEOUT_MS) {
-    container.pendingDrop = DropHint{};
+    container.state.pendingDrop = input.dropHint;
+    container.state.pendingDropAtMs = input.frameTimeMs;
+  } else if (container.state.pendingDrop.kind != DropHint::Kind::None && input.frameTimeMs > 0.0 &&
+             container.state.pendingDropAtMs > 0.0 &&
+             input.frameTimeMs - container.state.pendingDropAtMs > DROP_HINT_TIMEOUT_MS) {
+    container.state.pendingDrop = DropHint{};
   }
 }
 
@@ -251,7 +252,7 @@ bool Virtualizer::applyGestureState(
   bool coreOffsetWrite) {
   // A running correction survives while the offset has not moved. The user is not scrolling.
   bool userMovedOffset = !coreOffsetWrite &&
-    std::fabs(inputOffset - container.previousReportedOffset) >= OFFSET_MOVED_THRESHOLD;
+    std::fabs(inputOffset - container.state.previousReportedOffset) >= OFFSET_MOVED_THRESHOLD;
   /*
    * When the user takes over, drop any running correction and stop pinning to the bottom.
    * The host's gesture phase decides. userScrolled only counts with a real move. A stale
@@ -269,21 +270,21 @@ bool Virtualizer::applyGestureState(
   bool dragTakeover =
     input.scrollPhase == ScrollPhase::Dragging ||
     (input.userScrolled && userMovedOffset && input.scrollPhase != ScrollPhase::Settling);
-  bool scrollCommandInFlight = container.operation &&
-    (container.operation->type == OperationType::ScrollToEnd ||
-     container.operation->type == OperationType::ScrollToKey ||
-     container.operation->type == OperationType::ScrollToStart);
+  bool scrollCommandInFlight = container.state.operation &&
+    (container.state.operation->type == OperationType::ScrollToEnd ||
+     container.state.operation->type == OperationType::ScrollToKey ||
+     container.state.operation->type == OperationType::ScrollToStart);
   /*
    * A correction that keeps the visible content in place is not something a gesture cancels.
    * A prepend during a fling runs update twice on the same settling report, and dropping the
    * correction on the second pass would leave the view unmoved. So keep it until the host
    * reports back its commit token, and shift it by any momentum travel before then.
    */
-  bool maintainingAnchor = container.operation &&
-    container.operation->type == OperationType::MaintainAnchor &&
-    container.operation->target.mode == AnchorMode::Row;
-  bool echoesOperation = container.operation && !coreOffsetWrite &&
-    input.commitToken == container.operation->commitToken;
+  bool maintainingAnchor = container.state.operation &&
+    container.state.operation->type == OperationType::MaintainAnchor &&
+    container.state.operation->target.mode == AnchorMode::Row;
+  bool echoesOperation = container.state.operation && !coreOffsetWrite &&
+    input.commitToken == container.state.operation->commitToken;
   /*
    * Scrolling reported before the host applies the correction moves its target along.
    * A correction started during a gesture keeps following after the frames go idle, since
@@ -291,26 +292,26 @@ bool Virtualizer::applyGestureState(
    * shorter content, are not followed.
    */
   if (maintainingAnchor && !echoesOperation && userMovedOffset &&
-      (gestureTakeover || container.operation->commitToken == container.gestureCommitToken)) {
-    container.operation->target.offset += inputOffset - container.previousReportedOffset;
+      (gestureTakeover || container.state.operation->commitToken == container.state.gestureCommitToken)) {
+    container.state.operation->target.offset += inputOffset - container.state.previousReportedOffset;
   }
   // A correction made during a gesture is done once the host reports it back while idle.
   if (maintainingAnchor && echoesOperation && !gestureTakeover &&
-      container.operation->commitToken == container.gestureCommitToken) {
-    container.operation.reset();
+      container.state.operation->commitToken == container.state.gestureCommitToken) {
+    container.state.operation.reset();
   }
   if (gestureTakeover) {
     bool keepsAnchorCorrection = maintainingAnchor && !echoesOperation;
     if (!keepsAnchorCorrection && (!scrollCommandInFlight || dragTakeover)) {
-      container.operation.reset();
+      container.state.operation.reset();
     }
     if (dragTakeover) {
-      container.pendingScrollToEnd = false;
+      container.state.pendingScrollToEnd = false;
     }
-    container.invertedInitialized = true;
-    container.invertedOpeningPin = false;
+    container.state.invertedInitialized = true;
+    container.state.invertedOpeningPin = false;
   }
-  container.gestureActive = gestureTakeover;
+  container.state.gestureActive = gestureTakeover;
   return gestureTakeover;
 }
 
@@ -332,7 +333,7 @@ bool Virtualizer::applyInvertedBottomPin(
    * quietly pin the reader again.
    */
   if (container.inverted) {
-    double previousOffset = container.previousReportedOffset;
+    double previousOffset = container.state.previousReportedOffset;
     double bottomTotal = container.horizontal ? container.revision.contentWidth
                                                : container.revision.contentHeight;
     double bottomWindow = container.horizontal ? container.revision.windowWidth
@@ -342,21 +343,21 @@ bool Virtualizer::applyInvertedBottomPin(
     bool scrollable = bottomTotal > bottomWindow;
 
     if (gestureTakeover && scrollable && !atBottom) {
-      container.invertedBottomReleased = true;
-    } else if (container.invertedBottomReleased && atBottom &&
+      container.state.invertedBottomReleased = true;
+    } else if (container.state.invertedBottomReleased && atBottom &&
         inputOffset >= previousOffset + OFFSET_MOVED_THRESHOLD &&
-        (input.userScrolled || container.pendingScrollToEnd ||
-         (container.operation && (container.operation->type == OperationType::ScrollToEnd ||
-                                   container.operation->type == OperationType::ScrollToKey)))) {
-      container.invertedBottomReleased = false;
+        (input.userScrolled || container.state.pendingScrollToEnd ||
+         (container.state.operation && (container.state.operation->type == OperationType::ScrollToEnd ||
+                                   container.state.operation->type == OperationType::ScrollToKey)))) {
+      container.state.invertedBottomReleased = false;
     }
 
-    restingAtBottom = !gestureTakeover && !container.invertedBottomReleased &&
-      container.invertedInitialized && !container.revision.rows.empty() &&
+    restingAtBottom = !gestureTakeover && !container.state.invertedBottomReleased &&
+      container.state.invertedInitialized && !container.revision.rows.empty() &&
       bottomWindow > 0.0 && atBottom;
   }
   // resolveScroll reads this to hold the bottom while the list opens.
-  container.restingAtInvertedBottom = restingAtBottom;
+  container.state.restingAtInvertedBottom = restingAtBottom;
   return restingAtBottom;
 }
 
@@ -429,7 +430,7 @@ void Virtualizer::reconcileFrameKeys(
   }
   if (keysChanged) {
     // New keys end the opening settle.
-    container.invertedOpeningPin = false;
+    container.state.invertedOpeningPin = false;
     /*
      * With followAppends, an inverted list resting at the bottom scrolls to new rows
      * appended below. By default they land below the fold. Following runs as a scroll to
@@ -447,14 +448,14 @@ void Virtualizer::reconcileFrameKeys(
      * dragged down, or a row's height when one lands above it. Keep the offset. The next frame
      * captures a new anchor. The hint is used up by this key change either way.
      */
-    DropHint drop = std::move(container.pendingDrop);
-    container.pendingDrop = DropHint{};
+    DropHint drop = std::move(container.state.pendingDrop);
+    container.state.pendingDrop = DropHint{};
     bool dropKeepsOffset = keysMakeDropChange(container.revision.rows, inputKeys, drop);
     std::size_t survivors = reconcileRows(container, inputKeys, keyEdit);
     if (dropKeepsOffset) {
       SHADOWLIST_LOG("  drop keeps offset: %s kind=%d, anchor %s released",
         drop.key.c_str(), static_cast<int>(drop.kind), anchorKey.empty() ? "(none)" : anchorKey.c_str());
-      container.anchor = Anchor{"", 0.0, AnchorMode::Row};
+      container.state.anchor = Anchor{"", 0.0, AnchorMode::Row};
       anchorKey.clear();
       anchorDelta = 0.0;
       fallbackAnchors.clear();
@@ -465,11 +466,11 @@ void Virtualizer::reconcileFrameKeys(
      */
     if (container.inverted && hadRowsBefore && survivors == 0 && !container.revision.rows.empty()) {
       SHADOWLIST_LOG("  inverted swap: %zu rows, pinning to the bottom again", container.revision.rows.size());
-      container.invertedInitialized = false;
-      container.invertedBottomReleased = false;
-      container.invertedOpeningPin = false;
-      container.operation.reset();
-      container.pendingScrollToEnd = false;
+      container.state.invertedInitialized = false;
+      container.state.invertedBottomReleased = false;
+      container.state.invertedOpeningPin = false;
+      container.state.operation.reset();
+      container.state.pendingScrollToEnd = false;
       anchorKey.clear();
       fallbackAnchors.clear();
     }
@@ -483,7 +484,7 @@ void Virtualizer::reconcileFrameKeys(
         std::size_t candidateIndex = container.indexOfKey(candidate.key);
         if (candidateIndex != UNDEFINED_INDEX) {
           SHADOWLIST_LOG("  anchor fallback: %s -> %s sub=%.1f", anchorKey.c_str(), candidate.key.c_str(), candidate.offset);
-          container.anchor = candidate;
+          container.state.anchor = candidate;
           anchorKey = candidate.key;
           anchorIndex = candidateIndex;
           anchorDelta = candidate.offset;
@@ -494,7 +495,7 @@ void Virtualizer::reconcileFrameKeys(
     if (!previousLastKey.empty()) {
       std::size_t previousLastIndex = container.indexOfKey(previousLastKey);
       if (previousLastIndex != UNDEFINED_INDEX && previousLastIndex + 1 < container.revision.rows.size()) {
-        container.pendingScrollToEnd = true;
+        container.state.pendingScrollToEnd = true;
       }
     }
   }
@@ -524,10 +525,10 @@ void Virtualizer::measureFrame(
    * composer grows, is our own write and gets published even when nothing else corrects.
    */
   double offsetBeforeWindow = container.getOffset();
-  container.offsetCorrected = false;
+  container.state.offsetCorrected = false;
   applyWindowSizeChange(container, previousWindowSize);
-  bool windowMovedOffset = container.offsetCorrected && container.getOffset() != offsetBeforeWindow;
-  anchorDelta = container.anchor.offset;
+  bool windowMovedOffset = container.state.offsetCorrected && container.getOffset() != offsetBeforeWindow;
+  anchorDelta = container.state.anchor.offset;
   measure(container);
 
   /*
@@ -538,10 +539,10 @@ void Virtualizer::measureFrame(
   bool headerMovedOffset = false;
   if (hadRowsBefore && container.headerSize != previousHeaderSize) {
     double offsetBeforeHeader = container.getOffset();
-    container.offsetCorrected = false;
+    container.state.offsetCorrected = false;
     applyHeaderSizeChange(container, previousHeaderSize);
-    anchorDelta = container.anchor.offset;
-    headerMovedOffset = container.offsetCorrected && container.getOffset() != offsetBeforeHeader;
+    anchorDelta = container.state.anchor.offset;
+    headerMovedOffset = container.state.offsetCorrected && container.getOffset() != offsetBeforeHeader;
     if (headerMovedOffset) {
       measure(container, true);
     }
@@ -561,7 +562,7 @@ void Virtualizer::measureFrame(
   bool offsetConfirmed = !input.offsetEnabled && !headerMovedOffset && !windowMovedOffset;
   bool scrollCorrected = resolveScroll(container, anchorKey, anchorIndex, anchorDelta, hadRowsBefore, offsetConfirmed);
   if (headerMovedOffset || windowMovedOffset) {
-    container.offsetCorrected = true;
+    container.state.offsetCorrected = true;
   }
   /*
    * The first revision fills from the edge. A view that already rests away from it, like a
@@ -579,7 +580,7 @@ void Virtualizer::measureFrame(
       static_cast<std::ptrdiff_t>(container.getMeasuredRange().high),
       debugKeyAt(container, container.getMeasuredRange().low),
       debugKeyAt(container, container.getMeasuredRange().high),
-      container.invertedInitialized ? 1 : 0);
+      container.state.invertedInitialized ? 1 : 0);
   }
 }
 
@@ -589,14 +590,14 @@ void Virtualizer::measure(Container& container, bool rangeFromOffset) {
   // Reset the measured range so it reflects only this pass.
   container.revision.measuredLow = UNDEFINED_INDEX;
   container.revision.measuredHigh = UNDEFINED_INDEX;
-  container.measuredRangeStale = false;
+  container.state.measuredRangeStale = false;
 
   /*
    * After an insert, remove or reorder, rows still hold their old offsets. Reflow first so
    * the measured range is chosen from real positions and no row that moved into view is left blank.
    * It also lets the measured range pass use its fast search instead of scanning every row.
    */
-  if (container.rowStructureDirty) {
+  if (container.state.rowStructureDirty) {
     layoutRows(container);
   }
 
@@ -656,7 +657,7 @@ void Virtualizer::measureNextRevision(Container& container) {
   std::size_t measuredHigh = UNDEFINED_INDEX;
 
   // Before a reflow, offsets may be stale and out of order. Scan every row instead.
-  bool geometryOrdered = !container.rowStructureDirty;
+  bool geometryOrdered = !container.state.rowStructureDirty;
 
   auto rowOffsetAt = [&](std::size_t index) {
     const Row& row = container.revision.rows[index];

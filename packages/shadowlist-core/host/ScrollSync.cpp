@@ -62,7 +62,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
    * An animated command owns the view until it lands. A write now would cut the animation
    * short, and the landing command replaces the correction anyway.
    */
-  if (landing_ && armedAnimated_) {
+  if (landing_) {
     return action;
   }
 
@@ -149,6 +149,10 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
    */
   bool userScrolled = !applyingContentSize_;
   bool ourMove = false;
+  if (armed_ && armedAnimated_ && frame.scrollPhase == SCROLL_PHASE_DRAGGING) {
+    // A finger moves the view. The animated scroll is given up even if the host missed it.
+    disarm();
+  }
   if (armed_) {
     userScrolled = false;
     ourMove = true;
@@ -158,10 +162,7 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
       if (landed) {
         echoedToken_ = armedToken_;
         result.landed = true;
-        armed_ = false;
-        armedAnimated_ = false;
-        armedExact_ = false;
-        armedToken_ = 0;
+        release();
       }
     } else {
       echoedToken_ = armedToken_;
@@ -335,10 +336,7 @@ std::optional<ScrollPatch> ScrollSync::land(double offsetX, double offsetY) {
   // The animation was ours to its last frame. Its end is not the user.
   if (armedAnimated_) {
     echoedToken_ = armedToken_;
-    armed_ = false;
-    armedAnimated_ = false;
-    armedExact_ = false;
-    armedToken_ = 0;
+    release();
   }
   ScrollCommand command{commandIndex_, commandViewPosition_, commandViewOffset_, false};
   return issueCommand(command, offsetX, offsetY, true);

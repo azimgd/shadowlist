@@ -113,12 +113,12 @@ TEST(list_commit_band_is_empty_while_work_is_pending) {
 TEST(list_layout_inputs_reflow_and_mark_the_offset) {
   Container core;
   layOut(core, 20, 100.0);
-  core.offsetCorrected = false;
+  core.state.offsetCorrected = false;
   CHECK(!applyLayoutInputs(core, 0.0, 0.0, WINDOW_WIDTH, WINDOW_HEIGHT));
-  CHECK(!core.offsetCorrected);
+  CHECK(!core.state.offsetCorrected);
 
   CHECK(applyLayoutInputs(core, 60.0, 0.0, WINDOW_WIDTH, WINDOW_HEIGHT));
-  CHECK(core.offsetCorrected);
+  CHECK(core.state.offsetCorrected);
   CHECK_EQ(offsetOf(core, 0), 60.0);
   CHECK_EQ(offsetOf(core, 1), 160.0);
 }
@@ -135,14 +135,14 @@ TEST(list_layout_inputs_leave_no_reflow_for_the_next_frame) {
   CHECK(!core.computeOffsetBand().isEmpty());
 
   CHECK(applyLayoutInputs(core, 60.0, 0.0, WINDOW_WIDTH, WINDOW_HEIGHT));
-  CHECK_EQ(core.previousLayoutHeaderSize, 60.0);
-  CHECK(core.measuredRangeStale);
+  CHECK_EQ(core.state.previousLayoutHeaderSize, 60.0);
+  CHECK(core.state.measuredRangeStale);
   CHECK(core.computeOffsetBand().isEmpty());
 
   FrameInput input = inputFor(keys, 0.0);
   input.headerSize = 60.0;
   Virtualizer::update(core, input);
-  CHECK(!core.measuredRangeStale);
+  CHECK(!core.state.measuredRangeStale);
   CHECK_EQ(offsetOf(core, 0), 60.0);
   CHECK_EQ(offsetOf(core, 49), 60.0 + 49 * 100.0);
 }

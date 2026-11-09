@@ -8,6 +8,21 @@ const ALPHABET =
 
 const LOOKUP = new Map([...ALPHABET].map((char, index) => [char, index]));
 
+/*
+ * The most a decoder reads or makes from one hash. A hash the encoder writes stays inside them,
+ * and the longest it can write is 963 characters. hashLength is in base64url characters,
+ * images the image count, nibbles the word nibbles of a text and length every count that turns
+ * into characters or words: a name, a handle, a text without spaces and the words past the
+ * nibbles. varintBytes holds the largest of those counts.
+ */
+export const LIMITS = {
+  hashLength: 1024,
+  images: 64,
+  nibbles: 1024,
+  length: 65536,
+  varintBytes: 3,
+} as const;
+
 export class ByteWriter {
   private readonly bytes: number[] = [];
 
@@ -65,6 +80,11 @@ export class ByteReader {
   private offset = 0;
 
   constructor(hash: string) {
+    if (hash.length > LIMITS.hashLength) {
+      throw new InvalidHashError(
+        `${hash.length} characters, at most ${LIMITS.hashLength}`
+      );
+    }
     let bits = 0;
     let bitCount = 0;
     for (const char of hash) {
@@ -86,18 +106,45 @@ export class ByteReader {
     return value;
   }
 
+  get remaining(): number {
+    return this.bytes.length - this.offset;
+  }
+
+  /*
+   * At most LIMITS.varintBytes bytes, written the shortest way: a last byte of 0 after another
+   * byte is refused, as the writer never ends one with it.
+   */
   varint(): number {
     let value = 0;
-    let scale = 1;
-    for (;;) {
+    for (let index = 0; index < LIMITS.varintBytes; index++) {
       const next = this.byte();
-      value += (next & 0x7f) * scale;
-      if ((next & 0x80) === 0) return value;
-      scale *= 0x80;
+      value |= (next & 0x7f) << (7 * index);
+      if ((next & 0x80) === 0) {
+        if (next === 0 && index > 0)
+          throw new InvalidHashError(
+            'a number is not written the shortest way'
+          );
+        return value;
+      }
     }
+    throw new InvalidHashError(
+      `a number runs past ${LIMITS.varintBytes} bytes`
+    );
+  }
+
+  /*
+   * A varint that counts something, refused past max.
+   */
+  count(max: number, what: string): number {
+    const value = this.varint();
+    if (value > max) {
+      throw new InvalidHashError(`${value} ${what}, at most ${max}`);
+    }
+    return value;
   }
 
   nibbles(count: number): number[] {
+    if (count > this.remaining * 2) throw new InvalidHashError('too short');
     const values: number[] = [];
     while (values.length < count) {
       const next = this.byte();

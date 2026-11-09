@@ -1,5 +1,7 @@
 #import "Internal/ShadowListKitListView+Private.h"
+#if !TARGET_OS_OSX
 #import "Internal/ShadowListKitSectionIndexView.h"
+#endif
 
 #include <vector>
 
@@ -16,7 +18,7 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
 
 /*
  * Sections over the rows: item and row indices, the section queries and scrolling, a drop
- * inside its section, sticky rows and the section index along the trailing edge.
+ * inside its section, sticky rows and on iOS the section index along the trailing edge.
  */
 @implementation ShadowListKitListView (Sections)
 
@@ -110,6 +112,19 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
   _driver.setStickyIndices(_sections.stickyRows(items, _stickySectionHeaders));
 }
 
+#pragma mark - Section index
+
+#if TARGET_OS_OSX
+
+/*
+ * The Mac list has no section index.
+ */
+- (void)reloadSectionIndex
+{
+}
+
+#else
+
 /*
  * The section index along the trailing edge, from the data source's titles. Vertical lists only.
  */
@@ -171,6 +186,8 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
   }
   return [super touchesShouldCancelInContentView:view];
 }
+
+#endif
 
 @end
 #pragma clang diagnostic pop

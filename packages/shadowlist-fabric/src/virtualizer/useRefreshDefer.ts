@@ -57,6 +57,13 @@ export function useRefreshDefer<RowsT extends Rows>({
   if (refreshDeferEnabled && !previousRefreshingRef.current && refreshing) {
     // A refresh just started. Hold data changes until it settles.
     refreshHoldingRef.current = true;
+  } else if (!refreshDeferEnabled && refreshHoldingRef.current) {
+    /*
+     * onRefresh went away, or the list turned inverted or horizontal, while holding. No
+     * settle or fallback comes for such a list. The newest data shows now.
+     */
+    refreshHoldingRef.current = false;
+    refreshHeldDataRef.current = null;
   }
   previousRefreshingRef.current = refreshing;
 

@@ -5,16 +5,17 @@ It is written in Objective-C++ on the shared C++ core.
 
 ## Install
 
-Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the ShadowListKit product.
+Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the ShadowListKit product. It builds for iOS only.
+A Mac app takes the ShadowListKitAppKit product of the same package.
 
 ```swift
-.package(url: "https://github.com/azimgd/shadowlist", from: "0.9.0")
+.package(url: "https://github.com/azimgd/shadowlist", from: "0.10.0")
 ```
 
 CocoaPods:
 
 ```ruby
-pod 'ShadowListKit', '~> 0.9'
+pod 'ShadowListKit', '~> 0.10'
 ```
 
 Then `import ShadowListKit` in Swift, or `#import <ShadowListKit/ShadowListKit.h>` in Objective-C.
@@ -68,7 +69,8 @@ has full signatures and defaults.
 | Sizing | `listView:sizeForItemAtIndex:crossSize:` | Optional. Without it every item is measured once through its cell's `sizeThatFits:`, which fits Auto Layout constraints. |
 | Sections | `numberOfSectionsInListView:`, `listView:numberOfItemsInSection:`, `listView:keyForSection:`, `listView:titleForHeaderInSection:`, `listView:titleForFooterInSection:`, `listView:cellForHeaderInSection:`, `listView:sizeForHeaderInSection:crossSize:`, `sectionIndexTitlesForListView:` | A title, an empty one too, gives a section a header or footer, shown in a plain cell unless a cell is given. The section key defaults to the key of its first item. |
 | Content versions | `listView:contentVersionForItemAtIndex:` | A revision or hash. `applyChanges` reloads items whose value changed. |
-| Delegate | `listView:willDisplayCell:atIndex:`, `listView:didEndDisplayingCell:atIndex:`, `listView:didSelectItemAtIndex:`, `listView:didDeselectItemAtIndex:`, `listView:shouldSelectItemAtIndex:`, `listView:shouldHighlightItemAtIndex:`, `listView:canMoveItemAtIndex:`, `listView:moveItemAtIndex:toIndex:`, `listViewDidReachStart:`, `listViewDidReachEnd:` | Every method is optional. Inherits `UIScrollViewDelegate` for scroll events. |
+| Delegate | `listView:willDisplayCell:atIndex:`, `listView:didEndDisplayingCell:atIndex:`, `listView:didSelectItemAtIndex:`, `listView:didDeselectItemAtIndex:`, `listView:shouldSelectItemAtIndex:`, `listView:shouldHighlightItemAtIndex:`, `listView:canMoveItemAtIndex:`, `listView:moveItemAtIndex:toIndex:`, `listViewDidReachStart:`, `listViewDidReachEnd:` | Every method is optional. |
+| Scroll events | `listViewDidScroll:`, `listViewWillBeginDragging:`, `listViewDidEndDragging:willDecelerate:`, `listViewDidEndDecelerating:`, `listViewDidEndScrollingAnimation:` | The same calls as the AppKit list's. The delegate inherits `UIScrollViewDelegate` because the list is a `UIScrollView`, and its calls still arrive. |
 | Cells | `registerClass:forCellReuseIdentifier:`, `dequeueReusableCellWithIdentifier:` | `prepareForReuse` runs before a cell is handed out again. |
 | Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Call `setNeedsLayout` on the list after `headerView` or `footerView` changes size. |
 | Changes | `reloadData`, `insertItemsAtIndices:`, `deleteItemsAtIndices:`, `reloadItemsAtIndices:`, `reloadItemsAtIndices:payload:`, `moveItemAtIndex:toIndex:`, `performBatchUpdates:completion:`, `applyChanges` | An insert past the end goes at the end, a delete past the end is dropped. `applyChanges` diffs every key and returns a `ShadowListKitListChanges`. |

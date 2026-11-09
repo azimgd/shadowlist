@@ -70,7 +70,7 @@ void Container::endRevision() {
   previousReachedStart_ = reachedStart;
 
   // Only a scroll away from the bottom leaves the end. Content growth never does.
-  bool atEnd = !invertedBottomReleased;
+  bool atEnd = !state.invertedBottomReleased;
   if (atEnd != previousAtEnd_) {
     previousAtEnd_ = atEnd;
     if (onAtEndChangeCallback) {
@@ -81,20 +81,27 @@ void Container::endRevision() {
   dispatchObservers();
 }
 
+/*
+ * The newest scroll command wins. Each one replaces any command still pending.
+ */
 void Container::scrollToRow(std::size_t index, double viewPosition, double viewOffset) {
-  scrollToRowTarget = index;
-  scrollToRowViewPosition = viewPosition;
-  scrollToRowViewOffset = viewOffset;
+  state.scrollToRowTarget = index;
+  state.scrollToRowViewPosition = viewPosition;
+  state.scrollToRowViewOffset = viewOffset;
+  state.pendingScrollToStart = false;
+  state.pendingScrollToEnd = false;
 }
 
 void Container::scrollToEnd() {
-  pendingScrollToEnd = true;
+  state.pendingScrollToEnd = true;
+  state.pendingScrollToStart = false;
+  state.scrollToRowTarget = UNDEFINED_INDEX;
 }
 
 void Container::scrollToStart() {
-  pendingScrollToStart = true;
-  pendingScrollToEnd = false;
-  scrollToRowTarget = UNDEFINED_INDEX;
+  state.pendingScrollToStart = true;
+  state.pendingScrollToEnd = false;
+  state.scrollToRowTarget = UNDEFINED_INDEX;
 }
 
 void Container::scrollToOffset(double offset) {
@@ -170,7 +177,7 @@ ContainerStateUpdate Container::resolveStateUpdate(
   double previousContentHeight) const {
   ContainerStateUpdate update;
 
-  bool corrected = offsetCorrected;
+  bool corrected = state.offsetCorrected;
   bool sizeChanged =
     revision.contentWidth != previousContentWidth ||
     revision.contentHeight != previousContentHeight;
@@ -194,7 +201,7 @@ ContainerStateUpdate Container::resolveStateUpdate(
    * Send the commit token only when an operation moved the offset. The host sends it back.
    * Offset changes without an operation send 0.
    */
-  update.commitToken = (corrected && operation) ? operation->commitToken : 0;
+  update.commitToken = (corrected && state.operation) ? state.operation->commitToken : 0;
 
   return update;
 }
@@ -209,7 +216,7 @@ const std::vector<double>& Container::getSnapOffsets() const {
   double totalSize = horizontal ? revision.contentWidth : revision.contentHeight;
 
   // Scrolling alone never changes the snap offsets. Reuse them unless the geometry or settings changed.
-  if (snapCacheVersion_ == geometryVersion &&
+  if (snapCacheVersion_ == state.geometryVersion &&
       snapCacheSnapToItem_ == snapToItem &&
       snapCacheAlignment_ == snapAlignment &&
       snapCacheWindowSize_ == windowSize &&
@@ -218,7 +225,7 @@ const std::vector<double>& Container::getSnapOffsets() const {
     return snapOffsetsCache_;
   }
 
-  snapCacheVersion_ = geometryVersion;
+  snapCacheVersion_ = state.geometryVersion;
   snapCacheSnapToItem_ = snapToItem;
   snapCacheAlignment_ = snapAlignment;
   snapCacheWindowSize_ = windowSize;
@@ -310,10 +317,10 @@ bool Container::isAnchorable(const std::string& key) const {
 }
 
 const Anchor* Container::getCompensationAnchor() const {
-  if (!operation) {
-    return &anchor;
+  if (!state.operation) {
+    return &state.anchor;
   }
-  return operation->target.mode == AnchorMode::Row ? &operation->target : nullptr;
+  return state.operation->target.mode == AnchorMode::Row ? &state.operation->target : nullptr;
 }
 
 void Container::dispatchObservers() {
@@ -357,8 +364,8 @@ void Container::dispatchObservers() {
 }
 
 bool Container::hasPendingCommand() const {
-  return operation.has_value() || pendingScrollToEnd || pendingScrollToStart ||
-    scrollToRowTarget != UNDEFINED_INDEX;
+  return state.operation.has_value() || state.pendingScrollToEnd || state.pendingScrollToStart ||
+    state.scrollToRowTarget != UNDEFINED_INDEX;
 }
 
 OffsetBand Container::computeOffsetBand() const {
@@ -372,12 +379,12 @@ OffsetBand Container::computeOffsetBand() const {
   }
 
   // Corrections and scroll commands settle over several frames.
-  if (hasPendingCommand() || offsetCorrected) {
+  if (hasPendingCommand() || state.offsetCorrected) {
     return empty;
   }
 
   // Rows or sizes the next frame would still lay out. Positions are about to move.
-  if (rowStructureDirty || rowSizeDirtyFromIndex != UNDEFINED_INDEX || measuredRangeStale) {
+  if (state.rowStructureDirty || state.rowSizeDirtyFromIndex != UNDEFINED_INDEX || state.measuredRangeStale) {
     return empty;
   }
   auto [estimatedWidth, estimatedHeight] = estimatedRowSize;
@@ -388,16 +395,16 @@ OffsetBand Container::computeOffsetBand() const {
    * scroll axis never move rows, and the band is recomputed on the frame that changes them.
    */
   bool crossWindowChanged = horizontal
-    ? revision.windowHeight != previousLayoutWindowHeight
-    : revision.windowWidth != previousLayoutWindowWidth;
-  if (fallbackWidth != previousFallbackWidth || fallbackHeight != previousFallbackHeight ||
-      headerSize != previousLayoutHeaderSize || crossWindowChanged ||
-      numberOfColumns != previousLayoutNumberOfColumns || horizontal != previousLayoutHorizontal) {
+    ? revision.windowHeight != state.previousLayoutWindowHeight
+    : revision.windowWidth != state.previousLayoutWindowWidth;
+  if (fallbackWidth != state.previousFallbackWidth || fallbackHeight != state.previousFallbackHeight ||
+      headerSize != state.previousLayoutHeaderSize || crossWindowChanged ||
+      numberOfColumns != state.previousLayoutNumberOfColumns || horizontal != state.previousLayoutHorizontal) {
     return empty;
   }
 
   // An inverted list still settling on the bottom it opened at follows every frame.
-  if (inverted && (!invertedInitialized || invertedOpeningPin)) {
+  if (inverted && (!state.invertedInitialized || state.invertedOpeningPin)) {
     return empty;
   }
 
@@ -547,7 +554,7 @@ void Container::setPredictedSize(const std::string& key, Size size) {
   if (key.empty()) {
     return;
   }
-  predictedSizes[key] = size;
+  state.predictedSizes[key] = size;
 }
 
 bool Container::hasTrustedSize(std::size_t index) const {

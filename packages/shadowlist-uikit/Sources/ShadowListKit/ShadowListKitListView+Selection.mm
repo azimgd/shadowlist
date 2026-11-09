@@ -21,6 +21,20 @@ extern "C" const char ShadowListKitListViewSelectionLink = 0;
 @implementation ShadowListKitListView (Selection)
 
 /*
+ * A cell coming on screen shows its row's selection and the list's editing state.
+ */
+- (void)applyStateToCell:(ShadowListKitListCell *)cell key:(const std::string&)key
+{
+  BOOL selected = cell.index != NSNotFound && _selection.contains(key);
+  if (cell.isSelected != selected) {
+    [cell setSelected:selected animated:NO];
+  }
+  if (cell.isEditing != _editing) {
+    [cell setEditing:_editing animated:NO];
+  }
+}
+
+/*
  * A tap on a row. Multiple selection toggles it, single selection moves to it.
  */
 - (void)userSelectedCell:(ShadowListKitListCell *)cell

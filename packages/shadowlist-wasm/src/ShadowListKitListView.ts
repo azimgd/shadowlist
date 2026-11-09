@@ -58,9 +58,13 @@ export interface ShadowListKitListViewDataSource {
 }
 
 /*
- * Hears what the list does. didEndScrolling fires once the list came to rest after a scroll or
- * an animated command, on an item edge when snapToItem is set. didReachStart and didReachEnd fire
- * when the scroll position came within startReachedThreshold or endReachedThreshold of an edge.
+ * Hears what the list does. The scroll events are the native kits' (listViewDidScroll: on the
+ * Apple lists, didScroll on Android): didScroll follows every change of the offset.
+ * willBeginDragging and didEndDragging follow a finger or the scrollbar moving the list, and
+ * willDecelerate says the list goes on moving after. didEndDecelerating follows the list coming to
+ * rest, on an item edge when snapToItem is set. didEndScrollingAnimation follows an animated scroll
+ * command. didReachStart and didReachEnd fire when the scroll position came within
+ * startReachedThreshold or endReachedThreshold of an edge.
  */
 export interface ShadowListKitListViewDelegate {
   willDisplayCell?(
@@ -74,7 +78,13 @@ export interface ShadowListKitListViewDelegate {
     index: number
   ): void;
   didScroll?(listView: ShadowListKitListView): void;
-  didEndScrolling?(listView: ShadowListKitListView): void;
+  willBeginDragging?(listView: ShadowListKitListView): void;
+  didEndDragging?(
+    listView: ShadowListKitListView,
+    willDecelerate: boolean
+  ): void;
+  didEndDecelerating?(listView: ShadowListKitListView): void;
+  didEndScrollingAnimation?(listView: ShadowListKitListView): void;
   didReachStart?(listView: ShadowListKitListView): void;
   didReachEnd?(listView: ShadowListKitListView): void;
 }
@@ -100,7 +110,8 @@ export interface ShadowListKitListViewPrefetchDataSource {
  * Items are placed by the core, which keeps the visible content still while items are measured,
  * inserted or deleted. Measurement, offset corrections and mounting all happen in one layout
  * pass before the browser paints. A scroll frame that stays inside the core's offset band does
- * no core work at all. Sizes are in CSS pixels. The element needs a size from its styles.
+ * no core work at all. Sizes are in CSS pixels, which are the native kits' points at zoom 1. The
+ * element needs a size from its styles.
  */
 export class ShadowListKitListView extends HTMLElement {
   static readonly TAG_NAME = 'shadowlist-kit-list-view';
@@ -322,7 +333,7 @@ export class ShadowListKitListView extends HTMLElement {
 
   private scrollPhase(): number {
     if (this.gesture.isTracking) return ShadowListKitCore.PHASE_DRAGGING;
-    if (this.gesture.isScrolling) return ShadowListKitCore.PHASE_SETTLING;
+    if (this.gesture.isSettling) return ShadowListKitCore.PHASE_SETTLING;
     return ShadowListKitCore.PHASE_IDLE;
   }
 
@@ -638,10 +649,13 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   recycleCell(cell: ShadowListKitListCell): void {
-    const index = cell.index;
+    // A cell only measured was never displayed.
+    const index =
+      cell.mountGeneration !== 0 ? cell.index : ShadowListKitListCell.NO_INDEX;
     cell.view.style.visibility = 'hidden';
     this.stickyPinning.release(cell);
     cell.index = ShadowListKitListCell.NO_INDEX;
+    cell.mountGeneration = 0;
     if (index >= 0) this.delegate?.didEndDisplayingCell?.(this, cell, index);
     const identifier = cell.reuseIdentifier;
     if (identifier == null) {
@@ -992,25 +1006,6 @@ export class ShadowListKitListView extends HTMLElement {
 
   // region Mounting
 
-  private measuredLeading(index: number): number {
-    const at = (index - this.measuredLow) * 4;
-    return this.horizontal
-      ? this.measuredFrames[at]!
-      : this.measuredFrames[at + 1]!;
-  }
-
-  private measuredExtent(index: number): number {
-    const at = (index - this.measuredLow) * 4;
-    return this.horizontal
-      ? this.measuredFrames[at + 2]!
-      : this.measuredFrames[at + 3]!;
-  }
-
-  private overlaps(index: number, viewLow: number, viewHigh: number): boolean {
-    const start = this.measuredLeading(index);
-    return start + this.measuredExtent(index) > viewLow && start < viewHigh;
-  }
-
   /*
    * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
    * which keeps the content of a cell that only moved. The range is the core's
@@ -1085,13 +1080,8 @@ export class ShadowListKitListView extends HTMLElement {
     const listRole = this.getAttribute('role') === 'list';
     if (low >= 0) {
       for (let index = low; index <= high; ++index) {
-        // ListDriver::shouldMount. A masonry grid can hold rows inside the index range that are out of view.
-        if (
-          this.numberOfColumns > 1 &&
-          !this.overlaps(index, viewLow, viewHigh)
-        ) {
-          continue;
-        }
+        // A masonry grid can hold rows inside the index range that are out of view.
+        if (!this.core.shouldMount(index, viewLow, viewHigh)) continue;
         this.mountRow(index, generation, listRole);
       }
     }
@@ -1311,17 +1301,33 @@ export class ShadowListKitListView extends HTMLElement {
   // region Scroll events
 
   /*
-   * A scroll or an animated scroll ended. The core needs an idle frame to let a held correction
-   * go, and an animated command lands on its row.
+   * A scroll came to rest, or an animated command ended when command is true. The core needs an
+   * idle frame to let a held correction go, and an animated command lands on its row.
    */
-  scrollingEnded(): void {
+  scrollingEnded(command: boolean): void {
     this.liveCore?.land();
     this.invalidateFrame();
-    this.delegate?.didEndScrolling?.(this);
+    if (command) {
+      this.delegate?.didEndScrollingAnimation?.(this);
+    } else {
+      this.delegate?.didEndDecelerating?.(this);
+    }
+  }
+
+  /*
+   * A finger or the scrollbar took hold of the list, and let go of it.
+   */
+  draggingBegan(): void {
+    this.delegate?.willBeginDragging?.(this);
+  }
+
+  draggingEnded(willDecelerate: boolean): void {
+    this.delegate?.didEndDragging?.(this, willDecelerate);
   }
 
   gestureBegan(): void {
     this.liveCore?.cancelLanding();
+    this.dropPendingAnchor();
   }
 
   /*
@@ -1401,6 +1407,10 @@ export class ShadowListKitListView extends HTMLElement {
     this.restorePendingAnchor();
   }
 
+  /*
+   * Land the saved row once the data has it. Until then the position waits, and the user
+   * scrolling or a scroll command drops it, see dropPendingAnchor.
+   */
   private restorePendingAnchor(): void {
     const state = this.pendingAnchor;
     if (!state || this.keys.length === 0 || !isShadowListKitLoaded()) return;
@@ -1408,6 +1418,14 @@ export class ShadowListKitListView extends HTMLElement {
     this.pendingAnchor = null;
     this.stopScrolling();
     this.runCommandNow();
+  }
+
+  /*
+   * Forget a saved position still waiting for its key. The user or a command moved the list
+   * since, and a later reload must not pull the viewport back to it.
+   */
+  private dropPendingAnchor(): void {
+    this.pendingAnchor = null;
   }
 
   // endregion
@@ -1452,6 +1470,7 @@ export class ShadowListKitListView extends HTMLElement {
    */
   scrollToItem(index: number, viewPosition = 0, animated = false): void {
     if (index < 0 || index >= this.keys.length) return;
+    this.dropPendingAnchor();
     const target = () =>
       this.core.animatedTargetOffset(
         index,
@@ -1475,6 +1494,7 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   scrollToStart(animated = false): void {
+    this.dropPendingAnchor();
     if (animated) {
       // The header shows at the very start, which landing on row 0 would scroll past.
       this.animateCommand(() => 0, ShadowListKitCore.LANDING_START);
@@ -1486,6 +1506,7 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   scrollToEnd(animated = false): void {
+    this.dropPendingAnchor();
     if (animated) {
       this.animateCommand(() => this.maxOffset, ShadowListKitCore.LANDING_END);
       return;
@@ -1510,6 +1531,7 @@ export class ShadowListKitListView extends HTMLElement {
    * command that runs now.
    */
   private stopScrolling(): void {
+    this.dropPendingAnchor();
     this.gesture.stop();
     this.core.cancelLanding();
   }

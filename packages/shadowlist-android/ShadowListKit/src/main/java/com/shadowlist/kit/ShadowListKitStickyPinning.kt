@@ -51,12 +51,13 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
   }
 
   /*
-   * Position in stickyRows of the last sticky row starting at or above the offset, or -1. Rows
-   * the core has not placed yet start at infinity and sort last. The core test
+   * The core's pinnedSectionIndex over the copied frames: the position in stickyRows of the last
+   * sticky row starting at or above the offset, or -1. Rows the core has not placed yet start at
+   * infinity and sort last. A scroll frame makes no JNI call for it. The core test
    * list_driver_sticky_frames_pin_the_same_header_as_the_driver holds the rule this and
-   * stickyLeading match.
+   * pinnedSectionLeading match.
    */
-  private fun activeStickyPosition(offset: Double): Int {
+  private fun pinnedSectionIndex(offset: Double): Int {
     if (stickyRows.isEmpty()) return -1
     refreshStickyFrames()
     var found = -1
@@ -75,12 +76,13 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
   }
 
   fun activeStickyIndex(offset: Double): Int =
-    activeStickyPosition(offset).let { if (it >= 0) stickyRows[it] else -1 }
+    pinnedSectionIndex(offset).let { if (it >= 0) stickyRows[it] else -1 }
 
   /*
-   * Where the pinned header's leading edge goes, pushed up by the next header.
+   * The core's pinnedSectionLeading: where the pinned header's leading edge goes, at the offset,
+   * never above its own place, and pushed up by the next header when the core placed it.
    */
-  private fun stickyLeading(position: Int, offset: Double): Double {
+  private fun pinnedSectionLeading(position: Int, offset: Double): Double {
     var pinned = max(stickyFrames[position * 2], offset)
     val next = position + 1
     if (next < stickyRows.size && stickyFrames[next * 2].isFinite()) {
@@ -90,18 +92,24 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
   }
 
   /*
-   * Pin the active section header and put the one it replaced back in its row.
+   * Pin the active section header and put the one it replaced back in its row. With no sticky
+   * rows left, the row pinned last goes back to its own place.
    */
   fun layoutSticky() {
-    if (stickyRows.isEmpty()) return
-    val position = activeStickyPosition(list.offset.toDouble())
+    if (stickyRows.isEmpty()) {
+      stickyCell?.let { unpinCell(it) }
+      stickyCell = null
+      return
+    }
+    val position = pinnedSectionIndex(list.exactOffset)
     val active = if (position >= 0) stickyRows[position] else -1
-    val cell = list.mountedCell(active)
+    // A held sticky item follows the finger from its own row.
+    val cell = list.mountedCell(active)?.takeIf { it !== list.heldCell }
     val previous = stickyCell
     if (previous != null && previous !== cell) unpinCell(previous)
     stickyCell = cell
     if (cell == null) return
-    val pinned = stickyLeading(position, list.offset.toDouble())
+    val pinned = pinnedSectionLeading(position, list.exactOffset)
     val extent = stickyFrames[position * 2 + 1]
     val cross = list.windowCross.toDouble()
     if (list.horizontal) list.placeView(cell, pinned, 0.0, extent, cross) else list.placeView(cell, 0.0, pinned, cross, extent)

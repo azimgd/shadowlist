@@ -6,7 +6,9 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.RenderNode
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import android.os.SystemClock
@@ -32,7 +34,8 @@ import kotlin.math.roundToInt
  * A virtualized list on the shadowlist core. Items are placed by the core, which keeps the
  * visible content still while items are measured, inserted or deleted. Measurement, offset
  * corrections and mounting all happen in one layout pass on the UI thread. A scroll frame
- * that stays inside the core's offset band does no core work at all. Sizes are in pixels.
+ * that stays inside the core's offset band does no core work at all. Sizes are in pixels, like a
+ * view's, and the length settings say so with a Px suffix.
  *
  * Item indices are the public indices. In a list with sections the core places rows: section
  * header rows, items and section footer rows. The list converts between the two at its edges.
@@ -67,6 +70,14 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   interface Sizing {
     fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int
+
+    /*
+     * The size with its fraction of a pixel, like 21dp at a density of 2.625. The list reads this
+     * one and places each row at the pixel rounded from the exact sum of the sizes before it.
+     * Thousands of rows then end where their exact sizes add up to. Defaults to sizeForItem.
+     */
+    fun exactSizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Double =
+      sizeForItem(listView, index, crossSize).toDouble()
   }
 
   /*
@@ -116,19 +127,29 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   interface Delegate {
+    /*
+     * A cell that fades out after a delete ends displaying when its fade ends, with the index its
+     * item had before the delete.
+     */
     fun willDisplayCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int) {}
     fun didEndDisplayingCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int) {}
     fun didSelectItem(listView: ShadowListKitListView, index: Int) {}
     fun didDeselectItem(listView: ShadowListKitListView, index: Int) {}
     fun shouldSelectItem(listView: ShadowListKitListView, index: Int): Boolean = true
     fun shouldHighlightItem(listView: ShadowListKitListView, index: Int): Boolean = true
-    fun didScroll(listView: ShadowListKitListView) {}
 
     /*
-     * The list came to rest after a touch, a fling or an animated scroll, on an item edge when
-     * snapToItem is set.
+     * The scroll events, the same as the Apple lists' listViewDidScroll: family. didScroll follows
+     * every change of the offset. willBeginDragging and didEndDragging follow a finger moving the
+     * list, and willDecelerate says a fling or a snap settles it after. didEndDecelerating follows
+     * that settling, on an item edge when snapToItem is set. didEndScrollingAnimation follows an
+     * animated scroll command.
      */
-    fun didEndScrolling(listView: ShadowListKitListView) {}
+    fun didScroll(listView: ShadowListKitListView) {}
+    fun willBeginDragging(listView: ShadowListKitListView) {}
+    fun didEndDragging(listView: ShadowListKitListView, willDecelerate: Boolean) {}
+    fun didEndDecelerating(listView: ShadowListKitListView) {}
+    fun didEndScrollingAnimation(listView: ShadowListKitListView) {}
 
     /*
      * Whether an item can be picked up when reorderEnabled is set. Every item can by default.
@@ -200,9 +221,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { field = max(1, value); sendSettings() }
 
   /*
-   * Size along the scroll axis assumed for items not measured yet, in pixels.
+   * Size along the scroll axis assumed for items not measured yet, in pixels. Default 120dp.
    */
-  var estimatedItemSize = 120 * resources.displayMetrics.density
+  var estimatedItemSizePx = 120 * resources.displayMetrics.density
     set(value) { field = value; sendSettings() }
 
   /*
@@ -239,6 +260,44 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * item stays in its section.
    */
   var reorderEnabled = false
+    set(value) {
+      field = value
+      if (!value) drag.end(false)
+    }
+
+  /*
+   * Whether the reader scrolls the list: its touch scrolling, flings, edge pulls and nested
+   * scrolling. Off, a drag scrolls nothing and the scroll commands still move the list. Taps, swipe
+   * actions and reordering stay. On by default.
+   */
+  var scrollEnabled = true
+    set(value) {
+      field = value
+      if (!userScrolls) stopUserScrolling()
+    }
+
+  /*
+   * A view around the list owns the scrolling and moves the list with scrollTo, scrollToItem and
+   * adjustOffsetBy, like the Mac kit's scrollDriven. The reader's scrolling is off as with
+   * scrollEnabled off, and a scroll command lands without an animation. The list still corrects
+   * its own offset to keep the visible rows still, and a subclass hears of each pass in didLayOut.
+   * Off by default.
+   */
+  var scrollDriven = false
+    set(value) {
+      field = value
+      if (!userScrolls) stopUserScrolling()
+    }
+
+  /*
+   * The reader scrolls the list with touch.
+   */
+  private val userScrolls: Boolean get() = scrollEnabled && !scrollDriven
+
+  private fun stopUserScrolling() {
+    gesture.abandon()
+    gesture.stop()
+  }
 
   /*
    * Animate insertItems, deleteItems, reloadData, batches and applyChanges through itemAnimator:
@@ -312,17 +371,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Lines between items, drawn over the trailing edge of each item's cell. Insets are along the
-   * cross axis from its start and end. Thickness defaults to one pixel.
+   * cross axis from its start and end, in pixels. The start inset defaults to 16dp, the thickness
+   * to one pixel.
    */
   var showsSeparators = false
     set(value) { field = value; invalidate() }
   var separatorColor = Color.argb(0x4a, 0x3c, 0x3c, 0x43)
     set(value) { field = value; separatorPaint.color = value; invalidate() }
-  var separatorInsetStart = (16 * resources.displayMetrics.density).roundToInt()
+  var separatorInsetStartPx = (16 * resources.displayMetrics.density).roundToInt()
     set(value) { field = value; invalidate() }
-  var separatorInsetEnd = 0
+  var separatorInsetEndPx = 0
     set(value) { field = value; invalidate() }
-  var separatorThickness = 1
+  var separatorThicknessPx = 1
     set(value) { field = max(1, value); invalidate() }
 
   /*
@@ -387,8 +447,51 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var mountedHigh = -1
   private var mountedSticky = -1
   private var mountedGeometry = -1.0
+  private var mountedFraction = 0.0
   private var mountedStructure = 0
   private var structureVersion = 0
+
+  /*
+   * The offsets where the last mount plan mounts the same rows, see ListDriver::planMount, and
+   * the window, padding and measured range it was made with.
+   */
+  private var mountBandLow = 1.0
+  private var mountBandHigh = 0.0
+  private val mountBandInputs = DoubleArray(6)
+
+  /*
+   * What the rows a driven list mounted ahead cover along the axis, see mountAhead, and the offset
+   * it planned them at.
+   */
+  private var coverLow = Double.POSITIVE_INFINITY
+  private var coverHigh = Double.NEGATIVE_INFINITY
+  private var aheadOffset = 0.0
+  private var aheadFrames = DoubleArray(128)
+
+  /*
+   * A driven list's children drawn into a RenderNode of their own, see drawContent. contentStale:
+   * a child came, went, showed or hid since. The header's and the footer's visibility it drew
+   * with, and the children that drew again since.
+   */
+  private var contentNode: RenderNode? = null
+  internal var contentStale = true
+  private var contentHeaderVisibility = -1
+  private var contentFooterVisibility = -1
+  private val dirtyChildren = ArrayList<View>()
+  private var refreshNode: RenderNode? = null
+
+  /*
+   * The layout passes, the runs of the core and the mount passes since the list was made, for
+   * tests.
+   */
+  internal var layoutPassCount = 0
+    private set
+  internal var corePassCount = 0
+    private set
+  internal var mountPassCount = 0
+    private set
+  internal var contentRecordCount = 0
+    private set
 
   private val cellFactories = HashMap<String, (Context) -> ShadowListKitListCell>()
   private val reusePool = HashMap<String, ArrayList<ShadowListKitListCell>>()
@@ -446,7 +549,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var previousOffset = 0
   private var userScrolled = false
 
+  /*
+   * What the core's last offset had past the whole pixel the list scrolled to. Rows are placed
+   * that much further along, the same as at the core's exact offset.
+   */
+  private var offsetFraction = 0.0
+
   private var inLayoutPass = false
+
+  /*
+   * A pass asked for during a pass, or an offset a delegate wrote while the cells mounted, lays
+   * out once more after it. A scroll during a pass reports didScroll once the pass ends, with the
+   * cells of the new offset in place.
+   */
+  private var layoutPassRequested = false
+  private var didScrollPending = false
   private var settleScheduled = false
   private var reachedStart = false
   private var reachedEnd = false
@@ -474,13 +591,16 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   override fun onDetachedFromWindow() {
     super.onDetachedFromWindow()
-    gesture.stop()
+    gesture.reset()
     gesture.releaseTracker()
-    drag.end(false)
-    swipe.close(false)
+    drag.reset()
+    swipe.reset()
     swipe.releaseTracker()
+    refresh.reset()
     selection.cancelHighlight()
     destroyCore()
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) contentNode?.discardDisplayList()
+    contentStale = true
   }
 
   // region Axis
@@ -500,13 +620,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   internal val offset: Int get() = if (horizontal) scrollX else scrollY
 
+  /*
+   * The offset the rows are placed at, with the fraction of a pixel the core's last pass left.
+   */
+  internal val exactOffset: Double get() = offset + offsetFraction
+
   internal val maxOffset: Int get() = max(0, contentAlong - windowAlong)
 
   /*
    * A point in the list's own coordinates as a position in the content the core places rows
    * in, along and across the scroll axis.
    */
-  internal fun contentAlongAt(x: Float, y: Float): Float = along(x, y) + offset - leadingPadding
+  internal fun contentAlongAt(x: Float, y: Float): Float = along(x, y) + exactOffset.toFloat() - leadingPadding
   internal fun contentCrossAt(x: Float, y: Float): Float = cross(x, y) - crossPadding
 
   /*
@@ -535,7 +660,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun scrollPhase(): Int = when {
     gesture.isTracking -> ShadowListKitCore.PHASE_DRAGGING
-    gesture.isFlinging -> ShadowListKitCore.PHASE_SETTLING
+    gesture.isSettling -> ShadowListKitCore.PHASE_SETTLING
     else -> ShadowListKitCore.PHASE_IDLE
   }
 
@@ -549,7 +674,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   private fun applySettings(target: ShadowListKitCore) {
-    target.setSettings(estimatedItemSize.toDouble(), overscan, startReachedThreshold, endReachedThreshold,
+    target.setSettings(estimatedItemSizePx.toDouble(), overscan, startReachedThreshold, endReachedThreshold,
       numberOfColumns, inverted, followAppends, horizontal, snapToItem, snapAlignment.ordinal)
   }
 
@@ -596,7 +721,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   fun setEditing(editing: Boolean, animated: Boolean) {
-    if (editing) swipe.close(animated)
+    if (editing) {
+      drag.end(false)
+      swipe.close(animated)
+    }
     for (cell in mounted.values) if (cell.editing != editing) cell.setEditing(editing, animated)
     editingState = editing
   }
@@ -640,11 +768,15 @@ open class ShadowListKitListView @JvmOverloads constructor(
     cell.mountGeneration = 0L
     swipe.cellWillRecycle(cell)
     drag.cellWillRecycle(cell)
-    cell.animate().cancel()
+    cell.cancelAnimations()
+    // A drop cancelled part way leaves its lift: the next row would show raised and scaled.
     cell.alpha = 1f
     cell.translationX = 0f
     cell.translationY = 0f
-    cell.visibility = INVISIBLE
+    cell.translationZ = 0f
+    cell.scaleX = 1f
+    cell.scaleY = 1f
+    setCellShown(cell, false)
     cell.index = ShadowListKitListCell.NO_INDEX
     cell.row = ShadowListKitListCell.NO_INDEX
     if (cell.highlighted) cell.setHighlighted(false, false)
@@ -825,8 +957,16 @@ open class ShadowListKitListView @JvmOverloads constructor(
     if (row >= 0) scrollToRow(row, 0.0, animated)
   }
 
+  /*
+   * New sticky rows mount and pin again, wherever the offset is: the band of the last mount plan
+   * was found without them.
+   */
   private fun updateStickyRows() {
-    if (stickyPinning.updateStickyRows(stickyIndices, stickySectionHeaders)) mountedLow = -1
+    if (stickyPinning.updateStickyRows(stickyIndices, stickySectionHeaders)) {
+      mountedLow = -1
+      mountBandLow = 1.0
+      mountBandHigh = 0.0
+    }
   }
 
   internal fun reloadSectionIndex() {
@@ -864,33 +1004,62 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
     super.onScrollChanged(l, t, oldl, oldt)
+    if (inLayoutPass) {
+      didScrollPending = true
+      return
+    }
     layoutPass()
     delegate?.didScroll(this)
   }
 
   /*
    * One pass runs the core when the offset left the band, then mounts. Everything lands
-   * before the frame is drawn.
+   * before the frame is drawn. A thrown delegate call still ends the pass.
    */
   internal fun layoutPass() {
-    if (inLayoutPass) return
-    inLayoutPass = true
-    val geometryChanged = readGeometry()
-    trackUserScroll()
-    if (windowAlong > 0 && windowCross > 0) {
-      if (needsFrame || geometryChanged || !inBand(offset)) runPasses()
-      layoutTemplates()
-      mountCells()
-      stickyPinning.layoutSticky()
-      if (hasHeldRow) drag.update()
-      changes.run()
-      swipe.layout()
+    if (inLayoutPass) {
+      layoutPassRequested = true
+      return
     }
-    inLayoutPass = false
+    inLayoutPass = true
+    try {
+      ++layoutPassCount
+      val geometryChanged = readGeometry()
+      trackUserScroll()
+      if (windowAlong > 0 && windowCross > 0) {
+        if (needsFrame || geometryChanged || !inBand(exactOffset)) runPasses()
+        val mountedOffset = exactOffset
+        layoutTemplates()
+        mountCells()
+        stickyPinning.layoutSticky()
+        if (hasHeldRow) drag.update()
+        changes.run()
+        swipe.layout()
+        if (exactOffset != mountedOffset) layoutPassRequested = true
+      }
+    } finally {
+      inLayoutPass = false
+    }
+    if (didScrollPending) {
+      didScrollPending = false
+      delegate?.didScroll(this)
+    }
+    if (layoutPassRequested) {
+      layoutPassRequested = false
+      requestLayout()
+    }
     dispatchReached()
+    didLayOut()
   }
 
-  private fun inBand(value: Int): Boolean = bandLow <= value && value <= bandHigh
+  /*
+   * Called after every layout pass, once the rows it measured and the cells it mounted are in
+   * place and before the frame is drawn. A subclass reconciles views of its own with the rows
+   * here. A data change in response waits for a later pass. A host posts it to run after this one.
+   */
+  protected open fun didLayOut() {}
+
+  private fun inBand(value: Double): Boolean = bandLow <= value && value <= bandHigh
 
   /*
    * Read the viewport and template sizes. Returns whether any changed since the last pass.
@@ -927,16 +1096,22 @@ open class ShadowListKitListView @JvmOverloads constructor(
     return if (horizontal) view.measuredWidth else view.measuredHeight
   }
 
+  /*
+   * The header and the footer round their edges from the exact offset like the rows, which they
+   * meet without a gap.
+   */
   private fun layoutTemplates() {
-    headerView?.let { placeTemplate(it, 0, headerSize) }
-    footerView?.let { placeTemplate(it, footerStart.roundToInt(), footerSize) }
+    headerView?.let { placeTemplate(it, 0.0, headerSize) }
+    footerView?.let { placeTemplate(it, footerStart, footerSize) }
   }
 
-  private fun placeTemplate(view: View, start: Int, size: Int) {
+  private fun placeTemplate(view: View, start: Double, size: Int) {
+    val low = (start - offsetFraction).roundToInt()
+    val high = (start + size - offsetFraction).roundToInt()
     val left = paddingLeft
     val top = paddingTop
-    if (horizontal) layoutIfMoved(view, left + start, top, left + start + size, top + windowCross)
-    else layoutIfMoved(view, left, top + start, left + windowCross, top + start + size)
+    if (horizontal) layoutIfMoved(view, left + low, top, left + high, top + windowCross)
+    else layoutIfMoved(view, left, top + low, left + windowCross, top + high)
   }
 
   private fun layoutIfMoved(view: View, left: Int, top: Int, right: Int, bottom: Int) {
@@ -951,7 +1126,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   private fun runPasses() {
     val pass = core.pass
-    pass[ShadowListKitCore.PASS_OFFSET] = offset.toDouble()
+    pass[ShadowListKitCore.PASS_OFFSET] = exactOffset
     pass[ShadowListKitCore.PASS_WINDOW_ALONG] = windowAlong.toDouble()
     pass[ShadowListKitCore.PASS_WINDOW_CROSS] = windowCross.toDouble()
     pass[ShadowListKitCore.PASS_HEADER_SIZE] = headerSize.toDouble()
@@ -965,6 +1140,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     pass[ShadowListKitCore.PASS_LEADING_INSET] = leadingPadding.toDouble()
     pass[ShadowListKitCore.PASS_TRAILING_INSET] = trailingPadding.toDouble()
     core.runPasses()
+    ++corePassCount
     userScrolled = false
     needsFrame = false
     applyPassResult(pass)
@@ -975,19 +1151,24 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   private fun applyPassResult(pass: DoubleArray) {
     contentAlong = pass[ShadowListKitCore.PASS_OUT_CONTENT].roundToInt()
-    val target = pass[ShadowListKitCore.PASS_OUT_OFFSET].roundToInt()
+    val exactTarget = pass[ShadowListKitCore.PASS_OUT_OFFSET]
+    val target = exactTarget.roundToInt()
     /*
      * Content that shrank under a resting view clamps it to the new end, like a scroll view's
-     * content size write. The core runs again on the clamped offset before the frame is drawn.
+     * content size write, and an offset a host moved before the start comes back to it. The core
+     * runs again on the clamped offset before the frame is drawn.
      */
-    if (target > maxOffset && !gesture.isTracking && !clampingPass) {
-      writeOffset(maxOffset)
+    if ((target > maxOffset || exactTarget < 0) && !gesture.isTracking && !clampingPass) {
+      writeOffset(min(max(target, 0), maxOffset))
+      offsetFraction = 0.0
       clampingPass = true
       runPasses()
       clampingPass = false
       return
     }
     if (target != offset) writeOffset(target)
+    // Sizes with fractions correct by fractions. The scroll position only moves by whole pixels.
+    offsetFraction = exactTarget - target
     bandLow = pass[ShadowListKitCore.PASS_OUT_BAND_LOW]
     bandHigh = pass[ShadowListKitCore.PASS_OUT_BAND_HIGH]
     reachedStart = reachedStart || pass[ShadowListKitCore.PASS_OUT_REACHED_START] != 0.0
@@ -1057,10 +1238,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
     return if (horizontal) measuredFrames[at + 2] else measuredFrames[at + 3]
   }
 
+  /*
+   * ListDriver::overlaps and ListDriver::shouldMount over the copied frames, with the core's
+   * names. Every row of a plain list mounts. A masonry grid can hold rows inside the index range
+   * that are out of view.
+   */
   private fun overlaps(index: Int, viewLow: Double, viewHigh: Double): Boolean {
     val start = measuredLeading(index)
     return start + measuredExtent(index) > viewLow && start < viewHigh
   }
+
+  private fun shouldMount(index: Int, viewLow: Double, viewHigh: Double): Boolean =
+    numberOfColumns == 1 || overlaps(index, viewLow, viewHigh)
 
   /*
    * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
@@ -1076,16 +1265,42 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
     // Rows under the padding show when clipToPadding is off. They are mounted too.
     val pad = windowAlong * mountOverscan
-    val viewLow = offset - pad - leadingPadding
-    val viewHigh = offset + windowAlong + pad + trailingPadding
+    if (mountsAhead) {
+      mountAhead(pad)
+      return
+    }
+    coverLow = Double.POSITIVE_INFINITY
+    coverHigh = Double.NEGATIVE_INFINITY
+    if (mountPlanHolds(pad)) return
+    val viewLow = exactOffset - pad - leadingPadding
+    val viewHigh = exactOffset + windowAlong + pad + trailingPadding
     var low = -1
     var high = -1
+    /*
+     * The band where the same rows mount, as ListDriver::planMount finds it: a row overlaps the
+     * view at a new offset while start - after < offset < end + before. Each end stays a hair
+     * inside.
+     */
+    val before = pad + leadingPadding
+    val after = windowAlong + pad + trailingPadding
+    var bandLow = Double.NEGATIVE_INFINITY
+    var bandHigh = Double.POSITIVE_INFINITY
     for (index in measuredLow..measuredHigh) {
-      if (!overlaps(index, viewLow, viewHigh)) continue
+      val start = measuredLeading(index)
+      val end = start + measuredExtent(index)
+      if (!overlaps(index, viewLow, viewHigh)) {
+        if (end <= viewLow) bandLow = max(bandLow, end + before + MOUNT_BAND_EDGE)
+        else bandHigh = min(bandHigh, start - after - MOUNT_BAND_EDGE)
+        continue
+      }
+      bandLow = max(bandLow, start - after + MOUNT_BAND_EDGE)
+      bandHigh = min(bandHigh, end + before - MOUNT_BAND_EDGE)
       if (low < 0) low = index
       high = index
     }
-    val sticky = stickyPinning.activeStickyIndex(offset.toDouble())
+    val sticky = stickyPinning.activeStickyIndex(exactOffset)
+    recordMountBand(if (stickyPinning.stickyRows.isEmpty()) bandLow else exactOffset,
+      if (stickyPinning.stickyRows.isEmpty()) bandHigh else exactOffset, pad)
     if (!mountNeeded(low, high, sticky)) return
     recordMount(low, high, sticky)
     mountPlan(low, high, sticky, viewLow, viewHigh)
@@ -1094,26 +1309,132 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Whether anything the last mount pass covered changed: the rows, the pinned header, the
-   * geometry or the data. A drag mounts every pass.
+   * geometry, the offset's fraction or the data. A drag mounts every pass.
    */
   private fun mountNeeded(low: Int, high: Int, sticky: Int): Boolean =
-    low != mountedLow || high != mountedHigh || sticky != mountedSticky ||
-      measuredGeometry != mountedGeometry || structureVersion != mountedStructure || hasHeldRow
+    low != mountedLow || high != mountedHigh || sticky != mountedSticky || measuredGeometry != mountedGeometry ||
+      offsetFraction != mountedFraction || structureVersion != mountedStructure || hasHeldRow
+
+  /*
+   * Whether the offset is still inside the band of the last mount plan, made with the same
+   * window, padding, measured range, frames and offset fraction, and nothing else needs a mount
+   * pass.
+   */
+  private fun mountPlanHolds(pad: Double): Boolean =
+    exactOffset in mountBandLow..mountBandHigh && mountBandInputs[0] == windowAlong.toDouble() &&
+      mountBandInputs[1] == pad && mountBandInputs[2] == leadingPadding.toDouble() &&
+      mountBandInputs[3] == trailingPadding.toDouble() && mountBandInputs[4] == measuredLow.toDouble() &&
+      mountBandInputs[5] == measuredHigh.toDouble() && measuredGeometry == mountedGeometry &&
+      offsetFraction == mountedFraction && structureVersion == mountedStructure && !hasHeldRow
+
+  private fun recordMountBand(low: Double, high: Double, pad: Double) {
+    mountBandLow = min(low, exactOffset)
+    mountBandHigh = max(high, exactOffset)
+    mountBandInputs[0] = windowAlong.toDouble()
+    mountBandInputs[1] = pad
+    mountBandInputs[2] = leadingPadding.toDouble()
+    mountBandInputs[3] = trailingPadding.toDouble()
+    mountBandInputs[4] = measuredLow.toDouble()
+    mountBandInputs[5] = measuredHigh.toDouble()
+  }
+
+  /*
+   * A driven list of one column without sticky rows mounts ahead.
+   */
+  private val mountsAhead: Boolean
+    get() = scrollDriven && numberOfColumns == 1 && stickyPinning.stickyRows.isEmpty()
+
+  /*
+   * A host moves a driven list every frame it draws. The list mounts DRIVEN_MOUNT_AHEAD viewports
+   * past the padding on the side the offset moves to and plans again only once the rows it mounted
+   * stop covering the viewport and the padding, or anything else a plan read changed. A frame then
+   * mounts the rows of several frames at once, and the frames between record nothing
+   * (drawContent). The rows of one column follow each other. The rows a plan mounted cover from
+   * the start of the first to the end of the last, and past the content's ends.
+   */
+  private fun mountAhead(pad: Double) {
+    mountBandLow = 1.0
+    mountBandHigh = 0.0
+    val viewLow = exactOffset - pad - leadingPadding
+    val viewHigh = exactOffset + windowAlong + pad + trailingPadding
+    if (coverLow <= viewLow && viewHigh <= coverHigh && aheadInputsHold(pad)) return
+    // A move longer than the rows ahead plans every pass anyway. Rows mounted ahead then only draw twice.
+    var ahead = windowAlong * DRIVEN_MOUNT_AHEAD
+    if (abs(exactOffset - aheadOffset) > ahead) ahead = 0.0
+    val forward = exactOffset >= aheadOffset
+    val planLow = if (forward) viewLow else viewLow - ahead
+    val planHigh = if (forward) viewHigh + ahead else viewHigh
+    var low = -1
+    var high = -1
+    for (index in measuredLow..measuredHigh) {
+      if (overlaps(index, planLow, planHigh)) {
+        if (low < 0) low = index
+        high = index
+      } else if (low >= 0) {
+        break
+      }
+    }
+    coverLow = when {
+      low < 0 -> Double.POSITIVE_INFINITY
+      low == 0 -> Double.NEGATIVE_INFINITY
+      else -> measuredLeading(low)
+    }
+    coverHigh = when {
+      high < 0 -> Double.NEGATIVE_INFINITY
+      high == keys.size - 1 -> Double.POSITIVE_INFINITY
+      else -> measuredLeading(high) + measuredExtent(high)
+    }
+    aheadOffset = exactOffset
+    if (low >= 0) {
+      val count = (high - low + 1) * 2
+      if (aheadFrames.size < count) aheadFrames = DoubleArray(count * 2)
+      for (index in low..high) {
+        aheadFrames[(index - low) * 2] = measuredLeading(index)
+        aheadFrames[(index - low) * 2 + 1] = measuredExtent(index)
+      }
+    }
+    recordMountBand(exactOffset, exactOffset, pad)
+    if (!mountNeeded(low, high, -1)) return
+    recordMount(low, high, -1)
+    mountPlan(low, high, -1, planLow, planHigh)
+    prefetchAround(low, high)
+  }
+
+  private fun aheadInputsHold(pad: Double): Boolean =
+    mountBandInputs[0] == windowAlong.toDouble() && mountBandInputs[1] == pad &&
+      mountBandInputs[2] == leadingPadding.toDouble() && mountBandInputs[3] == trailingPadding.toDouble() &&
+      offsetFraction == mountedFraction && structureVersion == mountedStructure && !hasHeldRow &&
+      (measuredGeometry == mountedGeometry || mountedFramesHold())
+
+  /*
+   * Rows measured past the mounted ones move the core's geometry too. The plan holds while every
+   * mounted row kept its frame.
+   */
+  private fun mountedFramesHold(): Boolean {
+    if (mountedLow < 0 || mountedLow < measuredLow || mountedHigh > measuredHigh) return false
+    for (index in mountedLow..mountedHigh) {
+      if (measuredLeading(index) != aheadFrames[(index - mountedLow) * 2] ||
+        measuredExtent(index) != aheadFrames[(index - mountedLow) * 2 + 1]) return false
+    }
+    mountedGeometry = measuredGeometry
+    return true
+  }
 
   private fun recordMount(low: Int, high: Int, sticky: Int) {
     mountedLow = low
     mountedHigh = high
     mountedSticky = sticky
     mountedGeometry = measuredGeometry
+    mountedFraction = offsetFraction
     mountedStructure = structureVersion
   }
 
   private fun mountPlan(low: Int, high: Int, sticky: Int, viewLow: Double, viewHigh: Double) {
+    ++mountPassCount
     val generation = ++mountGeneration
     if (low >= 0) {
       for (index in low..high) {
-        // ListDriver::shouldMount. A masonry grid can hold rows inside the index range that are out of view.
-        if (numberOfColumns > 1 && !overlaps(index, viewLow, viewHigh)) continue
+        if (!shouldMount(index, viewLow, viewHigh)) continue
         mountRow(index, generation)
       }
     }
@@ -1137,10 +1458,31 @@ open class ShadowListKitListView @JvmOverloads constructor(
     cell.mountGeneration = generation
     placeCell(cell, index)
     if (appearing) {
-      cell.visibility = VISIBLE
+      setCellShown(cell, true)
       applyState(cell, key)
+      // A reload recycled the held row's cell. The new one takes its place under the finger.
+      if (index == drag.heldIndex) drag.adoptHeldCell(cell)
       if (cell.index >= 0) delegate?.willDisplayCell(this, cell, cell.index)
     }
+  }
+
+  /*
+   * Shows or hides a mounted or recycled cell. From API 29 the flag changes without the visibility
+   * dispatch through the cell's views, which cost more than the rest of a mount pass. The list then
+   * draws again, and a shown cell with it. A cell holding focus changes the usual way, which moves
+   * the focus.
+   */
+  private fun setCellShown(cell: ShadowListKitListCell, shown: Boolean) {
+    val visibility = if (shown) VISIBLE else INVISIBLE
+    if (cell.visibility == visibility) return
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || cell.hasFocus()) {
+      cell.visibility = visibility
+      return
+    }
+    cell.setTransitionVisibility(visibility)
+    if (shown) cell.invalidate()
+    contentStale = true
+    invalidate()
   }
 
   /*
@@ -1175,6 +1517,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
     mounted.clear()
     mountedLow = -1
     mountedHigh = -1
+    mountBandLow = 1.0
+    mountBandHigh = 0.0
+    coverLow = Double.POSITIVE_INFINITY
+    coverHigh = Double.NEGATIVE_INFINITY
   }
 
   /*
@@ -1194,13 +1540,17 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   /*
-   * Place a view at a frame. A view that only moved is offset without a layout.
+   * Place a view at a frame. Edges round to whole pixels from the exact frame and offset. Rows
+   * meet without gaps and keep their place on screen when the core moves them and the offset
+   * together. A view that only moved is offset without a layout.
    */
   internal fun placeView(view: View, x: Double, y: Double, w: Double, h: Double) {
-    val left = x.roundToInt() + paddingLeft
-    val top = y.roundToInt() + paddingTop
-    val right = (x + w).roundToInt() + paddingLeft
-    val bottom = (y + h).roundToInt() + paddingTop
+    val shiftX = if (horizontal) offsetFraction else 0.0
+    val shiftY = if (horizontal) 0.0 else offsetFraction
+    val left = (x - shiftX).roundToInt() + paddingLeft
+    val top = (y - shiftY).roundToInt() + paddingTop
+    val right = (x + w - shiftX).roundToInt() + paddingLeft
+    val bottom = (y + h - shiftY).roundToInt() + paddingTop
     val width = right - left
     val height = bottom - top
     if (view.isLayoutRequested || view.width != width || view.height != height) {
@@ -1266,7 +1616,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val item = itemForRow(row)
     if (item >= 0) {
       val sizing = dataSource as? Sizing
-      if (sizing != null) return sizing.sizeForItem(this, item, cross).toDouble()
+      if (sizing != null) return sizing.exactSizeForItem(this, item, cross)
     } else {
       val sections = dataSource as? Sections
       val place = placeOfRow(row)
@@ -1313,10 +1663,132 @@ open class ShadowListKitListView @JvmOverloads constructor(
     liftedHigh = if (sticky >= 0 && held >= 0) max(sticky, held) else -1
     // The held row draws last, above the pinned header.
     liftedTop = if (held >= 0) held else sticky
-    super.dispatchDraw(canvas)
+    if (!drawContent(canvas)) super.dispatchDraw(canvas)
     for (decoration in decorations) decoration.onDrawOver(canvas, this)
     if (refresh.draw(canvas)) postInvalidateOnAnimation()
     sectionIndex.draw(canvas)
+  }
+
+  /*
+   * A driven list moves its offset every frame its host draws, and a new offset records the list's
+   * display list again, a draw of every child in it. From API 29 its children draw into a
+   * RenderNode of their own instead, recorded again only when a child came, went, showed or hid.
+   * A frame that only moved records the list around that node. A child that drew again since is
+   * brought up to date on its own. A lifted row, separators, an open swipe and a layout transition
+   * draw the usual way. Returns false when the children were not drawn.
+   */
+  private fun drawContent(canvas: Canvas): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !scrollDriven || !canvas.isHardwareAccelerated ||
+      liftedLow >= 0 || showsSeparators || swipe.isOpen || layoutTransition != null) {
+      contentStale = true
+      dirtyChildren.clear()
+      return false
+    }
+    val node = contentNode ?: RenderNode("ShadowListKitContent").also {
+      it.setClipToBounds(false)
+      contentNode = it
+    }
+    if (contentStale || !node.hasDisplayList() || contentChanged()) recordContent(node) else refreshDirtyChildren()
+    val save = canvas.save()
+    if (clipToPadding) {
+      canvas.clipRect(scrollX + paddingLeft, scrollY + paddingTop, scrollX + width - paddingRight, scrollY + height - paddingBottom)
+    }
+    canvas.drawRenderNode(node)
+    canvas.restoreToCount(save)
+    return true
+  }
+
+  private fun contentChanged(): Boolean =
+    (headerView?.visibility ?: -1) != contentHeaderVisibility || (footerView?.visibility ?: -1) != contentFooterVisibility
+
+  private fun recordContent(node: RenderNode) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+    ++contentRecordCount
+    contentStale = false
+    dirtyChildren.clear()
+    contentHeaderVisibility = headerView?.visibility ?: -1
+    contentFooterVisibility = footerView?.visibility ?: -1
+    /*
+     * A child the recording canvas does not hold is left out (View.draw rejects it), and the cells
+     * sit where the content puts them. The node spans the list and every child shown.
+     */
+    var left = scrollX
+    var top = scrollY
+    var right = scrollX + max(1, width)
+    var bottom = scrollY + max(1, height)
+    for (at in 0 until childCount) {
+      val child = getChildAt(at)
+      if (child.visibility != VISIBLE && child.animation == null) continue
+      left = min(left, child.left)
+      top = min(top, child.top)
+      right = max(right, child.right)
+      bottom = max(bottom, child.bottom)
+    }
+    node.setPosition(left, top, right, bottom)
+    val content = node.beginRecording(right - left, bottom - top)
+    try {
+      content.translate(-left.toFloat(), -top.toFloat())
+      content.enableZ()
+      val time = drawingTime
+      for (at in 0 until childCount) {
+        val child = getChildAt(at)
+        if (child.visibility == VISIBLE || child.animation != null) drawChild(content, child, time)
+      }
+      content.disableZ()
+    } finally {
+      node.endRecording()
+    }
+  }
+
+  /*
+   * A child that drew again since draws into its own display list, which the content node shows.
+   * Drawing it anywhere does that. The list draws it into a node it drops.
+   */
+  private fun refreshDirtyChildren() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || dirtyChildren.isEmpty()) return
+    val node = refreshNode ?: RenderNode("ShadowListKitRefresh").also { refreshNode = it }
+    // The canvas holds the children it draws, which View.draw would otherwise reject unrecorded.
+    var left = Int.MAX_VALUE
+    var top = Int.MAX_VALUE
+    var right = Int.MIN_VALUE
+    var bottom = Int.MIN_VALUE
+    for (child in dirtyChildren) {
+      left = min(left, child.left)
+      top = min(top, child.top)
+      right = max(right, child.right)
+      bottom = max(bottom, child.bottom)
+    }
+    val canvas = node.beginRecording(max(1, right - left), max(1, bottom - top))
+    try {
+      canvas.translate(-left.toFloat(), -top.toFloat())
+      val time = drawingTime
+      for (child in dirtyChildren) {
+        if (child.parent === this && child.visibility == VISIBLE && child.isDirty) drawChild(canvas, child, time)
+      }
+    } finally {
+      node.endRecording()
+      node.discardDisplayList()
+      dirtyChildren.clear()
+    }
+  }
+
+  /*
+   * A child or a view in it drew again, not a child that only moved. The content node draws it as
+   * it is now.
+   */
+  override fun onDescendantInvalidated(child: View, target: View) {
+    super.onDescendantInvalidated(child, target)
+    if (contentNode != null && child.isDirty && child !in dirtyChildren) dirtyChildren.add(child)
+  }
+
+  override fun onViewAdded(child: View) {
+    super.onViewAdded(child)
+    contentStale = true
+  }
+
+  override fun onViewRemoved(child: View) {
+    super.onViewRemoved(child)
+    contentStale = true
   }
 
   override fun getChildDrawingOrder(childCount: Int, drawingPosition: Int): Int {
@@ -1356,11 +1828,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val y = cell.top + cell.translationY
     // The line never runs backwards when the insets are wider than the cell.
     if (horizontal) {
-      val length = max(0, cell.height - separatorInsetStart - separatorInsetEnd)
-      separatorRect.set(x + cell.width - separatorThickness, y + separatorInsetStart, x + cell.width, y + separatorInsetStart + length)
+      val length = max(0, cell.height - separatorInsetStartPx - separatorInsetEndPx)
+      separatorRect.set(x + cell.width - separatorThicknessPx, y + separatorInsetStartPx, x + cell.width, y + separatorInsetStartPx + length)
     } else {
-      val length = max(0, cell.width - separatorInsetStart - separatorInsetEnd)
-      separatorRect.set(x + separatorInsetStart, y + cell.height - separatorThickness, x + separatorInsetStart + length, y + cell.height)
+      val length = max(0, cell.width - separatorInsetStartPx - separatorInsetEndPx)
+      separatorRect.set(x + separatorInsetStartPx, y + cell.height - separatorThicknessPx, x + separatorInsetStartPx + length, y + cell.height)
     }
     separatorPaint.alpha = (Color.alpha(separatorColor) * cell.alpha).roundToInt()
     canvas.drawRect(separatorRect, separatorPaint)
@@ -1387,11 +1859,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal fun cellAt(x: Float, y: Float): ShadowListKitListCell? {
     val contentX = x + scrollX
     val contentY = y + scrollY
+    fun hit(cell: ShadowListKitListCell): Boolean = cell.visibility == VISIBLE && cell.row >= 0 &&
+      contentX >= cell.left && contentX < cell.right && contentY >= cell.top && contentY < cell.bottom
+    // A pinned header covers the rows under it.
+    stickyPinning.stickyCell?.let { if (hit(it)) return it }
     for (cell in mounted.values) {
-      if (cell.visibility == VISIBLE && cell.row >= 0 &&
-        contentX >= cell.left && contentX < cell.right && contentY >= cell.top && contentY < cell.bottom) {
-        return cell
-      }
+      if (hit(cell)) return cell
     }
     return null
   }
@@ -1471,23 +1944,43 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * A touch that closed an open row never reaches the rows. The list keeps it to scroll.
    */
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean =
-    gesture.intercept(event) || swipe.closingTouch
+    (userScrolls && gesture.intercept(event)) || swipe.closingTouch
 
-  override fun onTouchEvent(event: MotionEvent): Boolean = gesture.touch(event)
+  /*
+   * Without the reader's scrolling the list still takes a touch no row took, for its taps, swipe
+   * actions and reordering, and scrolls nothing with it. A parent that pans intercepts the moves.
+   */
+  override fun onTouchEvent(event: MotionEvent): Boolean = if (userScrolls) gesture.touch(event) else true
 
   override fun computeScroll() = gesture.computeScroll()
 
   /*
-   * A fling or an animated scroll ended. The core needs an idle frame to let a held
-   * correction go, and an animated command lands on its row.
+   * A lift without settling, a fling or a snap, or an animated scroll ended. The core needs an
+   * idle frame to let a held correction go, and an animated command lands on its row.
    */
   internal fun scrollingEnded() {
     core.land()
     invalidateFrame()
-    delegate?.didEndScrolling(this)
   }
 
-  internal fun gestureBegan() = core.cancelLanding()
+  internal fun draggingEnded(willDecelerate: Boolean) {
+    delegate?.didEndDragging(this, willDecelerate)
+  }
+
+  internal fun deceleratingEnded() {
+    scrollingEnded()
+    delegate?.didEndDecelerating(this)
+  }
+
+  internal fun scrollAnimationEnded() {
+    scrollingEnded()
+    delegate?.didEndScrollingAnimation(this)
+  }
+
+  internal fun gestureBegan() {
+    core.cancelLanding()
+    dropPendingAnchor()
+  }
 
   /*
    * A finger started moving the list. The highlight goes and an open row closes.
@@ -1496,6 +1989,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     selection.cancelHighlight()
     drag.cancelPress()
     if (swipe.isOpen) swipe.close(true)
+    delegate?.willBeginDragging(this)
   }
 
   /*
@@ -1641,7 +2135,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     get() {
       val current = coreOrNull ?: return pendingAnchor
       val out = DoubleArray(1)
-      val key = current.anchorState(offset.toDouble(), out) ?: return pendingAnchor
+      val key = current.anchorState(exactOffset, out) ?: return pendingAnchor
       return ShadowListKitAnchorState(key, out[0].toFloat())
     }
 
@@ -1653,12 +2147,24 @@ open class ShadowListKitListView @JvmOverloads constructor(
     restorePendingAnchor()
   }
 
+  /*
+   * Land the saved row once the data has it. Until then the position waits, and the user
+   * scrolling or a scroll command drops it, see dropPendingAnchor.
+   */
   private fun restorePendingAnchor() {
     val state = pendingAnchor ?: return
     if (keys.isEmpty() || !core.restoreAnchorState(state.key, state.offset.toDouble())) return
     pendingAnchor = null
     stopScrolling()
     runCommandNow()
+  }
+
+  /*
+   * Forget a saved position still waiting for its key. The user or a command moved the list
+   * since, and a later reload must not pull the viewport back to it.
+   */
+  private fun dropPendingAnchor() {
+    pendingAnchor = null
   }
 
   override fun onSaveInstanceState(): Parcelable? {
@@ -1715,7 +2221,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun scrollToRow(row: Int, viewPosition: Double, animated: Boolean) {
     if (row !in keys.indices) return
-    val target = if (animated) core.animatedTargetOffset(row, viewPosition, windowAlong.toDouble(), maxOffset.toDouble())
+    dropPendingAnchor()
+    val target = if (animated && !scrollDriven) core.animatedTargetOffset(row, viewPosition, windowAlong.toDouble(), maxOffset.toDouble())
       else Double.NaN
     if (!target.isNaN()) {
       // Animate to the estimate, then let the core land exactly when the animation ends.
@@ -1728,7 +2235,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   fun scrollToStart(animated: Boolean = false) {
-    if (animated) {
+    dropPendingAnchor()
+    if (animated && !scrollDriven) {
       // The header shows at the very start, which landing on row 0 would scroll past.
       animateCommand(0, ShadowListKitCore.LANDING_START)
       return
@@ -1739,13 +2247,36 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   fun scrollToEnd(animated: Boolean = false) {
-    if (animated) {
+    dropPendingAnchor()
+    if (animated && !scrollDriven) {
       animateCommand(maxOffset, ShadowListKitCore.LANDING_END)
       return
     }
     stopScrolling()
     core.scrollToEnd()
     runCommandNow()
+  }
+
+  /*
+   * Move the offset by delta pixels, fractions included, and lay out now. scrollTo holds the
+   * offset inside the content size first, which counts estimates for rows not measured yet. Here
+   * the layout pass measures the rows at the new offset and then holds it inside the content
+   * they make. For a view that moves the list itself, like one that keeps a window of rows and
+   * corrects the offset after it moves the window.
+   */
+  fun adjustOffsetBy(delta: Double) {
+    if (delta == 0.0) return
+    val target = exactOffset + delta
+    val whole = target.roundToInt()
+    /*
+     * A driven list that stays inside the content, with nothing waiting, lays out once: that pass
+     * runs the core only when the offset left the core's band. A new whole pixel lays out through
+     * onScrollChanged.
+     */
+    val onePass = scrollDriven && !needsFrame && isLaidOut && !isLayoutRequested && whole in 0..maxOffset
+    offsetFraction = target - whole
+    if (whole != offset) writeOffset(whole) else if (onePass) layoutPass()
+    if (!onePass) runCommandNow()
   }
 
   fun closeSwipeActions(animated: Boolean = true) = swipe.close(animated)
@@ -1769,6 +2300,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * the offset over a command that runs now.
    */
   private fun stopScrolling() {
+    dropPendingAnchor()
     gesture.stop()
     core.cancelLanding()
   }
@@ -1789,6 +2321,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     reorderEnabled && !editingState && drag.begin(x, y)
 
   internal val hasHeldRow: Boolean get() = drag.hasHeldRow
+  internal val heldCell: ShadowListKitListCell? get() = drag.heldCell
 
   /*
    * The held row was dropped. Move it in the data and keep it where it was let go. Returns
@@ -1798,10 +2331,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val from = itemForRow(fromRow)
     val to = if (isSectioned) core.itemForDrop(fromRow, toRow) else toRow
     if (from < 0 || to < 0 || from == to) return false
-    delegate?.moveItem(this, from, to)
-    // The drop animates the rows itself.
+    // The drop animates the rows itself, a change the delegate applies while it moves the item too.
     val animates = animatesChanges
     animatesChanges = false
+    delegate?.moveItem(this, from, to)
     reloadData()
     animatesChanges = animates
     layoutPass()
@@ -1813,6 +2346,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private companion object {
     const val STATE_SUPER = "ShadowListKitListView.super"
     const val STATE_ANCHOR = "ShadowListKitListView.anchor"
+
+    // How far inside each end the mount band stays, where rounding cannot tell it from the edge.
+    const val MOUNT_BAND_EDGE = 1e-6
+
+    // How far past the padding a driven list mounts on the side its offset moves to, in viewport sizes.
+    const val DRIVEN_MOUNT_AHEAD = 0.2
   }
 }
 

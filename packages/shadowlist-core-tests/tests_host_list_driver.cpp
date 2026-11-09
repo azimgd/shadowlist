@@ -468,6 +468,54 @@ TEST(list_driver_mount_plan_reaches_into_the_insets) {
   CHECK_NEAR(padded.viewHigh, host.offset + WINDOW_ALONG + 30.0 + TRAILING_INSET, 1e-9);
 }
 
+/*
+ * A host moving the offset inside the plan's band mounts the same rows without planning again.
+ * Just past either end a row enters or leaves.
+ */
+TEST(list_driver_mount_plan_band_holds_the_same_rows) {
+  for (std::size_t columns : {std::size_t{1}, std::size_t{3}}) {
+    ListSettings settings;
+    settings.numberOfColumns = columns;
+    Host host(1000, settings);
+    host.settle();
+    host.scrollTo(2000.0);
+    host.settle();
+    constexpr double PAD = 40.0;
+    MountPlan plan = host.driver.planMount(host.offset, WINDOW_ALONG, PAD, 10.0, 20.0);
+    CHECK(plan.band.contains(host.offset));
+    CHECK(plan.band.low < plan.band.high);
+    auto mounted = [&](const MountPlan& at) {
+      std::vector<std::size_t> rows;
+      for (std::size_t index = at.low; at.low != UNDEFINED_INDEX && index <= at.high; ++index) {
+        if (host.driver.shouldMount(at, index)) {
+          rows.push_back(index);
+        }
+      }
+      return rows;
+    };
+    std::vector<std::size_t> rows = mounted(plan);
+    for (double offset : {plan.band.low, (plan.band.low + plan.band.high) / 2, plan.band.high}) {
+      CHECK(mounted(host.driver.planMount(offset, WINDOW_ALONG, PAD, 10.0, 20.0)) == rows);
+    }
+    CHECK(mounted(host.driver.planMount(plan.band.low - 0.01, WINDOW_ALONG, PAD, 10.0, 20.0)) != rows);
+    CHECK(mounted(host.driver.planMount(plan.band.high + 0.01, WINDOW_ALONG, PAD, 10.0, 20.0)) != rows);
+  }
+}
+
+/*
+ * The pinned row changes with the offset, and a plan with sticky rows holds only its own offset.
+ */
+TEST(list_driver_mount_plan_band_with_sticky_rows_is_its_offset) {
+  Host host(300);
+  host.driver.setStickyIndices({0, 20, 40});
+  host.settle();
+  host.scrollTo(1500.0);
+  host.settle();
+  MountPlan plan = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0);
+  CHECK_EQ(plan.band.low, host.offset);
+  CHECK_EQ(plan.band.high, host.offset);
+}
+
 TEST(list_driver_reset_keeps_the_first_visible_row) {
   Host host(1000);
   host.settle();
@@ -556,6 +604,10 @@ TEST(list_driver_drag_moves_the_drop_slot_and_skips_the_held_row) {
   host.driver.dragEnd();
   CHECK(!host.driver.isDragging());
   CHECK_EQ(host.driver.getHeldIndex(), UNDEFINED_INDEX);
+  // The ended drag shifts no row and has no origin or drop spot left.
+  CHECK_EQ(host.driver.dragShiftFor(3).leading, 0.0);
+  CHECK_EQ(host.driver.getDragOriginIndex(), UNDEFINED_INDEX);
+  CHECK_EQ(host.driver.getDragInsertionIndex(), UNDEFINED_INDEX);
 }
 
 TEST(list_driver_held_row_follows_its_key) {
@@ -758,4 +810,31 @@ TEST(list_driver_reset_measures_the_rows_at_the_offset_in_one_layout) {
   CHECK_NEAR(host.offset, 2714.0, 0.01);
   CHECK(host.driver.getLeadingAt(measured->low) <= host.offset);
   CHECK(host.driver.getLeadingAt(measured->high) + 30.0 >= host.offset + WINDOW_ALONG);
+}
+
+/*
+ * The last row moves no row when it grows, and a host that copies the frames by the geometry
+ * version still hears that it changed.
+ */
+TEST(list_driver_a_last_row_that_grows_moves_the_geometry_version) {
+  ListDriver driver;
+  double last = 50.0;
+  driver.setMeasureRow([&](std::size_t index, const std::string&, double) { return index == 2 ? last : 50.0; });
+  driver.setKeys({"a", "b", "c"});
+  PassInput input;
+  input.windowAlong = 600;
+  input.windowCross = 300;
+  driver.runPasses(input);
+  std::uint64_t before = driver.getGeometryVersion();
+  last = 200.0;
+  driver.markRemeasure({2});
+  PassResult result = driver.runPasses(input);
+  CHECK_EQ(driver.getExtentAt(2), 200.0);
+  CHECK_EQ(result.contentAlong, 300.0);
+  CHECK(driver.getGeometryVersion() != before);
+  // Measured again at the same size, nothing changed.
+  std::uint64_t grown = driver.getGeometryVersion();
+  driver.markRemeasure({2});
+  driver.runPasses(input);
+  CHECK_EQ(driver.getGeometryVersion(), grown);
 }

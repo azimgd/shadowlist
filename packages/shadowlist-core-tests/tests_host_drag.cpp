@@ -53,18 +53,19 @@ DragReorder dragRow3To(double touchContent) {
  */
 TEST(drag_event_from_an_older_state_does_not_fire_again) {
   Container container;
-  CHECK(container.takeDragEventSequence(0.0));
-  CHECK(container.takeDragEventSequence(1.0));
-  CHECK(container.takeDragEventSequence(2.0));
-  CHECK(!container.takeDragEventSequence(2.0));
+  // A state that never carried a drag event has number 0.
+  CHECK(!container.takeDragEventSequence(0));
+  CHECK(container.takeDragEventSequence(1));
+  CHECK(container.takeDragEventSequence(2));
+  CHECK(!container.takeDragEventSequence(2));
 
-  CHECK(container.takeDragEventSequence(3.0));
-  CHECK(!container.takeDragEventSequence(2.0));
-  CHECK(!container.takeDragEventSequence(3.0));
+  CHECK(container.takeDragEventSequence(3));
+  CHECK(!container.takeDragEventSequence(2));
+  CHECK(!container.takeDragEventSequence(3));
 
   // The next real event goes past every number seen, whatever the older state said.
-  CHECK(container.takeDragEventSequence(4.0));
-  CHECK(!container.takeDragEventSequence(3.0));
+  CHECK(container.takeDragEventSequence(4));
+  CHECK(!container.takeDragEventSequence(3));
 }
 
 TEST(drag_insertion_reads_keys_through_the_lookup) {

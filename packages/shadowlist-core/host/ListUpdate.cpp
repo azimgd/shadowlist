@@ -87,22 +87,42 @@ bool BatchCollector::end() {
 }
 
 void BatchCollector::addDeleted(const std::vector<std::size_t>& indices) {
+  if (batch_.needsReload) {
+    return;
+  }
   batch_.update.deleted.insert(batch_.update.deleted.end(), indices.begin(), indices.end());
 }
 
 void BatchCollector::addInserted(const std::vector<std::size_t>& indices) {
+  if (batch_.needsReload) {
+    return;
+  }
   batch_.update.inserted.insert(batch_.update.inserted.end(), indices.begin(), indices.end());
 }
 
 void BatchCollector::addMoved(std::size_t from, std::size_t to) {
+  if (batch_.needsReload) {
+    return;
+  }
   batch_.update.moved.push_back({from, to});
 }
 
 void BatchCollector::addReloaded(const std::vector<std::size_t>& indices) {
+  if (batch_.needsReload) {
+    return;
+  }
   batch_.update.reloaded.insert(batch_.update.reloaded.end(), indices.begin(), indices.end());
 }
 
+void BatchCollector::markNeedsReload() {
+  batch_.update = BatchUpdate{};
+  batch_.needsReload = true;
+}
+
 CollectedBatch BatchCollector::take() {
+  if (depth_ > 0) {
+    return CollectedBatch{};
+  }
   CollectedBatch taken = std::move(batch_);
   batch_ = CollectedBatch{};
   return taken;

@@ -50,21 +50,14 @@ public class ShadowListView extends FrameLayout {
   }
 
   /*
-   * Values for the scrollPhase state key, matching SCROLL_PHASE_* in host/LiveScroll.hpp.
-   * Idle, finger down, or momentum running.
+   * Values for the scrollPhase state key and the scrollToRow rows for the end and an absolute
+   * offset, read from the core through ShadowListScrollSync.
    */
-  static final int SCROLL_PHASE_IDLE = 0;
-  private static final int SCROLL_PHASE_DRAGGING = 1;
-  private static final int SCROLL_PHASE_SETTLING = 2;
-  /*
-   * The scrollToRow row that means the end, matching SCROLL_TO_END_SLOT in Constants.hpp.
-   */
-  private static final double SCROLL_TO_END_INDEX = -3.0;
-  /*
-   * The scrollToRow row that means the absolute offset carried in viewOffset, matching
-   * SCROLL_TO_OFFSET_SLOT.
-   */
-  private static final double SCROLL_TO_OFFSET_INDEX = -4.0;
+  static final int SCROLL_PHASE_IDLE = ShadowListScrollSync.SCROLL_PHASE_IDLE;
+  private static final int SCROLL_PHASE_DRAGGING = ShadowListScrollSync.SCROLL_PHASE_DRAGGING;
+  private static final int SCROLL_PHASE_SETTLING = ShadowListScrollSync.SCROLL_PHASE_SETTLING;
+  private static final double SCROLL_TO_END_SLOT = ShadowListScrollSync.SCROLL_TO_END_SLOT;
+  private static final double SCROLL_TO_OFFSET_SLOT = ShadowListScrollSync.SCROLL_TO_OFFSET_SLOT;
 
   /*
    * Keys of the state MapBuffer, matching ShadowListStateKey in ShadowListViewState.h.
@@ -216,6 +209,11 @@ public class ShadowListView extends FrameLayout {
    */
   private boolean mDragEventSent = false;
   private boolean mMomentumEventSent = false;
+  /*
+   * The finger lifted from a drag that had no fling yet. A fling the inner scroll view starts
+   * after the lift still sends its momentum begin.
+   */
+  private boolean mDragEndedAtRest = false;
   private int mFlingVelocity = 0;
 
   /*
@@ -386,10 +384,12 @@ public class ShadowListView extends FrameLayout {
     mGeometryHandle = 0;
     mRefreshAwaitingSettle = false;
     removeCallbacks(mRefreshSettleRunnable);
-    removeCallbacks(mSnapSettleRunnable);
-    removeCallbacks(mLandingRunnable);
+    cancelLiftRunnables();
+    mTouching = false;
+    mTouchStoppedFling = false;
     mDragEventSent = false;
     mMomentumEventSent = false;
+    mDragEndedAtRest = false;
     mScrollEventEnabled = false;
     mScrollTracker.reset(mScrollEventThrottle);
     stopSettling();
@@ -844,6 +844,7 @@ public class ShadowListView extends FrameLayout {
     mSync.disarm();
     mTouching = true;
     mDragEventSent = false;
+    mDragEndedAtRest = false;
     mFlingVelocity = 0;
     if (mMomentumEventSent) {
       // The touch stopped the fling.
@@ -851,6 +852,14 @@ public class ShadowListView extends FrameLayout {
       emitScrollEvent(ShadowListScrollEvent.MOMENTUM_END, 0, 0);
     }
     stopSettling();
+    cancelLiftRunnables();
+  }
+
+  /*
+   * The snap after a lift and the fallback landing of a command, which a touch or a recycle
+   * makes moot.
+   */
+  private void cancelLiftRunnables() {
     removeCallbacks(mSnapSettleRunnable);
     removeCallbacks(mLandingRunnable);
   }
@@ -881,6 +890,8 @@ public class ShadowListView extends FrameLayout {
       if (mSettling) {
         mMomentumEventSent = true;
         emitScrollEvent(ShadowListScrollEvent.MOMENTUM_BEGIN, mHorizontal ? velocity : 0, mHorizontal ? 0 : velocity);
+      } else {
+        mDragEndedAtRest = true;
       }
     }
     reportScrollPhase(mSettling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE);
@@ -997,6 +1008,14 @@ public class ShadowListView extends FrameLayout {
   void handleInnerFling(int velocity) {
     mFlingVelocity = velocity;
     mSettling = true;
+    if (mDragEndedAtRest && !mTouching && !mMomentumEventSent) {
+      // The fling came after the lift reported its phase. JS still hears the momentum begin.
+      mDragEndedAtRest = false;
+      mMomentumEventSent = true;
+      double dp = PixelUtil.toDIPFromPixel(velocity) / 1000.0;
+      emitScrollEvent(ShadowListScrollEvent.MOMENTUM_BEGIN, mHorizontal ? dp : 0, mHorizontal ? 0 : dp);
+      reportScrollPhase(SCROLL_PHASE_SETTLING);
+    }
     mSettleStableFrames = 0;
     mSettlePreviousScrollX = mScrollView.getScrollX();
     mSettlePreviousScrollY = mScrollView.getScrollY();
@@ -1451,7 +1470,7 @@ public class ShadowListView extends FrameLayout {
      * the first correction a row measured on the way sends.
      */
     if (animated && mState != null) {
-      issueScrollCommand(SCROLL_TO_OFFSET_INDEX, 0.0, offset, true);
+      issueScrollCommand(SCROLL_TO_OFFSET_SLOT, 0.0, offset, true);
       return;
     }
     // Marked as ours so its frames don't count as user scrolls.
@@ -1477,7 +1496,7 @@ public class ShadowListView extends FrameLayout {
     /*
      * The core keeps adjusting as rows get measured instead of jumping to an estimated bottom.
      */
-    issueScrollCommand(SCROLL_TO_END_INDEX, 0.0, 0.0, animated);
+    issueScrollCommand(SCROLL_TO_END_SLOT, 0.0, 0.0, animated);
   }
 
   /*

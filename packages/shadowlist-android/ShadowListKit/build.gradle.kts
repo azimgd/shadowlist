@@ -13,6 +13,7 @@ android {
 
   defaultConfig {
     minSdk = 24
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     externalNativeBuild {
       cmake {
         /*
@@ -48,6 +49,9 @@ kotlin {
 dependencies {
   // api because the list view implements NestedScrollingChild3 publicly.
   api("androidx.core:core:1.13.1")
+  // The tests run on a device or an emulator. They load the native core.
+  androidTestImplementation("androidx.test:runner:1.6.2")
+  androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
 
 /*

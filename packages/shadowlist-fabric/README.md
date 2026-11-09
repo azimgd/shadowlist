@@ -89,7 +89,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `trackItemSizes` | false | Keeps every mounted row's size for `getItemSize(key)` and `getItemSizes()` on the ref. |
 | `viewabilityConfig`, `onViewableItemsChanged`, `viewabilityConfigCallbackPairs` |  | Viewable rows with `itemVisiblePercentThreshold`, `viewAreaCoveragePercentThreshold`, `minimumViewTime` and `waitForInteraction`. |
 | `onScroll`, `onScrollBeginDrag`, `onScrollEndDrag`, `onMomentumScrollBegin`, `onMomentumScrollEnd`, `onContentSizeChange`, `scrollEventThrottle` |  | ScrollView's event shape: `contentOffset`, `contentSize`, `layoutMeasurement`, `contentInset`, `velocity` in points per millisecond. `onScroll` comes from the native scroll view, without a React commit per frame, and not on mount. An event held back by `scrollEventThrottle` is sent once the list rests. |
-| `scrollEnabled`, `showsVerticalScrollIndicator`, `showsHorizontalScrollIndicator`, `bounces`, `decelerationRate`, `scrollsToTop`, `keyboardDismissMode`, `keyboardShouldPersistTaps`, `nestedScrollEnabled` |  | Passed to the native scroll view. `scrollsToTop` does nothing on Android. Android dismisses the keyboard from JS when a drag begins, for any `keyboardDismissMode` but `'none'`. `keyboardShouldPersistTaps` is handled in JS. Unset, taps always reach the rows. |
+| `scrollEnabled`, `showsVerticalScrollIndicator`, `showsHorizontalScrollIndicator`, `bounces`, `decelerationRate`, `scrollsToTop`, `keyboardDismissMode`, `keyboardShouldPersistTaps`, `nestedScrollEnabled` |  | Passed to the native scroll view. `scrollsToTop` does nothing on Android. Android dismisses the keyboard from JS when a drag begins, for any `keyboardDismissMode` but `'none'`. `keyboardShouldPersistTaps` is handled in JS. Unset, taps always reach the rows. The scroll bars default to shown, or to what a `ShadowListDefaultsProvider` above the list sets (`value={{ showsVerticalScrollIndicator: false }}`), for an app that hides them in every list on a platform. |
 | `itemStyle` |  | Style for the view around each row. |
 | `refreshing`, `onRefresh` |  | Pull to refresh. On a vertical list that is not inverted, data that changes while refreshing shows once the spinner has settled. |
 | `refreshColor`, `progressViewOffset` |  | Tint and offset of the pull to refresh spinner. |
@@ -176,7 +176,7 @@ picks the row up on iOS and Android, a mouse drag on macOS.
 A scoped `<DragBoard>` provider is the planned next step: it would name its board with `useId`, which keeps
 screens from sharing one by accident, take one `onMoveItem({ item, sourceListId, destinationListId, destinationIndex, destinationKey })`
 for the whole board, and let a list refuse drops with `acceptsDrop`. Until then the string ids above are the API.
-[ShadowListUtils' `Board.List`](../../templates/shadowlist-utils/README.md#board-drag-between-columns) already names
+[ShadowListUtils' `Board.List`](../shadowlist-utils/README.md#board-drag-between-columns) already names
 its board and lists itself and takes one `onMoveItem` for the whole board.
 
 ### Prefetching and saved position

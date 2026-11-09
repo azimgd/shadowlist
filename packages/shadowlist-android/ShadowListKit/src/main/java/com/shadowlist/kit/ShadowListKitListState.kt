@@ -28,7 +28,7 @@ internal class ShadowListKitListState {
     const val TAP_TOGGLED_OFF = 2
 
     /*
-     * What commitKeys does besides taking the keys, the same as CommitFlag in the JNI.
+     * What commitKeys does besides taking the keys, the same as CommitFlag in the core's host/KitBridge.hpp.
      */
     const val COMMIT_DIFF = 1
     const val COMMIT_RECORD_VERSIONS = 2

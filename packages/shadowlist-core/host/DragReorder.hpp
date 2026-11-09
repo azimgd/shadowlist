@@ -11,8 +11,8 @@ namespace azimgd::shadowlist {
 /*
  * Drag event types a host writes into the list state when a row is picked up or dropped.
  * DRAG_EVENT_LAND marks a row from another list of a drag board landing in this one. It sends
- * JS nothing and only tells the core to keep the offset, see DropHint. Android's
- * ShadowListDragController.DRAG_EVENT_* constants must match.
+ * JS nothing and only tells the core to keep the offset, see DropHint. Fabric Android reads
+ * them through ShadowListDrag.nativeConstants.
  */
 constexpr int DRAG_EVENT_START = 1;
 constexpr int DRAG_EVENT_END = 3;
@@ -383,9 +383,9 @@ void dragGridForeignShifts(
 /*
  * One drag, from pickup to drop. On a drag board the same class runs either side. The home
  * list keeps its normal drag and marks the held row away while it hovers another list. The
- * list under the row runs a foreign session from beginForeign to endForeign. A foreign session
+ * list under the row runs a foreign session from beginForeign to end. A foreign session
  * and a normal drag never run together on one instance. Calling begin or beginCell ends a
- * foreign session, and beginForeign drops any normal drag.
+ * foreign session, and beginForeign drops any normal drag. end finishes either one.
  */
 class DragReorder final {
 public:
@@ -489,9 +489,10 @@ public:
   void placeForeignCenter(double center, double crossCenter);
 
   /*
-   * End the foreign session. Nothing is held and no row shifts.
+   * End the drag or the foreign session. Nothing is held, no row shifts and the origin and
+   * insertion indices are UNDEFINED_INDEX.
    */
-  void endForeign();
+  void end();
   bool isForeign() const { return foreign_; }
 
   /*

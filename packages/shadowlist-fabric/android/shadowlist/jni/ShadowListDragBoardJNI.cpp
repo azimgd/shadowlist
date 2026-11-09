@@ -61,6 +61,11 @@ std::string stringFromJava(JNIEnv* env, jstring value) {
  */
 enum ConstantSlot {
   CONSTANT_LAND_TIMEOUT_MS = 0,
+  CONSTANT_PHASE_IDLE,
+  CONSTANT_PHASE_AT_HOME,
+  CONSTANT_PHASE_FLOATING,
+  CONSTANT_PHASE_LANDING,
+  CONSTANT_PHASE_SETTLING,
   CONSTANT_SLOTS,
 };
 
@@ -95,6 +100,11 @@ JNIEXPORT void JNICALL SL_DRAG_BOARD_JNI(nativeConstants)(JNIEnv* env, jclass, j
   }
   jdouble values[CONSTANT_SLOTS];
   values[CONSTANT_LAND_TIMEOUT_MS] = sl::DRAG_BOARD_LAND_TIMEOUT_MS;
+  values[CONSTANT_PHASE_IDLE] = static_cast<double>(sl::DragBoardPhase::Idle);
+  values[CONSTANT_PHASE_AT_HOME] = static_cast<double>(sl::DragBoardPhase::AtHome);
+  values[CONSTANT_PHASE_FLOATING] = static_cast<double>(sl::DragBoardPhase::Floating);
+  values[CONSTANT_PHASE_LANDING] = static_cast<double>(sl::DragBoardPhase::Landing);
+  values[CONSTANT_PHASE_SETTLING] = static_cast<double>(sl::DragBoardPhase::Settling);
   env->SetDoubleArrayRegion(out, 0, CONSTANT_SLOTS, values);
 }
 
@@ -221,6 +231,14 @@ JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeLanded)(
 
 JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeExpired)(JNIEnv*, jclass, jlong handle, jdouble nowMs) {
   return peerOf(handle)->board.expired(nowMs) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeBeginOverlaySettle)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->board.beginOverlaySettle() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeIsOverlaySettling)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->board.isOverlaySettling() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jstring JNICALL SL_DRAG_BOARD_JNI(nativeCancel)(JNIEnv* env, jclass, jlong handle) {

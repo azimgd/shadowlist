@@ -799,8 +799,8 @@ void DragReorder::placeForeignCenter(double center, double crossCenter) {
   crossLeading_ = crossCenter - heldResting_.crossExtent / 2.0;
 }
 
-void DragReorder::endForeign() {
-  begin(UNDEFINED_INDEX, std::string(), 0.0, 0.0, 0.0);
+void DragReorder::end() {
+  *this = DragReorder{};
 }
 
 std::size_t DragReorder::locateForeignInsertion(const std::vector<DragRow>& rows) {

@@ -3,6 +3,8 @@ import type { ShadowListProps } from '../types';
 
 /*
  * Default extra rows mounted on each side of the screen. See mountOverscanRows for how to pick one.
+ * This and SHADOWLIST_OVERSCAN_LEADING are the core's DEFAULT_OVERSCAN_ROWS and
+ * DEFAULT_OVERSCAN_ROWS_LEADING in host/MountedRange.hpp, held equal by coreConstants.test.
  */
 export const SHADOWLIST_OVERSCAN = 4;
 

@@ -11,6 +11,7 @@ import {
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import ShadowList from '../ShadowList';
 import ItemActionsView from '../ItemActionsView';
+import { ShadowListDefaultsProvider } from '../ShadowListDefaults';
 import {
   needsScrollIntoView,
   nextSelectableIndex,
@@ -400,6 +401,42 @@ describe('a horizontal list styled height auto', () => {
       expect.objectContaining({ flexDirection: 'row' }),
       { height: 40 + DATA.length - 1 },
     ]);
+  });
+});
+
+describe('ShadowListDefaultsProvider', () => {
+  it('sets the scroll bars of lists that do not set their own', async () => {
+    await mount(
+      <ShadowListDefaultsProvider
+        value={{
+          showsVerticalScrollIndicator: false,
+          showsHorizontalScrollIndicator: false,
+        }}
+      >
+        <ShadowList data={DATA} renderItem={renderRow} />
+      </ShadowListDefaultsProvider>
+    );
+    expect(listProps()).toMatchObject({
+      showsVerticalScrollIndicator: false,
+      showsHorizontalScrollIndicator: false,
+    });
+    await act(async () => {
+      renderer?.update(
+        <ShadowListDefaultsProvider
+          value={{ showsVerticalScrollIndicator: false }}
+        >
+          <ShadowList
+            data={DATA}
+            renderItem={renderRow}
+            showsVerticalScrollIndicator
+          />
+        </ShadowListDefaultsProvider>
+      );
+    });
+    expect(listProps()).toMatchObject({
+      showsVerticalScrollIndicator: true,
+      showsHorizontalScrollIndicator: true,
+    });
   });
 });
 

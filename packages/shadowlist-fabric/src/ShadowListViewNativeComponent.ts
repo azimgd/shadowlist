@@ -12,7 +12,7 @@ import {
  * Sequence and generation go back to native in the mountedSequence and mountedGeneration props
  * once applied. A landed event only says a scroll command's rows can unmount.
  */
-export type OnMountedRangeChange = {
+export type MountedRangeChangeEvent = {
   lowKey: string;
   highKey: string;
   lowIndex: CodegenTypes.Int32;
@@ -29,7 +29,7 @@ export type OnMountedRangeChange = {
  * the keys that became viewable or stopped. Codegen only takes an inline object type for an
  * array of objects.
  */
-export type OnViewabilityChange = {
+export type ViewabilityChangeEvent = {
   activeStickyIndex: CodegenTypes.Int32;
   visibleLow: CodegenTypes.Int32;
   visibleHigh: CodegenTypes.Int32;
@@ -44,19 +44,19 @@ export type OnViewabilityChange = {
  * The rows to load early and the rows no longer needed, by index in the keys native had and by
  * key, which finds them again in data that changed since.
  */
-export type OnPrefetchChange = {
+export type PrefetchChangeEvent = {
   prefetch: CodegenTypes.Int32[];
   cancel: CodegenTypes.Int32[];
   prefetchKeys: string[];
   cancelKeys: string[];
 };
 
-export type OnStartReached = {};
-export type OnEndReached = {};
-export type OnRefresh = {};
-export type OnRefreshSettle = {};
+export type StartReachedEvent = {};
+export type EndReachedEvent = {};
+export type RefreshEvent = {};
+export type RefreshSettleEvent = {};
 
-export type OnScroll = {
+export type NativeScrollEvent = {
   contentOffsetX: CodegenTypes.Double;
   contentOffsetY: CodegenTypes.Double;
   contentOffset: Readonly<{
@@ -84,18 +84,18 @@ export type OnScroll = {
   zoomScale: CodegenTypes.Double;
 };
 
-export type OnContentSizeChange = {
+export type ContentSizeChangeEvent = {
   width: CodegenTypes.Double;
   height: CodegenTypes.Double;
 };
 
-export type OnAnchorState = {
+export type AnchorStateEvent = {
   found: boolean;
   key: string;
   offset: CodegenTypes.Double;
 };
 
-export type OnDragStart = {
+export type DragStartEvent = {
   key: string;
 };
 
@@ -105,14 +105,14 @@ export type OnDragStart = {
  * the row goes in destinationIndex. Those two are '' and -1 for a drop within the list.
  * Codegen events in this file have no optional fields. Both are always sent.
  */
-export type OnDragEnd = {
+export type DragEndEvent = {
   sourceKey: string;
   destinationKey: string;
   destinationListId: string;
   destinationIndex: CodegenTypes.Int32;
 };
 
-export type OnAtEndChange = {
+export type AtEndChangeEvent = {
   atEnd: boolean;
 };
 
@@ -222,23 +222,23 @@ interface NativeProps extends ViewProps {
   mountOverscanRows?: CodegenTypes.WithDefault<CodegenTypes.Int32, 4>;
   mountOverscanRowsLeading?: CodegenTypes.WithDefault<CodegenTypes.Int32, 10>;
   prefetchRows?: CodegenTypes.WithDefault<CodegenTypes.Int32, 0>;
-  readonly onMountedRangeChange?: CodegenTypes.DirectEventHandler<OnMountedRangeChange>;
-  readonly onViewabilityChange?: CodegenTypes.DirectEventHandler<OnViewabilityChange>;
-  readonly onPrefetchChange?: CodegenTypes.DirectEventHandler<OnPrefetchChange>;
-  readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;
-  readonly onEndReached?: CodegenTypes.DirectEventHandler<OnEndReached>;
-  readonly onScroll?: CodegenTypes.DirectEventHandler<OnScroll>;
-  readonly onScrollBeginDrag?: CodegenTypes.DirectEventHandler<OnScroll>;
-  readonly onScrollEndDrag?: CodegenTypes.DirectEventHandler<OnScroll>;
-  readonly onMomentumScrollBegin?: CodegenTypes.DirectEventHandler<OnScroll>;
-  readonly onMomentumScrollEnd?: CodegenTypes.DirectEventHandler<OnScroll>;
-  readonly onContentSizeChange?: CodegenTypes.DirectEventHandler<OnContentSizeChange>;
-  readonly onAnchorState?: CodegenTypes.DirectEventHandler<OnAnchorState>;
-  readonly onRefresh?: CodegenTypes.DirectEventHandler<OnRefresh>;
-  readonly onRefreshSettle?: CodegenTypes.DirectEventHandler<OnRefreshSettle>;
-  readonly onDragStart?: CodegenTypes.DirectEventHandler<OnDragStart>;
-  readonly onDragEnd?: CodegenTypes.DirectEventHandler<OnDragEnd>;
-  readonly onAtEndChange?: CodegenTypes.DirectEventHandler<OnAtEndChange>;
+  readonly onMountedRangeChange?: CodegenTypes.DirectEventHandler<MountedRangeChangeEvent>;
+  readonly onViewabilityChange?: CodegenTypes.DirectEventHandler<ViewabilityChangeEvent>;
+  readonly onPrefetchChange?: CodegenTypes.DirectEventHandler<PrefetchChangeEvent>;
+  readonly onStartReached?: CodegenTypes.DirectEventHandler<StartReachedEvent>;
+  readonly onEndReached?: CodegenTypes.DirectEventHandler<EndReachedEvent>;
+  readonly onScroll?: CodegenTypes.DirectEventHandler<NativeScrollEvent>;
+  readonly onScrollBeginDrag?: CodegenTypes.DirectEventHandler<NativeScrollEvent>;
+  readonly onScrollEndDrag?: CodegenTypes.DirectEventHandler<NativeScrollEvent>;
+  readonly onMomentumScrollBegin?: CodegenTypes.DirectEventHandler<NativeScrollEvent>;
+  readonly onMomentumScrollEnd?: CodegenTypes.DirectEventHandler<NativeScrollEvent>;
+  readonly onContentSizeChange?: CodegenTypes.DirectEventHandler<ContentSizeChangeEvent>;
+  readonly onAnchorState?: CodegenTypes.DirectEventHandler<AnchorStateEvent>;
+  readonly onRefresh?: CodegenTypes.DirectEventHandler<RefreshEvent>;
+  readonly onRefreshSettle?: CodegenTypes.DirectEventHandler<RefreshSettleEvent>;
+  readonly onDragStart?: CodegenTypes.DirectEventHandler<DragStartEvent>;
+  readonly onDragEnd?: CodegenTypes.DirectEventHandler<DragEndEvent>;
+  readonly onAtEndChange?: CodegenTypes.DirectEventHandler<AtEndChangeEvent>;
 }
 
 export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({

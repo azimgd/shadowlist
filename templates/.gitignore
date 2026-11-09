@@ -10,6 +10,8 @@ DerivedData
 **/Pods/
 shadowlist-uikit-example/*.xcodeproj
 shadowlist-uikit-example/Sources/Info.plist
+shadowlist-appkit-example/*.xcodeproj
+shadowlist-appkit-example/Sources/Info.plist
 
 # Ruby gems installed by Bundler (.bundle/config is committed)
 shadowlist-fabric-example/vendor/

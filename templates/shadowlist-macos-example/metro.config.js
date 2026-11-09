@@ -2,7 +2,7 @@ const path = require('path');
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 
 const libraryRoot = path.resolve(__dirname, '../../packages/shadowlist-fabric');
-const utilsRoot = path.resolve(__dirname, '../shadowlist-utils');
+const utilsRoot = path.resolve(__dirname, '../../packages/shadowlist-utils');
 const shadowhashRoot = path.resolve(__dirname, '../../packages/shadowhash');
 const exampleSrc = path.resolve(__dirname, '../shadowlist-fabric-example/src');
 const macosRoot = path.dirname(

@@ -1,4 +1,5 @@
 #import "Internal/ShadowListKitListView+Private.h"
+#import "Internal/ShadowListKitListSupport.h"
 
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
@@ -176,10 +177,23 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
     UIAccessibilityPostNotification(UIAccessibilityPageScrolledNotification, nil);
     return YES;
   }
-  NSString *status = [NSString stringWithFormat:@"Rows %lu to %lu of %lu", (unsigned long)visible.location + 1,
-    (unsigned long)NSMaxRange(visible), (unsigned long)_sections.getItemCount()];
+  NSString *status = ShadowListKitRowsShownAnnouncement(visible, _sections.getItemCount());
   UIAccessibilityPostNotification(UIAccessibilityPageScrolledNotification, status);
   return YES;
+}
+
+#pragma mark - Notifications
+
+/*
+ * VoiceOver reads the rows and their selection again on its own after a data change. The Mac
+ * list posts its notifications here.
+ */
+- (void)selectionChangedForAccessibility
+{
+}
+
+- (void)rowsChangedForAccessibility
+{
 }
 
 @end

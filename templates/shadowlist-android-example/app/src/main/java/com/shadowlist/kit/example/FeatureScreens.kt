@@ -39,10 +39,10 @@ class SectionsScreen(context: Context) : Screen, ShadowListKitListView.DataSourc
 
   override fun load() {
     list.setBackgroundColor(Theme.background)
-    list.estimatedItemSize = 64.dpf
+    list.estimatedItemSizePx = 64.dpf
     list.stickySectionHeaders = true
     list.showsSeparators = true
-    list.separatorInsetStart = 68.dp
+    list.separatorInsetStartPx = 68.dp
     list.registerCell("contact") { ContactCell(it) }
     list.dataSource = this
     list.delegate = this
@@ -172,10 +172,10 @@ class InboxScreen(context: Context) : Screen, ShadowListKitListView.DataSource, 
 
   override fun load() {
     list.setBackgroundColor(Theme.background)
-    list.estimatedItemSize = 76.dpf
+    list.estimatedItemSizePx = 76.dpf
     list.animatesChanges = true
     list.showsSeparators = true
-    list.separatorInsetStart = 72.dp
+    list.separatorInsetStartPx = 72.dp
     list.refreshEnabled = true
     list.registerCell("message") { MessageCell(it) }
     list.dataSource = this

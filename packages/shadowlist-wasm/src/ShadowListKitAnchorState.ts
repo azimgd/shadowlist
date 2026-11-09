@@ -1,6 +1,7 @@
 /*
  * A scroll position that survives data changes: the key of the row at the viewport start and
- * how far the viewport start is past that row's leading edge, in CSS pixels.
+ * how far the viewport start is past that row's leading edge, in CSS pixels (the native kits'
+ * points at zoom 1).
  */
 export class ShadowListKitAnchorState {
   constructor(

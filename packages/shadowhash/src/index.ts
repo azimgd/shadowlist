@@ -1,4 +1,4 @@
-export { ByteReader, ByteWriter, InvalidHashError } from './bytes';
+export { ByteReader, ByteWriter, InvalidHashError, LIMITS } from './bytes';
 export {
   decodeText,
   encodeText,

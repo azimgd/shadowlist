@@ -22,6 +22,9 @@ internal class ShadowListKitCore(
      */
     private val reclaimer = ShadowListKitPeerReclaimer(::nativeDestroy)
 
+    /*
+     * Slots of runPasses' values, the same as PassSlot in the core's host/KitBridge.hpp.
+     */
     const val PASS_OFFSET = 0
     const val PASS_WINDOW_ALONG = 1
     const val PASS_WINDOW_CROSS = 2
@@ -83,7 +86,8 @@ internal class ShadowListKitCore(
     const val DRAG_FRAME_HELD_ALONG = 0
     const val DRAG_FRAME_HELD_CROSS = 1
     const val DRAG_FRAME_INSERTION_MOVED = 2
-    const val DRAG_FRAME_SLOTS = 3
+    const val DRAG_FRAME_TICK = 3
+    const val DRAG_FRAME_SLOTS = 4
 
     /*
      * Slots of constants, the same as ConstantSlot in the JNI.
@@ -98,6 +102,11 @@ internal class ShadowListKitCore(
     private const val CONSTANT_SECTION_INDEX_WIDTH = 7
     private const val CONSTANT_CHANGE_DURATION_MS = 8
     private const val CONSTANT_OFFSET_MOVED_THRESHOLD = 9
+    private const val CONSTANT_DRAG_PRESS_DURATION_MS = 10
+    private const val CONSTANT_DRAG_PRESS_SLOP = 11
+    private const val CONSTANT_DRAG_LIFT_ELEVATION = 12
+    private const val CONSTANT_SCROLL_ANIMATION_DURATION_MS = 13
+    private const val CONSTANT_SCROLL_SETTLE_DURATION_MS = 14
 
     private val constants: DoubleArray by lazy { nativeConstants() }
 
@@ -114,6 +123,21 @@ internal class ShadowListKitCore(
     val LIFT_DURATION_MS: Long get() = constants[CONSTANT_DRAG_LIFT_DURATION_MS].toLong()
     val SHIFT_DURATION_MS: Long get() = constants[CONSTANT_DRAG_SHIFT_DURATION_MS].toLong()
     val DROP_DURATION_MS: Long get() = constants[CONSTANT_DRAG_DROP_DURATION_MS].toLong()
+
+    /*
+     * The core's press that lifts a row: how long it holds, how far it may drift in dp, see
+     * dragPressHolds, and how high the held row rises in dp.
+     */
+    val PRESS_DURATION_MS: Long get() = constants[CONSTANT_DRAG_PRESS_DURATION_MS].toLong()
+    val PRESS_SLOP_DP: Double get() = constants[CONSTANT_DRAG_PRESS_SLOP]
+    val LIFT_ELEVATION_DP: Double get() = constants[CONSTANT_DRAG_LIFT_ELEVATION]
+
+    /*
+     * The core's scroll animation durations: an animated command, and a scroll easing onto a
+     * snap point.
+     */
+    val COMMAND_DURATION_MS: Long get() = constants[CONSTANT_SCROLL_ANIMATION_DURATION_MS].toLong()
+    val SETTLE_DURATION_MS: Long get() = constants[CONSTANT_SCROLL_SETTLE_DURATION_MS].toLong()
 
     /*
      * The core's section index sizes in dp.
@@ -169,7 +193,8 @@ internal class ShadowListKitCore(
     @JvmStatic private external fun nativeDragEnd(handle: Long)
     @JvmStatic private external fun nativeHeldIndex(handle: Long): Int
     @JvmStatic private external fun nativeDragFrame(
-      handle: Long, touchAlong: Double, touchCross: Double, rows: IntArray, count: Int, out: DoubleArray): Int
+      handle: Long, touchAlong: Double, touchCross: Double, rows: IntArray, count: Int, nowMs: Double, out: DoubleArray): Int
+    @JvmStatic private external fun nativeDragPressHolds(along: Double, cross: Double): Boolean
     @JvmStatic private external fun nativeDragOriginIndex(handle: Long): Int
     @JvmStatic private external fun nativeDragInsertionIndex(handle: Long): Int
     @JvmStatic private external fun nativeDragAutoScrollOffset(
@@ -208,6 +233,12 @@ internal class ShadowListKitCore(
     /*
      * The offset a held row near an edge scrolls the list to in a frame of dtSeconds.
      */
+    /*
+     * Whether a press still lifts a row after the finger moved this far, in dp, along and across
+     * the scroll axis.
+     */
+    fun dragPressHolds(along: Double, cross: Double): Boolean = nativeDragPressHolds(along, cross)
+
     fun dragAutoScrollOffset(
       touch: Double, windowSize: Double, offset: Double, maxOffset: Double, density: Double, dtSeconds: Double,
     ): Double = nativeDragAutoScrollOffset(touch, windowSize, offset, maxOffset, density, dtSeconds)
@@ -263,12 +294,15 @@ internal class ShadowListKitCore(
   private external fun nativeRunPasses(handle: Long, io: DoubleArray)
 
   /*
-   * Called by the driver during runPasses for every row in the measured range that has no size yet.
-   * Only JNI calls it. Keep stops R8 in a minified app from removing or renaming it.
+   * Called by the driver during runPasses with every row in the measured range that has no size
+   * yet, all in one call: each row's size at its cross size goes into sizes. Only JNI calls it.
+   * Keep stops R8 in a minified app from removing or renaming it.
    */
   @Keep
   @Suppress("unused")
-  private fun measureRow(row: Int, crossSize: Double): Double = measure(row, crossSize)
+  private fun measureRows(rows: IntArray, crossSizes: DoubleArray, sizes: DoubleArray) {
+    for (at in rows.indices) sizes[at] = measure(rows[at], crossSizes[at])
+  }
 
   /*
    * Called by the driver during runPasses with PASS_PREFETCH on, before it measures the rows it
@@ -349,10 +383,11 @@ internal class ShadowListKitCore(
   /*
    * One drag frame: place the held row under the touch, find the drop slot among the first
    * count rows and write the DRAG_FRAME_* slots and each row's shift into out, which has room
-   * for them. Returns the held row, or -1 when its key is gone.
+   * for them. DRAG_FRAME_TICK says whether a new drop spot ticks at nowMs. Returns the held row,
+   * or -1 when its key is gone.
    */
-  fun dragFrame(touchAlong: Double, touchCross: Double, rows: IntArray, count: Int, out: DoubleArray): Int =
-    nativeDragFrame(handle, touchAlong, touchCross, rows, count, out)
+  fun dragFrame(touchAlong: Double, touchCross: Double, rows: IntArray, count: Int, nowMs: Double, out: DoubleArray): Int =
+    nativeDragFrame(handle, touchAlong, touchCross, rows, count, nowMs, out)
   val dragOriginIndex: Int get() = nativeDragOriginIndex(handle)
   val dragInsertionIndex: Int get() = nativeDragInsertionIndex(handle)
 

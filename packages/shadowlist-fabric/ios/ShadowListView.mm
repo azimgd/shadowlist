@@ -36,9 +36,9 @@
 static double SLScrollPhaseForMacPhase(ShadowListMacScrollPhase phase)
 {
   switch (phase) {
-    case ShadowListMacScrollPhaseTracking:
+    case ShadowListMacScrollPhaseDragging:
       return azimgd::shadowlist::SCROLL_PHASE_DRAGGING;
-    case ShadowListMacScrollPhaseMomentum:
+    case ShadowListMacScrollPhaseSettling:
       return azimgd::shadowlist::SCROLL_PHASE_SETTLING;
     case ShadowListMacScrollPhaseIdle:
       return azimgd::shadowlist::SCROLL_PHASE_IDLE;
@@ -321,6 +321,13 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _scrollTracker = ShadowListScrollTracker();
   _landCommandSequence = 0;
   _momentumEndAfterLand = NO;
+  _momentumRunning = NO;
+#if TARGET_OS_OSX
+  _macDragEnded = NO;
+  _macMomentum = NO;
+#endif
+  // A refresh settle still waiting belongs to the list before the recycle.
+  _refreshSettleToken += 1;
   _pageAnnouncementPending = NO;
   _pageKeyIndicesProps.reset();
   _pageKeyIndices.clear();
@@ -560,11 +567,11 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   motion.maxOffset = MAX(0, _horizontal
     ? _scrollView.contentSize.width - _scrollView.contentView.bounds.size.width
     : _scrollView.contentSize.height - _scrollView.contentView.bounds.size.height);
-  motion.touching = macPhase == ShadowListMacScrollPhaseTracking;
+  motion.touching = macPhase == ShadowListMacScrollPhaseDragging;
   // Fingers on the trackpad move the view like a UIKit drag. A correction shifts the live offset.
   motion.moving = macPhase != ShadowListMacScrollPhaseIdle;
 #endif
-  motion.ownsOffset = _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
+  motion.ownsOffset = [self dragOwnsScrollOffset];
   motion.jumpPending = _scrollToTopJumpPending;
   motion.jumpOffset = _scrollToTopJumpY;
   auto action = _scrollSync.correction(motion);
@@ -709,10 +716,10 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   // Pull to refresh, scroll to top and drag to reorder all lean on every frame.
   frame.commitEveryFrame = _refreshing || _refreshAwaitingSettle ||
     (_refreshControl && _refreshControl.isRefreshing) || _scrollingToTop || _scrollToTopJumpPending ||
-    _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
+    [self dragOwnsScrollOffset];
 #else
   frame.scrollPhase = SLScrollPhaseForMacPhase(((ShadowListMacScrollView *)scrollView).phase);
-  frame.commitEveryFrame = _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
+  frame.commitEveryFrame = [self dragOwnsScrollOffset];
 #endif
   /*
    * Every frame goes into the live report, and only frames the core needs become a state
@@ -896,20 +903,47 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   [self emitHeldScroll];
 }
 
+/*
+ * A drag holds the offset: a row held, a drop waiting to land, a row from another list of the
+ * drag board, or a gap a row left for another list. Core corrections stay off, and every frame
+ * goes to the core.
+ */
+- (BOOL)dragOwnsScrollOffset
+{
+  return _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
+}
+
 - (void)commitDragEventType:(int)type sourceKey:(NSString *)sourceKey destinationKey:(NSString *)destinationKey
 {
   [self commitDragEventType:type sourceKey:sourceKey destinationKey:destinationKey destinationListId:@"" destinationIndex:-1];
 }
 
+- (void)commitDragEventType:(int)type
+                  sourceKey:(NSString *)sourceKey
+             destinationKey:(NSString *)destinationKey
+          destinationListId:(NSString *)destinationListId
+           destinationIndex:(NSInteger)destinationIndex
+{
+  [self commitDragEventType:type
+                  sourceKey:sourceKey
+             destinationKey:destinationKey
+          destinationListId:destinationListId
+           destinationIndex:destinationIndex
+                      async:NO];
+}
+
 /*
  * A drag event for JS. destinationListId and destinationIndex name the other list of the drag
- * board a row dropped in, and stay empty and -1 for every other event.
+ * board a row dropped in, and stay empty and -1 for every other event. async sends it with the
+ * next commit, for a caller that can run inside a mount, where an immediate commit is not
+ * allowed.
  */
 - (void)commitDragEventType:(int)type
                   sourceKey:(NSString *)sourceKey
              destinationKey:(NSString *)destinationKey
           destinationListId:(NSString *)destinationListId
            destinationIndex:(NSInteger)destinationIndex
+                      async:(BOOL)async
 {
   if (!_state) {
     return;
@@ -936,7 +970,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
       nextData->dragDestinationIndex_ = dragDestinationIndex;
       return nextData;
     },
-    [self stateUpdateMode]);
+    async ? EventQueue::UpdateMode::Asynchronous : [self stateUpdateMode]);
 }
 
 #if !TARGET_OS_OSX
@@ -1040,7 +1074,11 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 {
   // A swipe that began on a row is a scroll, not a press on that row.
   SLCancelReactTouches(self);
-  // An animation still waiting for its landing ends before the drag begins.
+  /*
+   * An animation still waiting for its landing ends before the drag begins. The finger owns
+   * the offset now, and a later animation does not wait for this landing either.
+   */
+  _landCommandSequence = 0;
   [self emitMomentumEndAfterLand];
   // An open row closes when the list scrolls.
   [self closeSwipeActionsExcept:nil];
@@ -1064,6 +1102,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 
 - (void)scrollViewWillBeginDecelerating:(UIScrollView *)scrollView
 {
+  _momentumRunning = YES;
   [self emitScrollEvent:"momentumScrollBegin" velocity:CGPointZero];
 }
 
@@ -1071,6 +1110,23 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 {
   SLF_TRACE("ev=decel-end off=%.1f,%.1f", scrollView.contentOffset.x, scrollView.contentOffset.y);
   [self clearUserScrolled];
+  if (!_momentumRunning) {
+    return;
+  }
+  _momentumRunning = NO;
+  [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
+}
+
+/*
+ * A fling stopped by writing the offset ends without scrollViewDidEndDecelerating. JS still
+ * hears the end of the momentum it heard begin.
+ */
+- (void)endStoppedMomentum
+{
+  if (!_momentumRunning) {
+    return;
+  }
+  _momentumRunning = NO;
   [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
 }
 

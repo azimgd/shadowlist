@@ -5,8 +5,8 @@
 #include <ReactCommon/CxxTurboModuleUtils.h>
 #include <ReactCommon/TurboModule.h>
 
-#include <atomic>
 #include <memory>
+#include <mutex>
 #include <utility>
 
 namespace facebook::react {
@@ -31,12 +31,11 @@ protected:
 }
 
 void registerShadowListStoreModule() {
-  static std::atomic<bool> registered{false};
-  if (registered.exchange(true)) {
-    return;
-  }
-  registerCxxModuleToGlobalModuleMap(shadowlist::STORE_MODULE_NAME, [](std::shared_ptr<CallInvoker> jsInvoker) {
-    return std::make_shared<ShadowListStoreModule>(std::move(jsInvoker));
+  static std::once_flag once;
+  std::call_once(once, [] {
+    registerCxxModuleToGlobalModuleMap(shadowlist::STORE_MODULE_NAME, [](std::shared_ptr<CallInvoker> jsInvoker) {
+      return std::make_shared<ShadowListStoreModule>(std::move(jsInvoker));
+    });
   });
 }
 

@@ -102,7 +102,6 @@ export function Sidebar() {
 const styles = StyleSheet.create({
   sidebar: {
     width: 220,
-    // The recessed page color, which is what a source list sits on.
     backgroundColor: semantic(
       'underPageBackgroundColor',
       'windowBackgroundColor'

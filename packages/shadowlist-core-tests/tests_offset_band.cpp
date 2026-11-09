@@ -112,8 +112,8 @@ FrameOutcome frameAt(const BandScenario& scenario, double offset, bool gesture) 
   FrameOutcome outcome;
   outcome.visible = container->getMeasuredRange();
   outcome.fired = fired;
-  outcome.corrected = container->offsetCorrected;
-  outcome.operation = container->operation.has_value();
+  outcome.corrected = container->state.offsetCorrected;
+  outcome.operation = container->state.operation.has_value();
   return outcome;
 }
 
@@ -236,7 +236,7 @@ TEST(offset_band_is_empty_while_a_scroll_command_runs) {
   container->scrollToRow(150);
   CHECK(container->computeOffsetBand().isEmpty());
   Virtualizer::update(*container, bandInput(scenario, keys, scenario.offset));
-  CHECK(container->operation.has_value());
+  CHECK(container->state.operation.has_value());
   CHECK(container->computeOffsetBand().isEmpty());
 }
 
@@ -247,7 +247,7 @@ TEST(offset_band_is_empty_while_a_prepend_is_held_in_place) {
   std::vector<std::string> prepended = keysFor(10, "p");
   prepended.insert(prepended.end(), keys.begin(), keys.end());
   Virtualizer::update(*container, bandInput(scenario, prepended, scenario.offset));
-  CHECK(container->offsetCorrected);
+  CHECK(container->state.offsetCorrected);
   CHECK(container->computeOffsetBand().isEmpty());
 }
 

@@ -1,5 +1,5 @@
 /* eslint-disable no-bitwise */
-import { ByteReader, ByteWriter, InvalidHashError } from './bytes';
+import { ByteReader, ByteWriter, InvalidHashError, LIMITS } from './bytes';
 import { readText, writeText, type TextOptions, type TextShape } from './text';
 
 /*
@@ -76,8 +76,12 @@ function readColor(reader: ByteReader): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
+/*
+ * Past LIMITS a post keeps its first LIMITS.images images, and a name or handle that many
+ * characters.
+ */
 export function encodePost(post: PostInput, options?: TextOptions): string {
-  const images = post.images ?? [];
+  const images = (post.images ?? []).slice(0, LIMITS.images);
   const colors = images.some((image) => image.color !== undefined);
   const writer = new ByteWriter();
   writer.byte(
@@ -87,8 +91,9 @@ export function encodePost(post: PostInput, options?: TextOptions): string {
       (colors ? Flag.Colors : 0)
   );
   if (post.author) {
-    writer.varint([...post.author.name].length);
-    writer.varint(post.author.handle ? [...post.author.handle].length : 0);
+    const handle = post.author.handle ? [...post.author.handle].length : 0;
+    writer.varint(Math.min([...post.author.name].length, LIMITS.length));
+    writer.varint(Math.min(handle, LIMITS.length));
   }
   if (images.length) {
     writer.varint(images.length);
@@ -109,10 +114,13 @@ export function decodePost(hash: string): PostShape {
   }
   const shape: PostShape = { images: [] };
   if (header & Flag.Author) {
-    shape.author = { name: reader.varint(), handle: reader.varint() };
+    shape.author = {
+      name: reader.count(LIMITS.length, 'name characters'),
+      handle: reader.count(LIMITS.length, 'handle characters'),
+    };
   }
   if (header & Flag.Images) {
-    const count = reader.varint();
+    const count = reader.count(LIMITS.images, 'images');
     for (let index = 0; index < count; index++) {
       const aspectRatio = readAspect(reader);
       const color = header & Flag.Colors ? readColor(reader) : undefined;

@@ -14,7 +14,9 @@ cd packages/shadowlist-wasm
 - `build.sh` needs Emscripten. It uses `emcmake` from the `PATH`, or sources `emsdk_env.sh` from `$EMSDK`
   (default `~/emsdk`).
 - `dist/` then holds the ES modules, their types, `shadowlistkit.mjs` and `shadowlistkit.wasm`. Serve
-  `shadowlistkit.wasm` next to `shadowlistkit.mjs`, or pass `locateFile` to `loadShadowListKit`.
+  `shadowlistkit.wasm` next to `shadowlistkit.mjs`, pass `locateFile` to `loadShadowListKit`, or pass the module
+  itself as `source` (its bytes or a compiled `WebAssembly.Module`). The package exports the file as
+  `shadowlist-wasm/shadowlistkit.wasm` for a bundler or a server to copy.
 
 ## Usage
 
@@ -58,7 +60,8 @@ list.reloadData();
 The data source gives `numberOfItems`, `keyForItem` and `cellForItem`, and optionally `sizeForItem` for sizes
 without cells, `reconfigureCell` for payload reloads and `contentVersionForItem` for `applyChanges`. Without
 `sizeForItem` every item is measured once through its cell's view at the list's cross size. The delegate has
-`willDisplayCell`, `didEndDisplayingCell`, `didScroll`, `didEndScrolling`, `didReachStart` and `didReachEnd`, all
+`willDisplayCell`, `didEndDisplayingCell`, the scroll events of the native kits (`didScroll`, `willBeginDragging`,
+`didEndDragging`, `didEndDecelerating`, `didEndScrollingAnimation`), `didReachStart` and `didReachEnd`, all
 optional. `prefetchDataSource` hears `prefetchItems` and `cancelPrefetchingForItems`.
 
 Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`,
@@ -68,7 +71,7 @@ Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estim
 `reloadItems(indices, payload)`, `moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates(updates, completion)`
 with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`, `visibleCells`, `visibleRange`,
 `rectForItem` (content coordinates, header included), `contentSize`, `anchorState`, `scrollToItem`, `scrollToStart`,
-`scrollToEnd`, `restoreAnchorState`. Sizes are in CSS pixels.
+`scrollToEnd`, `restoreAnchorState`. Sizes are in CSS pixels, which are the native kits' points at zoom 1.
 
 - Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data before,
   inserts and move destinations in the data after. A batch that does not add up reloads everything. `applyChanges`

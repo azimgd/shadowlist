@@ -1,6 +1,6 @@
 #pragma once
 
-#import <ShadowListKit/ShadowListKitListView.h>
+#import <ShadowListKit/ShadowListKitListModels.h>
 
 NS_ASSUME_NONNULL_BEGIN
 

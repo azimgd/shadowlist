@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnViewabilityChange } from '../ShadowListViewNativeComponent';
+import type { ViewabilityChangeEvent } from '../ShadowListViewNativeComponent';
 import type { ViewabilityConfigCallbackPair, ViewToken } from '../types';
 import type { MountedRange } from './useMountedRange';
 import type { RowSource } from './rowSource';
@@ -17,7 +17,7 @@ interface UseViewabilityResult {
   viewableTimings: number[];
   viewabilityInteracted: boolean;
   handleViewabilityChange: CodegenTypes.DirectEventHandler<
-    OnViewabilityChange,
+    ViewabilityChangeEvent,
     never
   >;
   recordInteraction: () => void;
@@ -77,7 +77,7 @@ export function useViewability<ItemT>({
   const visibleRangeRef = useRef<MountedRange | null>(null);
 
   const handleViewabilityChange: CodegenTypes.DirectEventHandler<
-    OnViewabilityChange,
+    ViewabilityChangeEvent,
     never
   > = useCallback((event) => {
     const {

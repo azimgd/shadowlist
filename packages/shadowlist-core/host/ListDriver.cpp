@@ -482,7 +482,7 @@ std::size_t ListDriver::getRowCount() const {
 }
 
 std::uint64_t ListDriver::getGeometryVersion() const {
-  return core_->geometryVersion;
+  return core_->state.geometryVersion;
 }
 
 double ListDriver::getContentAlong() const {
@@ -550,18 +550,40 @@ MountPlan ListDriver::planMount(
   plan.viewLow = offset - pad - leadingInset;
   plan.viewHigh = offset + windowAlong + pad + trailingInset;
   plan.sticky = activeStickyIndex(offset);
+  plan.band = {offset, offset};
   std::optional<MountedRange> measured = getMeasuredRange();
   if (!measured) {
     return plan;
   }
+  /*
+   * A row overlaps the view at a new offset while start - after < offset < end + before. Each
+   * end of the band stays a hair inside, where rounding cannot tell it from the edge.
+   */
+  constexpr double EDGE = 1e-6;
+  double before = pad + leadingInset;
+  double after = windowAlong + pad + trailingInset;
+  double low = -std::numeric_limits<double>::infinity();
+  double high = std::numeric_limits<double>::infinity();
   for (std::size_t index = measured->low; index <= measured->high; ++index) {
+    double start = getLeadingAt(index);
+    double end = start + getExtentAt(index);
     if (!overlaps(index, plan.viewLow, plan.viewHigh)) {
+      if (end <= plan.viewLow) {
+        low = std::max(low, end + before + EDGE);
+      } else {
+        high = std::min(high, start - after - EDGE);
+      }
       continue;
     }
+    low = std::max(low, start - after + EDGE);
+    high = std::min(high, end + before - EDGE);
     if (plan.low == UNDEFINED_INDEX) {
       plan.low = index;
     }
     plan.high = index;
+  }
+  if (sticky_.empty()) {
+    plan.band = {std::min(low, offset), std::max(high, offset)};
   }
   return plan;
 }
@@ -723,6 +745,7 @@ void ListDriver::dragBegin(std::size_t index, double touchAlong, double touchCro
 
 void ListDriver::dragEnd() {
   heldKey_.clear();
+  drag_.end();
 }
 
 std::size_t ListDriver::getHeldIndex() const {

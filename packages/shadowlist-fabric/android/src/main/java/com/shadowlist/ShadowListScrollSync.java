@@ -16,6 +16,37 @@ final class ShadowListScrollSync {
   }
 
   /*
+   * The core's scroll phases a host reports, SCROLL_PHASE_* in host/LiveScroll.hpp, and the
+   * scrollToRow rows that mean the end and the absolute offset carried in viewOffset,
+   * SCROLL_TO_END_SLOT and SCROLL_TO_OFFSET_SLOT in Constants.hpp.
+   */
+  static final int SCROLL_PHASE_IDLE;
+  static final int SCROLL_PHASE_DRAGGING;
+  static final int SCROLL_PHASE_SETTLING;
+  static final double SCROLL_TO_END_SLOT;
+  static final double SCROLL_TO_OFFSET_SLOT;
+
+  /*
+   * Slots of the array nativeConstants fills. Match ConstantSlot in ShadowListScrollSyncJNI.cpp.
+   */
+  private static final int CONSTANT_SCROLL_PHASE_IDLE = 0;
+  private static final int CONSTANT_SCROLL_PHASE_DRAGGING = 1;
+  private static final int CONSTANT_SCROLL_PHASE_SETTLING = 2;
+  private static final int CONSTANT_SCROLL_TO_END_SLOT = 3;
+  private static final int CONSTANT_SCROLL_TO_OFFSET_SLOT = 4;
+  private static final int CONSTANT_SLOTS = 5;
+
+  static {
+    double[] constants = new double[CONSTANT_SLOTS];
+    nativeConstants(constants);
+    SCROLL_PHASE_IDLE = (int) constants[CONSTANT_SCROLL_PHASE_IDLE];
+    SCROLL_PHASE_DRAGGING = (int) constants[CONSTANT_SCROLL_PHASE_DRAGGING];
+    SCROLL_PHASE_SETTLING = (int) constants[CONSTANT_SCROLL_PHASE_SETTLING];
+    SCROLL_TO_END_SLOT = constants[CONSTANT_SCROLL_TO_END_SLOT];
+    SCROLL_TO_OFFSET_SLOT = constants[CONSTANT_SCROLL_TO_OFFSET_SLOT];
+  }
+
+  /*
    * Slots of mOut, matching OutSlot in ShadowListScrollSyncJNI.cpp.
    */
   private static final int OUT_COMMIT = 0;
@@ -289,6 +320,7 @@ final class ShadowListScrollSync {
     return map;
   }
 
+  private static native void nativeConstants(double[] out);
   private static native long nativeCreate(double landingTolerance);
   private static native void nativeDestroy(long handle);
   private static native void nativeSetHorizontal(long handle, boolean horizontal);

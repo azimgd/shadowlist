@@ -431,9 +431,9 @@ TEST(drag_board_begin_after_a_foreign_session_resets_it) {
   CHECK_EQ(drag.shiftFor(4), -100.0);
 }
 
-TEST(drag_board_end_foreign_clears_the_gap) {
+TEST(drag_board_ending_a_foreign_session_clears_the_gap) {
   DragReorder drag = foreignGrid(150.0, 250.0);
-  drag.endForeign();
+  drag.end();
   CHECK(!drag.isForeign());
   CHECK_EQ(drag.getInsertionIndex(), UNDEFINED_INDEX);
   CHECK_EQ(drag.getInsertionKey(), std::string());
@@ -441,7 +441,7 @@ TEST(drag_board_end_foreign_clears_the_gap) {
   checkOffset(drag, 11, 0.0, 0.0);
 
   DragReorder list = foreignList(560.0);
-  list.endForeign();
+  list.end();
   CHECK_EQ(list.shiftFor(6), 0.0);
 }
 
@@ -684,10 +684,14 @@ TEST(drag_board_drop_lands_once_the_target_keys_hold_the_row) {
   CHECK(!board.expired(500.0 + DRAG_BOARD_LAND_TIMEOUT_MS / 2.0));
   CHECK(board.landed("b", std::vector<std::string>{"b0", "k3", "b1"}));
   CHECK(board.getPhase() == DragBoardPhase::Settling);
-  // Only the first landing counts, and a settling flight never expires.
+  // Only the first landing counts, and a picture flying onto the row never expires.
   CHECK(!board.landed("b", true));
+  CHECK(board.beginOverlaySettle());
+  CHECK(board.isOverlaySettling());
+  CHECK(!board.beginOverlaySettle());
   CHECK(!board.expired(500.0 + DRAG_BOARD_LAND_TIMEOUT_MS * 2.0));
   board.endFlight();
+  CHECK(!board.isOverlaySettling());
   CHECK(board.getPhase() == DragBoardPhase::Idle);
 
   // The next pickup is a new flight.
@@ -704,6 +708,18 @@ TEST(drag_board_landing_expires_after_its_timeout) {
   CHECK(board.expired(500.0 + DRAG_BOARD_LAND_TIMEOUT_MS));
   CHECK(board.getPhase() == DragBoardPhase::Idle);
   CHECK(!board.landed("b", true));
+}
+
+TEST(drag_board_a_landed_row_that_never_mounts_expires_after_the_landing_timeout) {
+  DragBoard board;
+  board.begin("a", "k3");
+  board.hover({"b"});
+  board.release(1, "b1", 4, 500.0);
+  CHECK(board.landed("b", true));
+  CHECK(!board.expired(499.0 + DRAG_BOARD_LAND_TIMEOUT_MS));
+  CHECK(board.expired(500.0 + DRAG_BOARD_LAND_TIMEOUT_MS));
+  CHECK(board.getPhase() == DragBoardPhase::Idle);
+  CHECK(!board.beginOverlaySettle());
 }
 
 TEST(drag_board_landing_ends_when_its_list_leaves) {

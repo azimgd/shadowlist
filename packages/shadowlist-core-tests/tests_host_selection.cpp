@@ -1,9 +1,10 @@
 /*
- * ListSelection tests: selected rows by key.
+ * ListSelection tests: selected rows by key, and the keyboard's moves between them.
  */
 
 #include "TestFramework.hpp"
 
+#include <shadowlist-core/host/KeyNavigation.hpp>
 #include <shadowlist-core/host/ListSelection.hpp>
 
 #include <algorithm>
@@ -185,4 +186,119 @@ TEST(selection_programmatic_select_follows_the_mode) {
   CHECK(!selection.deselect("a"));
   CHECK(selection.deselect("b"));
   CHECK(selection.getKeys() == (Keys{"c"}));
+}
+
+/*
+ * A Shift-click or a Shift arrow key on the Mac selects from the anchor to the lead. A shorter
+ * range deselects the rows it leaves, and rows selected before the anchor was set stay.
+ */
+TEST(selection_range_runs_from_the_anchor_and_replaces_the_previous_range) {
+  ListSelection selection;
+  selection.setMultiple(true);
+  Keys deselected;
+  selection.select("a", deselected);
+  selection.select("c", deselected);
+  selection.setAnchor("c");
+  CHECK(selection.hasAnchor());
+  CHECK_EQ(selection.getAnchorKey(), std::string("c"));
+  CHECK_EQ(selection.getLeadKey(), std::string("c"));
+
+  CHECK(selection.selectRange({"c", "d", "e"}, deselected));
+  CHECK(deselected.empty());
+  CHECK(selection.getKeys() == (Keys{"a", "c", "d", "e"}));
+  CHECK_EQ(selection.getLeadKey(), std::string("e"));
+  CHECK_EQ(selection.getAnchorKey(), std::string("c"));
+
+  CHECK(selection.selectRange({"c", "d"}, deselected));
+  CHECK(deselected == (Keys{"e"}));
+  CHECK(selection.getKeys() == (Keys{"a", "c", "d"}));
+  CHECK(!selection.selectRange({"c", "d"}, deselected));
+
+  // Past the anchor the other way, the range turns around it.
+  deselected.clear();
+  CHECK(selection.selectRange({"c", "b"}, deselected));
+  CHECK(deselected == (Keys{"d"}));
+  CHECK(selection.getKeys() == (Keys{"a", "c", "b"}));
+  CHECK_EQ(selection.getLeadKey(), std::string("b"));
+
+  // A new anchor starts a new range and keeps what the last one selected.
+  selection.setAnchor("b");
+  deselected.clear();
+  CHECK(selection.selectRange({"b", "x"}, deselected));
+  CHECK(deselected.empty());
+  CHECK(selection.getKeys() == (Keys{"a", "c", "b", "x"}));
+}
+
+TEST(selection_range_under_single_selection_selects_the_lead_only) {
+  ListSelection selection;
+  Keys deselected;
+  selection.select("a", deselected);
+  selection.setAnchor("a");
+  CHECK(selection.selectRange({"a", "b", "c"}, deselected));
+  CHECK(deselected == (Keys{"a"}));
+  CHECK(selection.getKeys() == (Keys{"c"}));
+  CHECK_EQ(selection.getLeadKey(), std::string("c"));
+  CHECK_EQ(selection.getAnchorKey(), std::string("a"));
+  CHECK(!selection.selectRange({}, deselected));
+}
+
+/*
+ * The anchor follows its key and drops with its row or with clear. An anchor on a row that is
+ * not selected, like one a Command-click deselected, stays while its row is in the data.
+ */
+TEST(selection_anchor_drops_when_its_row_leaves_the_data) {
+  ListSelection selection;
+  selection.setMultiple(true);
+  Keys deselected;
+  selection.select("a", deselected);
+  selection.setAnchor("b");
+  CHECK(!selection.retainKeys(Keys{"a", "b"}));
+  CHECK(selection.hasAnchor());
+  CHECK(selection.contains("a"));
+
+  selection.selectRange({"b", "c"}, deselected);
+  CHECK(!selection.retainKeys(Keys{"a", "b", "c"}));
+  CHECK_EQ(selection.getLeadKey(), std::string("c"));
+  // The lead's row went: the anchor goes with it.
+  CHECK(selection.retainKeys(Keys{"a", "b"}));
+  CHECK(!selection.hasAnchor());
+  CHECK(selection.getKeys() == (Keys{"a", "b"}));
+
+  selection.setAnchor("a");
+  CHECK(selection.retainWhere([](const std::string& key) { return key != "a"; }));
+  CHECK(!selection.contains("a"));
+  CHECK(!selection.hasAnchor());
+
+  selection.setAnchor("b");
+  selection.clear(deselected);
+  CHECK(!selection.hasAnchor());
+  CHECK(selection.getAnchorKey().empty());
+}
+
+TEST(key_navigation_steps_to_selectable_rows_and_keeps_a_grid_column) {
+  auto every = [](std::size_t) { return true; };
+  auto noHeaders = [](std::size_t row) { return row % 4 != 0; };
+  CHECK_EQ(stepRow(UNDEFINED_INDEX, 1, 10, every), std::size_t{0});
+  CHECK_EQ(stepRow(UNDEFINED_INDEX, -3, 10, every), std::size_t{9});
+  CHECK_EQ(stepRow(5, 1, 10, every), std::size_t{6});
+  CHECK_EQ(stepRow(9, 1, 10, every), UNDEFINED_INDEX);
+  // A step of three columns stays in the lead's column and skips a row that cannot be selected.
+  CHECK_EQ(stepRow(1, 3, 10, [](std::size_t row) { return row != 4; }), std::size_t{7});
+  CHECK_EQ(stepRow(3, 1, 10, noHeaders), std::size_t{5});
+  CHECK_EQ(endRow(false, 10, noHeaders), std::size_t{1});
+  CHECK_EQ(endRow(true, 10, noHeaders), std::size_t{9});
+  CHECK_EQ(stepRow(0, 1, 0, every), UNDEFINED_INDEX);
+}
+
+TEST(key_navigation_pages_a_viewport_from_the_lead_and_reveals_at_the_nearest_edge) {
+  auto leadingAt = [](std::size_t row) { return static_cast<double>(row) * 50.0; };
+  auto every = [](std::size_t) { return true; };
+  CHECK_EQ(pageRow(2, 1, 100, 200.0, leadingAt, every), std::size_t{6});
+  CHECK_EQ(pageRow(6, -1, 100, 200.0, leadingAt, every), std::size_t{2});
+  CHECK_EQ(pageRow(UNDEFINED_INDEX, 1, 100, 200.0, leadingAt, every), std::size_t{0});
+  CHECK_EQ(pageRow(UNDEFINED_INDEX, -1, 100, 200.0, leadingAt, every), std::size_t{99});
+  CHECK_EQ(pageRow(2, 1, 100, 200.0, leadingAt, [](std::size_t row) { return row == 3; }), std::size_t{3});
+  CHECK(revealEdge(100.0, 50.0, 120.0, 400.0) == RevealEdge::Start);
+  CHECK(revealEdge(500.0, 50.0, 120.0, 400.0) == RevealEdge::End);
+  CHECK(revealEdge(200.0, 50.0, 120.0, 400.0) == RevealEdge::None);
 }

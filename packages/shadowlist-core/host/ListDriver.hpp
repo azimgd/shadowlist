@@ -118,7 +118,8 @@ struct RowRect {
 /*
  * The rows to mount for one offset. Low and high are the lowest and highest rows that
  * overlap the viewport plus padding, or UNDEFINED_INDEX. Sticky is the pinned section header,
- * or UNDEFINED_INDEX.
+ * or UNDEFINED_INDEX. Band is the offsets where a plan mounts the same rows: no row of the
+ * measured range enters or leaves the view there. With sticky rows it holds only this offset.
  */
 struct MountPlan {
   std::size_t low = UNDEFINED_INDEX;
@@ -126,6 +127,7 @@ struct MountPlan {
   std::size_t sticky = UNDEFINED_INDEX;
   double viewLow = 0.0;
   double viewHigh = 0.0;
+  OffsetBand band;
 };
 
 /*
@@ -357,6 +359,11 @@ public:
    * Pick up the row at index. Touches are in the content, along and across the scroll axis.
    */
   void dragBegin(std::size_t index, double touchAlong, double touchCross);
+
+  /*
+   * Let go of the held row. The drag ends: no row shifts and the origin and insertion indices
+   * are UNDEFINED_INDEX. Read them before.
+   */
   void dragEnd();
   bool isDragging() const { return !heldKey_.empty(); }
 

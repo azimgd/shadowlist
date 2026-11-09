@@ -135,8 +135,8 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
     // The page lands while update() still sees the spinner in the header.
     std::vector<std::string> grown = prependedTo(keys, 6);
     Virtualizer::update(container, frame(grown, restingOffset, SPINNER_HEADER));
-    CHECK(container.operation.has_value());
-    std::uint64_t token = container.operation ? container.operation->commitToken : 0;
+    CHECK(container.state.operation.has_value());
+    std::uint64_t token = container.state.operation ? container.state.operation->commitToken : 0;
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
 
     // Layout measures the header without the spinner. This frame must not show the jump.
@@ -176,7 +176,7 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
 
   std::vector<std::string> grown = prependedTo(keys, 6);
   Virtualizer::update(container, frame(grown, 0.0, SPINNER_HEADER));
-  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
+  std::uint64_t token = container.state.operation ? container.state.operation->commitToken : 0;
   // The page has not mounted yet. Its rows keep their estimates here.
   layoutPass(container, PLAIN_HEADER, OlderRows::Unmounted);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
@@ -191,13 +191,13 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
 
   // The spinner comes back in the pass that mounts the new page.
   layoutPass(container, SPINNER_HEADER, OlderRows::Mounting);
-  CHECK(container.operation.has_value());
+  CHECK(container.state.operation.has_value());
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 
   published = container.revision.offsetY;
   adopt = frame(grown, published, SPINNER_HEADER);
   adopt.offsetEnabled = true;
-  adopt.commitToken = container.operation ? container.operation->commitToken : 0;
+  adopt.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
   Virtualizer::update(container, adopt);
   layoutPass(container, SPINNER_HEADER);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
@@ -216,7 +216,7 @@ TEST(header_resizing_while_scrolled_out_of_view_keeps_the_rows_still) {
   double before = onScreen(container, "k10");
 
   layoutPass(container, PLAIN_HEADER);
-  CHECK(container.offsetCorrected);
+  CHECK(container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k10"), before, 0.5);
 
   double published = container.revision.offsetY;
@@ -285,15 +285,15 @@ TEST(scroll_to_start_keeps_its_target_across_momentum_reports) {
   container.scrollToStart();
   Virtualizer::update(container, frame(keys, 2000.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
-  CHECK(container.operation.has_value());
-  std::uint64_t token = container.operation->commitToken;
+  CHECK(container.state.operation.has_value());
+  std::uint64_t token = container.state.operation->commitToken;
 
   FrameInput coasting = frame(keys, 2100.0, PLAIN_HEADER);
   coasting.userScrolled = true;
   coasting.scrollPhase = ScrollPhase::Settling;
   Virtualizer::update(container, coasting);
   layoutPass(container, PLAIN_HEADER);
-  CHECK(container.operation.has_value() && container.operation->commitToken == token);
+  CHECK(container.state.operation.has_value() && container.state.operation->commitToken == token);
   CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
 }
 
@@ -312,8 +312,8 @@ TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
   drag.scrollPhase = ScrollPhase::Dragging;
   Virtualizer::update(container, drag);
   layoutPass(container, PLAIN_HEADER);
-  CHECK(!container.pendingScrollToEnd);
-  CHECK(!container.operation.has_value() || container.operation->type != OperationType::ScrollToEnd);
+  CHECK(!container.state.pendingScrollToEnd);
+  CHECK(!container.state.operation.has_value() || container.state.operation->type != OperationType::ScrollToEnd);
 
   container.scrollToEnd();
   FrameInput coasting = frame(keys, 600.0, PLAIN_HEADER);
@@ -321,7 +321,7 @@ TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
   coasting.scrollPhase = ScrollPhase::Settling;
   Virtualizer::update(container, coasting);
   layoutPass(container, PLAIN_HEADER);
-  CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToEnd);
+  CHECK(container.state.operation.has_value() && container.state.operation->type == OperationType::ScrollToEnd);
 }
 
 /*
@@ -345,14 +345,14 @@ TEST(scroll_to_start_with_new_rows_is_one_correction) {
   Container held;
   deepContainer(held);
   Virtualizer::update(held, frame(replaced, 2000.0, PLAIN_HEADER));
-  CHECK(held.operation.has_value() && held.operation->type == OperationType::MaintainAnchor);
+  CHECK(held.state.operation.has_value() && held.state.operation->type == OperationType::MaintainAnchor);
 
   Container container;
   deepContainer(container);
   container.scrollToStart();
   FrameInput moving = frame(replaced, 2000.0, PLAIN_HEADER);
   Virtualizer::update(container, moving);
-  CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToStart);
+  CHECK(container.state.operation.has_value() && container.state.operation->type == OperationType::ScrollToStart);
   CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
   layoutPass(container, PLAIN_HEADER);
   CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
@@ -411,7 +411,7 @@ TEST(header_change_during_a_scroll_to_index_keeps_the_view_position) {
 
   container.scrollToRow(30, 0.5);
   Virtualizer::update(container, input);
-  CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ScrollToKey);
   double rowTop = offsetOf(container, 30) - container.revision.offsetY;
   CHECK_NEAR(rowTop, (WINDOW_HEIGHT - 100.0) / 2.0, 1.0);
 
@@ -441,7 +441,7 @@ TEST(rows_measured_during_a_scroll_to_index_keep_the_view_position) {
 
   container.scrollToRow(30, 0.5);
   Virtualizer::update(container, input);
-  CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ScrollToKey);
   double resting = (WINDOW_HEIGHT - 100.0) / 2.0;
   CHECK_NEAR(offsetOf(container, 30) - container.revision.offsetY, resting, 1.0);
 

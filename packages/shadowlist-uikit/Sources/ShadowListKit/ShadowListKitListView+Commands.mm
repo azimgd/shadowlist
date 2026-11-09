@@ -14,8 +14,8 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
 
 /*
- * The saved position and the scroll commands. A command runs in the layout pass right away, or
- * animates to the estimate and lets the core land exactly when the animation ends.
+ * The saved position and the scroll commands. A command runs in the layout pass right away. An
+ * animated command eases toward its estimated target and lands through the core when it arrives.
  */
 @implementation ShadowListKitListView (Commands)
 
@@ -44,7 +44,8 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 }
 
 /*
- * Land the saved row once the data has it. Until then the position waits.
+ * Land the saved row once the data has it. Until then the position waits, and the user
+ * scrolling or a scroll command drops it, see dropPendingAnchor.
  */
 - (void)restorePendingAnchor
 {
@@ -58,8 +59,13 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   _pendingAnchor = nil;
   [self stopScrolling];
   [self invalidateFrame];
+  [self invalidateRestorableStateIfSettled];
 }
 
+/*
+ * The window saves the position of a list with an identifier. On the Mac it asks again once the
+ * list comes to rest somewhere else.
+ */
 - (void)encodeRestorableStateWithCoder:(NSCoder *)coder
 {
   [super encodeRestorableStateWithCoder:coder];
@@ -69,13 +75,21 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   }
 }
 
-- (void)decodeRestorableStateWithCoder:(NSCoder *)coder
+- (void)restoreAnchorStateFromCoder:(NSCoder *)coder
 {
-  [super decodeRestorableStateWithCoder:coder];
   ShadowListKitAnchorState *state = [coder decodeObjectOfClass:[ShadowListKitAnchorState class] forKey:@"ShadowListKitAnchorState"];
   if (state) {
     [self restoreAnchorState:state];
   }
+}
+
+/*
+ * Forget a saved position still waiting for its key. The user or a command moved the list
+ * since, and a later reload must not pull the viewport back to it.
+ */
+- (void)dropPendingAnchor
+{
+  _pendingAnchor = nil;
 }
 
 #pragma mark - Scroll commands
@@ -94,61 +108,148 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   if (row >= _driver.getKeyCount()) {
     return;
   }
-  if (animated && row < _driver.getRowCount()) {
+  [self dropPendingAnchor];
+  if (animated && [self animatesCommands] && row < _driver.getRowCount()) {
     // Animate to the estimate, then let the core land exactly when the animation ends.
     double target = _driver.animatedTargetOffset(row, viewPosition, _windowAlong, [self maxOffset]);
-    [self animateCommandTo:target landing:{ScrollLanding::Target::Row, row, viewPosition}];
+    [self animateToOffset:target landing:{ScrollLanding::Target::Row, row, viewPosition}];
     return;
   }
   [self stopScrolling];
   _driver.scrollToRow(row, viewPosition);
   [self runCommandNow];
+  [self endCommandAnimated:animated];
 }
 
 - (void)scrollToStartAnimated:(BOOL)animated
 {
-  if (animated) {
+  [self dropPendingAnchor];
+  if (animated && [self animatesCommands]) {
     // The header shows at the very start, which landing on row 0 would scroll past.
-    [self animateCommandTo:0 landing:{ScrollLanding::Target::Start, 0, 0}];
+    [self animateToOffset:0 landing:{ScrollLanding::Target::Start, 0, 0}];
     return;
   }
   [self stopScrolling];
   _driver.scrollToStart();
   [self runCommandNow];
+  [self endCommandAnimated:animated];
 }
 
 - (void)scrollToEndAnimated:(BOOL)animated
 {
-  if (animated) {
-    [self animateCommandTo:[self maxOffset] landing:{ScrollLanding::Target::End, 0, 0}];
+  [self dropPendingAnchor];
+  if (animated && [self animatesCommands]) {
+    [self animateToOffset:[self maxOffset] landing:{ScrollLanding::Target::End, 0, 0}];
     return;
   }
   [self stopScrolling];
   _driver.scrollToEnd();
   [self runCommandNow];
-}
-
-- (void)animateCommandTo:(double)target landing:(ScrollLanding)landing
-{
-  _driver.setLanding(landing);
-  [self setContentOffset:[self contentOffsetAt:target] animated:YES];
+  [self endCommandAnimated:animated];
 }
 
 /*
- * Stop momentum and any animated command still on its way. Otherwise they keep writing
- * the offset over a command that runs now.
+ * Stop momentum, a spring back and any animated command still on its way. Otherwise they keep
+ * writing the offset over a command that runs now.
  */
 - (void)stopScrolling
 {
-  [self setContentOffset:self.contentOffset animated:NO];
+  [self dropPendingAnchor];
+  [self stopScrollMotion];
   _driver.cancelLanding();
 }
 
 - (void)runCommandNow
 {
   [self invalidateFrame];
-  [self layoutIfNeeded];
+  ShadowListKitLayoutNow(self);
 }
+
+#pragma mark - Platform
+
+#if TARGET_OS_OSX
+
+- (void)restoreStateWithCoder:(NSCoder *)coder
+{
+  [super restoreStateWithCoder:coder];
+  [self restoreAnchorStateFromCoder:coder];
+}
+
+- (void)invalidateRestorableStateIfSettled
+{
+  if (self.identifier && self.scrollPhase == ShadowListKitScrollPhaseIdle) {
+    [self invalidateRestorableState];
+  }
+}
+
+/*
+ * A driven list's commands move at once, and the host animates its own scrolling.
+ */
+- (BOOL)animatesCommands
+{
+  return !self.scrollDriven;
+}
+
+/*
+ * A driven list's command moved at once. An animated one still reports its end.
+ */
+- (void)endCommandAnimated:(BOOL)animated
+{
+  if (animated && [_userDelegate respondsToSelector:@selector(listViewDidEndScrollingAnimation:)]) {
+    [_userDelegate listViewDidEndScrollingAnimation:self];
+  }
+  [self invalidateRestorableStateIfSettled];
+}
+
+/*
+ * A driven list's host stops its own scrolling.
+ */
+- (void)stopScrollMotion
+{
+  if (!self.scrollDriven) {
+    [_engine stopScrolling];
+  }
+}
+
+#else
+
+- (void)decodeRestorableStateWithCoder:(NSCoder *)coder
+{
+  [super decodeRestorableStateWithCoder:coder];
+  [self restoreAnchorStateFromCoder:coder];
+}
+
+/*
+ * UIKit reads the saved position when it saves the scene. It needs no word of a change.
+ */
+- (void)invalidateRestorableStateIfSettled
+{
+}
+
+- (BOOL)animatesCommands
+{
+  return YES;
+}
+
+/*
+ * The scroll view tells the delegate when an animated command ends.
+ */
+- (void)endCommandAnimated:(BOOL)animated
+{
+}
+
+- (void)animateToOffset:(double)offset landing:(ScrollLanding)landing
+{
+  _driver.setLanding(landing);
+  [self setContentOffset:[self contentOffsetAt:offset] animated:YES];
+}
+
+- (void)stopScrollMotion
+{
+  [self setContentOffset:self.contentOffset animated:NO];
+}
+
+#endif
 
 @end
 #pragma clang diagnostic pop

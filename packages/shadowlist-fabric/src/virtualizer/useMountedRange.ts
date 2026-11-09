@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnMountedRangeChange } from '../ShadowListViewNativeComponent';
+import type { MountedRangeChangeEvent } from '../ShadowListViewNativeComponent';
 import { SHADOWLIST_OVERSCAN, slTrace, slTraceEnabled } from './helpers';
 
 /*
@@ -88,7 +88,8 @@ export function shouldReseedFromOffsetIndex(
 /*
  * How many appended rows an inverted list at its end mounts on top of its range. A bigger
  * burst, like a reconnect syncing hundreds of messages, moves the range to the tail instead.
- * MAX_FOLLOWED_APPEND in host/MountedRange.hpp is the same number.
+ * It is MAX_FOLLOWED_APPEND in the core's host/MountedRange.hpp, and coreConstants.test holds
+ * the two equal.
  */
 export const MAX_FOLLOWED_APPEND = 50;
 
@@ -154,7 +155,7 @@ interface UseMountedRangeResult {
   mountedIndices: number[];
   mountedRangeProps: MountedRangeProps;
   handleMountedRangeChange: CodegenTypes.DirectEventHandler<
-    OnMountedRangeChange,
+    MountedRangeChangeEvent,
     never
   >;
   seedAroundIndex: (index: number, viewPosition: number) => void;
@@ -347,7 +348,7 @@ export function useMountedRange({
   generationRef.current = generation;
 
   const handleMountedRangeChange: CodegenTypes.DirectEventHandler<
-    OnMountedRangeChange,
+    MountedRangeChangeEvent,
     never
   > = useCallback((event) => {
     const {
