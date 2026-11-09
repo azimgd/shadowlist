@@ -48,7 +48,7 @@ describe('section rows without a keyExtractor', () => {
 
 /*
  * Compile time checks. tsc runs over the tests, and these assignments fail the typecheck
- * if the list types start to require an id again.
+ * if the list types require an id.
  */
 describe('item types', () => {
   it('accept items without an id', () => {

@@ -1,7 +1,6 @@
 /*
- * RowKeyStore and TreeRows tests: the row keys Fabric keeps natively by version instead of in
- * props, and the section and tree flattens that used to run in JS. The section fuzz test is the
- * one sectionFlatten.test.ts ran against the JS flatten, now against a full rebuild.
+ * RowKeyStore and TreeRows tests: the row keys Fabric keeps natively by version, and the
+ * section and tree flattens. The section fuzz test checks the flatten against a full rebuild.
  */
 
 #include "TestFramework.hpp"
@@ -376,8 +375,7 @@ TEST(row_key_store_refuses_reuse_that_does_not_match_the_base) {
 }
 
 /*
- * The fuzz test sectionFlatten.test.ts ran on the JS flatten: random section edits, unchanged
- * sections reused, every result equal to a rebuild.
+ * Random section edits with unchanged sections reused. Every result equals a rebuild.
  */
 TEST(row_key_store_section_updates_match_a_full_rebuild) {
   std::uint32_t seed = 11;
