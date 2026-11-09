@@ -61,6 +61,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `getItemSizeSpec(item, index)` |  | Returns an `ItemSizeSpec`: a row's text with its font and insets, or a `fixedHeight`. Native then sizes rows near the screen before React renders them. |
 | `measureLookaheadRows` | 48 | How many rows past the mounted ones get their size spec sent to native. |
 | `initialScrollIndex` |  | The row the list opens at. Read on mount only. |
+| `scrollIndex` |  | Scrolls to this row whenever it changes. It wins over `initialScrollIndex`. |
 | `extraData` |  | Rebuilds the mounted rows when it changes. |
 | `inverted` | false | Chat style list that opens at the end. Appended rows keep the visible content still. |
 | `followAppends` | false | An inverted list resting at its end keeps it in view as rows are appended or grow in place, like a streaming reply. Scrolling away pauses it and coming back resumes it. |
@@ -68,16 +69,18 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `horizontal` | false | Scroll along the x axis. With `style={{ height: 'auto' }}` the list takes the height of its tallest mounted row and drops its default `flex: 1`. |
 | `numberOfColumns`, `columnWrapperStyle` | 1 | Grid columns. Rows go round robin, row `i` in column `i % numberOfColumns`. `columnWrapperStyle` takes `gap`, `columnGap` and horizontal padding. Each column keeps the same width. |
 | `ItemSeparatorComponent` |  | A component gets `highlighted`, `leadingItem` and `trailingItem`. A React element, or a function without parameters, renders once for every row. |
+| `ListHeaderComponent`, `ListFooterComponent`, `ListEmptyComponent` |  | An element or a function that returns one. The empty component shows while `data` is empty. |
 | `ListHeaderComponentStyle`, `ListFooterComponentStyle` |  | Style for the header and footer. |
 | `contentContainerStyle`, `contentInset` |  | Numeric padding only. Padding along the scroll axis goes before the header and after the footer, across it into every row. Insets stay at zero otherwise: wrap the list in a safe area view. |
 | `stickyIndices`, `renderStickyHeaderOverlay(index)` |  | Rows that pin to the top while their section scrolls, and an optional overlay drawn for the pinned row. |
 | `stickyHeader`, `stickyFooter` | false | Pin `ListHeaderComponent` or `ListFooterComponent` to its edge. |
 | `autoHideHeader`, `autoHideFooter` | false | A pinned header or footer slides out while the user scrolls further into the list and slides back when they scroll the other way, like a hiding toolbar. |
-| `reorderEnabled` | false | Touch and hold to drag. `onMoveItem` reports a move; save its `data` to your state or the row snaps back. DraggableList enables it by default. |
+| `reorderEnabled` | false | Touch and hold to drag. DraggableList enables it by default. |
+| `onMoveItem` |  | A drop within the list, a `MoveItemInfo`. Save its `data` to your state or the row snaps back. |
 | `dragBoardId` |  | DraggableLists that share a non-empty `dragBoardId` form one drag board, where a row dragged out of one list can drop in another. See [Drag boards](#drag-boards). |
 | `dragListId` |  | Names this list on its drag board, unique among the board's mounted lists. A list without one is never a drop target. |
 | `dragListLabel` |  | The name VoiceOver and TalkBack give this list in another list's Move to action. Defaults to `accessibilityLabel`, then `dragListId`. |
-| `onMoveItemToList` |  | A drop in another list of the board, a `MoveItemToListInfo`: the moved `item`, its `sourceIndex`, `sourceListId`, this list's `data` without it, `destinationListId`, `destinationKey` and `destinationIndex`. Save `data`, and insert `item` in the destination list's state before the item keyed `destinationKey`, or at its end when the key is `''`. `destinationIndex` names the same place, for a key no longer in your state. |
+| `onMoveItemToList` |  | A drop in another list of the board, a `MoveItemToListInfo`: the moved `item`, its `sourceIndex`, `sourceListId`, this list's `data` without it, `destinationListId`, `destinationKey` and `destinationIndex`. Save `data`, and insert `item` in the destination list's state before the item keyed `destinationKey`, or at its end when the key is `''`. `destinationIndex` names the same place, for a key missing from your state. |
 | `snapToItem` | false | Rest on a row edge. |
 | `snapAlignment` | `'start'` | Snap to `'start'`, `'center'` or `'end'`. |
 | `overscan` | 1 | How far past the viewport native measures and places rows, in viewport sizes. |
@@ -91,6 +94,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `onScroll`, `onScrollBeginDrag`, `onScrollEndDrag`, `onMomentumScrollBegin`, `onMomentumScrollEnd`, `onContentSizeChange`, `scrollEventThrottle` |  | ScrollView's event shape: `contentOffset`, `contentSize`, `layoutMeasurement`, `contentInset`, `velocity` in points per millisecond. `onScroll` comes from the native scroll view, without a React commit per frame, and not on mount. An event held back by `scrollEventThrottle` is sent once the list rests. |
 | `scrollEnabled`, `showsVerticalScrollIndicator`, `showsHorizontalScrollIndicator`, `bounces`, `decelerationRate`, `scrollsToTop`, `keyboardDismissMode`, `keyboardShouldPersistTaps`, `nestedScrollEnabled` |  | Passed to the native scroll view. `scrollsToTop` does nothing on Android. Android dismisses the keyboard from JS when a drag begins, for any `keyboardDismissMode` but `'none'`. `keyboardShouldPersistTaps` is handled in JS. Unset, taps always reach the rows. The scroll bars default to shown, or to what a `ShadowListDefaultsProvider` above the list sets (`value={{ showsVerticalScrollIndicator: false }}`), for an app that hides them in every list on a platform. |
 | `itemStyle` |  | Style for the view around each row. |
+| `style`, `testID`, `accessible`, `accessibilityLabel`, `accessibilityRole`, `accessibilityHint` |  | Passed to the list view. |
 | `refreshing`, `onRefresh` |  | Pull to refresh. On a vertical list that is not inverted, data that changes while refreshing shows once the spinner has settled. |
 | `refreshColor`, `progressViewOffset` |  | Tint and offset of the pull to refresh spinner. |
 
@@ -98,7 +102,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 
 | Export | What it does |
 | --- | --- |
-| `KeyboardView` | Dismisses the keyboard on a tap in an empty area. |
+| `KeyboardView` | A view that dismisses the keyboard on a tap in an empty area. Children that handle their own touches keep it open. `enabled` (default true) turns it off. |
 | `useKeyboardAnimation()` | Returns `{ height, progress }` as `Animated.Value`s that follow the keyboard frame by frame. On Android only when the Activity's `windowSoftInputMode` is `adjustResize`. |
 
 ### Ref commands
@@ -110,6 +114,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `scrollToOffset({ offset, animated })` | Scrolls to an offset. Also takes positional arguments. |
 | `scrollToEnd({ animated })` | Scrolls to the end. Also takes positional arguments. Animates by default. |
 | `flashScrollIndicators()`, `recordInteraction()` | Same as in React Native. |
+| `getItemSize(key)`, `getItemSizes()` | A mounted row's size, or every size by key. Needs `trackItemSizes`. |
 | `getNativeScrollRef()`, `getScrollResponder()`, `getScrollableNode()` | Return the native `ShadowListView` and its tag. |
 | `setStartReachedEnabled(enabled)`, `setEndReachedEnabled(enabled)` | Pause the edge callbacks while a page loads. |
 | `onScrollToIndexFailed` (prop) | Called for an index outside the data, or a `scrollToItem` item not in it with index -1, with `{ index, highestMeasuredFrameIndex, averageItemLength }`. Without it `__DEV__` builds warn. |
@@ -142,9 +147,9 @@ Touch and hold a row for 0.2 s to lift it. A finger that scrolls the list more t
 instead, and any other drift up to 20 points still lifts. macOS lifts the row as soon as the mouse drags it, without a
 hold. The list scrolls near its edges at the same speed per second on every display: within 90 points of the edge at up
 to 960 points a second on iOS and macOS, within 60 dp at up to 720 dp a second on Android. The held row casts the
-shadow of its card (the first view with a background down its single child chain, or its bounds), the drop spot ticks
-a haptic as it moves, on macOS only with a Force Touch trackpad, and a cancelled gesture puts the rows back with the
-same slide a drop uses. The drag math comes from the core on every platform. VoiceOver and TalkBack offer Move up and
+shadow of its card: the first view with a background down its single child chain, or its bounds. The drop spot ticks a
+haptic as it moves. macOS ticks only with a Force Touch trackpad. A cancelled gesture puts the rows back with the same
+slide a drop uses. The drag math comes from the core on every platform. VoiceOver and TalkBack offer Move up and
 Move down on each row while `reorderEnabled` is on.
 
 `onMoveItem` gets a `MoveItemInfo` (`sourceIndex`, `destinationIndex` and the reordered `data`). The list keeps its
@@ -152,32 +157,29 @@ scroll offset when the reorder lands. The rows stay where the drag showed them.
 
 ### Drag boards
 
-Boards are implemented on iOS, Android and macOS from the same core, and have been exercised on iOS. A long press
-picks the row up on iOS and Android, a mouse drag on macOS.
+Boards work on iOS, Android and macOS from the same core. A long press picks the row up on iOS and Android, a mouse
+drag on macOS.
 
 - Board ids are global to the app. Two screens that use one id join one board. Give each screen's board its own id.
 - Every list on a board needs its own `dragListId`. A list without one can't take a drop, and two lists with the same
   id can't be told apart. `__DEV__` builds warn about both.
-- The finger picks the list it hovers through the window's hit test on iOS and macOS, so a list covered by another
-  view isn't a target there. Android picks from the board's lists by their visible rect in the window, deepest first,
+- The finger picks the list it hovers through the window's hit test on iOS and macOS. A list covered by another view
+  isn't a target there. Android picks from the board's lists by their visible rect in the window, deepest first,
   and leaves out lists in another window, like a modal's.
 - A drop sends one `onMoveItemToList` from the list the row came from. Update both lists in that handler, in one state
   change, within a second. The dragged row's picture waits that long for the row to show up in the destination's data,
   then gives up and the rows go back.
 - SectionList and TreeList can't join a board: they ignore `dragBoardId` and `dragListId`.
 - The scroll view around the board scrolls sideways once the finger heads for its edge, and comes to rest on its
-  nearest page, `snapToInterval` or `snapToOffsets` when the drag ends. AppKit has no paging, so macOS snaps only to
-  `snapToInterval` or `snapToOffsets`.
+  nearest page, `snapToInterval` or `snapToOffsets` when the drag ends. macOS snaps only to `snapToInterval` or
+  `snapToOffsets` because AppKit has no paging.
 - A row carried back over its own list eases from where its picture was into its place there.
 - VoiceOver and TalkBack add a Move to action on each row for every other list of the board that has drag on and shows
   in a window. It moves the row to that list's end through the same `onMoveItemToList` a drop sends. The action names
   the list by `dragListLabel`, then `accessibilityLabel`, then `dragListId`.
 
-A scoped `<DragBoard>` provider is the planned next step: it would name its board with `useId`, which keeps
-screens from sharing one by accident, take one `onMoveItem({ item, sourceListId, destinationListId, destinationIndex, destinationKey })`
-for the whole board, and let a list refuse drops with `acceptsDrop`. Until then the string ids above are the API.
-[ShadowListUtils' `Board.List`](../shadowlist-utils/README.md#board-drag-between-columns) already names
-its board and lists itself and takes one `onMoveItem` for the whole board.
+[ShadowListUtils' `Board.List`](../shadowlist-utils/README.md#board-drag-between-columns) names its board and lists
+itself and takes one `onMoveItem` for the whole board.
 
 ### Prefetching and saved position
 
@@ -194,7 +196,39 @@ the viewability callbacks. `__DEV__` builds warn once about each such prop passe
 
 | Prop or command | What it does |
 | --- | --- |
+| `sections` | Each section has its `data`, an optional `key`, and optional `renderItem` and `keyExtractor` that override the list's. |
+| `renderItem({ item, index, section, separators })`, `keyExtractor` | Render and key the rows of every section. |
+| `renderSectionHeader({ section })`, `renderSectionFooter({ section })` | Section header and footer rows. |
+| `stickySectionHeadersEnabled` | Pins each section's header while the section scrolls. Defaults to true. |
+| `getItemSizeSpec(item, index, section)` | Same as ShadowList's, with the section. |
+| `nonAnchorKeys`, `persistentKeys` | Same as ShadowList's. Keys come from `keyExtractor`. |
 | `scrollToLocation({ sectionIndex, itemIndex, viewOffset, viewPosition, animated })` | Counts like React Native: `itemIndex` 0 is the section header. While headers pin, a row lands below its section's pinned header. |
-| `scrollToSection(section, animated?)` | Lands on a section's first row. |
+| `scrollToSection(sectionIndex, animated?)` | Lands on a section's first row, its header when it has one. |
 | `sectionIndexTitles`, `sectionForSectionIndexTitle(title, index)` | Shows an index along the trailing edge and maps a title to a section. |
 | `ItemSeparatorComponent`, `SectionSeparatorComponent` | `ItemSeparatorComponent` gets `section` too. `SectionSeparatorComponent` gets `leadingSection` and `trailingSection`. |
+
+### TreeList
+
+TreeList flattens the nodes whose parents are all expanded into one list. Collapsed branches are never walked.
+
+| Prop or command | What it does |
+| --- | --- |
+| `data`, `getChildren(item)` | The root nodes, and a node's children or undefined for a leaf. |
+| `keyExtractor(item)` | Required. Keys must be unique across the whole tree and stay the same when nodes expand or collapse. |
+| `renderItem({ item, index, depth, isExpanded, hasChildren, indent, toggle, separators })` | Renders a node. `toggle()` expands or collapses it. |
+| `expandedKeys` (controlled), `initialExpandedKeys`, `onExpandedChange(expandedKeys)` | The expanded nodes, as an array or a `Set`. `onExpandedChange` gets a `Set`. |
+| `indentWidth` | Points per depth level in `indent`. Defaults to 16. |
+| `getItemSizeSpec(item, index, depth)` | Same as ShadowList's, with the depth. |
+| `scrollToNode(key, viewPosition?)` | Scrolls to a visible node. A node inside a collapsed branch does nothing. |
+
+### DraggableList
+
+DraggableList is a ShadowList with `reorderEnabled` on by default. Pass `reorderEnabled={false}` to pause dragging. It
+takes every ShadowList prop and command.
+
+### Other exports
+
+| Export | What it does |
+| --- | --- |
+| `ShadowListDefaultsProvider`, `useShadowListDefaults()` | Sets `showsVerticalScrollIndicator` and `showsHorizontalScrollIndicator` for every list below it. A list's own prop wins. |
+| `ShadowListView`, `Commands`, `ShadowListCellView`, `ShadowListTemplateView` | The native components and commands, for building a list from them directly. |
