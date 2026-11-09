@@ -88,6 +88,8 @@ with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`
 - A list that connects before `loadShadowListKit` was called starts the load itself. Until it resolves, properties,
   `dataSource`, `registerCell`, `reloadData`, `performBatchUpdates` and `restoreAnchorState` are safe and wait for it.
   `insertItems`, `deleteItems`, `applyChanges`, `rectForItem` and the scroll commands throw.
+- A load that fails rejects and is forgotten. The next `loadShadowListKit` call tries again. A load a list started
+  itself reports its failure through `reportError`, where the page's `error` handlers see it.
 
 The view's own behavior:
 

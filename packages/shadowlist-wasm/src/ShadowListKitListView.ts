@@ -265,7 +265,8 @@ export class ShadowListKitListView extends HTMLElement {
       if (view) this.resizeObserver.observe(view);
     }
     if (!isShadowListKitLoaded()) {
-      loadShadowListKit().then(() => this.invalidateFrame());
+      // A failed load reaches the page's error handlers. The next connect tries again.
+      loadShadowListKit().then(() => this.invalidateFrame(), reportError);
       return;
     }
     this.restorePendingAnchor();
