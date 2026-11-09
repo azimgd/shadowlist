@@ -29,7 +29,7 @@ xcrun simctl bootstatus "$UDID" -b
 
 Choose the same simulator in both lists. Step coordinates assume an iPhone 16 Pro (402×874pt); adapt them for other
 sizes. Export `UDID` and `DEVICE` in each terminal used for tracing. The default values in `run.sh` (`sl-iosfix`)
-and `perf-suite.sh` (`sl-bench`) refer to the author's local simulators.
+and `perf-suite.sh` (`sl-bench`) name simulators your machine may not have.
 
 Still in `templates/shadowlist-fabric-example/ios`, build Release with tracing compiled in and install it:
 
@@ -94,11 +94,11 @@ expand from the environment overrides above.
 - `[SLF] ... id=<listTag> frame ax=<v|h> inv= off= cs= vp= ins= ph= ref= hdr=<screenY>+<h> stt= jump= rows=[ key@screenY+height ]`
   one line per committed frame whose picture changed; positions are along the scroll axis,
   `ph` is 0 idle / 1 finger / 2 momentum / 3 scroll to top, `~` marks a concealed row.
-- `[SLF] ... ev=state|drag-begin|drag-end|decel-end|stt-*|refresh-*|cmd-scroll-to-index` — every
+- `[SLF] ... ev=state|drag-begin|drag-end|decel-end|stt-*|refresh-*|cmd-scroll-to-index`: every
   place the host moved the view or published state. `enabled=1` means the core wrote an offset.
-- `[SLJ] ... render|vis|vis apply|reached|refresh|row-miss` — the JS side, printed natively
+- `[SLJ] ... render|vis|vis apply|reached|refresh|row-miss`: the JS side, printed natively
   through `globalThis.__shadowlistTrace` so it shares the host's clock.
-- `[SL] ...` — the C++ core, without timestamps; the analyzer stamps them with the previous
+- `[SL] ...`: the C++ core, without timestamps; the analyzer stamps them with the previous
   timestamped line. They can read up to a second early. File order is right. The core log is
   off by default. Turn it on with `SHADOWLIST_DEBUG_LOG=1 pod install` in the example's `ios/`
   folder, or add `SHADOWLIST_DEBUG_LOG=1` to the `GCC_PREPROCESSOR_DEFINITIONS` override of the
@@ -131,8 +131,8 @@ count, `jsms` (JS commit time) and `mountms` (render to the frame that showed it
 | Flag | What it does |
 | --- | --- |
 | `--window 12.3:12.8` | Prints the raw lines of that stretch |
-| `--blank-pt N` | Smallest uncovered span reported as `blank` |
-| `--min-shift N` | Smallest idle shift reported, in points |
+| `--blank-pt N` | Smallest uncovered span reported as `blank`, in points (120) |
+| `--min-shift N` | Smallest idle shift reported, in points (0.5) |
 | `--timeline N` | Most timeline lines printed (150) |
 | `--json <path>` | Also writes the report as JSON there |
 

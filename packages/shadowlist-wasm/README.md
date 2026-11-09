@@ -67,11 +67,13 @@ optional. `prefetchDataSource` hears `prefetchItems` and `cancelPrefetchingForIt
 Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`,
 `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`
 (`ShadowListKitSnapAlignment.START`, `CENTER` or `END`, the strings `'start'`, `'center'` and `'end'`),
-`stickyIndices`, `headerView`, `footerView`, `contentCrossSize`. Data: `reloadData`, `insertItems`, `deleteItems`,
+`stickyIndices`, `headerView`, `footerView`, `contentCrossSize`, and `dataSource`, `delegate` and
+`prefetchDataSource`. Cells: `registerCell(identifier, factory)` and `dequeueReusableCell(identifier)`. Data: `reloadData`, `insertItems`, `deleteItems`,
 `reloadItems(indices, payload)`, `moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates(updates, completion)`
-with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`, `visibleCells`, `visibleRange`,
-`rectForItem` (content coordinates, header included), `contentSize`, `anchorState`, `scrollToItem`, `scrollToStart`,
-`scrollToEnd`, `restoreAnchorState`. Sizes are in CSS pixels, which are the native kits' points at zoom 1.
+with `completion(finished)`, `applyChanges`. Queries and commands: `itemCount`, `keys`, `offset`, `crossOffset`,
+`cellForItem`, `visibleCells`, `visibleRange` (`{ low, high }`), `rectForItem` (content coordinates, header included),
+`contentSize`, `anchorState`, `scrollToItem(index, viewPosition = 0, animated = false)`, `scrollToStart(animated)`,
+`scrollToEnd(animated)`, `restoreAnchorState`. `isShadowListKitLoaded()` tells whether the module has loaded. Sizes are in CSS pixels, which are the native kits' points at zoom 1.
 
 - Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data before,
   inserts and move destinations in the data after. A batch that does not add up reloads everything. `applyChanges`
@@ -104,8 +106,8 @@ The view's own behavior:
   core to a `FinalizationRegistry`.
 - Accessibility: the list has `role="list"`, each cell `role="listitem"` with `aria-posinset` and `aria-setsize`. A list given another role before it connects, such as `rowgroup` in a grid, leaves its cells' roles and positions to the cells. A cell with its own role keeps it.
 
-Not in the web kit yet: sections, selection, drag reorder, swipe actions, context menus, pull to refresh, separators
-and change animations.
+The web kit has no sections, selection, drag reorder, swipe actions, context menus, pull to refresh, separators or
+change animations.
 
 ## Example app
 
@@ -123,15 +125,17 @@ Then open `http://localhost:8080/templates/shadowlist-web-example/?SLRoute=Chat&
 
 ## Tests
 
-`yarn test:wasm` at the repo root (`yarn workspace shadowlist-wasm run test`) runs `test/ShadowListKitCore.test.ts`
-against `dist/` in Node 22 or newer, without a browser. Run `yarn build:wasm` first.
+`yarn test:wasm` at the repo root (`yarn workspace shadowlist-wasm run test`) runs `test/*.test.ts` against `dist/`
+in Node 22 or newer. `ShadowListKitCore.test.ts` and `load.test.ts` need no browser. `browser.test.ts` drives the list
+in headless Chrome through `test/fixture.html` and is skipped when no Chrome is found. `CHROME_PATH` picks the
+binary. Run `yarn build:wasm` first.
 
 ## Export names
 
 The wasm exports are `ShadowListKitCore_native*` and `ShadowListKitListState_*`, after the classes they serve. This is
 deliberate: `ShadowListKitCore.ts` mirrors Android's `ShadowListKitCore`, whose JNI functions carry the same
 `native*` names. A call reads the same on both hosts. shadowgrid-wasm names its exports `shadowgrid_*` in
-snake_case instead, as a C API for any host. Neither is meant to be renamed to the other.
+snake_case instead, as a C API for any host.
 
 ## Debug log
 
