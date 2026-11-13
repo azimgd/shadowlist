@@ -20,6 +20,7 @@ import java.lang.ref.WeakReference
  * state list drawables follow.
  */
 open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?) : FrameLayout(context) {
+  private var swipeAccessibility: ShadowListKitSwipeAccessibility? = null
   private var boardActionIds = emptyList<Int>()
   private var boardActionLabels = emptyList<String>()
   private var boardActionTargets = emptyList<WeakReference<ShadowListKitListView>>()
@@ -79,7 +80,14 @@ open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?)
   /*
    * Called before the cell is handed out again by dequeueReusableCell.
    */
-  open fun prepareForReuse() {}
+  open fun prepareForReuse() { clearSwipeAccessibility() }
+
+  internal fun clearSwipeAccessibility() { swipeAccessibility?.clear() }
+
+  override fun onDetachedFromWindow() {
+    clearSwipeAccessibility()
+    super.onDetachedFromWindow()
+  }
 
   open fun setHighlighted(highlighted: Boolean, animated: Boolean) {
     this.highlighted = highlighted
@@ -99,7 +107,14 @@ open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?)
    */
   override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
     super.onInitializeAccessibilityNodeInfo(info)
-    val list = parent as? ShadowListKitListView ?: return
+    val list = parent as? ShadowListKitListView
+    if (list == null) { clearSwipeAccessibility(); return }
+    val actions = swipeAccessibility ?: ShadowListKitSwipeAccessibility(this) {
+      val owner = parent as? ShadowListKitListView
+      if (owner == null) null else owner.swipe to this
+    }.also { swipeAccessibility = it }
+    actions.refresh()
+    actions.appendTo(info)
     refreshBoardActions(list)
     for (at in boardActionIds.indices) {
       info.addAction(AccessibilityNodeInfo.AccessibilityAction(boardActionIds[at], boardActionLabels[at]))

@@ -18,3 +18,6 @@ FOUNDATION_EXPORT const unsigned char ShadowListKitVersionString[];
 #import <ShadowListKit/ShadowListKitItemSizeSpec.h>
 
 #import <ShadowListKit/ShadowListKitViewabilityConfig.h>
+
+#import <ShadowListKit/ShadowListKitItemActionsView.h>
+#import <ShadowListKit/ShadowListKitItemActionsView+Testing.h>

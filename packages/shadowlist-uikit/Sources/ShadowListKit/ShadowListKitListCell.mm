@@ -21,8 +21,10 @@
 {
   NSArray<UIAccessibilityCustomAction *> *own = super.accessibilityCustomActions;
   ShadowListKitListView *list = [self.superview isKindOfClass:ShadowListKitListView.class] ? (id)self.superview : nil;
-  NSArray<UIAccessibilityCustomAction *> *board = [list dragBoardAccessibilityActionsForCell:self];
-  return board.count ? [(own ?: @[]) arrayByAddingObjectsFromArray:board] : own;
+  NSArray<UIAccessibilityCustomAction *> *board = [list dragBoardAccessibilityActionsForCell:self] ?: @[];
+  NSArray<UIAccessibilityCustomAction *> *swipe = [list swipeAccessibilityActionsForCell:self] ?: @[];
+  NSArray<UIAccessibilityCustomAction *> *native = [board arrayByAddingObjectsFromArray:swipe];
+  return native.count ? [(own ?: @[]) arrayByAddingObjectsFromArray:native] : own;
 }
 
 /*

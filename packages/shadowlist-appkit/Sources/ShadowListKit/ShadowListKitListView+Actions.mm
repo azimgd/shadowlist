@@ -121,6 +121,8 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
     [_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)];
 }
 
+- (ShadowListKitListCell *)swipeCell { return _swipeCell; }
+
 - (BOOL)isSwipeOpen
 {
   return _swipeCell != nil;

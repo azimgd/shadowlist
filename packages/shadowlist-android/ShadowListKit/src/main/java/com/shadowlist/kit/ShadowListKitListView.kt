@@ -14,14 +14,12 @@ import android.os.Parcelable
 import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
 import android.view.Menu
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import android.widget.PopupMenu
 import android.widget.TextView
 import androidx.core.view.NestedScrollingChild3
 import androidx.core.view.NestedScrollingChildHelper
@@ -567,6 +565,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
   var dragListLabel: String? = null
   internal val swipe = ShadowListKitSwipeController(this)
+  private val itemContextMenu = ShadowListKitContextMenu()
   internal val refresh = ShadowListKitRefreshIndicator(this)
   private val sectionIndex = ShadowListKitSectionIndex(this)
   internal val selection = ShadowListKitSelection(this)
@@ -751,6 +750,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   override fun onDetachedFromWindow() {
     super.onDetachedFromWindow()
+    itemContextMenu.close()
     stickyPinning.clearOverlay()
     ++viewabilityGeneration
     removeCallbacks(viewabilityTick)
@@ -1022,6 +1022,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val index = if (cell.mountGeneration != 0L) cell.index else ShadowListKitListCell.NO_INDEX
     cell.mountGeneration = 0L
     swipe.cellWillRecycle(cell)
+    itemContextMenu.cellWillRecycle(cell)
+    cell.clearSwipeAccessibility()
     drag.cellWillRecycle(cell)
     cell.cancelAnimations()
     // A drop cancelled part way leaves its lift: the next row would show raised and scaled.
@@ -2252,14 +2254,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * Show a row's context menu. Returns whether the delegate gave one.
    */
   internal fun showMenu(cell: ShadowListKitListCell): Boolean {
-    val delegate = delegate ?: return false
-    if (cell.index < 0 || swipe.isOpen || swipe.closingTouch) return false
-    val popup = PopupMenu(context, cell)
-    if (!delegate.contextMenuForItem(this, cell.index, popup.menu) || popup.menu.size() == 0) return false
-    cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-    popup.show()
-    return true
+    val provider = delegate ?: return false
+    if (!isCurrentActionCell(cell) || swipe.isOpen || swipe.closingTouch) return false
+    val row = cell.row
+    val index = cell.index
+    val generation = cell.mountGeneration
+    val key = keys.getOrNull(row)
+    return itemContextMenu.show(cell, { provider.contextMenuForItem(this, index, it) }, {
+      delegate === provider && isCurrentActionCell(cell) && cell.row == row && cell.index == index &&
+        cell.mountGeneration == generation && keys.getOrNull(row) == key && !swipe.isOpen && !swipe.closingTouch
+    })
   }
+
+  internal fun isCurrentActionCell(cell: ShadowListKitListCell): Boolean =
+    isAttachedToWindow && cell.parent === this && cell.isShown && cell.row >= 0 && cell.index >= 0 &&
+      keys.getOrNull(cell.row)?.let { mounted[it] === cell } == true && itemForRow(cell.row) == cell.index
 
   /*
    * Tell the delegate of a hold on an item without a menu. Returns whether it took the long press.

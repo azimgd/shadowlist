@@ -4,6 +4,10 @@
 #import "ShadowListKitCoreBridge.h"
 #import "ShadowListKitListCell+Private.h"
 #import "ShadowListKitPlatform.h"
+#if !TARGET_OS_OSX
+#import "ShadowListKitSwipeController.h"
+#import "ShadowListKitMenuController.h"
+#endif
 
 #if TARGET_OS_OSX
 #import <ShadowListKit/ShadowListKitScrollEngine.h>
@@ -131,13 +135,14 @@ struct ShadowListKitPassGeometry {
  * _highlightedCell the row a finger rests on or the item the mouse presses.
  * _heldCell is the cell of the held row and _dragTouch the finger or the mouse in the list's
  * coordinates. _dragStart is where the press began. _dragLink scrolls near the edges.
- * _swipeCell is the row swiped open and _swipeActionsView its actions, _swipeOffset how far the
- * row shows moved across the axis and _swipe where it follows and rests.
+ * On the Mac, _swipeCell is the row swiped open and _swipeActionsView its actions, _swipeOffset
+ * how far the row shows moved across the axis and _swipe where it follows and rests. UIKit's
+ * _swipeController owns that reveal session and _menuController owns its native menus.
  * _rowElements holds the rows' accessibility elements by key.
  *
  * iOS: _editing is the list's editing state. _tap selects an item. _dragPress lifts a row and
  * _dragMoved tells a hold that moved from one that only lifted the row. _swipePan moves a row,
- * _menuInteraction and _editMenu show the menus and _pendingMenu is the menu the edit menu shows
+ * _menuController shows the menus
  * next. _longPress hears a hold on an item while the delegate takes long presses.
  * _sectionIndex is the section index view while the data source gives titles for it.
  * _rowElements keeps the stand-ins of rows off screen while accessibility holds them.
@@ -285,10 +290,15 @@ struct ShadowListKitPassGeometry {
   NSString *_dragListLabel;
 #endif
 
+#if TARGET_OS_OSX
   ShadowListKitListCell *_swipeCell;
   ShadowListKitSwipeActionsView *_swipeActionsView;
   azimgd::shadowlist::SwipeReveal _swipe;
   CGFloat _swipeOffset;
+#else
+  ShadowListKitSwipeController *_swipeController;
+  ShadowListKitMenuController *_menuController;
+#endif
 
   NSMapTable<NSString *, ShadowListKitRowAccessibilityElement *> *_rowElements;
 #if !TARGET_OS_OSX
@@ -347,9 +357,6 @@ struct ShadowListKitPassGeometry {
   BOOL _dragMoved;
 
   UIPanGestureRecognizer *_swipePan;
-  UIContextMenuInteraction *_menuInteraction;
-  UIEditMenuInteraction *_editMenu;
-  UIMenu *_pendingMenu;
   UILongPressGestureRecognizer *_longPress;
 
   ShadowListKitSectionIndexView *_sectionIndex;
@@ -630,6 +637,7 @@ struct ShadowListKitPassGeometry {
 - (void)updateSwipesItems;
 - (BOOL)swipeWithScrollWheel:(NSEvent *)event;
 - (BOOL)isSwipeOpen;
+- (nullable ShadowListKitListCell *)swipeCell;
 - (BOOL)isSwipedOutCell:(ShadowListKitListCell *)cell;
 - (void)closeSwipeAnimated:(BOOL)animated;
 - (BOOL)swipeOwnsClickAtPoint:(NSPoint)point;
@@ -689,11 +697,12 @@ struct ShadowListKitPassGeometry {
  * showMenuForCell:atPoint: shows a held row's menu and returns whether it has one.
  * longPressCell: tells the delegate of a hold on an item without a menu.
  */
-@interface ShadowListKitListView (Actions) <UIContextMenuInteractionDelegate, UIEditMenuInteractionDelegate>
+@interface ShadowListKitListView (Actions) <ShadowListKitSwipeHost, ShadowListKitMenuHost>
 
 - (void)installActionGestures;
 - (void)layoutSwipe;
 - (BOOL)isSwipeOpen;
+- (nullable ShadowListKitListCell *)swipeCell;
 - (void)closeSwipeAnimated:(BOOL)animated;
 - (BOOL)swipeOwnsTapAtPoint:(CGPoint)point;
 - (BOOL)isSwipedOutCell:(ShadowListKitListCell *)cell;
@@ -703,6 +712,8 @@ struct ShadowListKitPassGeometry {
 - (BOOL)showMenuForCell:(ShadowListKitListCell *)cell atPoint:(CGPoint)point;
 - (void)longPressCell:(ShadowListKitListCell *)cell;
 - (void)scriptSwipeOfCell:(ShadowListKitListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity;
+- (NSArray<UIAccessibilityCustomAction *> *)swipeAccessibilityActionsForCell:(ShadowListKitListCell *)cell;
+- (BOOL)isCurrentActionCell:(UIView *)content;
 
 @end
 #endif

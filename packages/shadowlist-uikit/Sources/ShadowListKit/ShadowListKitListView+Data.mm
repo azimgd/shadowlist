@@ -457,7 +457,7 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   [self invalidateStickyHeaderOverlay];
   ++_structureVersion;
   // An open row closes. One swiped all the way stays out while its delete runs.
-  if ([self isSwipeOpen] && ![self isSwipedOutCell:_swipeCell]) {
+  if ([self isSwipeOpen] && ![self isSwipedOutCell:[self swipeCell]]) {
     [self closeSwipeAnimated:NO];
   }
   if (_stickyIndices.count > 0 || _stickySectionHeaders) {

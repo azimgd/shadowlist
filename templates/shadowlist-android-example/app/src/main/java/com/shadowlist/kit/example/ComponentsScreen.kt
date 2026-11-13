@@ -6,6 +6,8 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.shadowlist.kit.ShadowListKitSwipeAction
+import com.shadowlist.kit.ShadowListKitSwipeActionsConfiguration
 import com.shadowlist.utils.*
 
 /* Real public-component consumer. Callbacks change application state, never library models. */
@@ -120,11 +122,52 @@ class ComponentsScreen(private val context: Context) : Screen {
     append(ShadowListUtilsGroupedCaption(context, "Trip preparation", theme))
     append(segmented); append(bar)
     content.addView(ring, LinearLayout.LayoutParams(52.dp, 52.dp).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL; bottomMargin = 16.dp })
+    appendGroupedActions()
     val latest = ShadowListUtilsAssistantScrollButton(context, theme).apply {
       visible = true
       onPress = { scroll.smoothScrollTo(0, 0); status.text = "Returned to the first component" }
     }
     content.addView(latest, LinearLayout.LayoutParams(36.dp, 36.dp).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL; bottomMargin = 16.dp })
+  }
+
+  private fun appendGroupedActions() {
+    append(ShadowListUtilsGroupedCaption(context, "Reservation actions", theme))
+    val row = ShadowListUtilsGroupedRow(context, "Reservation", theme).apply {
+      subtitle = "Kyoto, Tuesday"
+      accessibilityRole = ShadowListUtilsGroupedRowAccessibilityRole.LINK
+      testID = "reservation-row"
+      leading = Button(context).apply { text = "Map"; setOnClickListener { status.text = "Map opened" } }
+      trailing = TextView(context).apply { text = "2 nights"; setTextColor(theme.colors.secondaryLabel) }
+      onPress = { status.text = "Reservation opened" }
+      onLongPress = { status.text = "Reservation details" }
+      longPressLabel = "Reservation details"
+      trailingSwipeActions = ShadowListKitSwipeActionsConfiguration(listOf(
+        ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.DESTRUCTIVE, "Remove") { _, done ->
+          title = "Reservation removed"; status.text = "Reservation removed"; done(true)
+        })).apply { performsFirstActionWithFullSwipe = false }
+      contextMenu = { menu ->
+        menu.add("Inspect reservation").setOnMenuItemClickListener { status.text = "Reservation menu inspected"; true }
+        true
+      }
+    }
+    val disabled = ShadowListUtilsGroupedRow(context, "Read-only reservation", theme).apply {
+      subtitle = "Actions remain available"; this.disabled = true; separated = true
+      onPress = { status.text = "Unexpected disabled primary press" }
+      leadingSwipeActions = ShadowListKitSwipeActionsConfiguration(listOf(
+        ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Save") { _, done -> status.text = "Read-only reservation saved"; done(true) }))
+      contextMenu = { menu ->
+        menu.add("Inspect read-only reservation").setOnMenuItemClickListener { status.text = "Read-only menu inspected"; true }
+        true
+      }
+    }
+    append(ShadowListUtilsGroupedCard(context, listOf(row, disabled), theme))
+    val booking = Button(context).apply { text = "Swipe this booking"; setOnClickListener { status.text = "Booking opened" } }
+    val standalone = ShadowListUtilsGroupedActions(context, listOf(booking), theme).apply {
+      trailingSwipeActions = ShadowListKitSwipeActionsConfiguration(listOf(
+        ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Save booking") { _, done -> status.text = "Booking saved"; done(true) }))
+      contextMenu = { menu -> menu.add("Inspect booking").setOnMenuItemClickListener { status.text = "Booking menu inspected"; true }; true }
+    }
+    append(standalone)
   }
   private fun append(child: View) {
     content.addView(child, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 16.dp })

@@ -42,7 +42,9 @@ typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
 /*
  * The actions of one side of an item. The first action is nearest the edge. With
  * performsFirstActionWithFullSwipe, the default, swiping the item all the way performs it, like
- * swipe to dismiss.
+ * swipe to dismiss. Applying a default destructive color creates a configuration with that
+ * color only on destructive actions without an explicit color. Caller actions stay unchanged;
+ * their images, handlers and the full-swipe setting are preserved.
  */
 @interface ShadowListKitSwipeActionsConfiguration : NSObject
 
@@ -50,6 +52,14 @@ typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
 
 @property (nonatomic, copy, readonly) NSArray<ShadowListKitSwipeAction *> *actions;
 @property (nonatomic) BOOL performsFirstActionWithFullSwipe;
+
+#if TARGET_OS_OSX
+- (instancetype)configurationByApplyingDefaultDestructiveColor:(NSColor *)color
+  NS_SWIFT_NAME(applying(defaultDestructiveColor:));
+#else
+- (instancetype)configurationByApplyingDefaultDestructiveColor:(UIColor *)color
+  NS_SWIFT_NAME(applying(defaultDestructiveColor:));
+#endif
 
 @end
 

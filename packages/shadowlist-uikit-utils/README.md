@@ -414,7 +414,7 @@ let form = ShadowListUtilsFormCard(children: [save])
 let section = ShadowListUtilsGroupedSection(title: "Account", children: [value])
 ```
 
-Grouped.Row/Actions and the remaining Controls are separate parity milestones.
+The public controls and Grouped.Row/Actions APIs are documented below; complete visual and list conformance remains a separate validation task.
 
 ### Controlled form and text fields
 
@@ -511,3 +511,28 @@ equal-width options) or `.compact` (34 points, natural widths). The optional inh
 `accessibilityLabel` labels the group and selected options retain their full labels. Native
 frame/layout APIs take the place of RN's style prop. Components demonstrates repeated Book
 requests and application-owned progress updates.
+
+### Grouped rows and native actions
+
+`ShadowListUtilsGroupedActions` wraps caller-owned native children with the existing Kit
+`ItemActionsView` swipe/menu surface. Leading/trailing configurations and handlers are the
+existing Kit types. A destructive action with no explicit color takes the current theme red;
+the wrapper derives a copy from the original configuration, preserving explicit colors, images,
+handlers and full-swipe policy. Changing the wrapper theme recomputes that copy. Children own
+their backgrounds and retain their transforms, accessibility flags and native actions.
+
+`ShadowListUtilsGroupedRow` has `title`, optional `subtitle`, `subtitleLines` (1), optional native
+`leading`/`trailing` views, `chevron` (theme default), `onPress`, `onLongPress`, `longPressLabel`,
+`disabled` (false), and `separated` (false). Missing `onPress` keeps normal styling. The separator
+starts at the text body, and accessibility-sized text permits three title lines and at least
+three subtitle lines. `accessibilityRole` selects button/link; native `testID` identifies the row.
+The primary accessible label is the title, followed by the subtitle when present.
+
+Disabled dims and disables the primary touch target; configured swipe/menu actions remain
+independent. The labelled custom accessibility long-press action is offered when both callback
+and label exist, matching RN's existing handler even while the physical primary is disabled.
+Native gesture/menu ownership suppresses a primary release after presenting a menu; no copied
+RN press-delay timer is used. `closeSwipeActions(animated:)` closes an open reveal.
+
+UIKit uses `UIMenu` and `.button` / `.link`. `onContextMenuWillShow` follows the native menu
+interaction. `testID` maps to `accessibilityIdentifier`; native sizing/layout replaces RN style.

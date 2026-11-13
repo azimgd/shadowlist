@@ -1,0 +1,1 @@
+../../../shadowlist-uikit-utils/Tests/ShadowListUtilsTests/SwipeActionsConfigurationTests.swift

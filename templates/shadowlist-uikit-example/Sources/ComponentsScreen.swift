@@ -1,4 +1,5 @@
 import ShadowListUtils
+import ShadowListKit
 import UIKit
 
 /* A real consumer of the exported components; all application state stays on this screen. */
@@ -153,6 +154,7 @@ final class ComponentsScreen: UIViewController {
     ring.translatesAutoresizingMaskIntoConstraints = false; ringContainer.addSubview(ring)
     NSLayoutConstraint.activate([ring.widthAnchor.constraint(equalToConstant: 52), ring.heightAnchor.constraint(equalToConstant: 52), ring.centerXAnchor.constraint(equalTo: ringContainer.centerXAnchor), ring.topAnchor.constraint(equalTo: ringContainer.topAnchor), ring.bottomAnchor.constraint(equalTo: ringContainer.bottomAnchor)])
     stack.addArrangedSubview(ringContainer)
+    appendGroupedActions()
     latest.visible = true
     latest.onPress = { [weak self] in self?.scroll.setContentOffset(.zero, animated: true); self?.status.text = "Returned to the first component" }
     let latestContainer = UIView()
@@ -160,6 +162,44 @@ final class ComponentsScreen: UIViewController {
     latestContainer.addSubview(latest)
     NSLayoutConstraint.activate([latest.widthAnchor.constraint(equalToConstant: 36), latest.heightAnchor.constraint(equalToConstant: 36), latest.centerXAnchor.constraint(equalTo: latestContainer.centerXAnchor), latest.topAnchor.constraint(equalTo: latestContainer.topAnchor), latest.bottomAnchor.constraint(equalTo: latestContainer.bottomAnchor)])
     stack.addArrangedSubview(latestContainer)
+  }
+
+  private func appendGroupedActions() {
+    stack.addArrangedSubview(ShadowListUtilsGroupedCaption(title: "Reservation actions", theme: theme))
+    let row = ShadowListUtilsGroupedRow(title: "Reservation", theme: theme)
+    row.subtitle = "Kyoto, Tuesday"; row.accessibilityRole = .link; row.testID = "reservation-row"
+    let map = UIButton(type: .system); map.setTitle("Map", for: .normal)
+    map.addAction(UIAction { [weak self] _ in self?.status.text = "Map opened" }, for: .touchUpInside)
+    row.leading = map
+    let nights = UILabel(); nights.text = "2 nights"; nights.textColor = theme.colors.secondaryLabel
+    row.trailing = nights
+    row.onPress = { [weak self] in self?.status.text = "Reservation opened" }
+    row.onLongPress = { [weak self] in self?.status.text = "Reservation details" }; row.longPressLabel = "Reservation details"
+    row.trailingSwipeActions = ShadowListKitSwipeActionsConfiguration(actions: [
+      ShadowListKitSwipeAction(style: .destructive, title: "Remove") { [weak self, weak row] _, done in
+        row?.title = "Reservation removed"; self?.status.text = "Reservation removed"; done(true)
+      },
+    ])
+    row.trailingSwipeActions?.performsFirstActionWithFullSwipe = false
+    row.contextMenu = UIMenu(children: [UIAction(title: "Inspect reservation") { [weak self] _ in self?.status.text = "Reservation menu inspected" }])
+    let disabled = ShadowListUtilsGroupedRow(title: "Read-only reservation", theme: theme)
+    disabled.subtitle = "Actions remain available"; disabled.disabled = true; disabled.separated = true
+    disabled.onPress = { [weak self] in self?.status.text = "Unexpected disabled primary press" }
+    disabled.leadingSwipeActions = ShadowListKitSwipeActionsConfiguration(actions: [
+      ShadowListKitSwipeAction(style: .normal, title: "Save") { [weak self] _, done in self?.status.text = "Read-only reservation saved"; done(true) },
+    ])
+    disabled.contextMenu = UIMenu(children: [UIAction(title: "Inspect read-only reservation") { [weak self] _ in self?.status.text = "Read-only menu inspected" }])
+    stack.addArrangedSubview(ShadowListUtilsGroupedCard(children: [row, disabled], theme: theme))
+    let booking = UIButton(type: .system); booking.setTitle("Swipe this booking", for: .normal)
+    booking.backgroundColor = theme.colors.groupedCell
+    booking.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+    booking.addAction(UIAction { [weak self] _ in self?.status.text = "Booking opened" }, for: .touchUpInside)
+    let standalone = ShadowListUtilsGroupedActions(children: [booking], theme: theme)
+    standalone.trailingSwipeActions = ShadowListKitSwipeActionsConfiguration(actions: [
+      ShadowListKitSwipeAction(style: .normal, title: "Save booking") { [weak self] _, done in self?.status.text = "Booking saved"; done(true) },
+    ])
+    standalone.contextMenu = UIMenu(children: [UIAction(title: "Inspect booking") { [weak self] _ in self?.status.text = "Booking menu inspected" }])
+    stack.addArrangedSubview(standalone)
   }
 
   override func viewDidLayoutSubviews() {

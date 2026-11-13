@@ -3,6 +3,10 @@
 
 #pragma mark - Swipe actions
 
+@interface ShadowListKitSwipeAction ()
+- (ShadowListKitSwipeAction *)actionByApplyingDefaultDestructiveColor:(ShadowListKitColor *)color;
+@end
+
 @implementation ShadowListKitSwipeAction
 
 + (instancetype)actionWithStyle:(ShadowListKitSwipeActionStyle)style
@@ -24,6 +28,17 @@
   return _style == ShadowListKitSwipeActionStyleDestructive ? [ShadowListKitColor systemRedColor] : [ShadowListKitColor systemGrayColor];
 }
 
+- (ShadowListKitSwipeAction *)actionByApplyingDefaultDestructiveColor:(ShadowListKitColor *)color
+{
+  if (_style != ShadowListKitSwipeActionStyleDestructive || _backgroundColor != nil) {
+    return self;
+  }
+  ShadowListKitSwipeAction *action = [ShadowListKitSwipeAction actionWithStyle:_style title:_title handler:_handler];
+  action.image = _image;
+  action.backgroundColor = color;
+  return action;
+}
+
 @end
 
 @implementation ShadowListKitSwipeActionsConfiguration
@@ -33,6 +48,17 @@
   ShadowListKitSwipeActionsConfiguration *configuration = [ShadowListKitSwipeActionsConfiguration new];
   configuration->_actions = [actions copy];
   configuration->_performsFirstActionWithFullSwipe = YES;
+  return configuration;
+}
+
+- (instancetype)configurationByApplyingDefaultDestructiveColor:(ShadowListKitColor *)color
+{
+  NSMutableArray<ShadowListKitSwipeAction *> *actions = [NSMutableArray arrayWithCapacity:_actions.count];
+  for (ShadowListKitSwipeAction *action in _actions) {
+    [actions addObject:[action actionByApplyingDefaultDestructiveColor:color]];
+  }
+  ShadowListKitSwipeActionsConfiguration *configuration = [ShadowListKitSwipeActionsConfiguration configurationWithActions:actions];
+  configuration.performsFirstActionWithFullSwipe = _performsFirstActionWithFullSwipe;
   return configuration;
 }
 
