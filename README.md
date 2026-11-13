@@ -171,7 +171,6 @@ list.reloadData();
 | `packages/shadowlist-android-utils` | List templates for Android views, on the Android list |
 | `packages/shadowlist-wasm` | Web list, on the core in WebAssembly |
 | `packages/shadowlist-utils` | List helpers, hooks and React Native list kits |
-| `packages/shadowhash` | Compact, size independent placeholders for text and posts |
 | `templates/shadowlist-fabric-example` | React Native example app for iOS and Android |
 | `templates/shadowlist-macos-example` | React Native macOS example app |
 | `templates/shadowlist-uikit-example` | UIKit example app |
@@ -225,7 +224,7 @@ The web example documents its flags in [its package README](packages/shadowlist-
 | --- | --- |
 | `yarn lint` | ESLint over the repo |
 | `yarn typecheck` | TypeScript for the library, the utils, the example apps and `shadowlist-wasm` |
-| `yarn test` | Jest for `shadowlist`, `shadowlist-utils` and `shadowhash` |
+| `yarn test` | Jest for `shadowlist` and `shadowlist-utils` |
 | `yarn test:core` | Builds `packages/shadowlist-core-tests` with CMake and runs it with ctest |
 | `yarn build:wasm` | Builds `shadowlist-wasm` into its `dist/` with Emscripten |
 | `yarn test:wasm` | Node tests for `shadowlist-wasm`, after `yarn build:wasm` |

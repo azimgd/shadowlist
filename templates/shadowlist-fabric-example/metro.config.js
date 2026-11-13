@@ -5,7 +5,6 @@ const { withMetroConfig } = require('react-native-monorepo-config');
 const monorepoRoot = path.resolve(__dirname, '../..');
 const libraryRoot = path.resolve(__dirname, '../../packages/shadowlist-fabric');
 const utilsRoot = path.resolve(__dirname, '../../packages/shadowlist-utils');
-const shadowhashRoot = path.resolve(__dirname, '../../packages/shadowhash');
 
 /** @type {import('metro-config').MetroConfig} */
 const config = withMetroConfig(getDefaultConfig(__dirname), {
@@ -20,7 +19,6 @@ config.resolver = config.resolver || {};
 config.resolver.extraNodeModules = {
   ...(config.resolver.extraNodeModules || {}),
   'shadowlist-utils': utilsRoot,
-  'shadowhash': shadowhashRoot,
 };
 
 config.resolver.nodeModulesPaths = [

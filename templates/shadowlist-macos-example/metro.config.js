@@ -3,16 +3,15 @@ const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 
 const libraryRoot = path.resolve(__dirname, '../../packages/shadowlist-fabric');
 const utilsRoot = path.resolve(__dirname, '../../packages/shadowlist-utils');
-const shadowhashRoot = path.resolve(__dirname, '../../packages/shadowhash');
 const exampleSrc = path.resolve(__dirname, '../shadowlist-fabric-example/src');
 const macosRoot = path.dirname(
   require.resolve('react-native-macos/package.json')
 );
 
-const workspacePackages = ['shadowlist', 'shadowlist-utils', 'shadowhash'];
+const workspacePackages = ['shadowlist', 'shadowlist-utils'];
 
 module.exports = mergeConfig(getDefaultConfig(__dirname), {
-  watchFolders: [libraryRoot, utilsRoot, shadowhashRoot, exampleSrc],
+  watchFolders: [libraryRoot, utilsRoot, exampleSrc],
   resolver: {
     // A `.macos.*` extension has to be a candidate before one can be picked.
     platforms: [...getDefaultConfig(__dirname).resolver.platforms, 'macos'],
@@ -23,7 +22,6 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), {
     extraNodeModules: {
       'shadowlist': libraryRoot,
       'shadowlist-utils': utilsRoot,
-      'shadowhash': shadowhashRoot,
     },
     resolveRequest(context, moduleName, platform) {
       if (

@@ -10,8 +10,7 @@ import {
 import { createStyles } from '../theme';
 
 /*
- * children are the stand-in words, such as shadowhash's placeholderText. They are laid out but
- * never shown.
+ * children are stand-in words. They are laid out but never shown.
  */
 export interface RedactedTextProps {
   children: string;
