@@ -102,6 +102,24 @@ class ComponentsScreen(private val context: Context) : Screen {
     train.onPress = { train.isSelected = true; flight.isSelected = false; status.text = "Train selected" }
     flight.onPress = { train.isSelected = false; flight.isSelected = true; status.text = "Flight selected" }
     append(chips)
+    val segmented = ShadowListUtilsSegmented(context, listOf(
+      ShadowListUtilsSegmentedOption("plan", "Plan"),
+      ShadowListUtilsSegmentedOption("book", "Book"),
+      ShadowListUtilsSegmentedOption("travel", "Travel"),
+    ), "plan", theme).apply { accessibilityLabel = "Trip stage" }
+    val bar = ShadowListUtilsProgressBar(context, 0.285, "Trip preparation progress", theme = theme)
+    val ring = ShadowListUtilsProgressRing(context, 0.285, theme = theme)
+    var requests = 0
+    segmented.onChange = { id ->
+      requests += 1; segmented.value = id
+      bar.fraction = when (id) { "plan" -> 0.285; "book" -> 0.5; else -> 1.0 }
+      ring.fraction = bar.fraction
+      val label = segmented.options.firstOrNull { it.id == id }?.label ?: id
+      status.text = "$label selected ($requests requests)"
+    }
+    append(ShadowListUtilsGroupedCaption(context, "Trip preparation", theme))
+    append(segmented); append(bar)
+    content.addView(ring, LinearLayout.LayoutParams(52.dp, 52.dp).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL; bottomMargin = 16.dp })
     val latest = ShadowListUtilsAssistantScrollButton(context, theme).apply {
       visible = true
       onPress = { scroll.smoothScrollTo(0, 0); status.text = "Returned to the first component" }

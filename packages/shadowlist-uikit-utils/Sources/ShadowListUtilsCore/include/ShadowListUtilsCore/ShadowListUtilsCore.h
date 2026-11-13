@@ -148,6 +148,9 @@ NS_SWIFT_SENDABLE
 + (NSString *)sectionOtherTitle;
 + (ShadowListUtilsPollTally)pollTallyForVotes:(NSArray<NSNumber *> *)votes;
 + (NSInteger)pollPercentForVotes:(double)votes totalVotes:(double)totalVotes;
+/* Shared finite fraction clamp and whole accessibility percent used by native progress views. */
++ (double)clampFraction:(double)fraction;
++ (NSInteger)progressPercent:(double)fraction;
 + (ShadowListUtilsBoardColumnLayout)boardColumnLayoutForWidth:(CGFloat)boardWidth columnWidth:(CGFloat)columnWidth sidePadding:(CGFloat)sidePadding;
 + (CGFloat)boardColumnHeightForHeights:(NSArray<NSNumber *> *)heights minimum:(CGFloat)minimum maximum:(CGFloat)maximum;
 

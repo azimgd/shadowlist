@@ -25,6 +25,7 @@ import { moveBoardItem } from '../board/moveBoardItem';
 import type { BoardColumn } from '../board/types';
 import { getChatMessageSizeSpec } from '../chat/sizeSpec';
 import { groupContactsIntoSections } from '../contacts/contactSections';
+import { clampFraction } from '../controls/clampFraction';
 import { getSingleImageFrame } from '../feed/singleImageFrame';
 import { formatRelativeTime } from '../formatRelativeTime';
 import { getPollPercent, getPollTally } from '../poll/pollTally';
@@ -410,6 +411,14 @@ describe('vectors', () => {
               at: step.at,
             }
       );
+    });
+  });
+
+  it('progress.json', () => {
+    replayVectors('progress.json', ({ input }) => {
+      const { fraction } = input as { fraction: number | null };
+      const clamped = clampFraction(fraction ?? Number.NaN);
+      return { fraction: clamped, percent: Math.round(clamped * 100) };
     });
   });
 

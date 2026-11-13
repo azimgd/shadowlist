@@ -35,6 +35,7 @@ const VECTOR_FILES = {
     'group-into-sections.json',
     'markdown.json',
     'poll.json',
+    'progress.json',
     'relative-time.json',
     'theme.json',
   ],

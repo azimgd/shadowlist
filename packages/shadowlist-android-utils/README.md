@@ -489,3 +489,22 @@ native RTL frame mirroring. Child identity and order remain application-owned.
 
 The Components route demonstrates toggling and removing Direct routes, clearing a compact
 monospaced seat preference without a primary press handler, and controlled Train/Flight choices.
+
+### Progress and segmented choices
+
+`ShadowListUtilsProgressBar(context, fraction, accessibilityLabel)` takes a Double fraction,
+clamps finite values to 0...1 using the shared rule, and treats nonfinite values as zero.
+Its read-only accessibility range uses the same rounding as RN; 0.285 reports 28%. The
+constructor height defaults to 6dp; `setHeight(dp)` changes it without conflicting with
+Android View's measured `height`. `color` defaults to the theme accent and the track to fill.
+`ShadowListUtilsProgressRing(context, fraction, size, strokeWidth)` defaults to 52dp and 7dp,
+fills clockwise from twelve, and is decorative. `color` and `trackColor` override accent
+and accent-soft. Both retain Double precision until painting and update without animation.
+
+`ShadowListUtilsSegmented(context, options, value)` uses
+`ShadowListUtilsSegmentedOption(id, label)`, controlled `value`, and `onChange(id)`. A
+selected-option tap still invokes the callback; setting `value` or replacing `options` never
+does. `size` defaults to `REGULAR` (36dp, equal-width options); `COMPACT` is 34dp with natural
+widths. Optional `accessibilityLabel` labels the group, with native tab/selected metadata on
+the options. Standard native layout parameters replace RN's style prop. Components shows
+repeated Book requests and application-owned progress updates.

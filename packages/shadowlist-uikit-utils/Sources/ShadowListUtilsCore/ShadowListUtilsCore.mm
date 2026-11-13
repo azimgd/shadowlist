@@ -7,6 +7,7 @@
 #include <shadowlist-core/utils/ContactSection.hpp>
 #include <shadowlist-core/utils/FeedImageFrame.hpp>
 #include <shadowlist-core/utils/PollTally.hpp>
+#include <shadowlist-core/utils/Progress.hpp>
 #include <shadowlist-core/utils/MarkdownDocument.hpp>
 #include <shadowlist-core/utils/Text.hpp>
 #include <shadowlist-core/utils/RelativeTime.hpp>
@@ -198,6 +199,16 @@ static NSString *makeString(const std::string& text)
 }
 
 #pragma mark - Board
+
++ (double)clampFraction:(double)fraction
+{
+  return azimgd::shadowlist::clampFraction(fraction);
+}
+
++ (NSInteger)progressPercent:(double)fraction
+{
+  return azimgd::shadowlist::progressPercent(fraction);
+}
 
 + (ShadowListUtilsBoardColumnLayout)boardColumnLayoutForWidth:(CGFloat)boardWidth columnWidth:(CGFloat)columnWidth sidePadding:(CGFloat)sidePadding
 {

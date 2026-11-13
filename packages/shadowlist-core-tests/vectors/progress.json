@@ -1,0 +1,132 @@
+[
+  {
+    "name": "negative",
+    "input": {
+      "fraction": -1.5
+    },
+    "output": {
+      "fraction": 0,
+      "percent": 0
+    }
+  },
+  {
+    "name": "zero",
+    "input": {
+      "fraction": 0
+    },
+    "output": {
+      "fraction": 0,
+      "percent": 0
+    }
+  },
+  {
+    "name": "below first half",
+    "input": {
+      "fraction": 0.0049
+    },
+    "output": {
+      "fraction": 0.0049,
+      "percent": 0
+    }
+  },
+  {
+    "name": "first half",
+    "input": {
+      "fraction": 0.005
+    },
+    "output": {
+      "fraction": 0.005,
+      "percent": 1
+    }
+  },
+  {
+    "name": "below twelve half",
+    "input": {
+      "fraction": 0.1249
+    },
+    "output": {
+      "fraction": 0.1249,
+      "percent": 12
+    }
+  },
+  {
+    "name": "twelve half",
+    "input": {
+      "fraction": 0.125
+    },
+    "output": {
+      "fraction": 0.125,
+      "percent": 13
+    }
+  },
+  {
+    "name": "binary decimal below half 0.285",
+    "input": {
+      "fraction": 0.285
+    },
+    "output": {
+      "fraction": 0.285,
+      "percent": 28
+    }
+  },
+  {
+    "name": "decimal half 0.295",
+    "input": {
+      "fraction": 0.295
+    },
+    "output": {
+      "fraction": 0.295,
+      "percent": 30
+    }
+  },
+  {
+    "name": "half",
+    "input": {
+      "fraction": 0.5
+    },
+    "output": {
+      "fraction": 0.5,
+      "percent": 50
+    }
+  },
+  {
+    "name": "last half",
+    "input": {
+      "fraction": 0.995
+    },
+    "output": {
+      "fraction": 0.995,
+      "percent": 100
+    }
+  },
+  {
+    "name": "complete",
+    "input": {
+      "fraction": 1
+    },
+    "output": {
+      "fraction": 1,
+      "percent": 100
+    }
+  },
+  {
+    "name": "above complete",
+    "input": {
+      "fraction": 2
+    },
+    "output": {
+      "fraction": 1,
+      "percent": 100
+    }
+  },
+  {
+    "name": "nonfinite",
+    "input": {
+      "fraction": null
+    },
+    "output": {
+      "fraction": 0,
+      "percent": 0
+    }
+  }
+]

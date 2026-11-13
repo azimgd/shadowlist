@@ -130,6 +130,29 @@ final class ComponentsScreen: UIViewController {
       train?.selected = false; flight?.selected = true; self?.status.text = "Flight selected"
     }
     stack.addArrangedSubview(chips)
+    let segmented = ShadowListUtilsSegmented(options: [
+      ShadowListUtilsSegmentedOption(id: "plan", label: "Plan"),
+      ShadowListUtilsSegmentedOption(id: "book", label: "Book"),
+      ShadowListUtilsSegmentedOption(id: "travel", label: "Travel"),
+    ], value: "plan", theme: theme)
+    segmented.accessibilityLabel = "Trip stage"
+    let bar = ShadowListUtilsProgressBar(fraction: 0.285, accessibilityLabel: "Trip preparation progress", theme: theme)
+    let ring = ShadowListUtilsProgressRing(fraction: 0.285, theme: theme)
+    var requests = 0
+    segmented.onChange = { [weak self, weak segmented, weak bar, weak ring] id in
+      guard let segmented, let bar else { return }
+      requests += 1; segmented.value = id
+      bar.fraction = id == "plan" ? 0.285 : id == "book" ? 0.5 : 1
+      ring?.fraction = bar.fraction
+      let label = segmented.options.first(where: { $0.id == id })?.label ?? id
+      self?.status.text = "\(label) selected (\(requests) requests)"
+    }
+    stack.addArrangedSubview(ShadowListUtilsGroupedCaption(title: "Trip preparation", theme: theme))
+    stack.addArrangedSubview(segmented); stack.addArrangedSubview(bar)
+    let ringContainer = UIView()
+    ring.translatesAutoresizingMaskIntoConstraints = false; ringContainer.addSubview(ring)
+    NSLayoutConstraint.activate([ring.widthAnchor.constraint(equalToConstant: 52), ring.heightAnchor.constraint(equalToConstant: 52), ring.centerXAnchor.constraint(equalTo: ringContainer.centerXAnchor), ring.topAnchor.constraint(equalTo: ringContainer.topAnchor), ring.bottomAnchor.constraint(equalTo: ringContainer.bottomAnchor)])
+    stack.addArrangedSubview(ringContainer)
     latest.visible = true
     latest.onPress = { [weak self] in self?.scroll.setContentOffset(.zero, animated: true); self?.status.text = "Returned to the first component" }
     let latestContainer = UIView()

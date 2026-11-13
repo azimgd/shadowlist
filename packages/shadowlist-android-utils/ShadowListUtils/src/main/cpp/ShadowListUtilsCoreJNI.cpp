@@ -18,6 +18,7 @@
 #include <shadowlist-core/utils/ContactSection.hpp>
 #include <shadowlist-core/utils/FeedImageFrame.hpp>
 #include <shadowlist-core/utils/PollTally.hpp>
+#include <shadowlist-core/utils/Progress.hpp>
 #include <shadowlist-core/utils/MarkdownDocument.hpp>
 #include <shadowlist-core/utils/RelativeTime.hpp>
 #include <shadowlist-core/utils/Text.hpp>
@@ -288,6 +289,14 @@ JNIEXPORT void JNICALL SHADOWLIST_UTILS_JNI(nativePollTally)(JNIEnv* env, jclass
   values[POLL_OUT_TOTAL_VOTES] = tally.totalVotes;
   values[POLL_OUT_LEADING_INDEX] = tally.leadingIndex == sl::UNDEFINED_INDEX ? -1.0 : static_cast<double>(tally.leadingIndex);
   env->SetDoubleArrayRegion(out, 0, POLL_OUT_SLOTS, values);
+}
+
+JNIEXPORT jdouble JNICALL SHADOWLIST_UTILS_JNI(nativeClampFraction)(JNIEnv*, jclass, jdouble fraction) {
+  return sl::clampFraction(fraction);
+}
+
+JNIEXPORT jint JNICALL SHADOWLIST_UTILS_JNI(nativeProgressPercent)(JNIEnv*, jclass, jdouble fraction) {
+  return static_cast<jint>(sl::progressPercent(fraction));
 }
 
 JNIEXPORT jint JNICALL SHADOWLIST_UTILS_JNI(nativePollPercent)(JNIEnv*, jclass, jdouble votes, jdouble totalVotes) {

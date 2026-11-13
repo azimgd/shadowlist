@@ -155,6 +155,11 @@ internal object ShadowListUtilsCore {
   fun sectionInitial(name: String): String = nativeSectionInitial(name)
 
   fun pollTally(votes: DoubleArray, out: DoubleArray) = nativePollTally(votes, out)
+  fun clampFraction(fraction: Double): Double = nativeClampFraction(fraction)
+  fun progressPercent(fraction: Double): Int = nativeProgressPercent(fraction)
+  @JvmStatic private external fun nativeClampFraction(fraction: Double): Double
+  @JvmStatic private external fun nativeProgressPercent(fraction: Double): Int
+
   fun pollPercent(votes: Double, totalVotes: Double): Int = nativePollPercent(votes, totalVotes)
 
   const val BOARD_COLUMN_WIDTH = 0

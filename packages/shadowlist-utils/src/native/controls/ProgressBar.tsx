@@ -7,6 +7,9 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { createStyles, useTheme } from '../theme';
+import { clampFraction } from './clampFraction';
+
+export { clampFraction } from './clampFraction';
 
 export interface ProgressBarProps {
   fraction: number;
@@ -52,10 +55,6 @@ export const ProgressBar = memo(
     );
   }
 );
-
-export function clampFraction(fraction: number): number {
-  return Math.max(0, Math.min(1, Number.isFinite(fraction) ? fraction : 0));
-}
 
 const useStyles = createStyles(({ colors }) =>
   StyleSheet.create({
