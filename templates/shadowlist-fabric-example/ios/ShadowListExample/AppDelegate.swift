@@ -5,7 +5,7 @@ import ReactAppDependencyProvider
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
-  var window: UIWindow?
+  private var launchOptions: [UIApplication.LaunchOptionsKey: Any]?
 
   var reactNativeDelegate: ReactNativeDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
@@ -23,13 +23,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     reactNativeDelegate = delegate
     reactNativeFactory = factory
 
-    window = UIWindow(frame: UIScreen.main.bounds)
-
-    factory.startReactNative(
-      withModuleName: "ShadowListExample",
-      in: window,
-      launchOptions: launchOptions
-    )
+    self.launchOptions = launchOptions
 
     if let plan = UserDefaults.standard.string(forKey: "SLAutoFling") {
       AutoFlingDriver.shared.start(plan: plan)
@@ -55,6 +49,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     return true
+  }
+
+  func startReactNative(in window: UIWindow) {
+    reactNativeFactory?.startReactNative(
+      withModuleName: "ShadowListExample",
+      in: window,
+      launchOptions: launchOptions
+    )
   }
 }
 
