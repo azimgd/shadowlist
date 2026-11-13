@@ -36,6 +36,12 @@ android {
     }
   }
 
+  testOptions {
+    // Keep the instrumentation Activity on current focus, inset and gesture policies.
+    // This does not set the library consumer's target SDK.
+    targetSdk = 36
+  }
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17

@@ -2216,7 +2216,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   internal fun showMenu(cell: ShadowListKitListCell): Boolean {
     val delegate = delegate ?: return false
-    if (cell.index < 0 || swipe.isOpen || swipe.closingTouch || editingState) return false
+    if (cell.index < 0 || swipe.isOpen || swipe.closingTouch) return false
     val popup = PopupMenu(context, cell)
     if (!delegate.contextMenuForItem(this, cell.index, popup.menu) || popup.menu.size() == 0) return false
     cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
