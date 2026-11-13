@@ -391,6 +391,13 @@ open class ShadowListKitListView @JvmOverloads constructor(
       field = value
     }
 
+  var viewabilityConfig: ShadowListKitViewabilityConfig? = null
+    set(value) { field = value; sendViewabilityConfigs() }
+  var viewabilityConfigCallbackPairs: List<ShadowListKitViewabilityConfigCallbackPair>? = null
+    set(value) { field = value?.toList(); sendViewabilityConfigs() }
+  var onViewableItemsChanged: ((ShadowListKitViewableItemsChangedInfo) -> Unit)? = null
+    set(value) { field = value; sendViewabilityConfigs() }
+
   /*
    * Predict item sizes on the main thread before cells mount. The callback uses public item
    * indices and logical dp. Null leaves the row to the normal sizing path.
@@ -686,6 +693,17 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   private var showsEmpty = false
 
+  private var viewabilityCallbacks = emptyList<ShadowListKitViewabilityConfigCallbackPair>()
+  private val viewabilityTokens = ArrayList<MutableMap<String, ShadowListKitViewToken>>()
+  private var viewabilityUpdating = false
+  private var viewabilityNeedsUpdate = false
+  private var viewabilityTickPosted = false
+  private var viewabilityGeneration = 0L
+  private val viewabilityTick = Runnable {
+    viewabilityTickPosted = false
+    updateViewability()
+  }
+
   /*
    * The pinning of the header and the footer, see ShadowListKitCore.STICKY_*.
    */
@@ -709,6 +727,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   override fun onDetachedFromWindow() {
     super.onDetachedFromWindow()
+    ++viewabilityGeneration
+    removeCallbacks(viewabilityTick)
+    viewabilityTickPosted = false
+    viewabilityTokens.forEach { it.clear() }
     gesture.reset()
     gesture.releaseTracker()
     drag.reset()
@@ -770,7 +792,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal fun writeOffset(value: Int, byUser: Boolean = false) {
     updateStickyLayout(byUser && value != offset, value + offsetFraction)
     previousOffset = value
-    if (byUser) userScrolled = true
+    if (byUser) {
+      userScrolled = true
+      coreOrNull?.recordInteraction(android.os.SystemClock.uptimeMillis().toDouble())
+    }
     if (horizontal) super.scrollTo(value, 0) else super.scrollTo(0, value)
   }
 
@@ -807,6 +832,71 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * A new core with this list's settings, sticky rows, non anchor keys, sections and keys. Every
    * copy of its output here is dropped and the next layout pass runs it.
    */
+  private fun sendViewabilityConfigs() {
+    ++viewabilityGeneration
+    removeCallbacks(viewabilityTick)
+    viewabilityTickPosted = false
+    viewabilityCallbacks = viewabilityConfigCallbackPairs ?: onViewableItemsChanged?.let {
+      listOf(ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig ?: ShadowListKitViewabilityConfig(), it))
+    } ?: emptyList()
+    while (viewabilityTokens.size > viewabilityCallbacks.size) viewabilityTokens.removeAt(viewabilityTokens.lastIndex)
+    while (viewabilityTokens.size < viewabilityCallbacks.size) viewabilityTokens.add(HashMap())
+    val changed = coreOrNull?.setViewabilityConfigs(viewabilityCallbacks.map { it.viewabilityConfig }, android.os.SystemClock.uptimeMillis().toDouble())
+    changed?.forEach { viewabilityTokens[it] = HashMap() }
+    updateViewability()
+  }
+
+  fun recordInteraction() {
+    if (viewabilityCallbacks.none { it.viewabilityConfig.waitForInteraction }) return
+    core.recordInteraction(android.os.SystemClock.uptimeMillis().toDouble())
+    updateViewability()
+  }
+
+  private fun updateViewability() {
+    if (viewabilityUpdating) { viewabilityNeedsUpdate = true; return }
+    if (!isAttachedToWindow || viewabilityCallbacks.isEmpty()) return
+    val active = coreOrNull ?: return
+    viewabilityUpdating = true
+    viewabilityNeedsUpdate = false
+    val generation = viewabilityGeneration
+    try {
+      val reports = active.updateViewability(exactOffset, windowAlong.toDouble(), android.os.SystemClock.uptimeMillis().toDouble())
+      val events = ArrayList<Pair<Int, ShadowListKitViewableItemsChangedInfo>>()
+      for (report in reports) {
+        if (report.config !in viewabilityTokens.indices) continue
+        val current = HashMap<String, ShadowListKitViewToken>()
+        val viewable = ArrayList<ShadowListKitViewToken>()
+        val changed = ArrayList<ShadowListKitViewToken>()
+        for (key in report.viewable) {
+          val row = active.indexOfKey(key)
+          if (row < 0) continue
+          val index = itemForRow(row)
+          if (index < 0) continue
+          val publicKey = dataSource?.keyForItem(this, index) ?: continue
+          val section = if (dataSource is Sections) sectionForItem(index) else -1
+          val token = ShadowListKitViewToken(publicKey, index, true, section)
+          current[key] = token
+          viewable.add(token)
+        }
+        for (key in report.added) current[key]?.let { changed.add(it) }
+        for (key in report.removed) viewabilityTokens[report.config][key]?.let { changed.add(it.copy(isViewable = false)) }
+        viewabilityTokens[report.config] = current
+        if (changed.isNotEmpty()) events.add(report.config to ShadowListKitViewableItemsChangedInfo(viewable.sortedBy { it.index }, changed.toList()))
+      }
+      for ((config, info) in events) {
+        if (generation != viewabilityGeneration || !isAttachedToWindow) break
+        viewabilityCallbacks.getOrNull(config)?.onViewableItemsChanged?.invoke(info)
+      }
+    } finally {
+      viewabilityUpdating = false
+    }
+    if (viewabilityNeedsUpdate || generation != viewabilityGeneration) updateViewability()
+    else if (active === coreOrNull && active.isViewabilityWaiting() && !viewabilityTickPosted && isAttachedToWindow) {
+      viewabilityTickPosted = true
+      postOnAnimation(viewabilityTick)
+    }
+  }
+
   private fun itemSizeSpecForRow(row: Int): ShadowListKitItemSizeSpec? {
     val index = itemForRow(row)
     if (index < 0) return null
@@ -819,6 +909,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     applySettings(created)
     created.setSizeSpecsEnabled(getItemSizeSpec != null)
     created.setMeasureLookaheadRows(measureLookaheadRows)
+    created.setViewabilityConfigs(viewabilityCallbacks.map { it.viewabilityConfig }, android.os.SystemClock.uptimeMillis().toDouble())
     if (stickyPinning.stickyRows.isNotEmpty()) created.setStickyIndices(stickyPinning.stickyRows)
     if (nonAnchorKeys.isNotEmpty()) created.setNonAnchorKeys(nonAnchorKeys.toList())
     if (persistentKeys.isNotEmpty()) created.setPersistentKeys(persistentKeys.toList())
@@ -1191,6 +1282,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       requestLayout()
     }
     dispatchReached()
+    updateViewability()
     didLayOut()
   }
 
@@ -1228,7 +1320,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val current = offset
     if (abs(current - previousOffset) < ShadowListKitCore.OFFSET_MOVED_THRESHOLD) return
     val byUser = scrollPhase() != ShadowListKitCore.PHASE_IDLE
-    if (byUser) userScrolled = true
+    if (byUser) {
+      userScrolled = true
+      coreOrNull?.recordInteraction(android.os.SystemClock.uptimeMillis().toDouble())
+    }
     updateStickyLayout(byUser)
     previousOffset = current
   }
@@ -2218,6 +2313,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * A finger started moving the list. The highlight goes and an open row closes.
    */
   internal fun scrollTrackingStarted() {
+    recordInteraction()
     selection.cancelHighlight()
     drag.cancelPress()
     if (swipe.isOpen) swipe.close(true)

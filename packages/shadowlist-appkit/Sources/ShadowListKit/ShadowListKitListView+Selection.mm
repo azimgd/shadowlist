@@ -582,6 +582,8 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 - (void)viewDidMoveToWindow
 {
   [super viewDidMoveToWindow];
+  if (self.window) { _viewabilityAttached = YES; [self updateViewability]; }
+  else [self detachViewability];
   _hoverActive = NO;
   [self updateHover];
   [self updateEmphasis];

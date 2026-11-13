@@ -10,6 +10,8 @@
 #include <shadowlist-core/host/RowSizeSpec.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 #include <shadowlist-core/host/StickyLayout.hpp>
+#include <shadowlist-core/host/Viewability.hpp>
+#include <shadowlist-core/host/ListSections.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -282,6 +284,14 @@ public:
    * that streams in. The nearest other row holds it instead.
    */
   void setNonAnchorKeys(std::vector<std::string> keys);
+
+  /* Changed config positions start a new observation; equal configs keep their reports. */
+  std::vector<std::size_t> setViewabilityConfigs(std::vector<ViewabilityConfig> configs, double now = 0.0);
+  std::vector<std::pair<std::size_t, ViewabilityReport>> updateViewability(
+    double offset, double windowAlong, double now, const ListSections* sections = nullptr);
+  void recordInteraction(double now);
+  void resetViewability();
+  bool isViewabilityWaiting() const;
 
   void setGetItemSizeSpec(GetItemSizeSpec getItemSizeSpec, MeasureSizeSpec measureSizeSpec);
   void setMeasureLookaheadRows(std::size_t rows);
@@ -564,6 +574,9 @@ private:
   SizeSpecQueue sizeSpecs_;
   std::shared_ptr<const std::vector<RowSizeSpec>> sizeSpecsSource_;
   std::optional<MountedRange> sizeSpecsRange_;
+  std::vector<ViewabilityConfig> viewabilityConfigs_;
+  std::vector<ViewabilityTracker> viewabilityTrackers_;
+  bool viewabilityInteracted_ = false;
   bool sizeSpecsRan_ = false;
   double sizeSpecsWidth_ = 0.0;
   struct CachedSizeSpec {

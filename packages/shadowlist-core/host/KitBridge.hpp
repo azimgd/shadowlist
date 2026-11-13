@@ -77,6 +77,32 @@ enum MountSlot : int {
 static_assert(MOUNT_SLOTS == 12, "ShadowListKitCore.kt and ShadowListKitCore.ts mirror the mount slots");
 
 /*
+ * Presence flags preserve unset and explicit non-finite percentage thresholds across JNI.
+ */
+enum ViewabilityConfigSlot : int {
+  VIEWABILITY_ITEM_PERCENT = 0,
+  VIEWABILITY_HAS_ITEM_PERCENT,
+  VIEWABILITY_AREA_PERCENT,
+  VIEWABILITY_HAS_AREA_PERCENT,
+  VIEWABILITY_MINIMUM_VIEW_TIME,
+  VIEWABILITY_WAIT_FOR_INTERACTION,
+  VIEWABILITY_CONFIG_SLOTS,
+};
+
+inline std::vector<ViewabilityConfig> readViewabilityConfigs(const std::vector<double>& slots) {
+  std::vector<ViewabilityConfig> configs;
+  for (std::size_t offset = 0; offset + VIEWABILITY_CONFIG_SLOTS <= slots.size(); offset += VIEWABILITY_CONFIG_SLOTS) {
+    ViewabilityConfig config;
+    if (slots[offset + VIEWABILITY_HAS_ITEM_PERCENT] != 0) config.itemVisiblePercentThreshold = slots[offset + VIEWABILITY_ITEM_PERCENT];
+    if (slots[offset + VIEWABILITY_HAS_AREA_PERCENT] != 0) config.viewAreaCoveragePercentThreshold = slots[offset + VIEWABILITY_AREA_PERCENT];
+    config.minimumViewTime = slots[offset + VIEWABILITY_MINIMUM_VIEW_TIME];
+    config.waitForInteraction = slots[offset + VIEWABILITY_WAIT_FOR_INTERACTION] != 0;
+    configs.push_back(config);
+  }
+  return configs;
+}
+
+/*
  * Slots of the pinning of the list header and footer, see StickyInput. The first block is what
  * the view reports. The translations are what a view that pins by moving applies, on every
  * frame. The spans are for a view whose platform pins inside a span on its own.

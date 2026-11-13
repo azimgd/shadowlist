@@ -129,6 +129,7 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
 {
   [_catchUpTimer invalidate];
   [_settleLink invalidate];
+  [_viewabilityTimer invalidate];
   [_dragLink invalidate];
   [_swipeLink invalidate];
   if (_dragKeyMonitor) {
@@ -272,6 +273,7 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   [self updateStickyOffset:offset byUser:byUser];
   _previousOffset = offset;
   if (byUser) {
+    _driver.recordInteraction(CACurrentMediaTime() * 1000);
     _userScrolled = YES;
   }
   CGPoint point = [self contentOffsetAt:offset];
@@ -687,6 +689,25 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   _measureLookaheadRows = measureLookaheadRows;
   _driver.setMeasureLookaheadRows(measureLookaheadRows);
   [self invalidateFrame];
+}
+
+- (ShadowListKitViewabilityConfig *)viewabilityConfig { return _viewabilityConfig; }
+- (void)setViewabilityConfig:(ShadowListKitViewabilityConfig *)viewabilityConfig
+{
+  _viewabilityConfig = [viewabilityConfig copy];
+  [self sendViewabilityConfigs];
+}
+- (NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)viewabilityConfigCallbackPairs { return _viewabilityConfigCallbackPairs; }
+- (void)setViewabilityConfigCallbackPairs:(NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)pairs
+{
+  _viewabilityConfigCallbackPairs = [pairs copy];
+  [self sendViewabilityConfigs];
+}
+- (void (^)(ShadowListKitViewableItemsChangedInfo *))onViewableItemsChanged { return _onViewableItemsChanged; }
+- (void)setOnViewableItemsChanged:(void (^)(ShadowListKitViewableItemsChangedInfo *))callback
+{
+  _onViewableItemsChanged = [callback copy];
+  [self sendViewabilityConfigs];
 }
 
 - (void)setPersistentKeys:(NSSet<NSString *> *)persistentKeys

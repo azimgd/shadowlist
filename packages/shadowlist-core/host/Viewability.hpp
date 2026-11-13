@@ -2,6 +2,7 @@
 
 #include <shadowlist-core/host/MountedRange.hpp>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,23 @@ struct ViewabilityTiming {
    */
   bool waitForInteraction = false;
 };
+
+struct ViewableRule;
+
+/*
+ * The public configuration, with the same percentage and millisecond fields as Fabric.
+ */
+struct ViewabilityConfig {
+  std::optional<double> itemVisiblePercentThreshold;
+  std::optional<double> viewAreaCoveragePercentThreshold;
+  double minimumViewTime = 0.0;
+  bool waitForInteraction = false;
+
+  bool operator==(const ViewabilityConfig& other) const;
+};
+
+ViewableRule viewableRuleFor(const ViewabilityConfig& config);
+ViewabilityTiming viewabilityTimingFor(const ViewabilityConfig& config);
 
 /*
  * One report: every viewable key in order, and what changed since the previous report.

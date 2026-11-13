@@ -452,3 +452,9 @@ changes invalidate predictions. Real measured sizes remain authoritative. Removi
 `fixedHeight` is always a height, including in a horizontal list. It predicts core geometry; it does not override
 the native host's rendered cross size. A single horizontal row still fills the viewport height, and a single
 vertical row fills its width. Exact sizing through the data source remains the final size when the item is measured.
+
+### Viewability
+
+`viewabilityConfig` and `onViewableItemsChanged` report public item keys and indices from actual row geometry. `viewabilityConfigCallbackPairs` overrides that single callback, including an explicit empty array/list. Tokens include the public section index; unsectioned tokens use `NSNotFound` on Apple platforms and `-1` on Android. Section headers and footers are excluded.
+
+`itemVisiblePercentThreshold` and `viewAreaCoveragePercentThreshold` use percentages from 0 to 100; the area threshold takes precedence when supplied. `minimumViewTime` uses milliseconds. With `waitForInteraction`, an actual user scroll or `recordInteraction()` starts reporting; programmatic commands do not unlock it. Equal effective configurations retain their current keys and deadline when callbacks change. Pair callbacks receive immutable snapshots of one frame: a synchronous reload finishes that frame before reporting the new data, while configuration replacement or detachment cancels the remaining callbacks. Detaching the list cancels pending delivery and resets interaction for its next attachment. Without a configured callback, the list performs no viewability scan and starts no timer.

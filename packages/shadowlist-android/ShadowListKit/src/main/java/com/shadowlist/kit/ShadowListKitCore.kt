@@ -75,6 +75,15 @@ internal class ShadowListKitCore(
     const val MOUNT_TRAILING_INSET = 11
     const val MOUNT_SLOTS = 12
 
+    const val VIEWABILITY_ITEM_PERCENT = 0
+    const val VIEWABILITY_HAS_ITEM_PERCENT = 1
+    const val VIEWABILITY_AREA_PERCENT = 2
+    const val VIEWABILITY_HAS_AREA_PERCENT = 3
+    const val VIEWABILITY_MINIMUM_VIEW_TIME = 4
+    const val VIEWABILITY_WAIT_FOR_INTERACTION = 5
+    const val VIEWABILITY_CONFIG_SLOTS = 6
+    private val EMPTY_VIEWABILITY_REPORTS = emptyArray<ShadowListKitViewabilityReport>()
+
     /*
      * Slots of the pinning of the list header and footer, the same as StickySlot in the core's
      * host/KitBridge.hpp. A size of 0 is a missing header or footer.
@@ -271,6 +280,11 @@ internal class ShadowListKitCore(
     @JvmStatic private external fun nativeSetPersistentKeys(handle: Long, packed: CharArray, ends: IntArray)
     @JvmStatic private external fun nativePersistentIndices(handle: Long): IntArray
     @JvmStatic private external fun nativeStickyLayout(handle: Long, io: DoubleArray)
+    @JvmStatic private external fun nativeSetViewabilityConfigs(handle: Long, slots: DoubleArray, now: Double): IntArray
+    @JvmStatic private external fun nativeUpdateViewability(handle: Long, offset: Double, windowAlong: Double, now: Double): Array<ShadowListKitViewabilityReport>?
+    @JvmStatic private external fun nativeRecordInteraction(handle: Long, now: Double)
+    @JvmStatic private external fun nativeIsViewabilityWaiting(handle: Long): Boolean
+
     @JvmStatic private external fun nativeSetSizeSpecsEnabled(handle: Long, enabled: Boolean)
     @JvmStatic private external fun nativeSetMeasureLookaheadRows(handle: Long, rows: Int)
     @JvmStatic private external fun nativeInvalidateSizeSpecs(handle: Long)
@@ -459,6 +473,24 @@ internal class ShadowListKitCore(
     val ends = packer.pack(keys)
     nativeSetNonAnchorKeys(handle, packer.chars, ends)
   }
+
+  fun setViewabilityConfigs(configs: List<ShadowListKitViewabilityConfig>, now: Double): IntArray {
+    val slots = DoubleArray(configs.size * VIEWABILITY_CONFIG_SLOTS)
+    for ((index, config) in configs.withIndex()) {
+      val offset = index * VIEWABILITY_CONFIG_SLOTS
+      slots[offset + VIEWABILITY_ITEM_PERCENT] = config.itemVisiblePercentThreshold ?: 0.0
+      slots[offset + VIEWABILITY_HAS_ITEM_PERCENT] = if (config.itemVisiblePercentThreshold != null) 1.0 else 0.0
+      slots[offset + VIEWABILITY_AREA_PERCENT] = config.viewAreaCoveragePercentThreshold ?: 0.0
+      slots[offset + VIEWABILITY_HAS_AREA_PERCENT] = if (config.viewAreaCoveragePercentThreshold != null) 1.0 else 0.0
+      slots[offset + VIEWABILITY_MINIMUM_VIEW_TIME] = config.minimumViewTime
+      slots[offset + VIEWABILITY_WAIT_FOR_INTERACTION] = if (config.waitForInteraction) 1.0 else 0.0
+    }
+    return nativeSetViewabilityConfigs(handle, slots, now)
+  }
+  fun updateViewability(offset: Double, windowAlong: Double, now: Double): Array<ShadowListKitViewabilityReport> =
+    nativeUpdateViewability(handle, offset, windowAlong, now) ?: EMPTY_VIEWABILITY_REPORTS
+  fun recordInteraction(now: Double) = nativeRecordInteraction(handle, now)
+  fun isViewabilityWaiting(): Boolean = nativeIsViewabilityWaiting(handle)
 
   fun setSizeSpecsEnabled(enabled: Boolean) {
     nativeSetSizeSpecsEnabled(handle, enabled)

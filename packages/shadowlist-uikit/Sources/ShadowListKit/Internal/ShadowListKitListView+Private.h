@@ -227,6 +227,16 @@ struct ShadowListKitPassGeometry {
   NSSet<NSString *> *_persistentKeys;
   ShadowListKitItemSizeSpec * _Nullable (^_getItemSizeSpec)(NSInteger);
   NSUInteger _measureLookaheadRows;
+  ShadowListKitViewabilityConfig *_viewabilityConfig;
+  NSArray<ShadowListKitViewabilityConfigCallbackPair *> *_viewabilityConfigCallbackPairs;
+  void (^_onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *);
+  NSArray<ShadowListKitViewabilityConfigCallbackPair *> *_viewabilityCallbacks;
+  NSMutableArray<NSMutableDictionary<NSString *, ShadowListKitViewToken *> *> *_viewabilityTokens;
+  NSTimer *_viewabilityTimer;
+  BOOL _viewabilityUpdating;
+  BOOL _viewabilityNeedsUpdate;
+  BOOL _viewabilityAttached;
+  NSUInteger _viewabilityGeneration;
 
   BOOL _animatesChanges;
   ShadowListKitChangeAnimator *_changes;
@@ -411,6 +421,9 @@ struct ShadowListKitPassGeometry {
 - (void)sendNonAnchorKeys;
 - (void)sendPersistentKeys;
 - (void)sendSizeSpecSource;
+- (void)sendViewabilityConfigs;
+- (void)updateViewability;
+- (void)detachViewability;
 
 @end
 

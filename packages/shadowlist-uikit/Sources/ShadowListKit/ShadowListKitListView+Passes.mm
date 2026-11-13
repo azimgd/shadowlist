@@ -1,5 +1,6 @@
 #import "Internal/ShadowListKitListView+Private.h"
 #import "Internal/ShadowListKitItemSizeSpec.h"
+#import "Internal/ShadowListKitViewabilityConfig.h"
 #import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListSupport.h"
 
@@ -218,6 +219,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   BOOL byUser = [self corePhase] != ScrollPhase::Idle;
   [self updateStickyOffset:current byUser:byUser];
   if (byUser) {
+    _driver.recordInteraction(CACurrentMediaTime() * 1000);
     _userScrolled = YES;
   }
   _previousOffset = current;
@@ -385,6 +387,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   }
 #endif
   [self dispatchReached];
+  [self updateViewability];
 #if TARGET_OS_OSX
   if ([_userDelegate respondsToSelector:@selector(listViewDidLayOut:)]) {
     [_userDelegate listViewDidLayOut:self];
@@ -510,6 +513,120 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   }
   _driver.setNonAnchorKeys(std::move(keys));
   [self invalidateFrame];
+}
+
+#pragma mark - Viewability
+
+- (void)sendViewabilityConfigs
+{
+  [_viewabilityTimer invalidate];
+  _viewabilityTimer = nil;
+  ++_viewabilityGeneration;
+  if (_viewabilityConfigCallbackPairs) {
+    _viewabilityCallbacks = [_viewabilityConfigCallbackPairs copy];
+  } else if (_onViewableItemsChanged) {
+    ShadowListKitViewabilityConfig *config = _viewabilityConfig ?: [ShadowListKitViewabilityConfig new];
+    _viewabilityCallbacks = @[[[ShadowListKitViewabilityConfigCallbackPair alloc]
+      initWithViewabilityConfig:config onViewableItemsChanged:_onViewableItemsChanged]];
+  } else {
+    _viewabilityCallbacks = @[];
+  }
+  std::vector<ViewabilityConfig> configs;
+  for (ShadowListKitViewabilityConfigCallbackPair *pair in _viewabilityCallbacks) {
+    configs.push_back(ShadowListKitReadViewabilityConfig(pair.viewabilityConfig));
+  }
+  auto changed = _driver.setViewabilityConfigs(std::move(configs), CACurrentMediaTime() * 1000);
+  if (!_viewabilityTokens) _viewabilityTokens = [NSMutableArray new];
+  while (_viewabilityTokens.count > _viewabilityCallbacks.count) [_viewabilityTokens removeLastObject];
+  while (_viewabilityTokens.count < _viewabilityCallbacks.count) [_viewabilityTokens addObject:[NSMutableDictionary new]];
+  for (std::size_t index : changed) _viewabilityTokens[index] = [NSMutableDictionary new];
+  [self updateViewability];
+}
+
+- (void)recordInteraction
+{
+  _driver.recordInteraction(CACurrentMediaTime() * 1000);
+  [self updateViewability];
+}
+
+- (void)detachViewability
+{
+  _viewabilityAttached = NO;
+  ++_viewabilityGeneration;
+  [_viewabilityTimer invalidate];
+  _viewabilityTimer = nil;
+  _driver.resetViewability();
+  for (NSMutableDictionary *tokens in _viewabilityTokens) [tokens removeAllObjects];
+}
+
+- (void)updateViewability
+{
+  if (_viewabilityUpdating) { _viewabilityNeedsUpdate = YES; return; }
+  if (!_viewabilityAttached || !self.window || _viewabilityCallbacks.count == 0) return;
+  _viewabilityUpdating = YES;
+  _viewabilityNeedsUpdate = NO;
+  NSUInteger generation = _viewabilityGeneration;
+  @try {
+    auto reports = _driver.updateViewability([self offset], _windowAlong, CACurrentMediaTime() * 1000, &_sections);
+    NSMutableDictionary<NSNumber *, ShadowListKitViewableItemsChangedInfo *> *events = [NSMutableDictionary new];
+    for (auto& entry : reports) {
+      std::size_t config = entry.first;
+      if (config >= _viewabilityTokens.count) continue;
+      auto& report = entry.second;
+      NSMutableDictionary<NSString *, ShadowListKitViewToken *> *current = [NSMutableDictionary new];
+      NSMutableArray<ShadowListKitViewToken *> *viewable = [NSMutableArray new];
+      NSMutableArray<ShadowListKitViewToken *> *changed = [NSMutableArray new];
+      for (const std::string& key : report.viewable) {
+        std::size_t row = _driver.indexOfKey(key);
+        std::size_t item = row == UNDEFINED_INDEX ? UNDEFINED_INDEX : _sections.itemForRow(row);
+        if (item == UNDEFINED_INDEX) continue;
+        NSString *publicKey = [_dataSource listView:self keyForItemAtIndex:(NSInteger)item];
+        if (!publicKey) continue;
+        NSInteger section = _sections.isSectioned() ? (NSInteger)_sections.sectionForItem(item) : NSNotFound;
+        ShadowListKitViewToken *token = [[ShadowListKitViewToken alloc] initWithKey:publicKey index:(NSInteger)item section:section viewable:YES];
+        current[ShadowListKitString(key)] = token;
+        [viewable addObject:token];
+      }
+      [viewable sortUsingComparator:^NSComparisonResult(ShadowListKitViewToken *a, ShadowListKitViewToken *b) {
+        return a.index < b.index ? NSOrderedAscending : a.index > b.index ? NSOrderedDescending : NSOrderedSame;
+      }];
+      for (const std::string& key : report.changes.added) {
+        ShadowListKitViewToken *token = current[ShadowListKitString(key)];
+        if (token) [changed addObject:token];
+      }
+      for (const std::string& key : report.changes.removed) {
+        ShadowListKitViewToken *previous = _viewabilityTokens[config][ShadowListKitString(key)];
+        if (previous) [changed addObject:[[ShadowListKitViewToken alloc] initWithKey:previous.key index:previous.index section:previous.section viewable:NO]];
+      }
+      _viewabilityTokens[config] = current;
+      if (changed.count) {
+        ShadowListKitViewableItemsChangedInfo *info = [[ShadowListKitViewableItemsChangedInfo alloc] initWithViewableItems:viewable changed:changed];
+        events[@(config)] = info;
+      }
+    }
+    for (const auto& entry : reports) {
+      if (generation != _viewabilityGeneration || !_viewabilityAttached) break;
+      NSUInteger config = entry.first;
+      ShadowListKitViewableItemsChangedInfo *info = events[@(config)];
+      if (!info || config >= _viewabilityCallbacks.count) continue;
+      void (^callback)(ShadowListKitViewableItemsChangedInfo *) = _viewabilityCallbacks[config].onViewableItemsChanged;
+      if (callback) callback(info);
+    }
+  } @finally {
+    _viewabilityUpdating = NO;
+  }
+  if (_viewabilityNeedsUpdate || generation != _viewabilityGeneration) {
+    [self updateViewability];
+  } else if (_driver.isViewabilityWaiting() && !_viewabilityTimer && _viewabilityAttached) {
+    __weak ShadowListKitListView *weakSelf = self;
+    _viewabilityTimer = [NSTimer timerWithTimeInterval:0.016 repeats:NO block:^(NSTimer *timer) {
+      ShadowListKitListView *list = weakSelf;
+      if (!list) return;
+      list->_viewabilityTimer = nil;
+      [list updateViewability];
+    }];
+    [NSRunLoop.mainRunLoop addTimer:_viewabilityTimer forMode:NSRunLoopCommonModes];
+  }
 }
 
 #pragma mark - Sticky

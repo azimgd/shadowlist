@@ -51,6 +51,8 @@ struct Peer {
   jmethodID measureSizeSpec = nullptr;
   jclass sizeSpecClass = nullptr;
   jmethodID sizeSpecConstructor = nullptr;
+  jclass viewabilityReportClass = nullptr;
+  jmethodID viewabilityReportConstructor = nullptr;
   jfieldID sizeSpecStrings[4]{};
   jfieldID sizeSpecDoubles[7]{};
   jfieldID sizeSpecLines = nullptr;
@@ -362,6 +364,11 @@ JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject th
   for (int index = 0; index < 7; ++index) peer->sizeSpecDoubles[index] = env->GetFieldID(specClass, doubles[index], "D");
   peer->sizeSpecLines = env->GetFieldID(specClass, "numberOfLines", "I");
   env->DeleteLocalRef(specClass);
+  jclass reportClass = env->FindClass("com/shadowlist/kit/ShadowListKitViewabilityReport");
+  peer->viewabilityReportClass = static_cast<jclass>(env->NewGlobalRef(reportClass));
+  peer->viewabilityReportConstructor = env->GetMethodID(reportClass, "<init>",
+    "(I[Ljava/lang/String;[Ljava/lang/String;[Ljava/lang/String;)V");
+  env->DeleteLocalRef(reportClass);
   env->DeleteLocalRef(clazz);
   /*
    * One upcall measures every row a pass needs, as the wasm bridge does, instead of one JNI
@@ -404,6 +411,7 @@ JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject th
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDestroy)(JNIEnv* env, jclass, jlong handle) {
   Peer* peer = peerOf(handle);
   if (peer->sizeSpecClass) env->DeleteGlobalRef(peer->sizeSpecClass);
+  if (peer->viewabilityReportClass) env->DeleteGlobalRef(peer->viewabilityReportClass);
   delete peer;
 }
 
@@ -446,6 +454,48 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeStickyLayout)(JNIEnv* env, jclas
   writeStickyLayout(slots, peerOf(handle)->driver);
   env->SetDoubleArrayRegion(io, STICKY_OUT_HEADER_TRANSLATION, STICKY_SLOTS - STICKY_OUT_HEADER_TRANSLATION,
     slots + STICKY_OUT_HEADER_TRANSLATION);
+}
+
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativeSetViewabilityConfigs)(
+  JNIEnv* env, jclass, jlong handle, jdoubleArray source, jdouble now) {
+  jsize count = env->GetArrayLength(source);
+  std::vector<double> slots(static_cast<std::size_t>(count));
+  if (count) env->GetDoubleArrayRegion(source, 0, count, slots.data());
+  auto changed = peerOf(handle)->driver.setViewabilityConfigs(readViewabilityConfigs(slots), now);
+  std::vector<jint> values(changed.begin(), changed.end());
+  jintArray result = env->NewIntArray(static_cast<jsize>(values.size()));
+  if (!values.empty()) env->SetIntArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
+  return result;
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeRecordInteraction)(JNIEnv*, jclass, jlong handle, jdouble now) {
+  peerOf(handle)->driver.recordInteraction(now);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeIsViewabilityWaiting)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->driver.isViewabilityWaiting();
+}
+
+JNIEXPORT jobjectArray JNICALL SHADOWLIST_KIT_JNI(nativeUpdateViewability)(
+  JNIEnv* env, jclass, jlong handle, jdouble offset, jdouble windowAlong, jdouble now) {
+  Peer* peer = peerOf(handle);
+  auto reports = peer->driver.updateViewability(offset, windowAlong, now, &peer->sections);
+  if (reports.empty()) return nullptr;
+  jobjectArray result = env->NewObjectArray(static_cast<jsize>(reports.size()), peer->viewabilityReportClass, nullptr);
+  for (std::size_t index = 0; index < reports.size(); ++index) {
+    const auto& entry = reports[index];
+    jobjectArray viewable = makeStringArray(env, entry.second.viewable);
+    jobjectArray added = makeStringArray(env, entry.second.changes.added);
+    jobjectArray removed = makeStringArray(env, entry.second.changes.removed);
+    jobject value = env->NewObject(peer->viewabilityReportClass, peer->viewabilityReportConstructor,
+      static_cast<jint>(entry.first), viewable, added, removed);
+    env->SetObjectArrayElement(result, static_cast<jsize>(index), value);
+    env->DeleteLocalRef(value);
+    env->DeleteLocalRef(viewable);
+    env->DeleteLocalRef(added);
+    env->DeleteLocalRef(removed);
+  }
+  return result;
 }
 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetSizeSpecsEnabled)(JNIEnv*, jclass, jlong handle, jboolean enabled) {

@@ -4,6 +4,7 @@
 
 #import <ShadowListKit/ShadowListKitListModels.h>
 #import <ShadowListKit/ShadowListKitItemSizeSpec.h>
+#import <ShadowListKit/ShadowListKitViewabilityConfig.h>
 #import <ShadowListKit/ShadowListKitListProtocols.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -240,6 +241,10 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
 @property (nonatomic) CGFloat estimatedItemSize;
 @property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec * _Nullable (^getItemSizeSpec)(NSInteger index);
 @property (nonatomic) NSUInteger measureLookaheadRows;
+@property (nonatomic, copy, nullable) ShadowListKitViewabilityConfig *viewabilityConfig;
+@property (nonatomic, copy, nullable) NSArray<ShadowListKitViewabilityConfigCallbackPair *> *viewabilityConfigCallbackPairs;
+@property (nonatomic, copy, nullable) void (^onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *info);
+- (void)recordInteraction;
 @property (nonatomic) CGFloat overscan;
 @property (nonatomic) CGFloat mountOverscan;
 @property (nonatomic) CGFloat startReachedThreshold;

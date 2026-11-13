@@ -75,6 +75,66 @@ void ListDriver::setNonAnchorKeys(std::vector<std::string> keys) {
   nonAnchorKeysChanged_ = true;
 }
 
+std::vector<std::size_t> ListDriver::setViewabilityConfigs(std::vector<ViewabilityConfig> configs, double now) {
+  std::vector<std::size_t> changed;
+  viewabilityTrackers_.resize(configs.size());
+  for (std::size_t index = 0; index < configs.size(); ++index) {
+    if (index >= viewabilityConfigs_.size() || !(configs[index] == viewabilityConfigs_[index])) {
+      changed.push_back(index);
+      viewabilityTrackers_[index] = ViewabilityTracker{};
+      viewabilityTrackers_[index].setTiming(viewabilityTimingFor(configs[index]));
+      if (viewabilityInteracted_) viewabilityTrackers_[index].recordInteraction(now);
+    }
+  }
+  viewabilityConfigs_ = std::move(configs);
+  return changed;
+}
+
+void ListDriver::recordInteraction(double now) {
+  if (viewabilityInteracted_) return;
+  bool waits = std::any_of(viewabilityConfigs_.begin(), viewabilityConfigs_.end(),
+    [](const ViewabilityConfig& config) { return config.waitForInteraction; });
+  if (!waits) return;
+  viewabilityInteracted_ = true;
+  for (auto& tracker : viewabilityTrackers_) tracker.recordInteraction(now);
+}
+
+void ListDriver::resetViewability() {
+  viewabilityInteracted_ = false;
+  for (std::size_t index = 0; index < viewabilityConfigs_.size(); ++index) {
+    viewabilityTrackers_[index] = ViewabilityTracker{};
+    viewabilityTrackers_[index].setTiming(viewabilityTimingFor(viewabilityConfigs_[index]));
+  }
+}
+
+bool ListDriver::isViewabilityWaiting() const {
+  return std::any_of(viewabilityTrackers_.begin(), viewabilityTrackers_.end(),
+    [](const ViewabilityTracker& tracker) { return tracker.isWaiting(); });
+}
+
+std::vector<std::pair<std::size_t, ViewabilityReport>> ListDriver::updateViewability(
+  double offset, double windowAlong, double now, const ListSections* sections) {
+  std::vector<std::pair<std::size_t, ViewabilityReport>> reports;
+  auto measured = getMeasuredRange();
+  for (std::size_t config = 0; config < viewabilityConfigs_.size(); ++config) {
+    ViewableRule rule = viewableRuleFor(viewabilityConfigs_[config]);
+    std::vector<std::string> keys;
+    if (measured) {
+      for (std::size_t index = measured->low; index <= measured->high; ++index) {
+        if (sections && sections->itemForRow(index) == UNDEFINED_INDEX) continue;
+        if (isRowViewable(getLeadingAt(index), getExtentAt(index), offset, windowAlong, rule)) {
+          keys.push_back(getKeyAt(index));
+        }
+      }
+    }
+    auto& tracker = viewabilityTrackers_[config];
+    tracker.update(std::move(keys), now);
+    ViewabilityReport report;
+    if (tracker.take(now, report)) reports.emplace_back(config, std::move(report));
+  }
+  return reports;
+}
+
 void ListDriver::setGetItemSizeSpec(GetItemSizeSpec getItemSizeSpec, MeasureSizeSpec measureSizeSpec) {
   getItemSizeSpec_ = std::move(getItemSizeSpec);
   measureSizeSpec_ = std::move(measureSizeSpec);
