@@ -11,6 +11,7 @@ import kotlin.math.max
 internal class ShadowListKitCore(
   private val measure: (row: Int, crossSize: Double) -> Double,
   private val prefetched: () -> Unit,
+  private val sizeSpecForRow: ((Int) -> ShadowListKitItemSizeSpec?)? = null,
 ) {
   companion object {
     init {
@@ -270,6 +271,9 @@ internal class ShadowListKitCore(
     @JvmStatic private external fun nativeSetPersistentKeys(handle: Long, packed: CharArray, ends: IntArray)
     @JvmStatic private external fun nativePersistentIndices(handle: Long): IntArray
     @JvmStatic private external fun nativeStickyLayout(handle: Long, io: DoubleArray)
+    @JvmStatic private external fun nativeSetSizeSpecsEnabled(handle: Long, enabled: Boolean)
+    @JvmStatic private external fun nativeSetMeasureLookaheadRows(handle: Long, rows: Int)
+    @JvmStatic private external fun nativeInvalidateSizeSpecs(handle: Long)
     @JvmStatic private external fun nativeMarkRemeasure(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeResetKeepingPosition(handle: Long)
     @JvmStatic private external fun nativeRowCount(handle: Long): Int
@@ -455,6 +459,22 @@ internal class ShadowListKitCore(
     val ends = packer.pack(keys)
     nativeSetNonAnchorKeys(handle, packer.chars, ends)
   }
+
+  fun setSizeSpecsEnabled(enabled: Boolean) {
+    nativeSetSizeSpecsEnabled(handle, enabled)
+  }
+  fun setMeasureLookaheadRows(rows: Int) = nativeSetMeasureLookaheadRows(handle, rows)
+  fun invalidateSizeSpecs() {
+    nativeInvalidateSizeSpecs(handle)
+  }
+
+  @Keep
+  @Suppress("unused")
+  private fun getItemSizeSpec(row: Int): ShadowListKitItemSizeSpec? = sizeSpecForRow?.invoke(row)
+
+  @Keep
+  @Suppress("unused")
+  private fun measureSizeSpec(spec: ShadowListKitItemSizeSpec, width: Double): Double = spec.measure(width)
 
   fun markRemeasure(indices: IntArray) = nativeMarkRemeasure(handle, indices)
 

@@ -75,8 +75,31 @@ void ListDriver::setNonAnchorKeys(std::vector<std::string> keys) {
   nonAnchorKeysChanged_ = true;
 }
 
+void ListDriver::setGetItemSizeSpec(GetItemSizeSpec getItemSizeSpec, MeasureSizeSpec measureSizeSpec) {
+  getItemSizeSpec_ = std::move(getItemSizeSpec);
+  measureSizeSpec_ = std::move(measureSizeSpec);
+  invalidateSizeSpecs();
+}
+
+void ListDriver::setMeasureLookaheadRows(std::size_t rows) {
+  if (measureLookaheadRows_ != rows) {
+    measureLookaheadRows_ = rows;
+    sizeSpecsRange_.reset();
+  }
+}
+
+void ListDriver::invalidateSizeSpecs() {
+  if (sizeSpecsSource_) Virtualizer::invalidatePredictions(*core_);
+  sizeSpecs_ = SizeSpecQueue{};
+  sizeSpecsSource_.reset();
+  sizeSpecsRange_.reset();
+  sizeSpecsWidth_ = 0.0;
+  sizeSpecsCache_.clear();
+}
+
 void ListDriver::setPersistentKeys(std::vector<std::string> keys) {
   persistentKeys_ = std::move(keys);
+  sizeSpecsRange_.reset();
 }
 
 std::vector<std::size_t> ListDriver::getPersistentIndices() const {
@@ -105,6 +128,7 @@ void ListDriver::recordEdit(KeyEdit edit) {
   pendingEdit_ = editsSinceUpdate_ == 0 ? edit : KeyEdit{};
   ++editsSinceUpdate_;
   keysChanged_ = true;
+  invalidateSizeSpecs();
 }
 
 void ListDriver::reloadKeys(std::vector<std::string> keys) {
@@ -263,13 +287,16 @@ void ListDriver::deleteKeys(std::vector<std::size_t> indices) {
 }
 
 void ListDriver::markRemeasure(const std::vector<std::size_t>& indices) {
+  bool changed = false;
   for (std::size_t index : indices) {
     if (index < keys_.size()) {
       // A content edit starts a new hold at the row now on screen. Late first sizes do not.
       core_->state.clampedAnchor.reset();
       remeasureKeys_.insert(keys_[index]);
+      changed = true;
     }
   }
+  if (changed) invalidateSizeSpecs();
 }
 
 FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, bool userScrolled) const {
@@ -316,6 +343,7 @@ StickyTranslations ListDriver::stickyTranslations(const StickyInput& input) {
 
 PassResult ListDriver::runPasses(const PassInput& input) {
   windowCross_ = input.windowCross;
+  sizeSpecsRan_ = false;
   if (keysChanged_) {
     prefetchStale_ = true;
   }
@@ -361,6 +389,11 @@ double ListDriver::runCore(const PassInput& input, double offset, bool userScrol
     nonAnchorKeysChanged_ = false;
     pendingEdit_ = KeyEdit{};
     editsSinceUpdate_ = 0;
+    bool predicted = false;
+    if (!sizeSpecsRan_) {
+      sizeSpecsRan_ = true;
+      predicted = updateSizeSpecs(offset, input);
+    }
     bool measured = measureRange(offset, input);
 
     ContainerStateUpdate update = core.resolveStateUpdate(horizontal ? offset : 0, horizontal ? 0 : offset,
@@ -397,7 +430,7 @@ double ListDriver::runCore(const PassInput& input, double offset, bool userScrol
      * tells it the list rests.
      */
     bool gestureAtRest = input.phase == ScrollPhase::Idle && core.state.gestureActive;
-    if (!measured && !wrote && !gestureAtRest && !core.hasPendingCommand()) {
+    if (!predicted && !measured && !wrote && !gestureAtRest && !core.hasPendingCommand()) {
       break;
     }
     // A pass that measured is one of a few: each row near the viewport is measured once.
@@ -433,7 +466,8 @@ PassResult ListDriver::finishPasses(double offset, const PassInput& input) {
     }
   }
   settlingLayouts_ = core.hasPendingCommand() ? settlingLayouts_ + 1 : 0;
-  result.settling = settlingLayouts_ > 0 && settlingLayouts_ < MAX_SETTLING_LAYOUTS;
+  result.settling = (settlingLayouts_ > 0 && settlingLayouts_ < MAX_SETTLING_LAYOUTS) ||
+    (sizeSpecsSource_ && !sizeSpecs_.isFinished(sizeSpecsSource_));
   result.reachedStart = reachedStart_;
   result.reachedEnd = reachedEnd_;
   reachedStart_ = false;
@@ -479,6 +513,69 @@ double ListDriver::restingOffset(double offset, const PassInput& input) const {
  * sizes first, which places them where they show, and the rows past them are prefetched before
  * they are measured.
  */
+bool ListDriver::updateSizeSpecs(double offset, const PassInput& input) {
+  if (!getItemSizeSpec_ || !measureSizeSpec_ || keys_.empty()) {
+    return false;
+  }
+  double width = settings_.horizontal ? input.windowAlong :
+    input.windowCross / static_cast<double>(settings_.numberOfColumns);
+  if (width != sizeSpecsWidth_) {
+    invalidateSizeSpecs();
+    sizeSpecsWidth_ = width;
+  }
+  MountPlan mounted = planMount(offset, input.windowAlong, input.mountPad, input.leadingInset, input.trailingInset);
+  if (mounted.low == UNDEFINED_INDEX) {
+    return false;
+  }
+  MountedRange range{mounted.low > measureLookaheadRows_ ? mounted.low - measureLookaheadRows_ : 0,
+    mounted.high + std::min(measureLookaheadRows_, keys_.size() - 1 - mounted.high)};
+  if (!sizeSpecsRange_ || *sizeSpecsRange_ != range) {
+    std::vector<std::size_t> indices;
+    for (std::size_t index = range.low; index <= range.high; ++index) indices.push_back(index);
+    auto persistent = getPersistentIndices();
+    indices.insert(indices.end(), persistent.begin(), persistent.end());
+    std::sort(indices.begin(), indices.end());
+    indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+    auto specs = std::make_shared<std::vector<RowSizeSpec>>();
+    std::unordered_map<std::string, CachedSizeSpec> kept;
+    for (std::size_t index : indices) {
+      const std::string& key = keys_[index];
+      auto previous = sizeSpecsCache_.find(key);
+      CachedSizeSpec cached;
+      if (previous != sizeSpecsCache_.end() && previous->second.index == index) {
+        cached = std::move(previous->second);
+      } else {
+        cached.index = index;
+        cached.spec = getItemSizeSpec_(index, key);
+        if (cached.spec) cached.spec->key = key;
+      }
+      if (cached.spec) specs->push_back(*cached.spec);
+      kept.emplace(key, std::move(cached));
+    }
+    sizeSpecsCache_ = std::move(kept);
+    sizeSpecsSource_ = std::move(specs);
+    sizeSpecsRange_ = range;
+  }
+  std::size_t layouts = 0;
+  std::size_t measures = 0;
+  auto measure = [&](const RowSizeSpec& spec, double availableWidth) {
+    ++measures;
+    auto& cached = sizeSpecsCache_.at(spec.key);
+    if (cached.width != availableWidth) {
+      ++layouts;
+      cached.size = measureSizeSpec_(spec, availableWidth);
+      cached.width = availableWidth;
+    }
+    return cached.size;
+  };
+  do {
+    layouts = 0;
+    measures = 0;
+    sizeSpecs_.run(*core_, sizeSpecsSource_, width, [&] { return *sizeSpecsSource_; }, measure);
+  } while (measures > 0 && layouts == 0 && !sizeSpecs_.isFinished(sizeSpecsSource_));
+  return measures > 0;
+}
+
 bool ListDriver::measureRange(double offset, const PassInput& input) {
   std::optional<MountedRange> measured = getMeasuredRange();
   if (!measured) {

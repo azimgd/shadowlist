@@ -106,6 +106,7 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   _mountOverscan = 0.5;
   _startReachedThreshold = 1;
   _endReachedThreshold = 1;
+  _measureLookaheadRows = 48;
   _needsFrame = YES;
   _atEnd = YES;
   _allowsSelection = YES;
@@ -667,6 +668,25 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
 - (NSSet<NSString *> *)persistentKeys
 {
   return _persistentKeys;
+}
+
+- (ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+{
+  return _getItemSizeSpec;
+}
+
+- (void)setGetItemSizeSpec:(ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+{
+  _getItemSizeSpec = [getItemSizeSpec copy];
+  [self sendSizeSpecSource];
+}
+
+- (NSUInteger)measureLookaheadRows { return _measureLookaheadRows; }
+- (void)setMeasureLookaheadRows:(NSUInteger)measureLookaheadRows
+{
+  _measureLookaheadRows = measureLookaheadRows;
+  _driver.setMeasureLookaheadRows(measureLookaheadRows);
+  [self invalidateFrame];
 }
 
 - (void)setPersistentKeys:(NSSet<NSString *> *)persistentKeys

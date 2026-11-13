@@ -159,3 +159,20 @@ for later insertion. Remove a key from `persistentKeys` to let the normal mount 
 
 `./gradlew :ShadowListKit:connectedDebugAndroidTest` runs the kit's tests on a connected device or
 emulator. They load the native core.
+
+## Predictive item sizing
+
+`getItemSizeSpec` runs on the main thread with the current public item index. It returns a
+`ShadowListKitItemSizeSpec`, or nil/null to leave that item to normal sizing. The host supplies the stable key.
+Specs describe `text`, `fontSize` (14 by default), optional `fontFamily`, `fontWeight` and `fontStyle`,
+`lineHeight`, `letterSpacing`, `numberOfLines` (0 for unlimited), `insetWidth`, `insetHeight`, `widthFraction`
+(1 by default), and `fixedHeight`. Unset numeric optional fields use NaN. Lengths are logical points or dp.
+
+`measureLookaheadRows` defaults to 48 on each side of the mounted range. Retained keys join the source without
+duplicate callbacks. The shared `SizeSpecQueue` budgets 24 new text layouts per pass; cached layouts cost no new
+text work. Key/index changes, explicit item reloads, provider replacement, viewport width and font configuration
+changes invalidate predictions. Real measured sizes remain authoritative. Removing the provider drops predictions.
+
+`fixedHeight` is always a height, including in a horizontal list. It predicts core geometry; it does not override
+the native host's rendered cross size. A single horizontal row still fills the viewport height, and a single
+vertical row fills its width. Exact sizing through the data source remains the final size when the item is measured.

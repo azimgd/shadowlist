@@ -99,6 +99,12 @@ struct ViewableRule {
 };
 
 /*
+ * Whether one placed row meets a viewability rule at a viewport. Kept separate from the
+ * enclosing range because masonry can leave non-viewable rows between viewable ones.
+ */
+bool isRowViewable(double rowStart, double rowSize, double offset, double windowSize, const ViewableRule& rule);
+
+/*
  * Which edge of a row a snap offset lines up with the viewport.
  */
 enum class SnapAlignment {

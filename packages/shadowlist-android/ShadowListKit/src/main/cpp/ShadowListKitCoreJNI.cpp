@@ -47,6 +47,13 @@ struct Peer {
   jobject target = nullptr;
   jmethodID measureRows = nullptr;
   jmethodID prefetchRows = nullptr;
+  jmethodID getItemSizeSpec = nullptr;
+  jmethodID measureSizeSpec = nullptr;
+  jclass sizeSpecClass = nullptr;
+  jmethodID sizeSpecConstructor = nullptr;
+  jfieldID sizeSpecStrings[4]{};
+  jfieldID sizeSpecDoubles[7]{};
+  jfieldID sizeSpecLines = nullptr;
   std::vector<jint> dragInts;
   std::vector<std::size_t> dragRows;
   std::vector<jdouble> dragOut;
@@ -60,6 +67,11 @@ struct Peer {
   bool reachedStart = false;
   bool reachedEnd = false;
 };
+
+/*
+ * Stop a prediction callback immediately while its original Java exception stays pending.
+ */
+struct SizeSpecCallbackException {};
 
 Peer* peerOf(jlong handle) {
   return reinterpret_cast<Peer*>(handle);
@@ -338,6 +350,18 @@ JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject th
   jclass clazz = env->GetObjectClass(thiz);
   peer->measureRows = env->GetMethodID(clazz, "measureRows", "([I[D[D)V");
   peer->prefetchRows = env->GetMethodID(clazz, "prefetchRows", "(I)V");
+  peer->getItemSizeSpec = env->GetMethodID(clazz, "getItemSizeSpec", "(I)Lcom/shadowlist/kit/ShadowListKitItemSizeSpec;");
+  peer->measureSizeSpec = env->GetMethodID(clazz, "measureSizeSpec", "(Lcom/shadowlist/kit/ShadowListKitItemSizeSpec;D)D");
+  jclass specClass = env->FindClass("com/shadowlist/kit/ShadowListKitItemSizeSpec");
+  peer->sizeSpecClass = static_cast<jclass>(env->NewGlobalRef(specClass));
+  peer->sizeSpecConstructor = env->GetMethodID(specClass, "<init>",
+    "(Ljava/lang/String;DLjava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIDDDD)V");
+  const char* strings[] = {"text", "fontFamily", "fontWeight", "fontStyle"};
+  const char* doubles[] = {"fontSize", "lineHeight", "letterSpacing", "insetWidth", "insetHeight", "widthFraction", "fixedHeight"};
+  for (int index = 0; index < 4; ++index) peer->sizeSpecStrings[index] = env->GetFieldID(specClass, strings[index], "Ljava/lang/String;");
+  for (int index = 0; index < 7; ++index) peer->sizeSpecDoubles[index] = env->GetFieldID(specClass, doubles[index], "D");
+  peer->sizeSpecLines = env->GetFieldID(specClass, "numberOfLines", "I");
+  env->DeleteLocalRef(specClass);
   env->DeleteLocalRef(clazz);
   /*
    * One upcall measures every row a pass needs, as the wasm bridge does, instead of one JNI
@@ -377,8 +401,10 @@ JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject th
   return reinterpret_cast<jlong>(peer);
 }
 
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDestroy)(JNIEnv*, jclass, jlong handle) {
-  delete peerOf(handle);
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDestroy)(JNIEnv* env, jclass, jlong handle) {
+  Peer* peer = peerOf(handle);
+  if (peer->sizeSpecClass) env->DeleteGlobalRef(peer->sizeSpecClass);
+  delete peer;
 }
 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetSettings)(JNIEnv*, jclass, jlong handle, jdouble estimatedRowSize,
@@ -422,6 +448,63 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeStickyLayout)(JNIEnv* env, jclas
     slots + STICKY_OUT_HEADER_TRANSLATION);
 }
 
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetSizeSpecsEnabled)(JNIEnv*, jclass, jlong handle, jboolean enabled) {
+  Peer* peer = peerOf(handle);
+  if (!enabled) {
+    peer->driver.setGetItemSizeSpec({}, {});
+    return;
+  }
+  peer->driver.setGetItemSizeSpec([peer](std::size_t index, const std::string&) -> std::optional<sl::RowSizeSpec> {
+    JNIEnv* env = peer->env;
+    if (!env || !peer->target || env->ExceptionCheck()) return std::nullopt;
+    jobject value = env->CallObjectMethod(peer->target, peer->getItemSizeSpec, static_cast<jint>(index));
+    if (env->ExceptionCheck()) {
+      if (value) env->DeleteLocalRef(value);
+      throw SizeSpecCallbackException{};
+    }
+    if (!value) return std::nullopt;
+    sl::RowSizeSpec spec;
+    std::string* strings[] = {&spec.text, &spec.fontFamily, &spec.fontWeight, &spec.fontStyle};
+    double* doubles[] = {&spec.fontSize, &spec.lineHeight, &spec.letterSpacing, &spec.insetWidth, &spec.insetHeight, &spec.widthFraction, &spec.fixedHeight};
+    for (int at = 0; at < 4; ++at) {
+      auto text = static_cast<jstring>(env->GetObjectField(value, peer->sizeSpecStrings[at]));
+      *strings[at] = readString(env, text);
+      if (text) env->DeleteLocalRef(text);
+    }
+    for (int at = 0; at < 7; ++at) *doubles[at] = env->GetDoubleField(value, peer->sizeSpecDoubles[at]);
+    spec.numberOfLines = env->GetIntField(value, peer->sizeSpecLines);
+    env->DeleteLocalRef(value);
+    return spec;
+  }, [peer](const sl::RowSizeSpec& spec, double width) {
+    JNIEnv* env = peer->env;
+    if (!env || !peer->target || env->ExceptionCheck()) return sl::Size{width, 0.0};
+    jstring text = env->NewStringUTF(spec.text.c_str());
+    jstring family = env->NewStringUTF(spec.fontFamily.c_str());
+    jstring weight = env->NewStringUTF(spec.fontWeight.c_str());
+    jstring style = env->NewStringUTF(spec.fontStyle.c_str());
+    jobject value = env->NewObject(peer->sizeSpecClass, peer->sizeSpecConstructor, text, spec.fontSize,
+      family, weight, style, spec.lineHeight, spec.letterSpacing, static_cast<jint>(spec.numberOfLines),
+      spec.insetWidth, spec.insetHeight, spec.widthFraction, spec.fixedHeight);
+    double height = value && !env->ExceptionCheck() ?
+      env->CallDoubleMethod(peer->target, peer->measureSizeSpec, value, width) : 0.0;
+    if (value) env->DeleteLocalRef(value);
+    env->DeleteLocalRef(text);
+    env->DeleteLocalRef(family);
+    env->DeleteLocalRef(weight);
+    env->DeleteLocalRef(style);
+    if (env->ExceptionCheck()) throw SizeSpecCallbackException{};
+    return sl::Size{width, height};
+  });
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetMeasureLookaheadRows)(JNIEnv*, jclass, jlong handle, jint rows) {
+  peerOf(handle)->driver.setMeasureLookaheadRows(static_cast<std::size_t>(std::max(0, rows)));
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeInvalidateSizeSpecs)(JNIEnv*, jclass, jlong handle) {
+  peerOf(handle)->driver.invalidateSizeSpecs();
+}
+
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeMarkRemeasure)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
   peerOf(handle)->driver.markRemeasure(readIndices(env, indices));
 }
@@ -432,7 +515,16 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeRunPasses)(JNIEnv* env, jobject 
   env->GetDoubleArrayRegion(io, 0, PASS_SLOTS, slots);
   peer->env = env;
   peer->target = thiz;
-  sl::PassResult result = peer->driver.runPasses(readPassInput(slots));
+  sl::PassResult result;
+  try {
+    result = peer->driver.runPasses(readPassInput(slots));
+  } catch (const SizeSpecCallbackException&) {
+    peer->driver.invalidateSizeSpecs();
+    peer->env = nullptr;
+    peer->target = nullptr;
+    return;
+  }
+  if (env->ExceptionCheck()) peer->driver.invalidateSizeSpecs();
   peer->env = nullptr;
   peer->target = nullptr;
   result.reachedStart = result.reachedStart || peer->reachedStart;

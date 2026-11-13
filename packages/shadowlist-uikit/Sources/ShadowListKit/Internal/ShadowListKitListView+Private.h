@@ -225,6 +225,8 @@ struct ShadowListKitPassGeometry {
   ShadowListKitListCell *_stickyCell;
   NSSet<NSString *> *_nonAnchorKeys;
   NSSet<NSString *> *_persistentKeys;
+  ShadowListKitItemSizeSpec * _Nullable (^_getItemSizeSpec)(NSInteger);
+  NSUInteger _measureLookaheadRows;
 
   BOOL _animatesChanges;
   ShadowListKitChangeAnimator *_changes;
@@ -408,6 +410,7 @@ struct ShadowListKitPassGeometry {
 - (BOOL)isUnderPinnedTemplate:(CGPoint)point;
 - (void)sendNonAnchorKeys;
 - (void)sendPersistentKeys;
+- (void)sendSizeSpecSource;
 
 @end
 

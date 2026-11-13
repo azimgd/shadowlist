@@ -956,6 +956,64 @@ class ShadowListKitHostTest {
     assertEquals(HEIGHT, cell.height)
   }
 
+  @Test
+  fun predictive_specs_cache_main_thread_calls_and_disabling_preserves_exact_sizes() = onMain {
+    val list = ShadowListKitListView(context)
+    val calls = HashMap<Int, Int>()
+    list.getItemSizeSpec = { index ->
+      assertEquals(android.os.Looper.getMainLooper(), android.os.Looper.myLooper())
+      calls[index] = (calls[index] ?: 0) + 1
+      ShadowListKitItemSizeSpec("prediction", fixedHeight = 180.0)
+    }
+    makeSizedList(SizedRows(200, 100.0), list)
+    repeat(8) { list.layoutPass() }
+    val density = context.resources.displayMetrics.density
+    assertEquals(180f * density, list.rectForItem(60)!!.height(), 0.01f)
+    assertEquals(100f, list.rectForItem(0)!!.height(), 0f)
+    assertEquals(1, calls[60])
+    repeat(8) { list.layoutPass() }
+    assertEquals(1, calls[60])
+    list.getItemSizeSpec = null
+    layOut(list)
+    assertEquals(100f, list.rectForItem(60)!!.height(), 0f)
+    assertEquals(100f, list.rectForItem(0)!!.height(), 0f)
+  }
+
+  @Test
+  fun predictive_text_rewraps_and_null_specs_use_normal_sizes() = onMain {
+    val list = ShadowListKitListView(context)
+    list.persistentKeys = setOf("row150")
+    val calls = HashMap<Int, Int>()
+    list.getItemSizeSpec = { index ->
+      calls[index] = (calls[index] ?: 0) + 1
+      if (index == 61) null else ShadowListKitItemSizeSpec("word ".repeat(60), fontSize = 14.0,
+        lineHeight = 20.0, insetWidth = 30.0, insetHeight = 12.0, widthFraction = 0.75)
+    }
+    makeSizedList(SizedRows(200, 100.0), list)
+    repeat(8) { list.layoutPass() }
+    val narrow = list.rectForItem(60)!!.height()
+    list.measure(MeasureSpec.makeMeasureSpec(1600, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(HEIGHT, MeasureSpec.EXACTLY))
+    list.layout(0, 0, 1600, HEIGHT)
+    repeat(8) { list.layoutPass() }
+    assertTrue(list.rectForItem(60)!!.height() < narrow)
+    assertEquals(100f, list.rectForItem(61)!!.height(), 0f)
+    // Retention and range lookup invoke the provider once per key per source, not twice.
+    assertEquals(2, calls[150])
+  }
+
+  @Test
+  fun a_throwing_predictive_provider_preserves_measured_sizes_and_can_recover() = onMain {
+    val list = makeSizedList(SizedRows(200, 100.0))
+    list.getItemSizeSpec = { throw IllegalStateException("provider failure") }
+    val error = assertThrows(IllegalStateException::class.java) { list.layoutPass() }
+    assertEquals("provider failure", error.message)
+    list.getItemSizeSpec = { ShadowListKitItemSizeSpec("recovered", fixedHeight = 180.0) }
+    repeat(8) { list.layoutPass() }
+    assertEquals(100f, list.rectForItem(0)!!.height(), 0f)
+    val density = context.resources.displayMetrics.density
+    assertEquals(180f * density, list.rectForItem(60)!!.height(), 0.01f)
+  }
+
   // region Header, footer and empty view
 
   @Test

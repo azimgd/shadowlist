@@ -526,42 +526,31 @@ IndexRange Container::getMeasuredRange() const {
   return {revision.measuredLow, revision.measuredHigh};
 }
 
+bool isRowViewable(double rowStart, double rowSize, double offset, double windowSize, const ViewableRule& rule) {
+  if (!(rowSize > 0.0) || !(windowSize > 0.0)) {
+    return false;
+  }
+  double visible = std::min(rowStart + rowSize, offset + windowSize) - std::max(rowStart, offset);
+  // A row taller than the viewport can qualify when its visible viewport share meets the rule.
+  double referenceSize = rule.coverage ? windowSize : std::min(rowSize, windowSize);
+  bool fullyVisible = rule.coverage && visible >= rowSize;
+  return visible > 0.0 && (fullyVisible || visible / referenceSize >= rule.threshold);
+}
+
 IndexRange Container::getViewableIndices(const ViewableRule& rule) const {
   IndexRange measured = getMeasuredRange();
   if (measured.isEmpty()) {
     return {};
   }
-
-  double viewportStart = getOffset();
-  double windowSize = getWindowSize();
-  double viewportEnd = viewportStart + windowSize;
-
   IndexRange viewable;
-  for (std::size_t nextRowIndex = measured.low; nextRowIndex <= measured.high && nextRowIndex < revision.rows.size(); ++nextRowIndex) {
-    const Row& nextRow = revision.rows[nextRowIndex];
-    double rowStart = horizontal ? nextRow.offsetX : nextRow.offsetY;
-    double rowSize = horizontal ? nextRow.width : nextRow.height;
-    if (rowSize <= 0.0) {
-      continue;
-    }
-    double rowEnd = rowStart + rowSize;
-
-    double overlapStart = rowStart > viewportStart ? rowStart : viewportStart;
-    double overlapEnd = rowEnd < viewportEnd ? rowEnd : viewportEnd;
-    double visible = overlapEnd - overlapStart;
-
-    /*
-     * Compare against the smaller of row and viewport. A row taller than the screen
-     * can still count as fully visible. Coverage compares against the viewport, and a row
-     * fully on screen always counts.
-     */
-    double referenceSize = rule.coverage ? windowSize : (rowSize < windowSize ? rowSize : windowSize);
-    bool fullyVisible = rule.coverage && visible >= rowSize;
-    if (visible > 0.0 && referenceSize > 0.0 && (fullyVisible || (visible / referenceSize) >= rule.threshold)) {
+  for (std::size_t index = measured.low; index <= measured.high && index < revision.rows.size(); ++index) {
+    const Row& row = revision.rows[index];
+    if (isRowViewable(horizontal ? row.offsetX : row.offsetY, horizontal ? row.width : row.height,
+          getOffset(), getWindowSize(), rule)) {
       if (viewable.low == UNDEFINED_INDEX) {
-        viewable.low = nextRowIndex;
+        viewable.low = index;
       }
-      viewable.high = nextRowIndex;
+      viewable.high = index;
     }
   }
   return viewable;

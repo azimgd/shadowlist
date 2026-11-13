@@ -392,8 +392,23 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
 
   /*
-   * Keep these keys mounted at their ordinary content positions, even outside the viewport.
+   * Predict item sizes on the main thread before cells mount. The callback uses public item
+   * indices and logical dp. Null leaves the row to the normal sizing path.
    */
+  var getItemSizeSpec: ((index: Int) -> ShadowListKitItemSizeSpec?)? = null
+    set(value) {
+      field = value
+      coreOrNull?.setSizeSpecsEnabled(value != null)
+      invalidateFrame()
+    }
+  var measureLookaheadRows = 48
+    set(value) {
+      field = value.coerceAtLeast(0)
+      coreOrNull?.setMeasureLookaheadRows(field)
+      invalidateFrame()
+    }
+
+  /* Keep these keys mounted at ordinary content positions, even outside the viewport. */
   var persistentKeys: Set<String> = emptySet()
     set(value) {
       field = value.toSet()
@@ -792,10 +807,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * A new core with this list's settings, sticky rows, non anchor keys, sections and keys. Every
    * copy of its output here is dropped and the next layout pass runs it.
    */
+  private fun itemSizeSpecForRow(row: Int): ShadowListKitItemSizeSpec? {
+    val index = itemForRow(row)
+    if (index < 0) return null
+    return getItemSizeSpec?.invoke(index)?.pixels(resources.displayMetrics.density.toDouble())
+  }
+
   private fun createCore(): ShadowListKitCore {
-    val created = ShadowListKitCore(::measureRow, ::dispatchPrefetch)
+    val created = ShadowListKitCore(::measureRow, ::dispatchPrefetch, ::itemSizeSpecForRow)
     coreOrNull = created
     applySettings(created)
+    created.setSizeSpecsEnabled(getItemSizeSpec != null)
+    created.setMeasureLookaheadRows(measureLookaheadRows)
     if (stickyPinning.stickyRows.isNotEmpty()) created.setStickyIndices(stickyPinning.stickyRows)
     if (nonAnchorKeys.isNotEmpty()) created.setNonAnchorKeys(nonAnchorKeys.toList())
     if (persistentKeys.isNotEmpty()) created.setPersistentKeys(persistentKeys.toList())
@@ -1111,6 +1134,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   override fun requestLayout() {
     if (!inLayoutPass) super.requestLayout()
+  }
+
+  override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+    super.onConfigurationChanged(newConfig)
+    coreOrNull?.invalidateSizeSpecs()
+    invalidateFrame()
   }
 
   override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {

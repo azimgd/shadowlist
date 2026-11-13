@@ -100,6 +100,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   _mountOverscan = 0.5;
   _startReachedThreshold = 1;
   _endReachedThreshold = 1;
+  _measureLookaheadRows = 48;
   _needsFrame = YES;
   _atEnd = YES;
   _allowsSelection = YES;
@@ -121,6 +122,15 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   _tap.cancelsTouchesInView = NO;
   [self addGestureRecognizer:_tap];
   [self installActionGestures];
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection
+{
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (![previousTraitCollection.preferredContentSizeCategory isEqualToString:self.traitCollection.preferredContentSizeCategory]) {
+    _driver.invalidateSizeSpecs();
+    [self invalidateFrame];
+  }
 }
 
 - (void)dealloc
@@ -477,6 +487,25 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
     emptyView.hidden = YES;
     [self insertSubview:emptyView atIndex:0];
   }
+  [self invalidateFrame];
+}
+
+- (ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+{
+  return _getItemSizeSpec;
+}
+
+- (void)setGetItemSizeSpec:(ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+{
+  _getItemSizeSpec = [getItemSizeSpec copy];
+  [self sendSizeSpecSource];
+}
+
+- (NSUInteger)measureLookaheadRows { return _measureLookaheadRows; }
+- (void)setMeasureLookaheadRows:(NSUInteger)measureLookaheadRows
+{
+  _measureLookaheadRows = measureLookaheadRows;
+  _driver.setMeasureLookaheadRows(measureLookaheadRows);
   [self invalidateFrame];
 }
 

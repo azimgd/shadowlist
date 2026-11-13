@@ -1,4 +1,5 @@
 #import "Internal/ShadowListKitListView+Private.h"
+#import "Internal/ShadowListKitItemSizeSpec.h"
 #import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListSupport.h"
 
@@ -470,12 +471,30 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     ((_stickyFooter || _autoHideFooter) && _footerView && CGRectContainsPoint(_footerView.frame, point));
 }
 
+- (void)sendSizeSpecSource
+{
+  if (!_getItemSizeSpec) {
+    _driver.setGetItemSizeSpec({}, {});
+  } else {
+    __weak ShadowListKitListView *weakSelf = self;
+    _driver.setGetItemSizeSpec([weakSelf](std::size_t row, const std::string&) -> std::optional<RowSizeSpec> {
+      ShadowListKitListView *list = weakSelf;
+      if (!list || !list->_getItemSizeSpec) return std::nullopt;
+      std::size_t item = list->_sections.itemForRow(row);
+      if (item == UNDEFINED_INDEX) return std::nullopt;
+      ShadowListKitItemSizeSpec *value = list->_getItemSizeSpec((NSInteger)item);
+      return value ? std::optional<RowSizeSpec>(ShadowListKitReadItemSizeSpec(value)) : std::nullopt;
+    }, ShadowListKitMeasureItemSizeSpec);
+  }
+  [self invalidateFrame];
+}
+
 - (void)sendPersistentKeys
 {
   std::vector<std::string> keys;
   keys.reserve(_persistentKeys.count);
   for (NSString *key in _persistentKeys) {
-    keys.emplace_back(key.UTF8String ?: "");
+    keys.push_back(ShadowListKitStdString(key));
   }
   _driver.setPersistentKeys(std::move(keys));
   ++_structureVersion;

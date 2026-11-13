@@ -3,6 +3,7 @@
 #import <UIKit/UIKit.h>
 
 #import <ShadowListKit/ShadowListKitListModels.h>
+#import <ShadowListKit/ShadowListKitItemSizeSpec.h>
 #import <ShadowListKit/ShadowListKitListProtocols.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -152,6 +153,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isHorizontal) BOOL horizontal;
 @property (nonatomic) NSInteger numberOfColumns;
 @property (nonatomic) CGFloat estimatedItemSize;
+@property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec * _Nullable (^getItemSizeSpec)(NSInteger index);
+@property (nonatomic) NSUInteger measureLookaheadRows;
 @property (nonatomic) CGFloat overscan;
 @property (nonatomic) CGFloat mountOverscan;
 @property (nonatomic) CGFloat startReachedThreshold;
@@ -176,7 +179,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL autoHideFooter;
 @property (nonatomic, strong, nullable) UIView *emptyView;
 @property (nonatomic, copy, nullable) NSSet<NSString *> *nonAnchorKeys;
-/* Keep these keys mounted at their content positions, without pinning them to the viewport. */
 @property (nonatomic, copy, nullable) NSSet<NSString *> *persistentKeys;
 @property (nonatomic, readonly, getter=isAtEnd) BOOL atEnd;
 

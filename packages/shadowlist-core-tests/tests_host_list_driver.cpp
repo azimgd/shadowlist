@@ -1561,3 +1561,82 @@ TEST(list_driver_persistent_key_intent_survives_delete_reinsert_and_key_moves) {
   host.driver.setPersistentKeys({});
   CHECK(host.driver.getPersistentIndices().empty());
 }
+
+TEST(list_driver_predictive_specs_are_bounded_cached_and_preserve_exact_measurements) {
+  Host host(200);
+  host.uniformSize = 60.0;
+  std::size_t callbacks = 0;
+  std::size_t layouts = 0;
+  double predictedHeight = 140.0;
+  host.driver.setGetItemSizeSpec([&](std::size_t, const std::string&) -> std::optional<RowSizeSpec> {
+    ++callbacks;
+    RowSizeSpec spec;
+    spec.text = "prediction";
+    spec.fixedHeight = predictedHeight;
+    return spec;
+  }, [&](const RowSizeSpec& spec, double width) {
+    ++layouts;
+    return Size{width, spec.fixedHeight};
+  });
+  host.layout();
+  CHECK(layouts <= SizeSpecQueue::BUDGET_PER_RUN);
+  host.settle();
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
+  CHECK_EQ(host.driver.getExtentAt(40), 140.0);
+  std::size_t calls = callbacks;
+  std::size_t measured = layouts;
+  host.layout();
+  CHECK_EQ(callbacks, calls);
+  CHECK_EQ(layouts, measured);
+  predictedHeight = 180.0;
+  host.driver.invalidateSizeSpecs();
+  host.settle();
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
+  CHECK_EQ(host.driver.getExtentAt(40), 180.0);
+  host.driver.setGetItemSizeSpec({}, {});
+  host.layout();
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
+  CHECK_EQ(host.driver.getExtentAt(40), 60.0);
+}
+
+TEST(list_driver_predictive_cache_rewraps_at_width_changes_and_deduplicates_retained_keys) {
+  Host host(200);
+  host.uniformSize = 60.0;
+  std::vector<std::size_t> calls;
+  host.driver.setPersistentKeys({"k40", "k199", "k199"});
+  host.driver.setGetItemSizeSpec([&](std::size_t index, const std::string&) -> std::optional<RowSizeSpec> {
+    calls.push_back(index);
+    if (index == 41) return std::nullopt;
+    return RowSizeSpec{};
+  }, [](const RowSizeSpec&, double width) { return Size{width, width / 3.0}; });
+  host.settle();
+  CHECK_EQ(std::count(calls.begin(), calls.end(), 40u), 1);
+  CHECK_EQ(std::count(calls.begin(), calls.end(), 199u), 1);
+  CHECK_EQ(host.driver.getExtentAt(42), 100.0);
+  CHECK_EQ(host.driver.getExtentAt(41), 60.0);
+  PassInput input;
+  input.windowAlong = WINDOW_ALONG;
+  input.windowCross = 600.0;
+  for (int frame = 0; frame < 10; ++frame) host.driver.runPasses(input);
+  CHECK_EQ(host.driver.getExtentAt(42), 200.0);
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
+}
+
+TEST(list_driver_predictive_provider_uses_current_indices_after_key_moves) {
+  Host host(200);
+  host.uniformSize = 60.0;
+  host.driver.setGetItemSizeSpec([](std::size_t index, const std::string&) -> std::optional<RowSizeSpec> {
+    RowSizeSpec spec;
+    spec.fixedHeight = 100.0 + static_cast<double>(index);
+    return spec;
+  }, [](const RowSizeSpec& spec, double width) { return Size{width, spec.fixedHeight}; });
+  host.settle();
+  CHECK_EQ(host.driver.getExtentAt(40), 140.0);
+  auto keys = keysFrom(0, 200);
+  std::swap(keys[40], keys[41]);
+  host.driver.setKeys(keys);
+  host.settle();
+  CHECK_EQ(host.driver.getKeyAt(41), std::string("k40"));
+  CHECK_EQ(host.driver.getExtentAt(41), 141.0);
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
+}

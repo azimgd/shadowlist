@@ -7,6 +7,7 @@
 #include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/MountedRange.hpp>
 #include <shadowlist-core/host/Prefetch.hpp>
+#include <shadowlist-core/host/RowSizeSpec.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 #include <shadowlist-core/host/StickyLayout.hpp>
 
@@ -16,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -247,6 +249,9 @@ public:
   using PrefetchRows =
     std::function<void(const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel)>;
 
+  using GetItemSizeSpec = std::function<std::optional<RowSizeSpec>(std::size_t index, const std::string& key)>;
+  using MeasureSizeSpec = std::function<Size(const RowSizeSpec& spec, double width)>;
+
   ListDriver();
 
   /*
@@ -277,6 +282,10 @@ public:
    * that streams in. The nearest other row holds it instead.
    */
   void setNonAnchorKeys(std::vector<std::string> keys);
+
+  void setGetItemSizeSpec(GetItemSizeSpec getItemSizeSpec, MeasureSizeSpec measureSizeSpec);
+  void setMeasureLookaheadRows(std::size_t rows);
+  void invalidateSizeSpecs();
 
   /*
    * Rows kept mounted at their ordinary content positions, even outside the measured range.
@@ -525,6 +534,7 @@ private:
   double crossSizeOf(std::size_t index) const;
   void collectIndex(std::size_t index);
   double runCore(const PassInput& input, double offset, bool userScrolled);
+  bool updateSizeSpecs(double offset, const PassInput& input);
   PassResult finishPasses(double offset, const PassInput& input);
   double clampOffset(double target, const PassInput& input) const;
   double restingOffset(double offset, const PassInput& input) const;
@@ -548,6 +558,21 @@ private:
   std::vector<std::size_t> sticky_;
   std::vector<std::string> nonAnchorKeys_;
   std::vector<std::string> persistentKeys_;
+  GetItemSizeSpec getItemSizeSpec_;
+  MeasureSizeSpec measureSizeSpec_;
+  std::size_t measureLookaheadRows_ = 48;
+  SizeSpecQueue sizeSpecs_;
+  std::shared_ptr<const std::vector<RowSizeSpec>> sizeSpecsSource_;
+  std::optional<MountedRange> sizeSpecsRange_;
+  bool sizeSpecsRan_ = false;
+  double sizeSpecsWidth_ = 0.0;
+  struct CachedSizeSpec {
+    std::size_t index = UNDEFINED_INDEX;
+    std::optional<RowSizeSpec> spec;
+    double width = -1.0;
+    Size size{0.0, 0.0};
+  };
+  std::unordered_map<std::string, CachedSizeSpec> sizeSpecsCache_;
 
   /*
    * Whether the core has yet to take nonAnchorKeys_.
