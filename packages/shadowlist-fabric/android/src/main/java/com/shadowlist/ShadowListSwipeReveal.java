@@ -31,6 +31,8 @@ final class ShadowListSwipeReveal {
    */
   private static final int CONSTANT_FLING_VELOCITY = 0;
   private static final int CONSTANT_SETTLE_DURATION_MS = 1;
+  private static final int CONSTANT_ACTION_COLOR_NORMAL = 2;
+  private static final int CONSTANT_ACTION_COLOR_DESTRUCTIVE = 3;
 
   private static final double[] CONSTANTS = nativeConstants();
 
@@ -39,6 +41,13 @@ final class ShadowListSwipeReveal {
    */
   static final double FLING_VELOCITY_DP = CONSTANTS[CONSTANT_FLING_VELOCITY];
   static final long SETTLE_DURATION_MS = (long) CONSTANTS[CONSTANT_SETTLE_DURATION_MS];
+
+  /*
+   * The core's backgrounds of a swipe action that sets none, as ARGB: gray, and red for a
+   * destructive action.
+   */
+  static final int ACTION_COLOR_NORMAL = (int) (long) CONSTANTS[CONSTANT_ACTION_COLOR_NORMAL];
+  static final int ACTION_COLOR_DESTRUCTIVE = (int) (long) CONSTANTS[CONSTANT_ACTION_COLOR_DESTRUCTIVE];
 
   /*
    * Frees the peer of a row dropped without destroy().

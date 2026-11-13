@@ -7,6 +7,11 @@ namespace azimgd::shadowlist {
 
 namespace {
 /*
+ * How many frames an operation that arrived on the end of a grid waits for the rows to settle.
+ */
+constexpr int GRID_END_WAIT_FRAMES = 3;
+
+/*
  * Turn the running operation's target into an unclamped offset for this frame.
  * An end edge target is maxOffset. A row target is the row's offset plus its sub offset,
  * worked out each frame so it follows the row while nearby rows get measured.
@@ -54,7 +59,8 @@ double clampOffset(double offset, double maxOffset) {
 
 /*
  * Reuse the id when the same correction is requested again. The host's reply then still
- * matches it over several frames. A new type or a new row gets a new id.
+ * matches it over several frames. A new type or a new row gets a new id, and the wait on the
+ * end of a grid starts over with it.
  */
 std::uint64_t operationId(Container& container, OperationType type, AnchorMode mode, const std::string& key) {
   if (container.state.operation && container.state.operation->type == type &&
@@ -62,6 +68,8 @@ std::uint64_t operationId(Container& container, OperationType type, AnchorMode m
       (mode != AnchorMode::Row || container.state.operation->target.key == key)) {
     return container.state.operation->commitToken;
   }
+  container.state.operationGeometryVersion = container.state.geometryVersion;
+  container.state.operationEndWaitFrames = 0;
   return container.state.nextCommitToken++;
 }
 
@@ -69,6 +77,7 @@ std::uint64_t operationId(Container& container, OperationType type, AnchorMode m
  * Start or repeat a correction that aims at the end, until the view gets there.
  */
 void requestFixed(Container& container, OperationType type) {
+  container.state.clampedAnchor.reset();
   if (container.state.operation && container.state.operation->type != type) {
     SHADOWLIST_LOG("  op replaced: type=%d key=%s -> type=%d", static_cast<int>(container.state.operation->type),
       container.state.operation->target.key.c_str(), static_cast<int>(type));
@@ -88,6 +97,7 @@ void requestAnchor(
   double delta,
   double viewPosition = 0.0,
   double viewOffset = 0.0) {
+  container.state.clampedAnchor.reset();
   const std::optional<Operation>& running = container.state.operation;
   if (running && (running->type != type || running->target.key != key)) {
     SHADOWLIST_LOG("  op replaced: type=%d key=%s -> type=%d key=%s", static_cast<int>(running->type),
@@ -102,6 +112,13 @@ void requestAnchor(
  * Step 0. Content shrank and left the view past the new end, like collapsing a tree.
  * Go back to the bottom. Checking for a shrink avoids fighting a bounce.
  * It runs as an operation so it survives recommits, and step 3 clears it on arrival.
+ * The clamp aims at the row the reader was on when that row is still there. Step 3 clamps
+ * the row's offset to the new end, which is the same pull back. The total can be short only
+ * because the rows that moved in are still estimated. When the layout pass measures them
+ * taller, a clamp aimed at the row goes back to it. One aimed at the end would follow the
+ * end down and leave the row behind.
+ * A clamp started during a gesture aims at the end. The host shifts a moving view by
+ * the correction instead of writing it, and only an end target is reached that way.
  */
 void requestShrinkClamp(
   Container& container,
@@ -109,8 +126,9 @@ void requestShrinkClamp(
   const std::string& anchorKey,
   std::size_t anchorIndex,
   double anchorDelta,
-  bool hadRowsBefore) {
-  if (!container.inverted && frame.rowCount > 0 &&
+  bool hadRowsBefore,
+  bool reportedBeforeWrite) {
+  if (!reportedBeforeWrite && !container.inverted && frame.rowCount > 0 &&
       frame.currentOffset > frame.maxOffset + OFFSET_MOVED_THRESHOLD &&
       frame.totalSize < frame.previousTotalForScrollToEnd) {
     /*
@@ -118,15 +136,21 @@ void requestShrinkClamp(
      * the row on screen moved up with it. Steps 3 and 4 follow that row and clamp when
      * needed. Jumping to the end would show rows further down instead.
      */
+    bool anchorSurvived = !container.state.operation && hadRowsBefore && !anchorKey.empty() &&
+      anchorIndex != UNDEFINED_INDEX;
     bool anchorPlacesView = false;
     if (container.state.operation && container.state.operation->target.mode == AnchorMode::Row) {
       anchorPlacesView = container.indexOfKey(container.state.operation->target.key) != UNDEFINED_INDEX;
-    } else if (!container.state.operation && hadRowsBefore && !anchorKey.empty()) {
-      anchorPlacesView = anchorIndex != UNDEFINED_INDEX &&
+    } else if (anchorSurvived) {
+      anchorPlacesView =
         std::fabs(container.getRowOffset(anchorIndex) + anchorDelta - frame.currentOffset) >= OFFSET_MOVED_THRESHOLD;
     }
     if (!anchorPlacesView) {
-      requestFixed(container, OperationType::ShrinkClamp);
+      if (anchorSurvived && !container.state.gestureActive) {
+        requestAnchor(container, OperationType::ShrinkClamp, anchorKey, anchorDelta);
+      } else {
+        requestFixed(container, OperationType::ShrinkClamp);
+      }
     }
   }
 }
@@ -191,9 +215,15 @@ void requestOpeningBottomPin(Container& container, const ScrollFrame& frame, boo
   if (container.inverted && !container.state.invertedInitialized && frame.rowCount > 0 && frame.windowSize > 0.0) {
     requestFixed(container, OperationType::BottomPin);
     container.state.invertedOpeningPin = true;
-    // Done only once the list can scroll and sits at the bottom. Until then keep pinning.
+    /*
+     * Done only once the list can scroll, sits at the bottom and the rows on screen there have
+     * real sizes. Until then keep pinning. After a dataset swap the host can report an
+     * offset that equals the bottom of the new rows' estimates by chance. That bottom moves
+     * once they are measured.
+     */
     if (offsetConfirmed &&
         frame.totalSize > frame.windowSize &&
+        hasTrustedEnd(container) &&
         std::fabs(frame.currentOffset - frame.maxOffset) < OFFSET_ARRIVED_THRESHOLD) {
       container.state.invertedInitialized = true;
     }
@@ -202,7 +232,9 @@ void requestOpeningBottomPin(Container& container, const ScrollFrame& frame, boo
 
 /*
  * Step 2b. Scroll to the end, aiming again every frame as the content grows. It is done
- * when the view is at the bottom, the total held still and the last row has a real size.
+ * when the view is at the bottom, the total held still and the rows on screen there have real
+ * sizes. A row measured after that would move the end with nothing left to follow it.
+ * An inverted list then rests on its bottom again, also when the view was already there.
  * A drag cancels it, momentum does not.
  */
 void requestScrollToEnd(Container& container, const ScrollFrame& frame) {
@@ -210,8 +242,9 @@ void requestScrollToEnd(Container& container, const ScrollFrame& frame) {
     container.state.invertedOpeningPin = false;
     bool atBottom = std::fabs(frame.currentOffset - frame.maxOffset) < OFFSET_ARRIVED_THRESHOLD;
     bool totalStable = frame.totalSize == frame.previousTotalForScrollToEnd;
-    if (atBottom && totalStable && container.hasTrustedSize(frame.rowCount - 1)) {
+    if (atBottom && totalStable && hasTrustedEnd(container)) {
       container.state.pendingScrollToEnd = false;
+      container.state.invertedBottomReleased = false;
     } else {
       requestFixed(container, OperationType::ScrollToEnd);
     }
@@ -239,8 +272,45 @@ ScrollStep driveOperation(
        * and republishes on every commit, about 500 times for one streaming reply.
        */
       bool reportedAtTarget = std::fabs(container.state.previousReportedOffset - target) < OFFSET_ARRIVED_THRESHOLD;
-      if ((offsetConfirmed || reportedAtTarget) &&
-          std::fabs(frame.currentOffset - target) < OFFSET_ARRIVED_THRESHOLD) {
+      bool arrived = (offsetConfirmed || reportedAtTarget) &&
+        std::fabs(frame.currentOffset - target) < OFFSET_ARRIVED_THRESHOLD;
+      /*
+       * Grid tracks move apart as rows get measured. An operation that rests on the end holds
+       * no row at the top of the viewport, and once it is done the anchor holds one track only.
+       * Rows measured after that would move the track and take the view off the end, or make
+       * room to reach a target row the end cut short, with nothing left to aim at it. Keep the
+       * operation while a row moved or changed size since its previous frame, for at most
+       * GRID_END_WAIT_FRAMES frames. A row that resizes on every frame must not keep it forever.
+       */
+      bool geometryChanged = container.state.operationGeometryVersion != container.state.geometryVersion;
+      container.state.operationGeometryVersion = container.state.geometryVersion;
+      if (arrived && container.numberOfColumns > 1 && rawTarget >= frame.maxOffset && geometryChanged &&
+          container.state.operationEndWaitFrames < GRID_END_WAIT_FRAMES) {
+        ++container.state.operationEndWaitFrames;
+        arrived = false;
+      }
+      /*
+       * A hold that rests on the end is cut short by it, or holds the last rows of a list that
+       * rests there. While a row in the window that ends the content has only a guessed size,
+       * that end is a guess too. Keep the hold until those rows have their sizes. It follows the
+       * end as they come in. Once it is done the anchor is the top row, and the same sizes would
+       * push the held row off its place. A scroll command lands on the end it finds.
+       */
+      OperationType type = container.state.operation->type;
+      bool holdsRow = container.state.operation->target.mode == AnchorMode::Row &&
+        (type == OperationType::MaintainAnchor || type == OperationType::ShrinkClamp);
+      if (arrived && holdsRow && rawTarget >= frame.maxOffset && !hasTrustedEnd(container)) {
+        arrived = false;
+      }
+      if (arrived) {
+        /*
+         * A host can have mounted rows beyond the measured range. Their late sizes can make
+         * room after the hold reaches a short end. Keep its target for size compensation,
+         * without keeping a running operation waiting for rows the core did not ask to mount.
+         */
+        if (holdsRow && rawTarget > frame.maxOffset + OFFSET_MOVED_THRESHOLD) {
+          container.state.clampedAnchor = container.state.operation->target;
+        }
         SHADOWLIST_LOG("  op arrived: type=%d key=%s index=%zd target=%.1f",
           static_cast<int>(container.state.operation->type),
           container.state.operation->target.key.c_str(),
@@ -248,8 +318,8 @@ ScrollStep driveOperation(
             ? container.indexOfKey(container.state.operation->target.key) : UNDEFINED_INDEX),
           target);
         /*
-         * Grid tracks move apart as rows get measured, and one offset holds one track. Hold the
-         * track of the row the operation landed on, not the one the capture picked.
+         * One offset holds one track of a grid. Hold the track of the row the operation landed
+         * on, not the one the capture picked.
          */
         const std::string& landedKey = container.state.operation->target.key;
         if (container.numberOfColumns > 1 && container.state.operation->target.mode == AnchorMode::Row &&
@@ -257,6 +327,18 @@ ScrollStep driveOperation(
           std::size_t landedIndex = container.indexOfKey(landedKey);
           container.state.anchor =
             Anchor{landedKey, frame.currentOffset - container.getRowOffset(landedIndex), AnchorMode::Row};
+        }
+        /*
+         * Where a command lands an inverted list decides whether it rests on its bottom. Away
+         * from the bottom it leaves it, the same as a drag there. Otherwise the list still counts
+         * as resting on its newest row, and a scroll to the top of a newest row taller than the
+         * window would be pulled down to the bottom by the next frame. On the bottom it rests
+         * there again, also when the view was already there and the landing moved nothing.
+         */
+        OperationType arrivedType = container.state.operation->type;
+        if (container.inverted &&
+            (arrivedType == OperationType::ScrollToKey || arrivedType == OperationType::ScrollToStart)) {
+          container.state.invertedBottomReleased = !atInvertedBottom(target, frame.totalSize, frame.windowSize);
         }
         container.state.operation.reset();
         /*
@@ -295,8 +377,9 @@ bool holdAnchor(
        * the row's old position. The row can grow after first paint, and holding its position
        * would leave a gap at the bottom and fight the bottom pin. Trailing decoration rows
        * don't count as the newest row.
-       * Not when the user has scrolled up, or the view gets pulled from under them. Not while
-       * a finger is down either, or the content snaps back on every touch frame.
+       * Not when the user has scrolled up or a scroll command landed away from the bottom, or
+       * the view gets pulled from under them. Not while a finger is down either, or the content
+       * snaps back on every touch frame.
        * A list still settling on the bottom it opened at always holds the bottom, and so does
        * one with followAppends that rested there.
        */
@@ -358,6 +441,11 @@ std::vector<Anchor> Virtualizer::captureFallbackAnchors(
 }
 
 std::size_t Virtualizer::captureAnchor(Container& container, double inputOffset) {
+  if (container.state.clampedAnchor &&
+      (!container.isAnchorable(container.state.clampedAnchor->key) ||
+       container.indexOfKey(container.state.clampedAnchor->key) == UNDEFINED_INDEX)) {
+    container.state.clampedAnchor.reset();
+  }
   Anchor& anchor = container.state.anchor;
   const std::vector<Row>& previousRows = container.revision.rows;
   if (previousRows.empty()) {
@@ -434,21 +522,54 @@ std::size_t Virtualizer::captureAnchor(Container& container, double inputOffset)
        * A row with only a guessed size may change size in several steps, moving everything
        * below it each time. This is common right after a prepend at the top. If a row with a
        * known size starts inside the viewport, anchor that one instead.
-       * Only for single column lists that aren't inverted. Inverted lists use their anchor
-       * to tell whether they rest on the newest row.
+       * Only for single column lists. An inverted list that may still hold its bottom uses
+       * its anchor to tell whether it rests on the newest row, and keeps the top row. Once it
+       * left the bottom or a gesture runs, nothing reads the anchor that way.
+       * A list at its start keeps the top row too. No row sits above it there, and a row held
+       * further down would leave the start when the rows above it get measured.
+       * The row held so far comes first when it starts inside the viewport below a row with a
+       * guessed size: the row of the running correction, or the previous anchor. After a prepend
+       * whose rows are not measured yet that is the reader's row, and holding the top row would
+       * let those rows push it down the screen.
        */
+      bool anchorTellsNewestRow = container.inverted && !container.state.invertedBottomReleased &&
+        !container.state.gestureActive;
+      bool atStart = inputOffset < OFFSET_MOVED_THRESHOLD;
       std::size_t anchorIndex = previousRowIndex;
-      if (container.numberOfColumns <= 1 && !container.inverted && !previousRow.measured && !previousRow.predicted) {
+      if (container.numberOfColumns <= 1 && !anchorTellsNewestRow && !atStart) {
+        const std::optional<Operation>& running = container.state.operation;
+        const std::string& heldKey =
+          running && running->target.mode == AnchorMode::Row ? running->target.key : anchor.key;
+        bool topGuessed = !previousRow.measured && !previousRow.predicted;
+        /*
+         * Without duplicate keys a top row that is the row held so far is the held row alone,
+         * and no row below it is. With a known size it stays the anchor and no other row is
+         * read, which is how most frames of a scroll end. With a guessed size the first row
+         * with a known size takes over and the rows after that one are not read.
+         */
+        bool topIsHeld = !container.revision.hasDuplicateKeys && heldKey == previousRow.key;
+        bool guessedAbove = false;
         double viewportEnd = inputOffset + container.getWindowSize();
-        for (std::size_t laterIndex = previousRowIndex + 1; laterIndex < previousRows.size(); ++laterIndex) {
+        std::size_t scanEnd = topIsHeld && !topGuessed ? previousRowIndex : previousRows.size();
+        for (std::size_t laterIndex = previousRowIndex; laterIndex < scanEnd; ++laterIndex) {
           const Row& laterRow = previousRows[laterIndex];
-          if (rowOffsetOf(laterRow) >= viewportEnd) {
+          if (laterIndex > previousRowIndex && rowOffsetOf(laterRow) >= viewportEnd) {
             break;
           }
-          if (container.isAnchorable(laterRow.key) && (laterRow.measured || laterRow.predicted)) {
-            anchorIndex = laterIndex;
-            break;
+          bool known = laterRow.measured || laterRow.predicted;
+          if (guessedAbove && container.isAnchorable(laterRow.key)) {
+            if (laterRow.key == heldKey) {
+              anchorIndex = laterIndex;
+              break;
+            }
+            if (topGuessed && known && anchorIndex == previousRowIndex) {
+              anchorIndex = laterIndex;
+              if (topIsHeld) {
+                break;
+              }
+            }
           }
+          guessedAbove = guessedAbove || !known;
         }
       }
       return holdRow(anchorIndex, inputOffset - rowOffsetOf(previousRows[anchorIndex]));
@@ -474,7 +595,8 @@ bool Virtualizer::resolveScroll(
   std::size_t anchorIndex,
   double anchorDelta,
   bool hadRowsBefore,
-  bool offsetConfirmed) {
+  bool offsetConfirmed,
+  bool reportedBeforeWrite) {
   std::size_t rowCount = container.revision.rows.size();
   container.state.offsetCorrected = false;
 
@@ -501,7 +623,7 @@ bool Virtualizer::resolveScroll(
   frame.previousTotalForScrollToEnd = container.state.pendingScrollToEndPreviousTotal;
   container.state.pendingScrollToEndPreviousTotal = frame.totalSize;
 
-  requestShrinkClamp(container, frame, anchorKey, anchorIndex, anchorDelta, hadRowsBefore);
+  requestShrinkClamp(container, frame, anchorKey, anchorIndex, anchorDelta, hadRowsBefore, reportedBeforeWrite);
 
   /*
    * Set when a scroll command arrives this frame. The command owns the offset. Holding

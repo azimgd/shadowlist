@@ -97,10 +97,8 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   _mountOverscan = 0.5;
   _startReachedThreshold = 1;
   _endReachedThreshold = 1;
-  _mountedLow = UNDEFINED_INDEX;
-  _mountedHigh = UNDEFINED_INDEX;
-  _mountedSticky = UNDEFINED_INDEX;
   _needsFrame = YES;
+  _atEnd = YES;
   _allowsSelection = YES;
   _separatorColor = UIColor.separatorColor;
   _separatorInsetStart = 16;
@@ -116,9 +114,9 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
     [weakSelf reportPrefetchRows:prefetch cancel:cancel];
   });
 
-  UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
-  tap.cancelsTouchesInView = NO;
-  [self addGestureRecognizer:tap];
+  _tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
+  _tap.cancelsTouchesInView = NO;
+  [self addGestureRecognizer:_tap];
   [self installActionGestures];
 }
 
@@ -353,9 +351,45 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   [self invalidateFrame];
 }
 
+- (void)setEstimatedItemSize:(CGFloat)estimatedItemSize
+{
+  _estimatedItemSize = estimatedItemSize;
+  [self invalidateFrame];
+}
+
+- (void)setOverscan:(CGFloat)overscan
+{
+  _overscan = overscan;
+  [self invalidateFrame];
+}
+
+- (void)setMountOverscan:(CGFloat)mountOverscan
+{
+  _mountOverscan = mountOverscan;
+  [self invalidateFrame];
+}
+
+- (void)setStartReachedThreshold:(CGFloat)startReachedThreshold
+{
+  _startReachedThreshold = startReachedThreshold;
+  [self invalidateFrame];
+}
+
+- (void)setEndReachedThreshold:(CGFloat)endReachedThreshold
+{
+  _endReachedThreshold = endReachedThreshold;
+  [self invalidateFrame];
+}
+
 - (void)setSnapToItem:(BOOL)snapToItem
 {
   _snapToItem = snapToItem;
+  [self invalidateFrame];
+}
+
+- (void)setSnapAlignment:(ShadowListKitSnapAlignment)snapAlignment
+{
+  _snapAlignment = snapAlignment;
   [self invalidateFrame];
 }
 
@@ -397,6 +431,43 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
     [self insertSubview:footerView atIndex:0];
   }
   [self invalidateFrame];
+}
+
+- (void)setStickyHeader:(BOOL)stickyHeader
+{
+  _stickyHeader = stickyHeader;
+  [self setNeedsLayout];
+}
+
+- (void)setStickyFooter:(BOOL)stickyFooter
+{
+  _stickyFooter = stickyFooter;
+  [self setNeedsLayout];
+}
+
+/*
+ * The empty view stays hidden until a layout pass says the list has no rows.
+ */
+- (void)setEmptyView:(UIView *)emptyView
+{
+  [_emptyView removeFromSuperview];
+  _emptyView = emptyView;
+  if (emptyView) {
+    emptyView.hidden = YES;
+    [self insertSubview:emptyView atIndex:0];
+  }
+  [self invalidateFrame];
+}
+
+- (void)setNonAnchorKeys:(NSSet<NSString *> *)nonAnchorKeys
+{
+  _nonAnchorKeys = [nonAnchorKeys copy];
+  [self sendNonAnchorKeys];
+}
+
+- (BOOL)isAtEnd
+{
+  return _atEnd;
 }
 
 - (id<ShadowListKitItemAnimator>)itemAnimator
@@ -612,10 +683,13 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 
 /*
  * The visible cell under a point in the list's own coordinates. A pinned header covers the
- * items under it.
+ * items under it, and so do a pinned header view and footer view.
  */
 - (ShadowListKitListCell *)cellAtPoint:(CGPoint)point
 {
+  if ([self isUnderPinnedTemplate:point]) {
+    return nil;
+  }
   if (_stickyCell && !_stickyCell.hidden && _stickyCell.row != NSNotFound && CGRectContainsPoint(_stickyCell.frame, point)) {
     return _stickyCell;
   }
@@ -650,7 +724,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gesture
 {
-  if (gesture == _swipePan) {
+  if (gesture == _swipePan || gesture == _longPress) {
     return [self shouldBeginActionGesture:gesture];
   }
   if (gesture == self.panGestureRecognizer) {

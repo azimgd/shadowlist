@@ -58,6 +58,28 @@ struct StickyTranslations {
 StickyTranslations stickyTranslations(const StickyInput& input, StickyState& state);
 
 /*
+ * A stretch of the content along the scroll axis.
+ */
+struct StickySpan {
+  double start = 0.0;
+  double end = 0.0;
+};
+
+struct StickySpans {
+  StickySpan header;
+  StickySpan footer;
+};
+
+/*
+ * The spans a pinned header and footer stay inside, for a host whose platform pins on its own,
+ * like CSS position sticky: the header at the viewport start inside its span, and the footer at
+ * the viewport end inside its own. Inside the scroll range that places them where
+ * stickyTranslations does. A header or footer that is not pinned spans its own place. Auto hide
+ * needs the translations.
+ */
+StickySpans stickySpans(const StickyInput& input);
+
+/*
  * Position of the pinned section header among count headers, the last one starting at or
  * above the offset, or UNDEFINED_INDEX. leadingAt gives a header's leading edge by position and must not
  * decrease. Headers not placed yet can report infinity. Binary search.

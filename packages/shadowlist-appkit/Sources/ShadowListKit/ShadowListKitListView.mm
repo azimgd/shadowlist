@@ -106,10 +106,8 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   _mountOverscan = 0.5;
   _startReachedThreshold = 1;
   _endReachedThreshold = 1;
-  _mountedLow = UNDEFINED_INDEX;
-  _mountedHigh = UNDEFINED_INDEX;
-  _mountedSticky = UNDEFINED_INDEX;
   _needsFrame = YES;
+  _atEnd = YES;
   _allowsSelection = YES;
   _scrollEnabled = YES;
   _separatorColor = NSColor.separatorColor;
@@ -504,6 +502,30 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   [self invalidateFrame];
 }
 
+- (void)setOverscan:(CGFloat)overscan
+{
+  _overscan = overscan;
+  [self invalidateFrame];
+}
+
+- (void)setMountOverscan:(CGFloat)mountOverscan
+{
+  _mountOverscan = mountOverscan;
+  [self invalidateFrame];
+}
+
+- (void)setStartReachedThreshold:(CGFloat)startReachedThreshold
+{
+  _startReachedThreshold = startReachedThreshold;
+  [self invalidateFrame];
+}
+
+- (void)setEndReachedThreshold:(CGFloat)endReachedThreshold
+{
+  _endReachedThreshold = endReachedThreshold;
+  [self invalidateFrame];
+}
+
 - (void)setSnapToItem:(BOOL)snapToItem
 {
   _snapToItem = snapToItem;
@@ -571,6 +593,63 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
     [_contentView addSubview:footerView positioned:NSWindowBelow relativeTo:nil];
   }
   [self invalidateFrame];
+}
+
+- (BOOL)stickyHeader
+{
+  return _stickyHeader;
+}
+
+- (void)setStickyHeader:(BOOL)stickyHeader
+{
+  _stickyHeader = stickyHeader;
+  self.needsLayout = YES;
+}
+
+- (BOOL)stickyFooter
+{
+  return _stickyFooter;
+}
+
+- (void)setStickyFooter:(BOOL)stickyFooter
+{
+  _stickyFooter = stickyFooter;
+  self.needsLayout = YES;
+}
+
+- (NSView *)emptyView
+{
+  return _emptyView;
+}
+
+/*
+ * The empty view stays hidden until a layout pass says the list has no rows.
+ */
+- (void)setEmptyView:(NSView *)emptyView
+{
+  [_emptyView removeFromSuperview];
+  _emptyView = emptyView;
+  if (emptyView) {
+    emptyView.hidden = YES;
+    [_contentView addSubview:emptyView positioned:NSWindowBelow relativeTo:nil];
+  }
+  [self invalidateFrame];
+}
+
+- (NSSet<NSString *> *)nonAnchorKeys
+{
+  return _nonAnchorKeys;
+}
+
+- (void)setNonAnchorKeys:(NSSet<NSString *> *)nonAnchorKeys
+{
+  _nonAnchorKeys = [nonAnchorKeys copy];
+  [self sendNonAnchorKeys];
+}
+
+- (BOOL)isAtEnd
+{
+  return _atEnd;
 }
 
 - (BOOL)animatesChanges
@@ -781,8 +860,8 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
     return NO;
   }
   double offset = [self offset];
-  if (!_band.contains(offset) || !_mountBand.contains(offset) || _driver.getGeometryVersion() != _mountedGeometry ||
-      _structureVersion != _mountedStructure) {
+  if (!_band.contains(offset) || !_mountRecord.band.contains(offset) ||
+      _driver.getGeometryVersion() != _mountRecord.geometry || _structureVersion != _mountRecord.structure) {
     return NO;
   }
   [self trackUserScroll];
@@ -926,11 +1005,15 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
 
 /*
  * The shown item cell at a point in the list's coordinates, or nil. A pinned header covers the
- * items under it. Cells are where their layers show them.
+ * items under it, and so do a pinned header view and footer view. Cells are where their layers
+ * show them.
  */
 - (ShadowListKitListCell *)itemCellAtPoint:(NSPoint)point
 {
   NSPoint content = [self contentPointAt:point];
+  if ([self isUnderPinnedTemplate:content]) {
+    return nil;
+  }
   if (_stickyCell && _stickyCell.shown && NSPointInRect(content, _stickyCell.shownFrame)) {
     return _stickyCell.index != NSNotFound && _stickyCell.mountGeneration != 0 ? _stickyCell : nil;
   }

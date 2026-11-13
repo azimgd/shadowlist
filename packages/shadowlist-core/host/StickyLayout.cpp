@@ -46,6 +46,22 @@ StickyTranslations stickyTranslations(const StickyInput& input, StickyState& sta
   return result;
 }
 
+StickySpans stickySpans(const StickyInput& input) {
+  StickySpans spans;
+  double headerSize = input.hasHeader ? input.headerSize : 0.0;
+  double footerSize = input.hasFooter ? input.footerSize : 0.0;
+  // The end of the content or the footer pushes a pinned header off.
+  spans.header.end = input.hasHeader && input.stickyHeader ? input.contentSize - footerSize : headerSize;
+  spans.footer.start = input.footerStart;
+  spans.footer.end = input.footerStart + footerSize;
+  if (input.hasFooter && input.stickyFooter) {
+    // A pinned footer never rides up into the header's space, and rests at the end of a short list's viewport.
+    spans.footer.start = headerSize;
+    spans.footer.end = std::max(input.contentSize, input.windowSize);
+  }
+  return spans;
+}
+
 SectionOverlayPosition sectionOverlayPosition(
   const double* offsets,
   const double* sizes,

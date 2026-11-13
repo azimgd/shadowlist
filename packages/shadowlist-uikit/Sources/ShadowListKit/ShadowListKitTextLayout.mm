@@ -10,6 +10,7 @@
 @implementation ShadowListKitTextLayout {
   CFArrayRef _lines;
   std::vector<CGPoint> _origins;
+  std::vector<CGFloat> _lineWidths;
   CGFloat _lineHeight;
   CGFloat _baselineShift;
 }
@@ -101,12 +102,14 @@
   }
   _lines = keptLines;
   _origins.resize((size_t)kept);
+  _lineWidths.resize((size_t)kept);
   CGFloat widest = 0;
   for (CFIndex index = 0; index < kept; ++index) {
     CTLineRef line = (CTLineRef)CFArrayGetValueAtIndex(_lines, index);
     // Origins come bottom up from the top of the frame. Keep the baseline as distance from the top.
     _origins[(size_t)index] = CGPointMake(origins[(size_t)index].x, frameHeight - origins[(size_t)index].y);
     CGFloat lineWidth = (CGFloat)CTLineGetTypographicBounds(line, NULL, NULL, NULL) - (CGFloat)CTLineGetTrailingWhitespaceWidth(line);
+    _lineWidths[(size_t)index] = MAX(0, lineWidth);
     widest = MAX(widest, lineWidth);
   }
   _lineCount = (NSUInteger)kept;
@@ -123,6 +126,14 @@
   if (_lines) {
     CFRelease(_lines);
   }
+}
+
+- (CGRect)rectForLineAtIndex:(NSUInteger)index
+{
+  if (index >= _lineCount) {
+    return CGRectNull;
+  }
+  return CGRectMake(_origins[index].x, _lineHeight * index, _lineWidths[index], _lineHeight);
 }
 
 - (void)drawAtPoint:(CGPoint)point inContext:(CGContextRef)context color:(CGColorRef)color

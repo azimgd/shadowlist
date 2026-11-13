@@ -127,13 +127,16 @@ has full signatures and defaults. Rows marked Mac only have no UIKit counterpart
 | Data source | `numberOfItemsInListView:`, `listView:keyForItemAtIndex:`, `listView:cellForItemAtIndex:`, `listView:reconfigureCell:atIndex:payload:` | `listView:reconfigureCell:atIndex:payload:` updates a shown cell for a payload reload. Return `NO` to reload the item in full. |
 | Sizing | `listView:sizeForItemAtIndex:crossSize:` | Optional. Without it every item is measured once through its cell's `sizeThatFits:`, which fits Auto Layout constraints. |
 | Sections | `numberOfSectionsInListView:`, `listView:numberOfItemsInSection:`, `listView:keyForSection:`, `listView:titleForHeaderInSection:`, `listView:titleForFooterInSection:`, `listView:cellForHeaderInSection:`, `listView:cellForFooterInSection:`, `listView:sizeForHeaderInSection:crossSize:`, `listView:sizeForFooterInSection:crossSize:` | A title, an empty one too, gives a section a header or footer, shown in a plain cell unless a cell is given. The section key defaults to the key of its first item. |
-| Content versions | `listView:contentVersionForItemAtIndex:` | A revision or hash. `applyChanges` reloads items whose value changed. |
+| Content versions | `listView:contentVersionForItemAtIndex:` | A revision or hash. `applyChanges` reloads items whose value changed since the list read it: at `reloadData`, when the item was inserted, or at the `applyChanges` before. |
 | Delegate | `listView:willDisplayCell:atIndex:`, `listView:didEndDisplayingCell:atIndex:`, `listView:didSelectItemAtIndex:`, `listView:didDeselectItemAtIndex:`, `listView:shouldSelectItemAtIndex:`, `listView:shouldHighlightItemAtIndex:`, `listView:canMoveItemAtIndex:`, `listView:moveItemAtIndex:toIndex:`, `listViewDidReachStart:`, `listViewDidReachEnd:` | Every method is optional. |
 | Mac delegate | `listView:didActivateItemAtIndex:`, `listView:typeSelectStringForItemAtIndex:`, `listViewDidLayOut:`, `listView:didCorrectOffset:` | Mac only. A double-click, Return or Space activates. Typing selects by the string. `listViewDidLayOut:` follows every layout pass. `listView:didCorrectOffset:` is the driven mode's offset. |
 | Scroll events | `listViewDidScroll:`, `listViewWillBeginDragging:`, `listViewDidEndDragging:willDecelerate:`, `listViewDidEndDecelerating:`, `listViewDidEndScrollingAnimation:` | The same calls as the UIKit list's, on the list's own delegate. They follow `contentOffset` and `scrollPhase`. |
 | Cells | `registerClass:forCellReuseIdentifier:`, `dequeueReusableCellWithIdentifier:` | `prepareForReuse` runs before a cell is handed out again. |
 | Cell states | `highlighted`, `selected`, `editing`, `hovered`, `emphasized`, `menuTarget` | Override the `set...:animated:` setters to show them. `hovered`, `emphasized` and `menuTarget` are Mac only. |
 | Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Set `needsLayout` on the list after `headerView` or `footerView` changes size. |
+| Header, footer and empty view | `stickyHeader`, `stickyFooter`, `emptyView` | `stickyHeader` pins `headerView` to the start of the viewport and `stickyFooter` pins `footerView` to its end, over the items. The footer's place pushes a pinned header off, and a pinned footer stays under the header's place. `emptyView` shows right after the header while the list has no items and no section header or footer rows, at its own size, measured like the header's. |
+| End of an inverted list | `atEnd`, delegate `listView:didChangeAtEnd:` | Whether an inverted list is at its end. It leaves the end when the reader scrolls away from it or a scroll command lands away from it, and is back when either brings it there. Items appended while it rests there do not leave it. Always `YES` for a list that is not inverted. |
+| Anchors | `nonAnchorKeys` | Keys of items the list never holds the visible content in place by, like a typing indicator or an item that streams in. The nearest other item holds it instead. |
 | Changes | `reloadData`, `insertItemsAtIndices:`, `deleteItemsAtIndices:`, `reloadItemsAtIndices:`, `reloadItemsAtIndices:payload:`, `moveItemAtIndex:toIndex:`, `performBatchUpdates:completion:`, `applyChanges` | An insert past the end goes at the end, a delete past the end is dropped. `applyChanges` diffs every key and returns a `ShadowListKitListChanges`. |
 | Animations | `animatesChanges`, `itemAnimator` | Off by default. Inserted items fade in, deleted items fade out and items that stay slide. `ShadowListKitDefaultItemAnimator` unless replaced. |
 | Selection | `allowsSelection`, `allowsMultipleSelection`, `selectedIndices`, `clickedIndex`, `selectItemAtIndex:animated:`, `deselectItemAtIndex:animated:` | Selection follows keys. The select and deselect calls skip the delegate. See [Selection and keys](#selection-and-keys). |
@@ -151,7 +154,7 @@ has full signatures and defaults. Rows marked Mac only have no UIKit counterpart
 | Scroll engine delegate | `scrollEngine:didScrollToOffset:`, `scrollEngine:didChangePhase:`, `scrollEngineDidEndAnimation:`, `scrollEngine:restingOffsetForOffset:` | Mac only. The first is required. `scrollEngine:restingOffsetForOffset:` moves where a gesture rests, like an item edge. |
 | Scrollers | `ShadowListKitScrollerView`: `axes`, `contentSize`, `offset`, `scrollerInsets`, `showsScrollersAlways`, `flashScrollers` | Mac only. Overlay scrollers for a view that owns its scroll position. |
 | Scrollers delegate | `scrollerView:didScrollToOffset:`, `scrollerViewDidScrollForAccessibility:`, `scrollerViewWillBeginDragging:`, `scrollerViewDidEndDragging:` | Mac only. The first is required. The host moves its content to the offset. |
-| Text | `ShadowListKitTextLayout`, `ShadowListKitTextView` | Text typeset off the main thread with an `NSFont` and shown as a bitmap at the window's backing scale, the same CoreText code as the UIKit kit. |
+| Text | `ShadowListKitTextLayout` (`size`, `lineCount`, `rectForLineAtIndex:`), `ShadowListKitTextView` | Text typeset off the main thread with an `NSFont` and shown as a bitmap at the window's backing scale, the same CoreText code as the UIKit kit. `rectForLineAtIndex:` is the part of a line its text takes. |
 
 Masonry is round robin by row: row `r`, counting section header and footer rows, goes in column
 `r % numberOfColumns`, and each column stacks its own rows. Full width rows in a grid are not supported.
@@ -330,6 +333,7 @@ Left out on the Mac:
 | `refreshEnabled`, `refreshing`, `listViewDidBeginRefreshing:` | Pull to refresh is a touch gesture. Mac apps refresh from a menu item or a button. |
 | `sectionIndexTitlesForListView:`, `listView:sectionForSectionIndexTitle:atIndex:` | AppKit has no section index. Type select reaches items by their text instead. |
 | `editing`, `setEditing:animated:` on the list | AppKit lists have no editing mode. The cell keeps its `editing` state, which the list does not set. |
+| `listView:didLongPressItemAtIndex:` | A long press is a touch gesture. On the Mac a right click or a Control-click reaches an item's menu. |
 | Keyboard insets | A Mac window has no on-screen keyboard to inset the list for. |
 | Scroll to top on a status bar tap | A Mac window has no status bar. `scrollToStartAnimated:` remains. |
 | `UIScrollViewDelegate` | The list is not a scroll view. Its delegate has the scroll calls under `listView` names. |
@@ -365,7 +369,8 @@ cd packages/shadowlist-appkit && swift test
 
 `swift test` runs the kit's XCTest suites on this Mac: mounting, data changes, sections, driven mode, scrolling,
 the scroll engine and scrollers, selection, hover, menus, drag reorder, change animations, accessibility, swipe
-actions, the text layout and the models.
+actions, the pinned header and footer, the empty view, the end of an inverted list, the text layout and the
+models.
 
 [ShadowListKitListView+Testing.h](Sources/ShadowListKit/include/ShadowListKit/ShadowListKitListView+Testing.h)
 drives the list without a trackpad, a mouse or a keyboard, for tests and scripted checks. Frames run at once

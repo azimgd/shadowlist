@@ -359,7 +359,7 @@ void benchSnapOffsets(const std::vector<std::string>& keys, std::size_t rows, bo
     [] {},
     [&](std::size_t) {
       if (geometryChanged) {
-        ++container.geometryVersion;
+        ++container.state.geometryVersion;
       }
       const auto& offsets = container.getSnapOffsets();
       doNotOptimize(offsets);

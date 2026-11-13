@@ -293,6 +293,25 @@ TEST(unmeasured_rows_track_the_current_fallback_size) {
   CHECK_NEAR(offsetOf(container, 499), lastOffsetBefore, 0.001);
 }
 
+TEST(the_measured_range_is_picked_after_a_new_fallback_size_moves_the_rows) {
+  Fixture fixture;
+  fixture.estimatedHeight = 120.0;
+
+  std::vector<std::string> keys = keysFor(500);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+
+  // A layout pass measures the first rows at a third of the estimate, and the average is the fallback.
+  IndexRange first = container.getMeasuredRange();
+  layoutRows(container, first.low, std::vector<double>(first.high - first.low + 1, 40.0));
+  CHECK_NEAR(container.revision.averageRowHeight, 40.0, 0.001);
+
+  // The frame that shrinks the rows past them to the average takes in the rows that moved up.
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK_NEAR(sizeOf(container, 400), 40.0, 0.001);
+  checkNoRowLost(container, "after the average froze");
+}
+
 TEST(the_frozen_average_is_a_whole_size_and_corrections_stay_whole) {
   Fixture fixture;
   fixture.estimatedHeight = 120.0;

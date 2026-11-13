@@ -73,7 +73,8 @@ final class ShadowListScrollSync {
   private static final int OUT_HAS_ANCHOR_REQUEST = 21;
   private static final int OUT_ANCHOR_REQUEST_SEQUENCE = 22;
   private static final int OUT_FRAME_LANDED = 23;
-  private static final int OUT_SLOTS = 24;
+  private static final int OUT_COMMIT_REVISION = 24;
+  private static final int OUT_SLOTS = 25;
 
   /*
    * The mOut slot of each slot of the "patch" array, in the order of ShadowListPatchSlot in
@@ -95,6 +96,7 @@ final class ShadowListScrollSync {
     OUT_COMMAND_ANIMATED,
     OUT_HAS_ANCHOR_REQUEST,
     OUT_ANCHOR_REQUEST_SEQUENCE,
+    OUT_COMMIT_REVISION,
   };
 
   /*
@@ -166,6 +168,7 @@ final class ShadowListScrollSync {
     double baseX,
     double baseY,
     double commitToken,
+    double commitRevision,
     boolean userScrolled,
     double scrollPhase,
     double concealGeneration,
@@ -174,7 +177,7 @@ final class ShadowListScrollSync {
     double animationOffset,
     double bandLow,
     double bandHigh) {
-    nativeBeginMount(handle(), liveHandle, offsetEnabled, offsetX, offsetY, baseX, baseY, commitToken,
+    nativeBeginMount(handle(), liveHandle, offsetEnabled, offsetX, offsetY, baseX, baseY, commitToken, commitRevision,
       userScrolled, scrollPhase, concealGeneration, commandSequence, animationSequence, animationOffset,
       bandLow, bandHigh);
   }
@@ -333,6 +336,7 @@ final class ShadowListScrollSync {
     double baseX,
     double baseY,
     double commitToken,
+    double commitRevision,
     boolean userScrolled,
     double scrollPhase,
     double concealGeneration,

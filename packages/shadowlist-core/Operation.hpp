@@ -44,7 +44,7 @@ enum class OperationType {
   ScrollToStart,   // Hold the first row at its offset from the top
   ScrollToEnd,     // Keep closing in on the real bottom as rows get measured
   BottomPin,       // First bottom pin of an inverted list, dropped once the user drags
-  ShrinkClamp,     // Content got shorter than the offset. Pull back to the new end
+  ShrinkClamp,     // Content got shorter than the offset. Pull back to the reader's row or the new end
 };
 
 /*

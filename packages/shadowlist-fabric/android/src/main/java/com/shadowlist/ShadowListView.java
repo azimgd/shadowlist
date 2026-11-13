@@ -68,6 +68,7 @@ public class ShadowListView extends FrameLayout {
   private static final int STATE_OFFSET_X = 3;
   private static final int STATE_OFFSET_Y = 4;
   private static final int STATE_COMMIT_TOKEN = 5;
+  private static final int STATE_COMMIT_REVISION = 21;
   private static final int STATE_OFFSET_BASE_X = 7;
   private static final int STATE_OFFSET_BASE_Y = 8;
   private static final int STATE_USER_SCROLLED = 9;
@@ -1231,6 +1232,7 @@ public class ShadowListView extends FrameLayout {
       mapBuffer.getDouble(STATE_OFFSET_BASE_X),
       mapBuffer.getDouble(STATE_OFFSET_BASE_Y),
       mapBuffer.getDouble(STATE_COMMIT_TOKEN),
+      mapBuffer.getDouble(STATE_COMMIT_REVISION),
       mapBuffer.getBoolean(STATE_USER_SCROLLED),
       mapBuffer.getDouble(STATE_SCROLL_PHASE),
       mapBuffer.getDouble(STATE_CONCEAL_GENERATION),

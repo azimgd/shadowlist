@@ -147,6 +147,12 @@ struct FrameInput {
   std::uint64_t commitToken = 0;
 
   /*
+   * The revision of the correction the host applied, including a size correction with no
+   * operation. Earlier revisions cannot confirm a target changed after their write.
+   */
+  std::uint64_t commitRevision = 0;
+
+  /*
    * The current gesture. Dragging and Settling mean the user is scrolling, Idle covers our own moves.
    */
   ScrollPhase scrollPhase = ScrollPhase::Idle;
@@ -375,7 +381,8 @@ private:
     std::size_t anchorIndex,
     double anchorDelta,
     bool hadRowsBefore,
-    bool offsetConfirmed);
+    bool offsetConfirmed,
+    bool reportedBeforeWrite);
 };
 
 }

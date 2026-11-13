@@ -178,6 +178,10 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   if (_headerView) {
     [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[_headerView])];
   }
+  NSView *empty = [self shownEmptyView];
+  if (empty) {
+    [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[empty])];
+  }
   [children addObjectsFromArray:self.accessibilityRows];
   if (_footerView) {
     [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[_footerView])];
@@ -293,7 +297,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
     }
   }
   ShadowListKitListCell *cell = nil;
-  NSView *templates[] = {_headerView, _footerView};
+  NSView *templates[] = {_headerView, _footerView, [self shownEmptyView]};
   for (NSView *view : templates) {
     if (view && !view.hidden && NSPointInRect(content, view.frame)) {
       return [view accessibilityHitTest:point] ?: self;

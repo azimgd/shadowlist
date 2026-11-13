@@ -41,25 +41,39 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
 
 /*
  * Accessibility walks every row, not only the mounted ones: the header, then each row, then
- * the footer. A row on screen is its cell. A row off screen is a stand-in at the row's frame.
+ * the footer. A list without rows has its empty view between the two. A row on screen is its cell. A row off screen is a stand-in at the row's frame.
  * Walking the list never scrolls it. VoiceOver focusing a stand-in scrolls its row into view.
  */
 @implementation ShadowListKitListView (Accessibility)
 
 - (NSInteger)accessibilityElementCount
 {
-  return (NSInteger)_driver.getKeyCount() + (_headerView ? 1 : 0) + (_footerView ? 1 : 0);
+  return [self accessibilityRowCount] + (_headerView ? 1 : 0) + (_footerView ? 1 : 0);
+}
+
+/*
+ * The elements between the header and the footer: the rows, or the empty view of a list
+ * without rows.
+ */
+- (NSInteger)accessibilityRowCount
+{
+  UIView *empty = [self shownEmptyView];
+  return empty ? 1 : (NSInteger)_driver.getKeyCount();
 }
 
 - (id)accessibilityElementAtIndex:(NSInteger)index
 {
-  NSInteger rows = (NSInteger)_driver.getKeyCount();
+  NSInteger rows = [self accessibilityRowCount];
   NSInteger row = index - (_headerView ? 1 : 0);
   if (row < 0) {
     return index == 0 ? _headerView : nil;
   }
   if (row >= rows) {
     return row == rows ? _footerView : nil;
+  }
+  UIView *empty = [self shownEmptyView];
+  if (empty) {
+    return empty;
   }
   ShadowListKitListCell *cell = [self mountedCellAtIndex:(std::size_t)row];
   if (cell && !cell.hidden && [self isRowOnScreen:(std::size_t)row]) {
@@ -128,6 +142,9 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
   }
   if (element && element == _footerView) {
     return [self accessibilityElementCount] - 1;
+  }
+  if (element && element == [self shownEmptyView]) {
+    return _headerView ? 1 : 0;
   }
   UIView *view = [element isKindOfClass:[UIView class]] ? element : nil;
   while (view && ![view isKindOfClass:[ShadowListKitListCell class]]) {

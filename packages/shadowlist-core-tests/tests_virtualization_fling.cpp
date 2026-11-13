@@ -1,5 +1,6 @@
 /*
- * Virtualization tests for a prepend while a fling settles at the top edge.
+ * Virtualization tests for flings: a prepend while a fling settles at the top edge, a fling
+ * into the end of the list, and a fling or jump into rows that were never measured.
  */
 
 #include "TestFramework.hpp"
@@ -8,6 +9,7 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
+#include <shadowlist-core/host/MountedRange.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -37,10 +39,8 @@ FrameInput topEdgeReport(
   const Fixture& fixture,
   ScrollPhase phase,
   std::uint64_t echoedToken) {
-  FrameInput input = inputFor(keys, offset, fixture);
+  FrameInput input = scrollReport(keys, offset, fixture, phase);
   input.headerSize = TOP_EDGE_HEADER;
-  input.userScrolled = phase != ScrollPhase::Idle;
-  input.scrollPhase = phase;
   input.commitToken = echoedToken;
   return input;
 }
@@ -415,4 +415,128 @@ TEST(fling_into_shorter_last_rows_keeps_the_correction_inside_the_range) {
   own.offsetEnabled = true;
   Virtualizer::update(container, own);
   CHECK(!container.state.operation.has_value());
+}
+
+// Fling into rows that were never measured
+
+namespace {
+
+constexpr double FLING_ROW_HEIGHT = 100.0;
+
+/*
+ * The first row on screen that the measured range and the rows a host mounts around it leave
+ * out, or UNDEFINED_INDEX when every row on screen is mounted.
+ */
+std::size_t firstBlankRow(const Container& container) {
+  return firstRowNotMounted(container, container.revision.offsetY, DEFAULT_OVERSCAN_ROWS);
+}
+
+}
+
+/*
+ * A reader flings up an inverted list and lands with two rows of guessed size at the top of the
+ * screen and measured rows below them. The layout pass then measures the two rows. The measured
+ * rows the reader already saw stay where they were. Holding the top row would move them by the
+ * size error of the second row.
+ */
+TEST(inverted_fling_into_guessed_rows_keeps_the_measured_rows_below) {
+  Fixture fixture;
+  fixture.inverted = true;
+  Container container;
+  std::vector<std::string> keys = keysFor(60);
+
+  // The list opens at its bottom with rows 20 to 59 measured. The other rows take the average.
+  settleAtBottom(container, keys, fixture);
+  layoutRows(container, 20, std::vector<double>(40, FLING_ROW_HEIGHT));
+  for (int frame = 0; frame < 8; ++frame) {
+    Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  }
+  CHECK_EQ(container.revision.averageRowHeight, FLING_ROW_HEIGHT);
+  CHECK_EQ(container.revision.offsetY, 60.0 * FLING_ROW_HEIGHT - WINDOW_HEIGHT);
+
+  // The fling leaves the bottom, then lands with the top of the screen inside row 18.
+  Virtualizer::update(container, scrollReport(keys, 3000.0, fixture, ScrollPhase::Dragging));
+  double landed = 18.0 * FLING_ROW_HEIGHT + 50.0;
+  Virtualizer::update(container, scrollReport(keys, landed, fixture, ScrollPhase::Settling));
+  CHECK(container.state.invertedBottomReleased);
+  CHECK(!container.revision.rows[18].measured);
+  CHECK(!container.revision.rows[19].measured);
+  CHECK(container.revision.rows[20].measured);
+  double before = offsetOf(container, 20) - container.revision.offsetY;
+  CHECK_EQ(before, 150.0);
+
+  // Rows 14 to 19 mount and come out taller than the average.
+  layoutRows(container, 14, {140.0, 140.0, 140.0, 140.0, 160.0, 180.0});
+
+  double after = offsetOf(container, 20) - container.revision.offsetY;
+  CHECK(container.state.offsetCorrected);
+  CHECK_EQ(after, before);
+}
+
+/*
+ * An inverted list still resting at its bottom keeps the row at the top of the viewport as
+ * its anchor, guessed size or not. The bottom hold reads that anchor to tell the newest row.
+ */
+TEST(inverted_list_at_its_bottom_keeps_the_top_row_as_its_anchor) {
+  Fixture fixture;
+  fixture.inverted = true;
+  Container container;
+  std::vector<std::string> keys = keysFor(60);
+
+  settleAtBottom(container, keys, fixture);
+  layoutRows(container, 53, std::vector<double>(7, FLING_ROW_HEIGHT));
+  for (int frame = 0; frame < 8; ++frame) {
+    Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  }
+  double bottom = container.revision.offsetY;
+
+  // The row at the top of the screen has a guessed size and measured rows follow it on screen.
+  std::size_t top = 0;
+  while (offsetOf(container, top) + sizeOf(container, top) <= bottom) {
+    ++top;
+  }
+  CHECK(top < 53);
+  CHECK(!container.revision.rows[top].measured);
+  CHECK(offsetOf(container, 53) < bottom + WINDOW_HEIGHT);
+  CHECK(!container.state.invertedBottomReleased);
+  CHECK_EQ(container.state.anchor.key, keys[top]);
+}
+
+/*
+ * A jump lands in rows far shorter than the average the first rows froze. The core picked
+ * its measured range from the average, and the layout pass that measures those rows pulls rows
+ * past the range into view. The core's next pass picks the range again from the measured
+ * sizes, and that range and the host's pad hold every row on screen. Hosts run that pass before
+ * they mount, see ListDriver::runPasses.
+ */
+TEST(jump_into_rows_shorter_than_the_average_is_covered_by_the_next_pass) {
+  constexpr double TALL = 450.0;
+  constexpr double SHORT = 60.0;
+  Fixture fixture;
+  Container container;
+  std::vector<std::string> keys = keysFor(400);
+
+  // The first five rows freeze the average.
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  layoutRows(container, 0, std::vector<double>(5, TALL));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK_EQ(container.revision.averageRowHeight, TALL);
+
+  // The jump lands on the top of row 200.
+  FrameInput report = scrollReport(keys, offsetOf(container, 200), fixture, ScrollPhase::Settling);
+  Virtualizer::update(container, report);
+  CHECK_EQ(firstBlankRow(container), UNDEFINED_INDEX);
+
+  // The mounted rows measure short and the rows after them move up into view.
+  IndexRange picked = container.getMeasuredRange();
+  std::size_t low = picked.low - DEFAULT_OVERSCAN_ROWS;
+  std::size_t count = picked.high + DEFAULT_OVERSCAN_ROWS - low + 1;
+  layoutRows(container, low, std::vector<double>(count, SHORT));
+  CHECK_EQ(offsetOf(container, 200) - container.revision.offsetY, 0.0);
+  CHECK(firstBlankRow(container) != UNDEFINED_INDEX);
+
+  // The core's own write comes back and the range is picked again.
+  Virtualizer::update(container, publishedCorrection(container, report));
+  CHECK_EQ(firstBlankRow(container), UNDEFINED_INDEX);
+  CHECK_EQ(offsetOf(container, 200) - container.revision.offsetY, 0.0);
 }

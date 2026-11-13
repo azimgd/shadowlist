@@ -120,6 +120,7 @@ constexpr MapBuffer::Key CONCEAL_GENERATION = 17;
 constexpr MapBuffer::Key ANIMATION_SEQUENCE = 18;
 constexpr MapBuffer::Key ANIMATION_OFFSET = 19;
 constexpr MapBuffer::Key MOUNT_HANDLE = 20;
+constexpr MapBuffer::Key COMMIT_REVISION = 21;
 }
 
 /*
@@ -142,6 +143,7 @@ enum ShadowListPatchSlot {
   PATCH_COMMAND_ANIMATED,
   PATCH_HAS_ANCHOR_REQUEST,
   PATCH_ANCHOR_REQUEST_SEQUENCE,
+  PATCH_COMMIT_REVISION,
   PATCH_SLOTS,
 };
 #endif
@@ -210,6 +212,7 @@ public:
     state.baseX = offsetBaseX_;
     state.baseY = offsetBaseY_;
     state.commitToken = commitToken_;
+    state.commitRevision = commitRevision_;
     state.userScrolled = userScrolled_;
     state.scrollPhase = scrollPhase_;
     state.contentWidth = contentWidth_;
@@ -224,6 +227,7 @@ public:
     offsetBaseX_ = state.baseX;
     offsetBaseY_ = state.baseY;
     commitToken_ = state.commitToken;
+    commitRevision_ = state.commitRevision;
     userScrolled_ = state.userScrolled;
     scrollPhase_ = state.scrollPhase;
     contentWidth_ = state.contentWidth;
@@ -238,6 +242,7 @@ public:
     offsetY_ = report.offsetY;
     offsetEnabled_ = false;
     commitToken_ = report.commitToken;
+    commitRevision_ = report.commitRevision;
     concealGenerationAck_ = report.concealGenerationAck;
     userScrolled_ = report.userScrolled;
     scrollPhase_ = report.scrollPhase;
@@ -272,7 +277,8 @@ public:
       return false;
     }
     return offsetX_ == report.offsetX && offsetY_ == report.offsetY &&
-      commitToken_ == report.commitToken && concealGenerationAck_ == report.concealGenerationAck &&
+      commitToken_ == report.commitToken && commitRevision_ == report.commitRevision &&
+      concealGenerationAck_ == report.concealGenerationAck &&
       userScrolled_ == report.userScrolled && scrollPhase_ == report.scrollPhase &&
       (!patch.hasCommand ||
        (scrollIndex_ == patch.commandIndex && scrollIndexSequence_ == patch.commandSequence &&
@@ -295,6 +301,7 @@ public:
     mounted.baseX = offsetBaseX_;
     mounted.baseY = offsetBaseY_;
     mounted.commitToken = commitToken_;
+    mounted.commitRevision = commitRevision_;
     mounted.userScrolled = userScrolled_;
     mounted.scrollPhase = scrollPhase_;
     mounted.concealGeneration = concealGeneration_;
@@ -386,11 +393,15 @@ public:
   /*
    * The id of the pending offset correction. The core sends it with the offset and the
    * view echoes it back. The core knows its own write by id instead of guessing by
-   * distance. Zero means no correction or a report from the host. The dynamic and MapBuffer
+   * distance. Zero means no correction identity; host reports keep the echoed token. The dynamic and MapBuffer
    * forms carry it as a double. Keep it after snapOffsets_ to match the Android constructor's
    * init order.
    */
   std::uint64_t commitToken_{0};
+  /*
+   * Publication to mount, or the publication actually applied in a host report.
+   */
+  std::uint64_t commitRevision_{0};
 
   /*
    * The offset the core started from when it published a correction. The container
@@ -399,7 +410,7 @@ public:
    * absolute offset would make the content jump. While the view moves, both hosts add the
    * delta to the live offset instead, and also for an operation correction made from a
    * gesture report. Only meaningful when offsetEnabled_ is set. Host reports
-   * carry the mounted value. Keep it after commitToken_ to match the Android init order.
+   * carry the mounted value.
    */
   double offsetBaseX_{0.0};
   double offsetBaseY_{0.0};

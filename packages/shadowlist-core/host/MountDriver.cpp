@@ -82,6 +82,18 @@ std::optional<MountMessage> MountDriver::process(const KeyList& keys, const Inde
         if (reported->range != current) {
           sent = send(message(keys, reported->range));
         }
+      } else if (target_) {
+        /*
+         * The range is kept. The steps on their way go to where this report wants the range, and
+         * pace from its measured rows.
+         */
+        MountedRange target = visibleTargetRange(measured, previousMeasured, size, settings_.overscanRows,
+          settings_.overscanRowsLeading);
+        if (target == current) {
+          target_.reset();
+        } else {
+          target_ = Target{keys[target.low], keys[target.high], keys[measured.low], keys[measured.high]};
+        }
       }
       if (!sent && basis_.seedPending) {
         MountMessage landed;

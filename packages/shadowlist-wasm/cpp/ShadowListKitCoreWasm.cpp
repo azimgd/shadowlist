@@ -75,6 +75,8 @@ enum PlanSlot {
   PLAN_STICKY,
   PLAN_VIEW_LOW,
   PLAN_VIEW_HIGH,
+  PLAN_BAND_LOW,
+  PLAN_BAND_HIGH,
   PLAN_SLOTS,
 };
 
@@ -218,6 +220,19 @@ void SHADOWLIST_KIT_WASM(nativeSetStickyIndices)(std::uintptr_t handle, const st
   peerOf(handle)->driver.setStickyIndices(readIndices(indices, count));
 }
 
+void SHADOWLIST_KIT_WASM(nativeSetNonAnchorKeys)(
+  std::uintptr_t handle, const char* packed, const std::int32_t* ends, std::int32_t count) {
+  peerOf(handle)->driver.setNonAnchorKeys(readPackedKeys(packed, ends, count));
+}
+
+/*
+ * Where a pinned list header and footer go, see StickySlot: the inputs are read from slots and
+ * the translations and spans written back.
+ */
+void SHADOWLIST_KIT_WASM(nativeStickyLayout)(double* slots) {
+  writeStickyLayout(slots);
+}
+
 void SHADOWLIST_KIT_WASM(nativeMarkRemeasure)(std::uintptr_t handle, const std::int32_t* indices, std::int32_t count) {
   peerOf(handle)->driver.markRemeasure(readIndices(indices, count));
 }
@@ -271,6 +286,17 @@ void SHADOWLIST_KIT_WASM(nativePlanMount)(std::uintptr_t handle, double offset, 
   out[PLAN_STICKY] = intFrom(plan.sticky);
   out[PLAN_VIEW_LOW] = plan.viewLow;
   out[PLAN_VIEW_HIGH] = plan.viewHigh;
+  out[PLAN_BAND_LOW] = plan.band.low;
+  out[PLAN_BAND_HIGH] = plan.band.high;
+}
+
+/*
+ * The core's shouldSkipMount over two mount records in MOUNT_* slots.
+ */
+bool SHADOWLIST_KIT_WASM(nativeShouldSkipMount)(
+  const double* previous, const double* next, double offset, std::int32_t numberOfColumns, bool holdsRow) {
+  return sl::shouldSkipMount(readMountRecord(previous), readMountRecord(next), offset,
+    static_cast<std::size_t>(std::max(numberOfColumns, 1)), holdsRow);
 }
 
 /*
@@ -598,6 +624,16 @@ void SHADOWLIST_KIT_STATE_WASM(nativeInsertRows)(std::uintptr_t handle, std::uin
     live->driver.insertKeys(kept, keptKeys);
   }
   statePeerOf(handle)->keys.insertRows(kept, std::move(keptKeys));
+}
+
+/*
+ * The content versions of count items a change inserted, at their positions among the keys held,
+ * one pair of halves each. The versions of the other items stay as they are.
+ */
+void SHADOWLIST_KIT_STATE_WASM(nativeInsertVersions)(
+  std::uintptr_t handle, const std::int32_t* items, const std::int32_t* versions, std::int32_t count) {
+  StatePeer* peer = statePeerOf(handle);
+  peer->versions.insert(peer->keys.items(), readIndices(items, count), readVersions(versions, count));
 }
 
 /*

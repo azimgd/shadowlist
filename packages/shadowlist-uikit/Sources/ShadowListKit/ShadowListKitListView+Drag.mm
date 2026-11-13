@@ -347,9 +347,9 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
     [self commitMoveOfCell:cell from:fromItem to:toItem];
   }
   [self dropCell:cell];
-  // A row lifted and let go in place shows its menu.
-  if (commit && !moves && !_dragMoved) {
-    [self showMenuForCell:cell atPoint:_dragStart];
+  // A row lifted and let go in place shows its menu, and without one the delegate hears a long press.
+  if (commit && !moves && !_dragMoved && ![self showMenuForCell:cell atPoint:_dragStart]) {
+    [self longPressCell:cell];
   }
 }
 
@@ -362,13 +362,18 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   // The drop animates the rows itself, a change the delegate applies while it moves the item too.
   BOOL animates = _animatesChanges;
   _animatesChanges = NO;
-  [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
-  for (auto& entry : _mounted) {
-    entry.second.transform = CGAffineTransformIdentity;
+  _driver.setDropHint(DropHint{DropHint::Kind::Moved, _driver.getKeyAt((std::size_t)cell.row)});
+  @try {
+    [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
+    for (auto& entry : _mounted) {
+      entry.second.transform = CGAffineTransformIdentity;
+    }
+    [self reloadData];
+    [self layoutIfNeeded];
+  } @finally {
+    _driver.setDropHint(DropHint{});
+    _animatesChanges = animates;
   }
-  [self reloadData];
-  [self layoutIfNeeded];
-  _animatesChanges = animates;
   cell.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(SHADOWLIST_KIT_LIFT_SCALE, SHADOWLIST_KIT_LIFT_SCALE),
     CGAffineTransformMakeTranslation(shown.x - cell.center.x, shown.y - cell.center.y));
 }

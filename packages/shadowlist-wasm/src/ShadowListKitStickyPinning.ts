@@ -6,7 +6,8 @@ import type { ShadowListKitListView } from './ShadowListKitListView.js';
  * that runs from the row to the next sticky row, and the cell is position sticky inside it. The
  * browser pins it at the viewport start and the section's end pushes it away, on the thread that
  * scrolls. No scroll frame moves it from here. The sticky frames are copied from the core when
- * the geometry changes.
+ * the geometry changes. A pinned header view or footer view sticks the same way inside a span
+ * the core gives, see pinTemplate.
  */
 export class ShadowListKitStickyPinning {
   /*
@@ -26,6 +27,11 @@ export class ShadowListKitStickyPinning {
    */
   private readonly sections = new Map<ShadowListKitListCell, HTMLDivElement>();
   private readonly spareSections: HTMLDivElement[] = [];
+
+  /*
+   * The span element of each pinned header view and footer view.
+   */
+  private readonly templateSpans = new Map<HTMLElement, HTMLDivElement>();
 
   constructor(private readonly list: ShadowListKitListView) {}
 
@@ -139,6 +145,65 @@ export class ShadowListKitStickyPinning {
     style.pointerEvents = 'auto';
     this.sections.set(cell, section);
     return section;
+  }
+
+  /*
+   * Pin a header view or a footer view: it sits in a span element that runs from start to end
+   * along the axis, the core's stickySpans, position sticky at the viewport start, or at the
+   * viewport end with atEnd. The span's edges push it away. A footer rests at the end of its
+   * span. The span sits under the sections of the sticky rows, which come after it.
+   */
+  pinTemplate(
+    view: HTMLElement,
+    atEnd: boolean,
+    start: number,
+    end: number,
+    cross: number
+  ): void {
+    let span = this.templateSpans.get(view);
+    if (!span) {
+      span = makeSection();
+      span.style.display = 'flex';
+      view.replaceWith(span);
+      span.append(view);
+      const style = view.style;
+      style.position = 'sticky';
+      style.transform = '';
+      style.flex = 'none';
+      style.pointerEvents = 'auto';
+      this.templateSpans.set(view, span);
+    }
+    const horizontal = this.list.horizontal;
+    const style = span.style;
+    style.flexDirection = horizontal ? 'row' : 'column';
+    style.justifyContent = atEnd ? 'flex-end' : 'flex-start';
+    style.left = horizontal ? `${start}px` : '0';
+    style.top = horizontal ? '0' : `${start}px`;
+    style.width = `${horizontal ? end - start : cross}px`;
+    style.height = `${horizontal ? cross : end - start}px`;
+    const edges = view.style;
+    edges.left = !atEnd && horizontal ? '0' : '';
+    edges.top = !atEnd && !horizontal ? '0' : '';
+    edges.right = atEnd && horizontal ? '0' : '';
+    edges.bottom = atEnd && !horizontal ? '0' : '';
+  }
+
+  /*
+   * Take a header view or a footer view out of its span, back where the span stood.
+   */
+  unpinTemplate(view: HTMLElement): void {
+    const span = this.templateSpans.get(view);
+    if (!span) return;
+    this.templateSpans.delete(view);
+    span.replaceWith(view);
+    const style = view.style;
+    style.position = 'absolute';
+    style.left = '0';
+    style.top = '0';
+    style.right = '';
+    style.bottom = '';
+    style.flex = '';
+    style.pointerEvents = '';
   }
 
   /*

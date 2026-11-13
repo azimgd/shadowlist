@@ -58,6 +58,7 @@ internal class ShadowListKitListState {
       handle: Long, core: Long, rowStart: Int, rowEnd: Int, rowPacked: CharArray, rowEnds: IntArray, sectioned: Boolean,
       itemStart: Int, itemEnd: Int, itemPacked: CharArray, itemEnds: IntArray, versions: LongArray?, flags: Int): IntArray
     @JvmStatic private external fun nativeInsertRows(handle: Long, core: Long, indices: IntArray, packed: CharArray, ends: IntArray)
+    @JvmStatic private external fun nativeInsertVersions(handle: Long, items: IntArray, versions: LongArray)
     @JvmStatic private external fun nativeDeleteRows(handle: Long, core: Long, indices: IntArray)
     @JvmStatic private external fun nativeSeedCore(handle: Long, core: Long)
   }
@@ -184,6 +185,13 @@ internal class ShadowListKitListState {
     val ends = rowPacker.pack(keys.asList())
     nativeInsertRows(handle, core?.handle ?: 0L, indices, rowPacker.chars, ends)
   }
+
+  /*
+   * The content versions of items a change inserted, at their positions among the items held,
+   * for the next COMMIT_UPDATE_VERSIONS to compare against. The versions of the other items stay
+   * as they are.
+   */
+  fun insertVersions(items: IntArray, versions: LongArray) = nativeInsertVersions(handle, items, versions)
 
   /*
    * Rows deleted at the sorted positions of the previous keys of a list without sections.

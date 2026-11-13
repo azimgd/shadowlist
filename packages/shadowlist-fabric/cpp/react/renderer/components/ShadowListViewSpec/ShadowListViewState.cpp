@@ -22,6 +22,7 @@ azimgd::shadowlist::ScrollPatch scrollPatchFromSlots(const folly::dynamic& slots
   patch.report.userScrolled = slot(PATCH_USER_SCROLLED) != 0.0;
   patch.report.scrollPhase = slot(PATCH_SCROLL_PHASE);
   patch.report.commitToken = static_cast<std::uint64_t>(slot(PATCH_COMMIT_TOKEN));
+  patch.report.commitRevision = static_cast<std::uint64_t>(slot(PATCH_COMMIT_REVISION));
   patch.report.concealGenerationAck = concealGenerationAck;
   patch.report.sequence = static_cast<std::uint64_t>(slot(PATCH_SEQUENCE));
   patch.offsetEnabled = slot(PATCH_OFFSET_ENABLED) != 0.0;
@@ -121,6 +122,8 @@ ShadowListViewState::ShadowListViewState(const ShadowListViewState& previousStat
       userScrolled_ = value.asBool();
     } else if (key == "scrollPhase") {
       scrollPhase_ = value.asDouble();
+    } else if (key == "commitRevision") {
+      commitRevision_ = static_cast<std::uint64_t>(value.asDouble());
     } else if (key == "commitToken") {
       commitToken_ = static_cast<std::uint64_t>(value.asDouble());
     } else if (key == "hostSequence") {
@@ -200,6 +203,7 @@ folly::dynamic ShadowListViewState::getDynamic() const {
   }
   result["snapOffsets"] = snapOffsets;
   result["commitToken"] = static_cast<double>(commitToken_);
+  result["commitRevision"] = static_cast<double>(commitRevision_);
   result["offsetBaseX"] = offsetBaseX_;
   result["offsetBaseY"] = offsetBaseY_;
   return result;
@@ -213,6 +217,7 @@ MapBuffer ShadowListViewState::getMapBuffer() const {
   builder.putDouble(ShadowListStateKey::OFFSET_X, offsetX_);
   builder.putDouble(ShadowListStateKey::OFFSET_Y, offsetY_);
   builder.putDouble(ShadowListStateKey::COMMIT_TOKEN, static_cast<double>(commitToken_));
+  builder.putDouble(ShadowListStateKey::COMMIT_REVISION, static_cast<double>(commitRevision_));
   builder.putDouble(ShadowListStateKey::OFFSET_BASE_X, offsetBaseX_);
   builder.putDouble(ShadowListStateKey::OFFSET_BASE_Y, offsetBaseY_);
   builder.putBool(ShadowListStateKey::USER_SCROLLED, userScrolled_);

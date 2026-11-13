@@ -2,9 +2,12 @@
 #import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListSupport.h"
 
+#include <shadowlist-core/host/StickyLayout.hpp>
+
 #include <cmath>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace azimgd::shadowlist;
@@ -13,6 +16,12 @@ static_assert(static_cast<int>(ShadowListKitSnapAlignmentStart) == static_cast<i
                 static_cast<int>(ShadowListKitSnapAlignmentCenter) == static_cast<int>(SnapAlignment::Center) &&
                 static_cast<int>(ShadowListKitSnapAlignmentEnd) == static_cast<int>(SnapAlignment::End),
   "ShadowListKitSnapAlignment mirrors the core's SnapAlignment");
+
+/*
+ * How far past the end of its content a scroll view rests on its own, on the device pixel it
+ * rounds to.
+ */
+static const double SHADOWLIST_KIT_END_SLACK = 0.5;
 
 /*
  * Referenced from ShadowListKitListView.mm to keep this file linked without -ObjC.
@@ -188,11 +197,14 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   }
   CGFloat header = [self templateSize:_headerView cross:cross];
   CGFloat footer = [self templateSize:_footerView cross:cross];
-  BOOL changed = along != _windowAlong || cross != _windowCross || header != _headerSize || footer != _footerSize;
+  CGFloat empty = [self templateSize:_emptyView cross:cross];
+  BOOL changed = along != _windowAlong || cross != _windowCross || header != _headerSize || footer != _footerSize ||
+    empty != _emptySize;
   _windowAlong = along;
   _windowCross = cross;
   _headerSize = header;
   _footerSize = footer;
+  _emptySize = empty;
   return changed;
 }
 
@@ -226,6 +238,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   input.windowCross = _windowCross;
   input.headerSize = _headerSize;
   input.footerSize = _footerSize;
+  input.emptySize = _emptySize;
   input.phase = [self corePhase];
   input.userScrolled = _userScrolled;
   input.tracking = self.isTracking;
@@ -234,6 +247,13 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   input.mountPad = _windowAlong * self.mountOverscan;
   input.leadingInset = [self leadingInset];
   input.trailingInset = [self trailingInset];
+  /*
+   * Content that shrank under a resting view leaves it past the new end, and the driver brings
+   * it back before the frame is drawn. A drag or a bounce past the end is left to the gesture,
+   * and the start to the scroll view.
+   */
+  input.clampEnd = input.phase == ScrollPhase::Idle;
+  input.clampSlack = SHADOWLIST_KIT_END_SLACK;
   PassResult result = _driver.runPasses(input);
   ++_corePasses;
   _userScrolled = NO;
@@ -242,37 +262,32 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 }
 
 /*
- * The content size goes first. The offset write is then inside the scroll range.
+ * The content size goes first. The offset write is then inside the scroll range. The driver
+ * hands an edge it reached over once, and says after every pass whether the list is at its end.
  */
 - (void)applyPassResult:(const PassResult&)result
 {
   [self applyContentSize:(CGFloat)result.contentAlong];
-  /*
-   * Content that shrank under a resting view clamps it to the new end. The core leaves that
-   * to the host for inverted lists. It runs again on the clamped offset before the frame is
-   * drawn. A drag or a bounce past the end is left to the gesture.
-   */
-  if (result.offset > [self maxOffset] + 0.5 && [self corePhase] == ScrollPhase::Idle && !_clampingPass) {
-    [self writeOffset:[self maxOffset] byUser:NO];
-    _clampingPass = YES;
-    [self runPasses];
-    _clampingPass = NO;
-    return;
+  _reachedStart = _reachedStart || result.reachedStart;
+  _reachedEnd = _reachedEnd || result.reachedEnd;
+  if (result.atEnd != _atEnd) {
+    _atEnd = result.atEnd;
+    _atEndChanged = !_atEndChanged;
   }
+  _showsEmpty = result.showsEmpty;
   if (std::fabs(result.offset - [self offset]) >= 0.01) {
     [self writeOffset:result.offset byUser:NO];
   }
   _band = result.band;
   _footerStart = result.footerStart;
-  _reachedStart = _reachedStart || result.reachedStart;
-  _reachedEnd = _reachedEnd || result.reachedEnd;
   if (result.settling) {
     [self scheduleSettleFrame];
   }
 }
 
 /*
- * A correction waits for one more report. Give it the next display frame, once.
+ * A correction waits for one more report, or the end moved under a list the driver brought back
+ * to it. Give it the next display frame, once.
  */
 - (void)scheduleSettleFrame
 {
@@ -335,9 +350,6 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   if (_windowCross > 0 && _windowAlong > 0) {
     if (_needsFrame || geometryChanged || !_band.contains([self offset])) {
       [self runPasses];
-      if ([self measuredRangeEndsShort]) {
-        [self runPasses];
-      }
     }
     [self readPassGeometry];
     double mountedOffset = [self offset];
@@ -377,32 +389,80 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 #endif
 }
 
+/*
+ * Place the header, the empty view and the footer. A pinned header or footer moves by the host
+ * layer's translation on every pass and sits over the rows. The empty view shows right after the
+ * header while the core says the list has no rows.
+ */
 - (void)layoutTemplates
 {
+  StickyInput sticky;
+  sticky.offset = [self offset];
+  sticky.windowSize = _windowAlong;
+  sticky.contentSize = _contentAlong;
+  sticky.hasHeader = _headerView != nil;
+  sticky.headerSize = _headerSize;
+  sticky.stickyHeader = _stickyHeader;
+  sticky.hasFooter = _footerView != nil;
+  sticky.footerSize = _footerSize;
+  sticky.footerStart = _footerStart;
+  sticky.stickyFooter = _stickyFooter;
+  StickyState state;
+  StickyTranslations translations = stickyTranslations(sticky, state);
   if (_headerView) {
-    CGRect frame = _horizontal ? [self displayRect:0 y:0 width:_headerSize height:_windowCross]
-                               : [self displayRect:0 y:0 width:_windowCross height:_headerSize];
-    ShadowListKitPlace(_headerView, frame);
+    [self placeTemplate:_headerView start:translations.header size:_headerSize pinned:_stickyHeader];
+  }
+  if (_emptyView) {
+    if (_emptyView.hidden == _showsEmpty) {
+      _emptyView.hidden = !_showsEmpty;
+    }
+    [self placeTemplate:_emptyView start:_headerSize size:_emptySize pinned:NO];
   }
   if (_footerView) {
-    CGRect frame = _horizontal ? [self displayRect:_footerStart y:0 width:_footerSize height:_windowCross]
-                               : [self displayRect:0 y:_footerStart width:_windowCross height:_footerSize];
-    ShadowListKitPlace(_footerView, frame);
+    [self placeTemplate:_footerView start:_footerStart + translations.footer size:_footerSize pinned:_stickyFooter];
   }
 }
 
-/*
- * Whether rows the viewport shows are left out of the measured range. The first frame picks the
- * range from estimates, which can stop short of the viewport's end. One more run fills it.
- */
-- (BOOL)measuredRangeEndsShort
+- (void)placeTemplate:(ShadowListKitView *)view start:(double)start size:(CGFloat)size pinned:(BOOL)pinned
 {
-  std::optional<MountedRange> measured = _driver.getMeasuredRange();
-  if (!measured || measured->high + 1 >= _driver.getRowCount()) {
-    return NO;
+  CGRect frame = _horizontal ? [self displayRect:start y:0 width:size height:_windowCross]
+                             : [self displayRect:0 y:start width:_windowCross height:size];
+  ShadowListKitPlace(view, frame);
+#if TARGET_OS_OSX
+  // A view sits over its siblings by its own layer.
+  if (pinned && !view.wantsLayer) {
+    view.wantsLayer = YES;
   }
-  double end = _driver.getLeadingAt(measured->high) + _driver.getExtentAt(measured->high);
-  return end < [self offset] + _windowAlong + [self trailingInset];
+#endif
+  CGFloat zPosition = pinned ? 1 : 0;
+  if (view.layer.zPosition != zPosition) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    view.layer.zPosition = zPosition;
+    [CATransaction commit];
+  }
+}
+
+- (ShadowListKitView *)shownEmptyView
+{
+  return _showsEmpty ? _emptyView : nil;
+}
+
+- (BOOL)isUnderPinnedTemplate:(CGPoint)point
+{
+  return (_stickyHeader && _headerView && CGRectContainsPoint(_headerView.frame, point)) ||
+    (_stickyFooter && _footerView && CGRectContainsPoint(_footerView.frame, point));
+}
+
+- (void)sendNonAnchorKeys
+{
+  std::vector<std::string> keys;
+  keys.reserve(_nonAnchorKeys.count);
+  for (NSString *key in _nonAnchorKeys) {
+    keys.push_back(ShadowListKitStdString(key));
+  }
+  _driver.setNonAnchorKeys(std::move(keys));
+  [self invalidateFrame];
 }
 
 #pragma mark - Sticky
@@ -501,36 +561,23 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     [self unmountAll];
     return;
   }
-  MountPlan plan = _driver.planMount([self offset], _windowAlong, _windowAlong * self.mountOverscan, [self leadingInset],
-    [self trailingInset]);
-  _mountBand = plan.band;
-  if (![self mountNeeded:plan]) {
+  MountInputs inputs;
+  inputs.windowAlong = _windowAlong;
+  inputs.pad = _windowAlong * self.mountOverscan;
+  inputs.leadingInset = [self leadingInset];
+  inputs.trailingInset = [self trailingInset];
+  double offset = [self offset];
+  MountPlan plan = _driver.planMount(offset, inputs.windowAlong, inputs.pad, inputs.leadingInset, inputs.trailingInset);
+  // A pass that covers what the last one did is skipped.
+  MountRecord next{plan.low, plan.high, plan.sticky, _driver.getGeometryVersion(), _structureVersion,
+    [self pixelShift], plan.band, inputs};
+  BOOL skipped = shouldSkipMount(_mountRecord, next, offset, (std::size_t)self.numberOfColumns, [self hasHeldRow]);
+  _mountRecord = next;
+  if (skipped) {
     return;
   }
-  [self recordMount:plan];
   [self mountPlan:plan];
   [self prefetchAround:plan];
-}
-
-/*
- * Whether anything the last mount pass covered changed: the rows, the pinned header, the
- * geometry, the data or the pixel shift. A drag mounts every pass.
- */
-- (BOOL)mountNeeded:(const MountPlan&)plan
-{
-  return plan.low != _mountedLow || plan.high != _mountedHigh || plan.sticky != _mountedSticky ||
-    _driver.getGeometryVersion() != _mountedGeometry || _structureVersion != _mountedStructure ||
-    [self pixelShift] != _mountedShift || [self hasHeldRow];
-}
-
-- (void)recordMount:(const MountPlan&)plan
-{
-  _mountedLow = plan.low;
-  _mountedHigh = plan.high;
-  _mountedSticky = plan.sticky;
-  _mountedGeometry = _driver.getGeometryVersion();
-  _mountedStructure = _structureVersion;
-  _mountedShift = [self pixelShift];
 }
 
 - (void)mountPlan:(const MountPlan&)plan
@@ -628,10 +675,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     [self recycleCell:entry.second];
   }
   _mounted.clear();
-  _mountBand = OffsetBand();
-  _mountedLow = UNDEFINED_INDEX;
-  _mountedHigh = UNDEFINED_INDEX;
-  _mountedSticky = UNDEFINED_INDEX;
+  _mountRecord = MountRecord();
 }
 
 #pragma mark - Prefetching
@@ -780,6 +824,12 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     _reachedEnd = NO;
     if ([_userDelegate respondsToSelector:@selector(listViewDidReachEnd:)]) {
       [_userDelegate listViewDidReachEnd:self];
+    }
+  }
+  if (_atEndChanged) {
+    _atEndChanged = NO;
+    if ([_userDelegate respondsToSelector:@selector(listView:didChangeAtEnd:)]) {
+      [_userDelegate listView:self didChangeAtEnd:_atEnd];
     }
   }
 }

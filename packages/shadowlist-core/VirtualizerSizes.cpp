@@ -21,6 +21,30 @@ bool correctOffsetIfMoved(Container& container, double offset, double probe) {
 }
 
 /*
+ * The offset that rests on the end of the reflowed rows. Inside a layout pass the stored
+ * total is stale, and the end comes from the rows.
+ */
+double reflowedEndOffset(const Container& container) {
+  Size extent = tailExtent(container);
+  double contentEnd = container.horizontal ? extent.width : extent.height;
+  double total = std::max(contentEnd, container.headerSize) + container.footerSize;
+  return std::max(0.0, total - container.getWindowSize());
+}
+
+/*
+ * Stop a target offset at the end of the reflowed rows. A view already past the stored end is
+ * in a bounce, and its target is left alone.
+ */
+double clampToReflowedEnd(const Container& container, double target) {
+  double storedTotal = container.horizontal ? container.revision.contentWidth : container.revision.contentHeight;
+  double storedEnd = std::max(0.0, storedTotal - container.getWindowSize());
+  if (container.getOffset() > storedEnd + OFFSET_MOVED_THRESHOLD) {
+    return target;
+  }
+  return std::min(target, reflowedEndOffset(container));
+}
+
+/*
  * Move the running row correction and the captured anchor by the same delta.
  */
 void shiftAnchors(Container& container, double delta) {
@@ -164,24 +188,29 @@ void Virtualizer::commitRowSizes(Container& container, std::size_t fromIndex) {
       if (compensationDelta > 0.0) {
         rawAnchoredOffset += container.state.anchorFirstMeasurementDelta;
       }
-      double anchoredOffset = rawAnchoredOffset < 0.0 ? 0.0 : rawAnchoredOffset;
       /*
        * Clamp the top end against the reflowed rows, since the stored total is stale here.
        * Rows near the end that measure shorter than their estimate pull the end in. A host
        * clamps a write past it, and a later correction that shifts a moving view from the
-       * unclamped offset would apply the difference twice. A view already past the end is
-       * in a bounce and is left alone.
+       * unclamped offset would apply the difference twice.
        */
-      double windowSize = container.getWindowSize();
-      double staleTotal = container.horizontal ? container.revision.contentWidth
-                                               : container.revision.contentHeight;
-      if (scrollAxisOffset(container) <= std::max(0.0, staleTotal - windowSize) + OFFSET_MOVED_THRESHOLD) {
-        Size extent = tailExtent(container);
-        double contentEnd = container.horizontal ? extent.width : extent.height;
-        double total = std::max(contentEnd, container.headerSize) + container.footerSize;
-        anchoredOffset = std::min(anchoredOffset, std::max(0.0, total - windowSize));
+      double anchoredOffset = clampToReflowedEnd(container, rawAnchoredOffset < 0.0 ? 0.0 : rawAnchoredOffset);
+      /*
+       * The host clamps its view when the content size shrinks, even if this row's target
+       * did not move and needs no offset write. Preserve the hold before its next report
+       * captures the clamped position. Later measurements may make room for the row again.
+       */
+      if (!container.inverted && !container.state.gestureActive && !container.state.operation &&
+          !container.state.clampedAnchor && rawAnchoredOffset > anchoredOffset + OFFSET_MOVED_THRESHOLD) {
+        container.state.clampedAnchor = *compensationAnchor;
+        compensationAnchor = &*container.state.clampedAnchor;
       }
       correctOffsetIfMoved(container, anchoredOffset, rawAnchoredOffset);
+      if (container.state.clampedAnchor && compensationAnchor == &*container.state.clampedAnchor &&
+          std::fabs(anchoredOffset - rawAnchoredOffset) < OFFSET_MOVED_THRESHOLD) {
+        container.state.anchor = *container.state.clampedAnchor;
+        container.state.clampedAnchor.reset();
+      }
     }
   }
   container.state.anchorFirstMeasurementDelta = 0.0;
@@ -207,10 +236,7 @@ void Virtualizer::commitRowSizes(Container& container, std::size_t fromIndex) {
       isLastAnchorable(container, container.indexOfKey(container.state.anchor.key)) || followsBottom(container);
   }
   if (followBottom) {
-    Size extent = tailExtent(container);
-    double contentEnd = container.horizontal ? extent.width : extent.height;
-    double total = std::max(contentEnd, container.headerSize) + container.footerSize;
-    double bottom = std::max(0.0, total - container.getWindowSize());
+    double bottom = reflowedEndOffset(container);
     correctOffsetIfMoved(container, bottom, bottom);
   }
 }
@@ -228,6 +254,7 @@ void Virtualizer::applyHeaderSizeChange(Container& container, double previousHea
   /*
    * A running anchor correction already knows where the rows belong. Resolve it against
    * the reflowed rows. Its last written offset may be clamped and can't be trusted here.
+   * A row near the end resolves past the end, and the target stops at the end.
    */
   if (container.state.operation && container.state.operation->target.mode == AnchorMode::Row) {
     std::size_t anchorIndex = container.indexOfKey(container.state.operation->target.key);
@@ -235,7 +262,7 @@ void Virtualizer::applyHeaderSizeChange(Container& container, double previousHea
       // A scroll to a key works its sub offset out from the view position, like resolveScroll does.
       double target = container.getRowOffset(anchorIndex) +
         resolveAnchorOffset(container, *container.state.operation, anchorIndex);
-      target = target < 0.0 ? 0.0 : target;
+      target = clampToReflowedEnd(container, target < 0.0 ? 0.0 : target);
       SHADOWLIST_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f->%.1f resolved op=%llu",
         previousHeaderSize, container.headerSize, offset, target,
         static_cast<unsigned long long>(container.state.operation->commitToken));

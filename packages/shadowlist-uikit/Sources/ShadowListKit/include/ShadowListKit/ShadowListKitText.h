@@ -15,8 +15,10 @@ NS_ASSUME_NONNULL_BEGIN
  * row's layout can be computed off the main thread, and the main thread only draws the lines.
  * Every line is lineHeight tall, like a label with a fixed minimum and maximum line height.
  * size is the width of the widest line, rounded up, and lineCount lines of lineHeight.
- * drawAtPoint:inContext:color: draws with the top left corner at point, in a context with
- * flipped coordinates like UIKit's or a flipped view's.
+ * rectForLineAtIndex: is the part of a line its text takes, without the space a line ends in,
+ * from the layout's top left corner: lineHeight tall, and as wide as nothing for a blank line.
+ * CGRectNull for an index past the lines. drawAtPoint:inContext:color: draws with the top left
+ * corner at point, in a context with flipped coordinates like UIKit's or a flipped view's.
  */
 NS_SWIFT_SENDABLE
 @interface ShadowListKitTextLayout : NSObject
@@ -42,6 +44,7 @@ NS_SWIFT_SENDABLE
 @property (nonatomic, readonly) CGSize size;
 @property (nonatomic, readonly) NSUInteger lineCount;
 
+- (CGRect)rectForLineAtIndex:(NSUInteger)index NS_SWIFT_NAME(rectForLine(at:));
 - (void)drawAtPoint:(CGPoint)point inContext:(CGContextRef)context color:(CGColorRef)color;
 
 @end

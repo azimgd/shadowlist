@@ -69,7 +69,7 @@ void Container::endRevision() {
   previousReachedEnd_ = reachedEnd;
   previousReachedStart_ = reachedStart;
 
-  // Only a scroll away from the bottom leaves the end. Content growth never does.
+  // Only a scroll or a scroll command that ends away from the bottom leaves the end. Content growth never does.
   bool atEnd = !state.invertedBottomReleased;
   if (atEnd != previousAtEnd_) {
     previousAtEnd_ = atEnd;
@@ -85,6 +85,7 @@ void Container::endRevision() {
  * The newest scroll command wins. Each one replaces any command still pending.
  */
 void Container::scrollToRow(std::size_t index, double viewPosition, double viewOffset) {
+  state.clampedAnchor.reset();
   state.scrollToRowTarget = index;
   state.scrollToRowViewPosition = viewPosition;
   state.scrollToRowViewOffset = viewOffset;
@@ -93,12 +94,14 @@ void Container::scrollToRow(std::size_t index, double viewPosition, double viewO
 }
 
 void Container::scrollToEnd() {
+  state.clampedAnchor.reset();
   state.pendingScrollToEnd = true;
   state.pendingScrollToStart = false;
   state.scrollToRowTarget = UNDEFINED_INDEX;
 }
 
 void Container::scrollToStart() {
+  state.clampedAnchor.reset();
   state.pendingScrollToStart = true;
   state.pendingScrollToEnd = false;
   state.scrollToRowTarget = UNDEFINED_INDEX;
@@ -174,7 +177,8 @@ ContainerStateUpdate Container::resolveStateUpdate(
   double previousOffsetX,
   double previousOffsetY,
   double previousContentWidth,
-  double previousContentHeight) const {
+  double previousContentHeight) {
+  std::lock_guard<std::recursive_mutex> lock(coreMutex);
   ContainerStateUpdate update;
 
   bool corrected = state.offsetCorrected;
@@ -202,6 +206,16 @@ ContainerStateUpdate Container::resolveStateUpdate(
    * Offset changes without an operation send 0.
    */
   update.commitToken = (corrected && state.operation) ? state.operation->commitToken : 0;
+  if (update.applyOffset) {
+    if (state.commitRevision == 0 || state.publishedCommitToken != update.commitToken ||
+        state.publishedOffsetX != update.offsetX || state.publishedOffsetY != update.offsetY) {
+      ++state.commitRevision;
+      state.publishedCommitToken = update.commitToken;
+      state.publishedOffsetX = update.offsetX;
+      state.publishedOffsetY = update.offsetY;
+    }
+    update.commitRevision = state.commitRevision;
+  }
 
   return update;
 }
@@ -318,6 +332,9 @@ bool Container::isAnchorable(const std::string& key) const {
 
 const Anchor* Container::getCompensationAnchor() const {
   if (!state.operation) {
+    if (state.clampedAnchor) {
+      return &*state.clampedAnchor;
+    }
     return &state.anchor;
   }
   return state.operation->target.mode == AnchorMode::Row ? &state.operation->target : nullptr;

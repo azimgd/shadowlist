@@ -130,4 +130,47 @@ struct ViewableChanges {
 
 ViewableChanges viewableChanges(const std::vector<std::string>& previous, const std::vector<std::string>& current);
 
+/*
+ * The range a list mounts before its first visible rows report: initialCount rows from the
+ * start, from the end when inverted, or around target when it is not UNDEFINED_INDEX. A target
+ * wins over the inverted list's start at the end. viewPosition says which side of the target is
+ * on screen, 0 for the rows after it and 1 for the rows before it, and the mounted rows split
+ * the same way. Empty for a list without rows. A host builds it in the pass that changes the
+ * data or the scroll target, and Fabric's JS runs the same rule in the render that brings the
+ * change.
+ */
+MountedRange initialMountedRange(
+  std::size_t size,
+  std::size_t initialCount,
+  bool inverted,
+  std::size_t target,
+  std::size_t overscanRows,
+  double viewPosition);
+
+/*
+ * The mounted range from where its edge rows are now, after the data changed. A low edge that
+ * sat at the start grows by the leading pad, and a high edge that sat at the end does too.
+ * With followTail a range at the end moves to the last row and keeps up to MAX_FOLLOWED_APPEND
+ * appended rows on top of its length. Empty when an edge is UNDEFINED_INDEX or the list has no
+ * rows.
+ */
+MountedRange grownMountedRange(
+  const MountedRange& edges,
+  bool lowAtStart,
+  bool highAtEnd,
+  std::size_t size,
+  std::size_t overscanRowsLeading,
+  bool followTail);
+
+/*
+ * The rows of both ranges, low to high, each once.
+ */
+std::vector<std::size_t> unionRangeIndices(const MountedRange& first, const MountedRange& second);
+
+/*
+ * Whether a new scroll index rebuilds the mounted rows around it. UNDEFINED_INDEX means no
+ * target, and never pulls a reader who scrolled away back to the start.
+ */
+bool shouldReseedFromIndex(std::size_t previousIndex, std::size_t nextIndex);
+
 }

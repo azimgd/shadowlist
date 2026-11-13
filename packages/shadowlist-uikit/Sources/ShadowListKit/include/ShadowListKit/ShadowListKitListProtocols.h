@@ -216,6 +216,12 @@ NS_SWIFT_UI_ACTOR
 
 #if !TARGET_OS_OSX
 /*
+ * The reader touched and held an item that shows no menu. An item that can also be reordered
+ * lifts on the hold, and letting go without moving it calls this when it has no menu. iOS only.
+ */
+- (void)listView:(ShadowListKitListView *)listView didLongPressItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didLongPressItemAt:));
+
+/*
  * The reader pulled to refresh with refreshEnabled. Set refreshing to NO when done. iOS only.
  */
 - (void)listViewDidBeginRefreshing:(ShadowListKitListView *)listView;
@@ -237,6 +243,12 @@ NS_SWIFT_UI_ACTOR
  */
 - (void)listViewDidReachStart:(ShadowListKitListView *)listView;
 - (void)listViewDidReachEnd:(ShadowListKitListView *)listView;
+
+/*
+ * An inverted list left its end or is back at it, see atEnd. Show a jump to the newest item
+ * while atEnd is NO.
+ */
+- (void)listView:(ShadowListKitListView *)listView didChangeAtEnd:(BOOL)atEnd;
 
 /*
  * The scroll events. listViewDidScroll: follows every change of contentOffset. The others follow

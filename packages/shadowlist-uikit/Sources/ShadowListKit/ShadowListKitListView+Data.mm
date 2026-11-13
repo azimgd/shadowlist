@@ -126,6 +126,24 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
 }
 
 /*
+ * The content version of the items a change inserted, which the next applyChanges compares
+ * against. items are their positions in itemKeys, the item keys after the change. The versions
+ * of the other items stay as they are.
+ */
+- (void)insertContentVersions:(const std::vector<std::size_t>&)items itemKeys:(const std::vector<std::string>&)itemKeys
+{
+  if (items.empty() || ![_dataSource respondsToSelector:@selector(listView:contentVersionForItemAtIndex:)]) {
+    return;
+  }
+  std::vector<std::int64_t> versions;
+  versions.reserve(items.size());
+  for (std::size_t item : items) {
+    versions.push_back([_dataSource listView:self contentVersionForItemAtIndex:(NSInteger)item]);
+  }
+  _contentVersions.insert(itemKeys, items, versions);
+}
+
+/*
  * Hand the rows' keys to the core. Only the keys between the unchanged rows at both ends
  * reach it.
  */
@@ -170,8 +188,9 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   if (_animatesChanges) {
     [_changes captureDeleted:{} inserted:keys];
   }
-  _driver.insertKeys(std::move(inserted), std::move(keys));
+  _driver.insertKeys(inserted, std::move(keys));
   _sections.setPlain(_driver.getKeyCount());
+  [self insertContentVersions:inserted itemKeys:_driver.getKeys()];
   [self structureChanged];
   [self layoutDataChange];
 }
@@ -308,6 +327,8 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   // The reloaded rows by key, from the data before.
   std::unordered_set<std::string> reloadedKeys = keysOfRows(_driver.getKeys(), [self rowsOfItems:batch.reloaded]);
   std::vector<std::string> next;
+  std::vector<std::string> sectionItems;
+  std::vector<std::size_t> inserted;
   BOOL planned = NO;
   if (![self hasSections] && !needsReload) {
     NSInteger nextCount = MAX(0, [_dataSource numberOfItemsInListView:self]);
@@ -316,6 +337,7 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
       next = keysFromPlan(*plan, _driver.getKeys(), [self](std::size_t index) {
         return ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)index]);
       });
+      inserted = insertedRows(*plan, _driver.getKeyCount());
       _sections.setPlain(next.size());
       planned = YES;
     } else {
@@ -323,8 +345,15 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     }
   }
   if (!planned) {
-    next = [self readRowKeys];
+    // A batch read again names no items. The ones it inserted are the keys the data did not hold.
+    std::vector<std::string> previousScratch;
+    const std::vector<std::string>& previousItems = _sections.itemKeys(_driver.getKeys(), previousScratch);
+    next = [self readRowKeysWithItems:&sectionItems];
+    if ([_dataSource respondsToSelector:@selector(listView:contentVersionForItemAtIndex:)]) {
+      inserted = diffKeys(previousItems, _sections.isSectioned() ? sectionItems : next).inserted;
+    }
   }
+  [self insertContentVersions:inserted itemKeys:_sections.isSectioned() ? sectionItems : next];
   [self commitKeyChanges:std::move(next) reloadedKeys:reloadedKeys payload:payload reloadsSectionIndex:!planned];
 }
 

@@ -136,8 +136,11 @@ final class SwipeTests: XCTestCase {
     (cell?.layer?.animation(forKey: "shadowListKitSwipe") as? CABasicAnimation)?.toValue.map { ($0 as! NSValue).pointValue }
   }
 
+  // Runs the main queue past every block queued before it. An action's completion closes its row from there.
   private func spinMainQueue() {
-    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    let drained = expectation(description: "main queue drained")
+    DispatchQueue.main.async { drained.fulfill() }
+    wait(for: [drained], timeout: 5)
   }
 
   func testAPartialSwipePastHalfTheButtonsRestsOpen() throws {

@@ -22,8 +22,8 @@
 namespace azimgd::shadowlist {
 
 /*
- * Core passes per layout. Each pass measures the rows its measured range brought in or settles a
- * correction.
+ * Core passes per layout that settle a correction and measure no row. A pass that measures the
+ * rows its measured range brought in does not count.
  */
 constexpr int MAX_CORE_PASSES_PER_LAYOUT = 4;
 
@@ -76,6 +76,13 @@ struct PassInput {
   double windowCross = 0.0;
   double headerSize = 0.0;
   double footerSize = 0.0;
+
+  /*
+   * The size of the view a host shows while the list has no rows, 0 without one. It sits right
+   * after the header. While it shows, the core counts it with the header: the footer goes after
+   * it and the content size holds it.
+   */
+  double emptySize = 0.0;
   ScrollPhase phase = ScrollPhase::Idle;
   bool userScrolled = false;
   bool tracking = false;
@@ -88,12 +95,25 @@ struct PassInput {
   double mountPad = 0.0;
   double leadingInset = 0.0;
   double trailingInset = 0.0;
+
+  /*
+   * Whether runPasses brings a list left before the start or past the end of its content back to
+   * that end and runs again there. Content that shrank leaves a resting list past the new end,
+   * and the core leaves an inverted list there. A host turns an end off while its scroll view
+   * holds the list past it on its own, like a bounce. tracking turns both off. clampSlack is how
+   * far outside the content the host's scroll view rests on its own, like the device pixel it
+   * rounds to.
+   */
+  bool clampStart = false;
+  bool clampEnd = false;
+  double clampSlack = 0.0;
 };
 
 /*
  * What the host applies after a layout: the content size first, then the offset.
- * With settling set, a correction waits for one more report on the next frame. The footer
- * starts at footerStart along the axis.
+ * With settling set, a correction waits for one more report on the next frame, or the list was
+ * brought back to an end the rows measured there moved again. The footer starts at footerStart
+ * along the axis. atEnd is the driver's isAtEnd after the passes, and showsEmpty its showsEmpty.
  */
 struct PassResult {
   double offset = 0.0;
@@ -103,6 +123,8 @@ struct PassResult {
   bool settling = false;
   bool reachedStart = false;
   bool reachedEnd = false;
+  bool atEnd = true;
+  bool showsEmpty = true;
 };
 
 /*
@@ -129,6 +151,57 @@ struct MountPlan {
   double viewHigh = 0.0;
   OffsetBand band;
 };
+
+/*
+ * What a mount plan is made with besides the offset, the values planMount takes.
+ */
+struct MountInputs {
+  double windowAlong = 0.0;
+  double pad = 0.0;
+  double leadingInset = 0.0;
+  double trailingInset = 0.0;
+
+  friend bool operator==(const MountInputs& a, const MountInputs& b) {
+    return a.windowAlong == b.windowAlong && a.pad == b.pad && a.leadingInset == b.leadingInset &&
+      a.trailingInset == b.trailingInset;
+  }
+
+  friend bool operator!=(const MountInputs& a, const MountInputs& b) {
+    return !(a == b);
+  }
+};
+
+/*
+ * What a host's mount pass covers. low, high and sticky are its plan's rows. geometry is the
+ * driver's geometry version, structure the host's count of data changes and shift how far the
+ * host draws the rows off their frames, like the part of a device pixel its offset is rounded
+ * by. band and inputs are the plan's band and what the plan was made with. A host makes one
+ * for every plan, asks shouldSkipMount with the one before and keeps it, mounted or not.
+ */
+struct MountRecord {
+  std::size_t low = UNDEFINED_INDEX;
+  std::size_t high = UNDEFINED_INDEX;
+  std::size_t sticky = UNDEFINED_INDEX;
+  std::uint64_t geometry = 0;
+  std::uint64_t structure = 0;
+  double shift = 0.0;
+  OffsetBand band;
+  MountInputs inputs;
+};
+
+/*
+ * Whether a host skips the mount pass of next: nothing the pass before covered changed. That is
+ * the plan's rows, the pinned header, the geometry, the data and the shift. With more than one
+ * column a row between the same ends can come into view. The pass is then skipped only while the
+ * offset stays inside the band of the plan before, made with the same inputs. A host that holds
+ * a row for a drag mounts every pass.
+ */
+bool shouldSkipMount(
+  const MountRecord& previous,
+  const MountRecord& next,
+  double offset,
+  std::size_t numberOfColumns,
+  bool holdsRow);
 
 /*
  * Where an animated scroll command lands when its animation ends. The animation only goes to
@@ -198,6 +271,12 @@ public:
   void setStickyIndices(std::vector<std::size_t> sticky);
   bool hasSticky() const { return !sticky_.empty(); }
 
+  /*
+   * Keys of rows the core never holds the visible content by, like a typing indicator or a row
+   * that streams in. The nearest other row holds it instead.
+   */
+  void setNonAnchorKeys(std::vector<std::string> keys);
+
   void setKeys(std::vector<std::string> keys);
 
   /*
@@ -240,7 +319,9 @@ public:
   const std::string& getKeyAt(std::size_t index) const { return keys_[index]; }
 
   /*
-   * Run the core until the measured range is measured and any correction landed.
+   * Run the core until the measured range is measured and any correction landed. A list left
+   * outside its content comes back to the end the input's clampStart and clampEnd name, and the
+   * core runs again there before the host draws.
    */
   PassResult runPasses(const PassInput& input);
 
@@ -255,6 +336,18 @@ public:
   std::size_t getRowCount() const;
   std::uint64_t getGeometryVersion() const;
   double getContentAlong() const;
+
+  /*
+   * Whether an inverted list rests at its end. It leaves the end when the user scrolls away from
+   * it or a scroll command lands away from it, and is back when either brings it there. Content
+   * that grows never leaves it. A list that is not inverted is always at its end.
+   */
+  bool isAtEnd() const;
+
+  /*
+   * Whether the host shows its empty view: the list has no rows.
+   */
+  bool showsEmpty() const { return keys_.empty(); }
 
   /*
    * The rows the core keeps measured, or nothing before the first layout.
@@ -368,6 +461,12 @@ public:
   bool isDragging() const { return !heldKey_.empty(); }
 
   /*
+   * The key change a drop's synchronous data update is expected to make. The next pass sends
+   * it once. An empty hint clears it and any unused hint in the core when that update ends.
+   */
+  void setDropHint(DropHint hint);
+
+  /*
    * Where the held row is in the data now, or UNDEFINED_INDEX without a drag or when its key is gone.
    */
   std::size_t getHeldIndex() const;
@@ -393,17 +492,20 @@ private:
   void recordEdit(KeyEdit edit);
   void insertKeysInPlace(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
   void insertKeysRebuilding(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
-  FrameInput makeFrameInput(const PassInput& input, double offset, bool firstPass) const;
+  FrameInput makeFrameInput(const PassInput& input, double offset, bool userScrolled) const;
   bool measureRange(double offset, const PassInput& input);
-  bool measureSpan(std::size_t low, std::size_t high, std::size_t extra);
+  bool measureSpan(std::size_t low, std::size_t high, std::size_t pinned, std::size_t aimed);
   void measureIndex(std::size_t index, SizeBatch& batch);
   bool needsMeasure(std::size_t index);
   double crossSizeOf(std::size_t index) const;
   void collectIndex(std::size_t index);
+  double runCore(const PassInput& input, double offset, bool userScrolled);
   PassResult finishPasses(double offset, const PassInput& input);
   double clampOffset(double target, const PassInput& input) const;
+  double restingOffset(double offset, const PassInput& input) const;
   bool overlaps(std::size_t index, double viewLow, double viewHigh) const;
   DragRow dragRowAt(std::size_t index) const;
+  void aimAtRow(std::size_t index, double viewPosition, double viewOffset);
 
   std::unique_ptr<Container> core_;
   MeasureRow measureRow_;
@@ -418,6 +520,12 @@ private:
   ListSettings settings_;
   std::vector<std::string> keys_;
   std::vector<std::size_t> sticky_;
+  std::vector<std::string> nonAnchorKeys_;
+
+  /*
+   * Whether the core has yet to take nonAnchorKeys_.
+   */
+  bool nonAnchorKeysChanged_ = false;
   std::unordered_set<std::string> remeasureKeys_;
   PrefetchTracker prefetch_;
 
@@ -432,6 +540,16 @@ private:
   std::vector<std::size_t> prefetchFound_;
   std::vector<std::size_t> cancelFound_;
   ScrollLanding landing_;
+
+  /*
+   * The row a scroll command aims at, by key, until the passes land on it. See runPasses.
+   */
+  struct RowAim {
+    std::string key;
+    double viewPosition = 0.0;
+    double viewOffset = 0.0;
+  };
+  std::optional<RowAim> rowAim_;
   DragReorder drag_;
 
   /*
@@ -439,7 +557,9 @@ private:
    */
   std::vector<DragRow> dragRows_;
   std::string heldKey_;
+  DropHint dropHint_;
   std::uint64_t echoToken_ = 0;
+  std::uint64_t echoRevision_ = 0;
   double windowCross_ = 0.0;
   bool keysChanged_ = true;
 

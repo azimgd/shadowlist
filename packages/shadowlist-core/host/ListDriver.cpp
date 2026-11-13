@@ -17,14 +17,14 @@ namespace azimgd::shadowlist {
 namespace {
 
 /*
- * Runs of adjacent values in a sorted list of count values read through valueAt.
- */
-/*
  * How many times a pass with prefetch on measures the rows its mount plan reaches before it
  * prefetches the rest.
  */
 constexpr int MAX_MOUNT_PLAN_ROUNDS = 3;
 
+/*
+ * Runs of adjacent values in a sorted list of count values read through valueAt.
+ */
 template <typename ValueAt>
 std::size_t countRuns(std::size_t count, ValueAt valueAt) {
   std::size_t runs = count > 0 ? 1 : 0;
@@ -68,6 +68,11 @@ void ListDriver::setStickyIndices(std::vector<std::size_t> sticky) {
   std::sort(sticky.begin(), sticky.end());
   sticky.erase(std::unique(sticky.begin(), sticky.end()), sticky.end());
   sticky_ = std::move(sticky);
+}
+
+void ListDriver::setNonAnchorKeys(std::vector<std::string> keys) {
+  nonAnchorKeys_ = std::move(keys);
+  nonAnchorKeysChanged_ = true;
 }
 
 void ListDriver::setKeys(std::vector<std::string> keys) {
@@ -242,12 +247,14 @@ void ListDriver::deleteKeys(std::vector<std::size_t> indices) {
 void ListDriver::markRemeasure(const std::vector<std::size_t>& indices) {
   for (std::size_t index : indices) {
     if (index < keys_.size()) {
+      // A content edit starts a new hold at the row now on screen. Late first sizes do not.
+      core_->state.clampedAnchor.reset();
       remeasureKeys_.insert(keys_[index]);
     }
   }
 }
 
-FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, bool firstPass) const {
+FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, bool userScrolled) const {
   FrameInput frame;
   frame.keysRef = keys_;
   frame.keysUnchanged = !keysChanged_;
@@ -264,8 +271,10 @@ FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, boo
     frame.windowHeight = input.windowAlong;
     frame.estimatedRowSize = {cellCross, settings_.estimatedRowSize};
   }
-  frame.headerSize = input.headerSize;
+  frame.headerSize = input.headerSize + (showsEmpty() ? input.emptySize : 0.0);
   frame.footerSize = input.footerSize;
+  frame.nonAnchorKeysRef = &nonAnchorKeys_;
+  frame.nonAnchorKeysUnchanged = !nonAnchorKeysChanged_;
   frame.inverted = settings_.inverted;
   frame.followAppends = settings_.followAppends;
   frame.horizontal = settings_.horizontal;
@@ -276,22 +285,58 @@ FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, boo
   frame.snapToItem = settings_.snapToItem;
   frame.snapAlignment = settings_.snapAlignment;
   frame.scrollPhase = input.phase;
-  frame.userScrolled = firstPass && input.userScrolled;
+  frame.userScrolled = userScrolled;
   frame.commitToken = echoToken_;
+  frame.commitRevision = echoRevision_;
+  frame.dropHint = dropHint_;
   return frame;
 }
 
 PassResult ListDriver::runPasses(const PassInput& input) {
-  Container& core = *core_;
   windowCross_ = input.windowCross;
-  bool horizontal = settings_.horizontal;
-  double offset = input.offset;
   if (keysChanged_) {
     prefetchStale_ = true;
   }
-  for (int pass = 0; pass < MAX_CORE_PASSES_PER_LAYOUT; ++pass) {
-    Virtualizer::update(core, makeFrameInput(input, offset, pass == 0));
+  /*
+   * A finger takes the list from a command on its way. So does any other move by the user once
+   * the core runs the command.
+   */
+  bool commandRuns = core_->state.scrollToRowTarget == UNDEFINED_INDEX;
+  if (input.phase == ScrollPhase::Dragging || (input.userScrolled && commandRuns)) {
+    rowAim_.reset();
+  }
+  double offset = runCore(input, input.offset, input.userScrolled);
+  /*
+   * The passes left the list outside its content. It comes back to the end and the core runs
+   * again there, as after a move that is not the user's. The rows that run measures can move the
+   * end once more. The host then draws at the new end and runs again on the next frame.
+   */
+  bool movedAgain = false;
+  double resting = restingOffset(offset, input);
+  if (resting != offset) {
+    offset = runCore(input, resting, false);
+    resting = restingOffset(offset, input);
+    movedAgain = resting != offset;
+    offset = resting;
+  }
+  PassResult result = finishPasses(offset, input);
+  result.settling = result.settling || movedAgain;
+  return result;
+}
+
+/*
+ * Update, measure and correct from offset until nothing moves. Returns where the list ends up.
+ * userScrolled reaches the core with the first pass only.
+ */
+double ListDriver::runCore(const PassInput& input, double offset, bool userScrolled) {
+  Container& core = *core_;
+  bool horizontal = settings_.horizontal;
+  int correctionPasses = 0;
+  for (bool firstPass = true; correctionPasses < MAX_CORE_PASSES_PER_LAYOUT; firstPass = false) {
+    Virtualizer::update(core, makeFrameInput(input, offset, firstPass && userScrolled));
+    dropHint_ = DropHint{};
     keysChanged_ = false;
+    nonAnchorKeysChanged_ = false;
     pendingEdit_ = KeyEdit{};
     editsSinceUpdate_ = 0;
     bool measured = measureRange(offset, input);
@@ -301,19 +346,44 @@ PassResult ListDriver::runPasses(const PassInput& input) {
     bool wrote = false;
     if (update.applyOffset) {
       double target = clampOffset(horizontal ? update.offsetX : update.offsetY, input);
-      if (update.commitToken != 0) {
-        echoToken_ = update.commitToken;
-      }
+      echoToken_ = update.commitToken;
+      echoRevision_ = update.commitRevision;
       if (std::fabs(target - offset) >= 0.01) {
         offset = target;
         wrote = true;
       }
     }
-    if (!measured && !wrote && !core.hasPendingCommand()) {
+    /*
+     * The core counts a scroll to a row as arrived on the sizes it had when the pass began. The
+     * rows the pass then measured, or the row it holds next, can leave the list off the target.
+     * The command goes out again until the list rests on it.
+     */
+    if (rowAim_ && !core.hasPendingCommand()) {
+      std::size_t index = core.indexOfKey(rowAim_->key);
+      double maxOffset = std::max(0.0, getContentAlong() - input.windowAlong);
+      double aimed = rowTargetOffset(core, index, rowAim_->viewPosition, rowAim_->viewOffset, input.windowAlong,
+        maxOffset);
+      bool landed = !measured && std::fabs(aimed - offset) < OFFSET_ARRIVED_THRESHOLD;
+      if (index == UNDEFINED_INDEX || landed) {
+        rowAim_.reset();
+      } else {
+        core.scrollToRow(index, rowAim_->viewPosition, rowAim_->viewOffset);
+      }
+    }
+    /*
+     * A move by the user reported at rest reaches the core as a gesture frame. One more pass
+     * tells it the list rests.
+     */
+    bool gestureAtRest = input.phase == ScrollPhase::Idle && core.state.gestureActive;
+    if (!measured && !wrote && !gestureAtRest && !core.hasPendingCommand()) {
       break;
     }
+    // A pass that measured is one of a few: each row near the viewport is measured once.
+    if (!measured) {
+      ++correctionPasses;
+    }
   }
-  return finishPasses(offset, input);
+  return offset;
 }
 
 /*
@@ -326,12 +396,28 @@ PassResult ListDriver::finishPasses(double offset, const PassInput& input) {
   result.contentAlong = getContentAlong();
   result.footerStart = core.getFooterStart(input.footerSize);
   result.band = core.computeOffsetBand();
+  /*
+   * The core's band knows nothing of the pinned header. The passes measured the one pinned at
+   * this offset, and the band ends where another row pins.
+   */
+  if (!sticky_.empty() && !result.band.isEmpty()) {
+    std::size_t active = activeStickyIndex(offset);
+    auto next = active == UNDEFINED_INDEX ? sticky_.begin() : std::upper_bound(sticky_.begin(), sticky_.end(), active);
+    if (active != UNDEFINED_INDEX) {
+      result.band.low = std::max(result.band.low, getLeadingAt(active));
+    }
+    if (next != sticky_.end() && *next < getRowCount()) {
+      result.band.high = std::min(result.band.high, getLeadingAt(*next) - OFFSET_BAND_MARGIN);
+    }
+  }
   settlingLayouts_ = core.hasPendingCommand() ? settlingLayouts_ + 1 : 0;
   result.settling = settlingLayouts_ > 0 && settlingLayouts_ < MAX_SETTLING_LAYOUTS;
   result.reachedStart = reachedStart_;
   result.reachedEnd = reachedEnd_;
   reachedStart_ = false;
   reachedEnd_ = false;
+  result.atEnd = isAtEnd();
+  result.showsEmpty = showsEmpty();
   return result;
 }
 
@@ -348,6 +434,24 @@ double ListDriver::clampOffset(double target, const PassInput& input) const {
 }
 
 /*
+ * Where a list left outside its content comes back to: the end the host has the driver hold, or
+ * the offset itself. The range uses the content size the passes left.
+ */
+double ListDriver::restingOffset(double offset, const PassInput& input) const {
+  if (input.tracking) {
+    return offset;
+  }
+  double maxOffset = std::max(0.0, getContentAlong() - input.windowAlong);
+  if (input.clampEnd && offset > maxOffset + input.clampSlack) {
+    return maxOffset;
+  }
+  if (input.clampStart && offset < -input.clampSlack) {
+    return 0.0;
+  }
+  return offset;
+}
+
+/*
  * Give the core the size of every row in its measured range that has none yet, then reflow once.
  * Returns whether any size changed. With prefetch on, the rows the host will mount get their
  * sizes first, which places them where they show, and the rows past them are prefetched before
@@ -359,13 +463,21 @@ bool ListDriver::measureRange(double offset, const PassInput& input) {
     SizeBatch batch;
     return batch.commit(*core_);
   }
+  auto outside = [&](std::size_t index) {
+    return index < measured->low || index > measured->high ? index : UNDEFINED_INDEX;
+  };
   // The pinned section header needs its real size even when it sits far above the measured range.
-  std::size_t sticky = activeStickyIndex(offset);
-  if (sticky != UNDEFINED_INDEX && sticky >= measured->low && sticky <= measured->high) {
-    sticky = UNDEFINED_INDEX;
+  std::size_t sticky = outside(activeStickyIndex(offset));
+  /*
+   * So does the row a command aims at. A saved position is a distance into its row, which can
+   * reach past the end of an estimate.
+   */
+  std::size_t aimed = outside(rowAim_ ? indexOfKey(rowAim_->key) : UNDEFINED_INDEX);
+  if (aimed == sticky) {
+    aimed = UNDEFINED_INDEX;
   }
   if (!input.prefetch || !prefetchRows_) {
-    return measureSpan(measured->low, measured->high, sticky);
+    return measureSpan(measured->low, measured->high, sticky, aimed);
   }
   bool changed = false;
   auto plan = [&] {
@@ -374,7 +486,8 @@ bool ListDriver::measureRange(double offset, const PassInput& input) {
   MountPlan mounted = plan();
   // Sizes move the rows. A plan that grew reaches rows still placed by estimate.
   for (int round = 0; round < MAX_MOUNT_PLAN_ROUNDS && mounted.low != UNDEFINED_INDEX; ++round) {
-    if (!measureSpan(mounted.low, mounted.high, round == 0 ? sticky : UNDEFINED_INDEX)) {
+    bool first = round == 0;
+    if (!measureSpan(mounted.low, mounted.high, first ? sticky : UNDEFINED_INDEX, first ? aimed : UNDEFINED_INDEX)) {
       break;
     }
     changed = true;
@@ -384,22 +497,24 @@ bool ListDriver::measureRange(double offset, const PassInput& input) {
   if (!prefetchFound_.empty() || !cancelFound_.empty()) {
     prefetchRows_(prefetchFound_, cancelFound_);
   }
-  return measureSpan(measured->low, measured->high, sticky) || changed;
+  return measureSpan(measured->low, measured->high, sticky, aimed) || changed;
 }
 
 /*
- * Give the core the size of every row from low to high and of extra that has none yet, then
- * reflow once. Returns whether any size changed.
+ * Give the core the size of every row from low to high, and of the pinned and the aimed row
+ * outside them, that has none yet, then reflow once. Returns whether any size changed.
  */
-bool ListDriver::measureSpan(std::size_t low, std::size_t high, std::size_t extra) {
+bool ListDriver::measureSpan(std::size_t low, std::size_t high, std::size_t pinned, std::size_t aimed) {
   Container& core = *core_;
   SizeBatch batch;
   if (!measureRows_) {
     for (std::size_t index = low; index <= high; ++index) {
       measureIndex(index, batch);
     }
-    if (extra != UNDEFINED_INDEX) {
-      measureIndex(extra, batch);
+    for (std::size_t extra : {pinned, aimed}) {
+      if (extra != UNDEFINED_INDEX) {
+        measureIndex(extra, batch);
+      }
     }
     return batch.commit(core);
   }
@@ -408,8 +523,10 @@ bool ListDriver::measureSpan(std::size_t low, std::size_t high, std::size_t extr
   for (std::size_t index = low; index <= high; ++index) {
     collectIndex(index);
   }
-  if (extra != UNDEFINED_INDEX) {
-    collectIndex(extra);
+  for (std::size_t extra : {pinned, aimed}) {
+    if (extra != UNDEFINED_INDEX) {
+      collectIndex(extra);
+    }
   }
   if (!measureIndices_.empty()) {
     measureSizes_.assign(measureIndices_.size(), 0.0);
@@ -467,9 +584,13 @@ void ListDriver::resetKeepingPosition() {
   core_ = std::make_unique<Container>();
   installCallbacks();
   recordEdit({});
+  nonAnchorKeysChanged_ = true;
   remeasureKeys_.clear();
   echoToken_ = 0;
+  echoRevision_ = 0;
+  dropHint_ = DropHint{};
   settlingLayouts_ = 0;
+  rowAim_.reset();
   if (holdEnd) {
     core_->scrollToEnd();
   } else if (anchor) {
@@ -487,6 +608,10 @@ std::uint64_t ListDriver::getGeometryVersion() const {
 
 double ListDriver::getContentAlong() const {
   return settings_.horizontal ? core_->revision.contentWidth : core_->revision.contentHeight;
+}
+
+bool ListDriver::isAtEnd() const {
+  return !core_->state.invertedBottomReleased;
 }
 
 std::optional<MountedRange> ListDriver::getMeasuredRange() const {
@@ -592,6 +717,21 @@ bool ListDriver::shouldMount(const MountPlan& plan, std::size_t index) const {
   return settings_.numberOfColumns == 1 || overlaps(index, plan.viewLow, plan.viewHigh);
 }
 
+bool shouldSkipMount(
+  const MountRecord& previous,
+  const MountRecord& next,
+  double offset,
+  std::size_t numberOfColumns,
+  bool holdsRow) {
+  if (holdsRow || next.low != previous.low || next.high != previous.high || next.sticky != previous.sticky) {
+    return false;
+  }
+  if (next.geometry != previous.geometry || next.structure != previous.structure || next.shift != previous.shift) {
+    return false;
+  }
+  return numberOfColumns <= 1 || (previous.band.contains(offset) && next.inputs == previous.inputs);
+}
+
 /*
  * The shared search over the sorted sticky rows. Rows the core has not placed yet sort last.
  */
@@ -625,6 +765,17 @@ void ListDriver::stickyFrames(std::vector<double>& out) const {
 }
 
 void ListDriver::scrollToRow(std::size_t index, double viewPosition, double viewOffset) {
+  aimAtRow(index, viewPosition, viewOffset);
+}
+
+/*
+ * Send the core a scroll to a row and keep its aim for the passes that land it.
+ */
+void ListDriver::aimAtRow(std::size_t index, double viewPosition, double viewOffset) {
+  rowAim_.reset();
+  if (index < keys_.size()) {
+    rowAim_ = RowAim{keys_[index], viewPosition, viewOffset};
+  }
   core_->scrollToRow(index, viewPosition, viewOffset);
 }
 
@@ -646,7 +797,7 @@ bool ListDriver::restoreAnchorState(const AnchorState& anchor) {
   if (index == UNDEFINED_INDEX) {
     return false;
   }
-  core_->scrollToRow(index, 0.0, anchor.offset);
+  aimAtRow(index, 0.0, anchor.offset);
   return true;
 }
 
@@ -677,10 +828,12 @@ void ListDriver::updatePrefetch(
 }
 
 void ListDriver::scrollToStart() {
+  rowAim_.reset();
   core_->scrollToStart();
 }
 
 void ListDriver::scrollToEnd() {
+  rowAim_.reset();
   core_->scrollToEnd();
 }
 
@@ -705,13 +858,13 @@ bool ListDriver::land() {
   landing_ = ScrollLanding{};
   switch (landing.target) {
     case ScrollLanding::Target::Row:
-      core_->scrollToRow(landing.index, landing.viewPosition);
+      scrollToRow(landing.index, landing.viewPosition);
       return true;
     case ScrollLanding::Target::Start:
-      core_->scrollToStart();
+      scrollToStart();
       return true;
     case ScrollLanding::Target::End:
-      core_->scrollToEnd();
+      scrollToEnd();
       return true;
     case ScrollLanding::Target::None:
       return false;
@@ -746,6 +899,13 @@ void ListDriver::dragBegin(std::size_t index, double touchAlong, double touchCro
 void ListDriver::dragEnd() {
   heldKey_.clear();
   drag_.end();
+}
+
+void ListDriver::setDropHint(DropHint hint) {
+  std::lock_guard<std::recursive_mutex> lock(core_->coreMutex);
+  dropHint_ = std::move(hint);
+  core_->state.pendingDrop = DropHint{};
+  core_->state.pendingDropAtMs = 0.0;
 }
 
 std::size_t ListDriver::getHeldIndex() const {

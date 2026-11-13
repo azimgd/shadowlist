@@ -24,7 +24,8 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
  * the row and shows its buttons. SwipeReveal in the host layer decides how far it follows and
  * where it rests. Touching and holding a row shows its menu through UIContextMenuInteraction,
  * unless the row can be reordered. The hold then lifts the row, and the menu shows when it is let
- * go in place, through UIEditMenuInteraction.
+ * go in place, through UIEditMenuInteraction. A hold on a row without a menu is a long press the
+ * delegate hears.
  */
 @implementation ShadowListKitListView (Actions)
 
@@ -51,6 +52,16 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
     [self removeInteraction:_editMenu];
     _menuInteraction = nil;
     _editMenu = nil;
+  }
+  BOOL longPresses = [_userDelegate respondsToSelector:@selector(listView:didLongPressItemAtIndex:)];
+  if (longPresses && !_longPress) {
+    _longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
+    // The list decides in gestureRecognizerShouldBegin whether a hold is a long press, as for the pan.
+    _longPress.delegate = (id<UIGestureRecognizerDelegate>)self;
+    [self addGestureRecognizer:_longPress];
+  } else if (!longPresses && _longPress) {
+    [self removeGestureRecognizer:_longPress];
+    _longPress = nil;
   }
 }
 
@@ -110,6 +121,9 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
 
 - (BOOL)shouldBeginActionGesture:(UIGestureRecognizer *)gesture
 {
+  if (gesture == _longPress) {
+    return [self longPressCellAtPoint:[gesture locationInView:self]] != nil;
+  }
   return gesture == _swipePan && [self swipeCellForPan:_swipePan] != nil;
 }
 
@@ -419,6 +433,45 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
   UIMenu *menu = _pendingMenu;
   _pendingMenu = nil;
   return menu;
+}
+
+#pragma mark - Long press
+
+/*
+ * The item a hold at a point is a long press on, or nil. A hold lifts a row that can move. On a
+ * row that cannot it shows the row's menu, and without a menu the delegate hears a long press.
+ * A hold that is none leaves the press to the menu and the lift.
+ */
+- (ShadowListKitListCell *)longPressCellAtPoint:(CGPoint)point
+{
+  ShadowListKitListCell *cell = [self itemCellAtPoint:point];
+  if (!cell || [self hasHeldRow] || [self isSwipeOpen] || [self canMoveCell:cell] || [self menuForCell:cell]) {
+    return nil;
+  }
+  return cell;
+}
+
+- (void)handleLongPress:(UILongPressGestureRecognizer *)press
+{
+  if (press.state != UIGestureRecognizerStateBegan) {
+    return;
+  }
+  ShadowListKitListCell *cell = [self longPressCellAtPoint:[press locationInView:self]];
+  if (cell) {
+    [self longPressCell:cell];
+  }
+}
+
+- (void)longPressCell:(ShadowListKitListCell *)cell
+{
+  if (cell.index == NSNotFound || ![_userDelegate respondsToSelector:@selector(listView:didLongPressItemAtIndex:)]) {
+    return;
+  }
+  [self unhighlight];
+  // The touch selects nothing when it ends.
+  _tap.enabled = NO;
+  _tap.enabled = YES;
+  [_userDelegate listView:self didLongPressItemAtIndex:cell.index];
 }
 
 @end

@@ -104,6 +104,18 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
  * - headerView, footerView: views before the first item and after the last. Their size along
  *   the scroll axis is their frame's, or while that is empty their sizeThatFits: for views that
  *   answer it, their fittingSize otherwise. Set needsLayout on the list after one changes size.
+ * - stickyHeader, stickyFooter: pin headerView to the start of the viewport and footerView to
+ *   its end, over the items. The footer's place pushes a pinned header off at the end of the
+ *   content, and a pinned footer never rides up over the header's place.
+ * - emptyView: a view shown while the list has no items, and no section header or footer rows.
+ *   It sits right after headerView at its own size, measured like the header's, and footerView
+ *   follows it.
+ * - nonAnchorKeys: keys of items the list never holds the visible content in place by, like a
+ *   typing indicator or an item that streams in. The nearest other item holds it instead.
+ * - atEnd: whether an inverted list is at its end. It leaves the end when the reader scrolls
+ *   away from it or a scroll command lands away from it, and is back when either brings it
+ *   there. Items appended while it rests there do not leave it. The delegate hears
+ *   listView:didChangeAtEnd:. A list that is not inverted is always at its end.
  *
  * Scrolling:
  * - contentOffset: the content point at the top left of the viewport. contentInset pads the
@@ -237,6 +249,11 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
 @property (nonatomic) BOOL stickySectionHeaders;
 @property (nonatomic, strong, nullable) NSView *headerView;
 @property (nonatomic, strong, nullable) NSView *footerView;
+@property (nonatomic) BOOL stickyHeader;
+@property (nonatomic) BOOL stickyFooter;
+@property (nonatomic, strong, nullable) NSView *emptyView;
+@property (nonatomic, copy, nullable) NSSet<NSString *> *nonAnchorKeys;
+@property (nonatomic, readonly, getter=isAtEnd) BOOL atEnd;
 
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
 @property (nonatomic, strong, null_resettable) id<ShadowListKitItemAnimator> itemAnimator;

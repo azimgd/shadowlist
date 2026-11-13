@@ -7,12 +7,17 @@
 
 namespace azimgd::shadowlist {
 
+namespace {
+/*
+ * How many offsets ContainerState::unreportedOffsets keeps. The oldest goes first.
+ */
+constexpr std::size_t UNREPORTED_OFFSETS_KEPT = 4;
+
 /*
  * Debug only. Gives the key at an index so native and JS logs can be matched by content,
  * since an index points at different rows during a prepend. It is only used inside SHADOWLIST_LOG.
  * It is marked maybe_unused to keep Android builds with -Werror=unused-function clean.
  */
-namespace {
 [[maybe_unused]] const char* debugKeyAt(const Container& container, std::size_t index) {
   if (index < container.revision.rows.size()) {
     const std::string& key = container.revision.rows[index].key;
@@ -90,16 +95,42 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
    * report. It can't confirm the correction or count as gesture travel.
    */
   bool coreOffsetWrite = input.offsetEnabled;
+  /*
+   * A correction made without an operation, like the layout pass holding the anchor while rows
+   * get measured, has no token. Remember where the view was when the previous frame made one.
+   */
+  std::vector<double>& unreportedOffsets = container.state.unreportedOffsets;
+  if (container.state.offsetCorrected && !container.state.operation) {
+    if (unreportedOffsets.size() == UNREPORTED_OFFSETS_KEPT) {
+      unreportedOffsets.erase(unreportedOffsets.begin());
+    }
+    unreportedOffsets.push_back(container.state.previousFrameOffset);
+  }
+  container.state.previousFrameOffset = inputOffset;
   bool gestureTakeover = applyGestureState(container, input, inputOffset, coreOffsetWrite);
   bool restingAtBottom = applyInvertedBottomPin(container, input, inputOffset, gestureTakeover);
-  // Our own write is not where the host is. Don't record it.
+
+  /*
+   * A resting view reported at one of those offsets has not taken the writes that followed, or
+   * the report is from before them. The reader's rows are the ones at the core's own offset.
+   * The anchor is captured there, and step 4 of resolveScroll asks for that offset again, as an
+   * operation this time. A finger or momentum adds a correction to wherever the view is, and
+   * asking again would add it twice.
+   */
+  bool awaitsOwnWrites = false;
   if (!coreOffsetWrite) {
+    bool reportedBeforeWrites = std::any_of(unreportedOffsets.begin(), unreportedOffsets.end(),
+      [&](double offset) { return std::fabs(inputOffset - offset) < OFFSET_MOVED_THRESHOLD; });
+    awaitsOwnWrites = reportedBeforeWrites && !gestureTakeover && !container.state.operation &&
+      std::fabs(container.getOffset() - inputOffset) >= OFFSET_MOVED_THRESHOLD;
+    unreportedOffsets.clear();
+    // Our own write is not where the host is. Only a report is recorded.
     container.state.previousReportedOffset = inputOffset;
   }
 
   // Capture the anchor row so the same content stays in view through the reconcile.
   bool hadRowsBefore = !container.revision.rows.empty();
-  std::size_t anchorIndex = captureAnchor(container, inputOffset);
+  std::size_t anchorIndex = captureAnchor(container, awaitsOwnWrites ? container.getOffset() : inputOffset);
 
   std::string& anchorKey = container.state.frameAnchorKey;
   anchorKey = container.state.anchor.key;
@@ -279,12 +310,17 @@ bool Virtualizer::applyGestureState(
    * A prepend during a fling runs update twice on the same settling report, and dropping the
    * correction on the second pass would leave the view unmoved. So keep it until the host
    * reports back its commit token, and shift it by any momentum travel before then.
+   * A clamp to shorter content is kept the same way. Dropped on a report from before its write,
+   * it would start again under a new token while the content still shrinks, and the host would
+   * add the same correction to the view a second time.
    */
   bool maintainingAnchor = container.state.operation &&
     container.state.operation->type == OperationType::MaintainAnchor &&
     container.state.operation->target.mode == AnchorMode::Row;
+  bool clampingShrink = container.state.operation && container.state.operation->type == OperationType::ShrinkClamp;
   bool echoesOperation = container.state.operation && !coreOffsetWrite &&
     input.commitToken == container.state.operation->commitToken;
+  bool confirmsOperation = echoesOperation && input.commitRevision == container.state.commitRevision;
   /*
    * Scrolling reported before the host applies the correction moves its target along.
    * A correction started during a gesture keeps following after the frames go idle, since
@@ -295,16 +331,30 @@ bool Virtualizer::applyGestureState(
       (gestureTakeover || container.state.operation->commitToken == container.state.gestureCommitToken)) {
     container.state.operation->target.offset += inputOffset - container.state.previousReportedOffset;
   }
-  // A correction made during a gesture is done once the host reports it back while idle.
-  if (maintainingAnchor && echoesOperation && !gestureTakeover &&
-      container.state.operation->commitToken == container.state.gestureCommitToken) {
+  // The row a correction held is the row held so far for the capture that follows, see captureAnchor.
+  auto endOperation = [&]() {
+    if (container.state.operation->target.mode == AnchorMode::Row) {
+      container.state.anchor.key = container.state.operation->target.key;
+    }
     container.state.operation.reset();
+  };
+  /*
+   * A correction made during a gesture is done once the host reports it back while idle. The
+   * host added it to the moving view and has nothing left of it to apply, wherever the view rests.
+   */
+  bool survivesGesture = maintainingAnchor || clampingShrink;
+  if (survivesGesture && confirmsOperation && !gestureTakeover &&
+      container.state.operation->commitToken == container.state.gestureCommitToken) {
+    endOperation();
+  }
+  if (gestureTakeover && container.state.operation) {
+    bool keepsCorrection = survivesGesture && !confirmsOperation;
+    if (!keepsCorrection && (!scrollCommandInFlight || dragTakeover)) {
+      endOperation();
+    }
   }
   if (gestureTakeover) {
-    bool keepsAnchorCorrection = maintainingAnchor && !echoesOperation;
-    if (!keepsAnchorCorrection && (!scrollCommandInFlight || dragTakeover)) {
-      container.state.operation.reset();
-    }
+    container.state.clampedAnchor.reset();
     if (dragTakeover) {
       container.state.pendingScrollToEnd = false;
     }
@@ -328,9 +378,12 @@ bool Virtualizer::applyInvertedBottomPin(
    * Judge it with last frame's total and window together. Mixing frames would make a
    * keyboard opening or a rotation release a reader who never moved. That is also why
    * this runs before the reconcile below.
-   * Only a gesture releases the pin. Pinning again needs a real move toward the bottom made
-   * by the user or a scroll command. Shrinking content or our own correction can't
+   * A gesture releases the pin here. A report that moved toward the bottom pins again when the
+   * user or a scroll command made the move. Shrinking content or our own correction can't
    * quietly pin the reader again.
+   * A scroll command also decides when the view arrives at its target, see resolveScroll. Away
+   * from the bottom it releases the pin. On the bottom it pins again without a move, because a
+   * host that animated there on its own lands the command where the view already is.
    */
   if (container.inverted) {
     double previousOffset = container.state.previousReportedOffset;
@@ -429,6 +482,7 @@ void Virtualizer::reconcileFrameKeys(
     });
   }
   if (keysChanged) {
+    container.state.clampedAnchor.reset();
     // New keys end the opening settle.
     container.state.invertedOpeningPin = false;
     /*
@@ -560,7 +614,11 @@ void Virtualizer::measureFrame(
 
   // Apply scroll corrections, and pick the measured range again if the offset moved.
   bool offsetConfirmed = !input.offsetEnabled && !headerMovedOffset && !windowMovedOffset;
-  bool scrollCorrected = resolveScroll(container, anchorKey, anchorIndex, anchorDelta, hadRowsBefore, offsetConfirmed);
+  // An earlier own-write report cannot ask for another clamp after a newer size correction.
+  bool reportedBeforeWrite = !input.offsetEnabled && !input.userScrolled && input.commitRevision != 0 &&
+    input.commitRevision < container.state.commitRevision;
+  bool scrollCorrected = resolveScroll(container, anchorKey, anchorIndex, anchorDelta, hadRowsBefore,
+    offsetConfirmed, reportedBeforeWrite);
   if (headerMovedOffset || windowMovedOffset) {
     container.state.offsetCorrected = true;
   }
@@ -596,8 +654,12 @@ void Virtualizer::measure(Container& container, bool rangeFromOffset) {
    * After an insert, remove or reorder, rows still hold their old offsets. Reflow first so
    * the measured range is chosen from real positions and no row that moved into view is left blank.
    * It also lets the measured range pass use its fast search instead of scanning every row.
+   * A new fallback size moves every row that has no size of its own the same way.
    */
-  if (container.state.rowStructureDirty) {
+  auto [fallbackWidth, fallbackHeight] = effectiveFallbackSize(container);
+  bool fallbackChanged = fallbackWidth != container.state.previousFallbackWidth ||
+    fallbackHeight != container.state.previousFallbackHeight;
+  if (container.state.rowStructureDirty || fallbackChanged) {
     layoutRows(container);
   }
 

@@ -97,6 +97,7 @@ export const MAX_FOLLOWED_APPEND = 50;
  * The mounted range from its edge rows' current indices. A range at an edge of the data grows
  * by up to the leading pad to take rows added past it, and a followed tail takes every append.
  * New rows at an edge mount with the new data because this runs in the render that brings it.
+ * Empty, as { low: -1, high: -1 }, when an edge index is below 0 or the list has no rows.
  */
 export function grownMountedRange(
   lowIndex: number,
@@ -107,6 +108,9 @@ export function grownMountedRange(
   mountOverscanRowsLeading: number,
   followTail: boolean
 ): MountedRange {
+  if (lowIndex < 0 || highIndex < 0 || size <= 0) {
+    return { low: -1, high: -1 };
+  }
   const low = Math.min(lowIndex, highIndex);
   const high = Math.max(lowIndex, highIndex);
   const grownLow = lowAtStart

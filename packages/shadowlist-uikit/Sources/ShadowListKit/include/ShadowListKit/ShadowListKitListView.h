@@ -70,6 +70,18 @@ NS_ASSUME_NONNULL_BEGIN
  * - headerView, footerView: views before the first item and after the last. Their size along
  *   the scroll axis comes from sizeThatFits:. Call setNeedsLayout on the list after one changes
  *   size.
+ * - stickyHeader, stickyFooter: pin headerView to the start of the viewport and footerView to
+ *   its end, over the items. The footer's place pushes a pinned header off at the end of the
+ *   content, and a pinned footer never rides up over the header's place.
+ * - emptyView: a view shown while the list has no items, and no section header or footer rows.
+ *   It sits right after headerView at its own size, measured like the header's, and footerView
+ *   follows it.
+ * - nonAnchorKeys: keys of items the list never holds the visible content in place by, like a
+ *   typing indicator or an item that streams in. The nearest other item holds it instead.
+ * - atEnd: whether an inverted list is at its end. It leaves the end when the reader scrolls
+ *   away from it or a scroll command lands away from it, and is back when either brings it
+ *   there. Items appended while it rests there do not leave it. The delegate hears
+ *   listView:didChangeAtEnd:. A list that is not inverted is always at its end.
  *
  * Data:
  * - reloadData reads the item count and keys again. Items keep their sizes and cells by key,
@@ -109,7 +121,8 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * Swipe actions and menus come from the delegate. Swiping an item across the scroll axis shows
  * its actions, touching and holding it shows its menu. closeSwipeActionsAnimated: closes an
- * open item.
+ * open item. A hold on an item without a menu calls the delegate's
+ * listView:didLongPressItemAtIndex:.
  *
  * Selection: a tap selects an item when allowsSelection is set, the default. A tap on a
  * selected item of a list with allowsMultipleSelection deselects it. selectItemAtIndex:animated:
@@ -151,6 +164,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL stickySectionHeaders;
 @property (nonatomic, strong, nullable) UIView *headerView;
 @property (nonatomic, strong, nullable) UIView *footerView;
+@property (nonatomic) BOOL stickyHeader;
+@property (nonatomic) BOOL stickyFooter;
+@property (nonatomic, strong, nullable) UIView *emptyView;
+@property (nonatomic, copy, nullable) NSSet<NSString *> *nonAnchorKeys;
+@property (nonatomic, readonly, getter=isAtEnd) BOOL atEnd;
 
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
 @property (nonatomic, strong, null_resettable) id<ShadowListKitItemAnimator> itemAnimator;

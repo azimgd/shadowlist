@@ -145,6 +145,40 @@ TEST(content_versions_report_items_whose_version_changed) {
 }
 
 /*
+ * insertItems and a batch on every kit. The inserted items get a version to compare against, and
+ * a change of another item still waits for the next update.
+ */
+TEST(content_versions_keep_inserted_items_without_reading_the_rest) {
+  ContentVersions versions;
+  versions.record({"a", "b"}, {1, 1});
+  // n comes in at the front while b's content changed and nobody told the list yet.
+  versions.insert({"n", "a", "b"}, {0}, {7});
+  CHECK(versions.update({"n", "a", "b"}, {7, 1, 2}) == (Indices{2}));
+  // The inserted item's own change is seen from its first update on.
+  versions.insert({"n", "m", "a", "b"}, {1}, {3});
+  CHECK(versions.update({"n", "m", "a", "b"}, {7, 4, 1, 2}) == (Indices{1}));
+  // A key deleted and inserted again shows its content as it is now.
+  versions.insert({"n", "m", "a", "b"}, {2}, {5});
+  CHECK(versions.update({"n", "m", "a", "b"}, {7, 4, 5, 2}).empty());
+  // Positions past the keys and versions without a position are skipped.
+  versions.insert({"n"}, {0, 9}, {8, 1, 1});
+  CHECK(versions.update({"n", "m", "a", "b"}, {8, 4, 5, 2}).empty());
+  // An insert alone drops nothing: the keys it did not name still compare.
+  versions.insert(Keys{}, {}, {});
+  CHECK(versions.update({"n", "m", "a", "b"}, {8, 4, 5, 3}) == (Indices{3}));
+}
+
+TEST(inserted_rows_of_a_batch_plan_are_the_rows_without_a_source) {
+  BatchUpdate batch;
+  batch.deleted = {1};
+  batch.inserted = {0, 3};
+  std::optional<BatchPlan> plan = planBatch(3, 4, batch);
+  CHECK(plan.has_value());
+  CHECK(insertedRows(*plan, 3) == (Indices{0, 3}));
+  CHECK(insertedRows(BatchPlan{}, 3).empty());
+}
+
+/*
  * performBatchUpdates on every kit: changes inside nested blocks collect until the outermost
  * returns, and the batch taken plans the same as one built by hand.
  */

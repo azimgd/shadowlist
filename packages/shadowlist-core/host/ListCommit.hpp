@@ -25,9 +25,13 @@ struct ListScrollState {
   double baseY = 0.0;
   /*
    * The id of the pending correction, echoed back by the host. Zero means no correction, or a
-   * report from the host.
+   * no acknowledged correction. Host reports keep the token of their last applied correction.
    */
   std::uint64_t commitToken = 0;
+  /*
+   * Publication of the pending correction, or the publication the host echoed.
+   */
+  std::uint64_t commitRevision = 0;
   bool userScrolled = false;
   double scrollPhase = SCROLL_PHASE_IDLE;
   double contentWidth = 0.0;

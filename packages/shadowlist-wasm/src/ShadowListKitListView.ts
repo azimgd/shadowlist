@@ -23,6 +23,19 @@ function wholePixels(size: number): number {
 }
 
 /*
+ * A record no mount plan matches: the mount pass after it runs.
+ */
+function emptyMountRecord(): Float64Array {
+  const record = new Float64Array(ShadowListKitCore.MOUNT_SLOTS);
+  record[ShadowListKitCore.MOUNT_LOW] = -1;
+  record[ShadowListKitCore.MOUNT_HIGH] = -1;
+  record[ShadowListKitCore.MOUNT_STICKY] = -1;
+  record[ShadowListKitCore.MOUNT_GEOMETRY] = -1;
+  record[ShadowListKitCore.MOUNT_BAND_LOW] = 1;
+  return record;
+}
+
+/*
  * What the list shows. keyForItem is a stable identity for the item. Sizes, cells and the
  * scroll position follow keys across reloadData. A prepend or an insert above keeps what is on
  * screen in place. An item whose content changed under the same key needs reloadItems.
@@ -64,7 +77,9 @@ export interface ShadowListKitListViewDataSource {
  * willDecelerate says the list goes on moving after. didEndDecelerating follows the list coming to
  * rest, on an item edge when snapToItem is set. didEndScrollingAnimation follows an animated scroll
  * command. didReachStart and didReachEnd fire when the scroll position came within
- * startReachedThreshold or endReachedThreshold of an edge.
+ * startReachedThreshold or endReachedThreshold of an edge. didChangeAtEnd fires when an inverted
+ * list left its end or is back at it, see atEnd. Show a jump to the newest item while atEnd is
+ * false.
  */
 export interface ShadowListKitListViewDelegate {
   willDisplayCell?(
@@ -87,6 +102,7 @@ export interface ShadowListKitListViewDelegate {
   didEndScrollingAnimation?(listView: ShadowListKitListView): void;
   didReachStart?(listView: ShadowListKitListView): void;
   didReachEnd?(listView: ShadowListKitListView): void;
+  didChangeAtEnd?(listView: ShadowListKitListView, atEnd: boolean): void;
 }
 
 /*
@@ -136,6 +152,10 @@ export class ShadowListKitListView extends HTMLElement {
     stickyIndices: [] as number[],
     headerView: null as HTMLElement | null,
     footerView: null as HTMLElement | null,
+    stickyHeader: false,
+    stickyFooter: false,
+    emptyView: null as HTMLElement | null,
+    nonAnchorKeys: new Set<string>() as ReadonlySet<string>,
     contentCrossSize: 0,
   };
 
@@ -163,13 +183,12 @@ export class ShadowListKitListView extends HTMLElement {
   private mountGeneration = 0;
 
   /*
-   * What the last mount pass covered. The pass is skipped while all of it holds.
+   * What the last mount pass covered, with the band and the inputs of the last mount plan, see
+   * ShadowListKitCore.MOUNT_*: the core's shouldSkipMount skips a pass while it holds. mountNext
+   * is the record of the plan being made.
    */
-  private mountedLow = -1;
-  private mountedHigh = -1;
-  private mountedSticky = -1;
-  private mountedGeometry = -1;
-  private mountedStructure = 0;
+  private mountRecord: Float64Array = emptyMountRecord();
+  private mountNext: Float64Array = emptyMountRecord();
   private structureVersion = 0;
 
   /*
@@ -212,6 +231,7 @@ export class ShadowListKitListView extends HTMLElement {
   private windowCross = 0;
   private headerSize = 0;
   private footerSize = 0;
+  private emptySize = 0;
 
   /*
    * Where the rows end and the footer starts along the axis, from the core's last pass.
@@ -219,6 +239,22 @@ export class ShadowListKitListView extends HTMLElement {
   private footerStart = 0;
   private templatesChanged = true;
   private contentAlong = 0;
+
+  /*
+   * Whether the core's last pass said the list has no rows, which shows the empty view.
+   */
+  private showsEmpty = false;
+
+  /*
+   * The pinning of the header and the footer, see ShadowListKitCore.STICKY_*, and where the span
+   * of a pinned footer ends. The content element reaches at least there. templatesStale says the
+   * header, the footer or the empty view has to be placed again.
+   */
+  private readonly stickySlots = new Float64Array(
+    ShadowListKitCore.STICKY_SLOTS
+  );
+  private pinnedFooterEnd = 0;
+  private templatesStale = true;
 
   /*
    * The last offset seen, to tell the reader's scrolling from our own writes.
@@ -230,11 +266,13 @@ export class ShadowListKitListView extends HTMLElement {
   private frameScheduled = false;
   private reachedStart = false;
   private reachedEnd = false;
+  private atEndState = true;
+  private atEndChanged = false;
 
   private pendingAnchor: ShadowListKitAnchorState | null = null;
 
   /*
-   * Sees the list's own size and the header and footer sizes change.
+   * Sees the list's own size and the header, footer and empty view sizes change.
    */
   private readonly resizeObserver = new ResizeObserver((entries) => {
     for (const entry of entries) {
@@ -261,7 +299,7 @@ export class ShadowListKitListView extends HTMLElement {
     this.addEventListener('scroll', this.onScroll, { passive: true });
     this.gesture.attach();
     this.resizeObserver.observe(this);
-    for (const view of [this.headerView, this.footerView]) {
+    for (const view of [this.headerView, this.footerView, this.emptyView]) {
       if (view) this.resizeObserver.observe(view);
     }
     if (!isShadowListKitLoaded()) {
@@ -350,10 +388,12 @@ export class ShadowListKitListView extends HTMLElement {
     style.overflowX = this.horizontal || crossScrolls ? 'auto' : 'hidden';
     style.overflowY = !this.horizontal || crossScrolls ? 'auto' : 'hidden';
     style.scrollbarGutter = 'stable';
-    const along = this.contentAlong > 0 ? `${this.contentAlong}px` : '';
+    const size = Math.max(this.contentAlong, this.pinnedFooterEnd);
+    const along = size > 0 ? `${size}px` : '';
     const cross = crossScrolls ? `${this.contentCrossSize}px` : '100%';
     this.content.style.width = this.horizontal ? along : cross;
     this.content.style.height = this.horizontal ? cross : along;
+    this.templatesStale = true;
   }
 
   /*
@@ -496,10 +536,6 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Elements before the first item and after the last. Their size along the scroll axis is
-   * their natural size at the list's cross size, followed as it changes.
-   */
-  /*
    * The content's size across the scroll axis, in CSS pixels, or 0 for the list's own. A list
    * whose rows are wider than it, like a grid's, scrolls across too: the rows are laid out at this
    * size, and the browser scrolls both axes. didScroll fires for either.
@@ -515,6 +551,10 @@ export class ShadowListKitListView extends HTMLElement {
     this.invalidateFrame();
   }
 
+  /*
+   * Elements before the first item and after the last. Their size along the scroll axis is
+   * their natural size at the list's cross size, followed as it changes.
+   */
   get headerView(): HTMLElement | null {
     return this.properties.headerView;
   }
@@ -529,6 +569,66 @@ export class ShadowListKitListView extends HTMLElement {
   set footerView(value: HTMLElement | null) {
     this.replaceTemplate(this.properties.footerView, value);
     this.properties.footerView = value;
+  }
+
+  /*
+   * Pin headerView to the start of the viewport and footerView to its end, over the items. The
+   * footer's place pushes a pinned header off at the end of the content, and a pinned footer
+   * never rides up over the header's place.
+   */
+  get stickyHeader(): boolean {
+    return this.properties.stickyHeader;
+  }
+  set stickyHeader(value: boolean) {
+    this.properties.stickyHeader = value;
+    this.templatesStale = true;
+    this.invalidateFrame();
+  }
+
+  get stickyFooter(): boolean {
+    return this.properties.stickyFooter;
+  }
+  set stickyFooter(value: boolean) {
+    this.properties.stickyFooter = value;
+    this.templatesStale = true;
+    this.invalidateFrame();
+  }
+
+  /*
+   * An element shown while the list has no items. It sits right after headerView at its own
+   * size, measured like the header's, and footerView follows it. It stays hidden until a layout
+   * pass says the list has no rows.
+   */
+  get emptyView(): HTMLElement | null {
+    return this.properties.emptyView;
+  }
+  set emptyView(value: HTMLElement | null) {
+    if (value) value.style.visibility = 'hidden';
+    this.replaceTemplate(this.properties.emptyView, value);
+    this.properties.emptyView = value;
+  }
+
+  /*
+   * Keys of items the list never holds the visible content in place by, like a typing indicator
+   * or an item that streams in. The nearest other item holds it instead.
+   */
+  get nonAnchorKeys(): ReadonlySet<string> {
+    return this.properties.nonAnchorKeys;
+  }
+  set nonAnchorKeys(value: ReadonlySet<string>) {
+    this.properties.nonAnchorKeys = new Set(value);
+    this.coreOrNull?.setNonAnchorKeys([...this.properties.nonAnchorKeys]);
+    this.invalidateFrame();
+  }
+
+  /*
+   * Whether an inverted list is at its end. It leaves the end when the reader scrolls away from
+   * it or a scroll command lands away from it, and is back when either brings it there. Items
+   * appended while it rests there do not leave it. The delegate hears didChangeAtEnd. A list that
+   * is not inverted is always at its end.
+   */
+  get atEnd(): boolean {
+    return this.atEndState;
   }
 
   get core(): ShadowListKitCore {
@@ -564,8 +664,8 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * A new core with this list's settings, sticky rows and keys. Every copy of its output here
-   * is dropped and the next layout pass runs it.
+   * A new core with this list's settings, sticky rows, non anchor keys and keys. Every copy of
+   * its output here is dropped and the next layout pass runs it.
    */
   private createCore(): ShadowListKitCore {
     const created = new ShadowListKitCore(
@@ -578,6 +678,9 @@ export class ShadowListKitListView extends HTMLElement {
     if (this.stickyPinning.stickyRows.length > 0) {
       created.setStickyIndices(this.stickyPinning.stickyRows);
     }
+    if (this.nonAnchorKeys.size > 0) {
+      created.setNonAnchorKeys([...this.nonAnchorKeys]);
+    }
     this.data.seedCore(created);
     this.measuredLow = -1;
     this.measuredHigh = -1;
@@ -585,7 +688,7 @@ export class ShadowListKitListView extends HTMLElement {
     this.stickyPinning.invalidateFrames();
     this.bandLow = 1;
     this.bandHigh = 0;
-    this.mountedLow = -1;
+    this.mountRecord = emptyMountRecord();
     this.needsFrame = true;
     ++this.structureVersion;
     return created;
@@ -602,6 +705,7 @@ export class ShadowListKitListView extends HTMLElement {
   ): void {
     if (previous) {
       this.resizeObserver.unobserve(previous);
+      this.stickyPinning.unpinTemplate(previous);
       previous.remove();
     }
     if (next) {
@@ -612,6 +716,7 @@ export class ShadowListKitListView extends HTMLElement {
       if (this.isConnected) this.resizeObserver.observe(next);
     }
     this.templatesChanged = true;
+    this.templatesStale = true;
     this.invalidateFrame();
   }
 
@@ -778,7 +883,9 @@ export class ShadowListKitListView extends HTMLElement {
 
   private updateStickyRows(): void {
     const rows = this.stickyIndices.filter((index) => index < this.itemCount);
-    if (this.stickyPinning.updateStickyRows(rows)) this.mountedLow = -1;
+    if (this.stickyPinning.updateStickyRows(rows)) {
+      this.mountRecord = emptyMountRecord();
+    }
   }
 
   // endregion
@@ -843,20 +950,25 @@ export class ShadowListKitListView extends HTMLElement {
     }
     let header = this.headerSize;
     let footer = this.footerSize;
+    let empty = this.emptySize;
     if (this.templatesChanged || cross !== this.windowCross) {
       this.templatesChanged = false;
       header = this.templateSize(this.headerView, cross);
       footer = this.templateSize(this.footerView, cross);
+      empty = this.templateSize(this.emptyView, cross);
     }
     const changed =
       along !== this.windowAlong ||
       cross !== this.windowCross ||
       header !== this.headerSize ||
-      footer !== this.footerSize;
+      footer !== this.footerSize ||
+      empty !== this.emptySize;
     this.windowAlong = along;
     this.windowCross = cross;
     this.headerSize = header;
     this.footerSize = footer;
+    this.emptySize = empty;
+    if (changed) this.templatesStale = true;
     return changed;
   }
 
@@ -889,11 +1001,76 @@ export class ShadowListKitListView extends HTMLElement {
     return wholePixels(view.getBoundingClientRect().height);
   }
 
+  /*
+   * Place the header, the empty view and the footer, when one of them has to be placed again.
+   * A pinned header or footer sticks through CSS inside the span the host layer gives, which the
+   * browser follows on the thread that scrolls. The empty view shows right after the header
+   * while the core says the list has no rows.
+   */
   private layoutTemplates(): void {
-    if (this.headerView) this.placeTemplate(this.headerView, 0);
-    if (this.footerView) {
-      this.placeTemplate(this.footerView, this.footerStart);
+    if (!this.templatesStale) return;
+    this.templatesStale = false;
+    const header = this.headerView;
+    const footer = this.footerView;
+    const pinsHeader = this.stickyHeader && header !== null;
+    const pinsFooter = this.stickyFooter && footer !== null;
+    const slots = this.stickySlots;
+    if (pinsHeader || pinsFooter) {
+      // The spans hold for every offset.
+      slots[ShadowListKitCore.STICKY_OFFSET] = 0;
+      slots[ShadowListKitCore.STICKY_WINDOW_SIZE] = this.windowAlong;
+      slots[ShadowListKitCore.STICKY_CONTENT_SIZE] = this.contentAlong;
+      slots[ShadowListKitCore.STICKY_HEADER_SIZE] = header
+        ? this.headerSize
+        : 0;
+      slots[ShadowListKitCore.STICKY_FOOTER_SIZE] = footer
+        ? this.footerSize
+        : 0;
+      slots[ShadowListKitCore.STICKY_FOOTER_START] = this.footerStart;
+      slots[ShadowListKitCore.STICKY_HEADER] = this.stickyHeader ? 1 : 0;
+      slots[ShadowListKitCore.STICKY_FOOTER] = this.stickyFooter ? 1 : 0;
+      ShadowListKitCore.stickyLayout(slots);
     }
+    if (header) {
+      if (pinsHeader) {
+        this.stickyPinning.pinTemplate(
+          header,
+          false,
+          slots[ShadowListKitCore.STICKY_OUT_HEADER_SPAN_START]!,
+          slots[ShadowListKitCore.STICKY_OUT_HEADER_SPAN_END]!,
+          this.windowCross
+        );
+      } else {
+        this.stickyPinning.unpinTemplate(header);
+        this.placeTemplate(header, 0);
+      }
+    }
+    const empty = this.emptyView;
+    if (empty) {
+      const visibility = this.showsEmpty ? '' : 'hidden';
+      if (empty.style.visibility !== visibility) {
+        empty.style.visibility = visibility;
+      }
+      this.placeTemplate(empty, this.headerSize);
+    }
+    this.pinnedFooterEnd = pinsFooter
+      ? slots[ShadowListKitCore.STICKY_OUT_FOOTER_SPAN_END]!
+      : 0;
+    if (footer) {
+      if (pinsFooter) {
+        this.stickyPinning.pinTemplate(
+          footer,
+          true,
+          slots[ShadowListKitCore.STICKY_OUT_FOOTER_SPAN_START]!,
+          this.pinnedFooterEnd,
+          this.windowCross
+        );
+      } else {
+        this.stickyPinning.unpinTemplate(footer);
+        this.placeTemplate(footer, this.footerStart);
+      }
+    }
+    this.sizeContent();
   }
 
   private placeTemplate(view: HTMLElement, start: number): void {
@@ -901,6 +1078,20 @@ export class ShadowListKitListView extends HTMLElement {
       ? `translate(${start}px, 0)`
       : `translate(0, ${start}px)`;
     if (view.style.transform !== transform) view.style.transform = transform;
+  }
+
+  /*
+   * Size the content element along the axis: the content size, and as far as the span of a
+   * pinned footer, which ends at the viewport end of a list shorter than it.
+   */
+  private sizeContent(): void {
+    const size = `${Math.max(this.contentAlong, this.pinnedFooterEnd)}px`;
+    const style = this.content.style;
+    if (this.horizontal) {
+      if (style.width !== size) style.width = size;
+    } else if (style.height !== size) {
+      style.height = size;
+    }
   }
 
   /*
@@ -915,6 +1106,7 @@ export class ShadowListKitListView extends HTMLElement {
     pass[ShadowListKitCore.PASS_WINDOW_CROSS] = this.windowCross;
     pass[ShadowListKitCore.PASS_HEADER_SIZE] = this.headerSize;
     pass[ShadowListKitCore.PASS_FOOTER_SIZE] = this.footerSize;
+    pass[ShadowListKitCore.PASS_EMPTY_SIZE] = this.emptySize;
     pass[ShadowListKitCore.PASS_PHASE] = this.scrollPhase();
     pass[ShadowListKitCore.PASS_USER_SCROLLED] = this.userScrolled ? 1 : 0;
     pass[ShadowListKitCore.PASS_TRACKING] = this.gesture.isTracking ? 1 : 0;
@@ -926,6 +1118,7 @@ export class ShadowListKitListView extends HTMLElement {
     pass[ShadowListKitCore.PASS_MOUNT_PAD] = pad;
     pass[ShadowListKitCore.PASS_LEADING_INSET] = step < 0 ? ahead : 0;
     pass[ShadowListKitCore.PASS_TRAILING_INSET] = step > 0 ? ahead : 0;
+    // The browser keeps its own scroll position, and the PASS_CLAMP_* slots stay off.
     core.runPasses();
     this.userScrolled = false;
     this.needsFrame = false;
@@ -933,13 +1126,13 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * The content size goes first. The offset write is then inside the scroll range.
+   * The content size goes first. The offset write is then inside the scroll range. The driver
+   * says after every pass whether the list is at its end.
    */
   private applyPassResult(pass: Float64Array): void {
     this.contentAlong = pass[ShadowListKitCore.PASS_OUT_CONTENT]!;
-    const size = `${this.contentAlong}px`;
-    if (this.horizontal) this.content.style.width = size;
-    else this.content.style.height = size;
+    this.sizeContent();
+    this.templatesStale = true;
     const target = Math.round(pass[ShadowListKitCore.PASS_OUT_OFFSET]!);
     if (target !== Math.round(this.offset)) {
       this.gesture.offsetCorrected(target - this.offset);
@@ -949,6 +1142,12 @@ export class ShadowListKitListView extends HTMLElement {
     this.bandHigh = pass[ShadowListKitCore.PASS_OUT_BAND_HIGH]!;
     this.reachedStart ||= pass[ShadowListKitCore.PASS_OUT_REACHED_START] !== 0;
     this.reachedEnd ||= pass[ShadowListKitCore.PASS_OUT_REACHED_END] !== 0;
+    const atEnd = pass[ShadowListKitCore.PASS_OUT_AT_END] !== 0;
+    if (atEnd !== this.atEndState) {
+      this.atEndState = atEnd;
+      this.atEndChanged = !this.atEndChanged;
+    }
+    this.showsEmpty = pass[ShadowListKitCore.PASS_OUT_SHOWS_EMPTY] !== 0;
     this.frameGeometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]!;
     this.footerStart = pass[ShadowListKitCore.PASS_OUT_FOOTER_START]!;
     this.copyMeasured(pass);
@@ -1026,18 +1225,20 @@ export class ShadowListKitListView extends HTMLElement {
     this.mountedOffset = offset;
     const pad = this.windowAlong * this.mountOverscan;
     const ahead = Math.max(0, Math.abs(step) * 2 - pad);
+    const leadingInset = step < 0 ? ahead : 0;
+    const trailingInset = step > 0 ? ahead : 0;
     const plan = this.core.planMount(
       offset,
       this.windowAlong,
       pad,
-      step < 0 ? ahead : 0,
-      step > 0 ? ahead : 0
+      leadingInset,
+      trailingInset
     );
     const low = plan[ShadowListKitCore.PLAN_LOW]!;
     const high = plan[ShadowListKitCore.PLAN_HIGH]!;
     const sticky = plan[ShadowListKitCore.PLAN_STICKY]!;
-    if (!this.mountNeeded(low, high, sticky)) return;
-    this.recordMount(low, high, sticky);
+    if (this.recordMount(plan, offset, pad, leadingInset, trailingInset))
+      return;
     this.mountPlan(
       low,
       high,
@@ -1049,25 +1250,42 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Whether anything the last mount pass covered changed: the rows, the pinned row, the
-   * geometry or the data.
+   * Keep what this mount plan covers as the record, with its band and what it was made with.
+   * Returns whether the core's shouldSkipMount skips its pass: one that covers what the last one
+   * did.
    */
-  private mountNeeded(low: number, high: number, sticky: number): boolean {
-    return (
-      low !== this.mountedLow ||
-      high !== this.mountedHigh ||
-      sticky !== this.mountedSticky ||
-      this.measuredGeometry !== this.mountedGeometry ||
-      this.structureVersion !== this.mountedStructure
+  private recordMount(
+    plan: Float64Array,
+    offset: number,
+    pad: number,
+    leadingInset: number,
+    trailingInset: number
+  ): boolean {
+    const next = this.mountNext;
+    next[ShadowListKitCore.MOUNT_LOW] = plan[ShadowListKitCore.PLAN_LOW]!;
+    next[ShadowListKitCore.MOUNT_HIGH] = plan[ShadowListKitCore.PLAN_HIGH]!;
+    next[ShadowListKitCore.MOUNT_STICKY] = plan[ShadowListKitCore.PLAN_STICKY]!;
+    next[ShadowListKitCore.MOUNT_GEOMETRY] = this.measuredGeometry;
+    next[ShadowListKitCore.MOUNT_STRUCTURE] = this.structureVersion;
+    next[ShadowListKitCore.MOUNT_SHIFT] = 0;
+    next[ShadowListKitCore.MOUNT_BAND_LOW] =
+      plan[ShadowListKitCore.PLAN_BAND_LOW]!;
+    next[ShadowListKitCore.MOUNT_BAND_HIGH] =
+      plan[ShadowListKitCore.PLAN_BAND_HIGH]!;
+    next[ShadowListKitCore.MOUNT_WINDOW_ALONG] = this.windowAlong;
+    next[ShadowListKitCore.MOUNT_PAD] = pad;
+    next[ShadowListKitCore.MOUNT_LEADING_INSET] = leadingInset;
+    next[ShadowListKitCore.MOUNT_TRAILING_INSET] = trailingInset;
+    const skipped = ShadowListKitCore.shouldSkipMount(
+      this.mountRecord,
+      next,
+      offset,
+      this.numberOfColumns,
+      false
     );
-  }
-
-  private recordMount(low: number, high: number, sticky: number): void {
-    this.mountedLow = low;
-    this.mountedHigh = high;
-    this.mountedSticky = sticky;
-    this.mountedGeometry = this.measuredGeometry;
-    this.mountedStructure = this.structureVersion;
+    this.mountNext = this.mountRecord;
+    this.mountRecord = next;
+    return skipped;
   }
 
   private mountPlan(
@@ -1121,8 +1339,7 @@ export class ShadowListKitListView extends HTMLElement {
   private unmountAll(): void {
     for (const cell of this.mounted.values()) this.recycleCell(cell);
     this.mounted.clear();
-    this.mountedLow = -1;
-    this.mountedHigh = -1;
+    this.mountRecord = emptyMountRecord();
   }
 
   /*
@@ -1294,6 +1511,10 @@ export class ShadowListKitListView extends HTMLElement {
     if (this.reachedEnd) {
       this.reachedEnd = false;
       this.delegate?.didReachEnd?.(this);
+    }
+    if (this.atEndChanged) {
+      this.atEndChanged = false;
+      this.delegate?.didChangeAtEnd?.(this, this.atEndState);
     }
   }
 

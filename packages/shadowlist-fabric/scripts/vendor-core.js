@@ -4,7 +4,8 @@
  *
  * Runs on prepare. Does nothing when the core folder is missing, which keeps any
  * existing copy. Wipes the copy first so removed files don't linger.
- * The copy is gitignored.
+ * The copy is gitignored. The template logic in utils stays out: this package
+ * does not compile it.
  */
 const fs = require('fs');
 const path = require('path');
@@ -23,7 +24,9 @@ fs.rmSync(destDir, { recursive: true, force: true });
 fs.cpSync(srcDir, destDir, {
   recursive: true,
   filter: (src) =>
-    fs.statSync(src).isDirectory() || /\.(cpp|hpp|cmake)$/.test(src),
+    fs.statSync(src).isDirectory()
+      ? src !== path.join(srcDir, 'utils')
+      : /\.(cpp|hpp|cmake)$/.test(src),
 });
 
 console.log(

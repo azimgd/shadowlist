@@ -93,6 +93,34 @@ inline Size tailExtent(const Container& container) {
 }
 
 /*
+ * True when every row in the window that ends the content has a measured or predicted size. The
+ * end is then more than a guess, and no row on screen there moves it once its size comes in.
+ * In a grid the last row by index can end a shorter track, far above that window and never
+ * measured. The walk back stops once a row of every track ends above the window.
+ */
+inline bool hasTrustedEnd(const Container& container) {
+  const std::vector<Row>& rows = container.revision.rows;
+  std::size_t columns = container.numberOfColumns > 0 ? container.numberOfColumns : 1;
+  Size extent = tailExtent(container);
+  double contentEnd = container.horizontal ? extent.width : extent.height;
+  double windowStart = contentEnd + container.footerSize - container.getWindowSize();
+  std::size_t tracksPast = 0;
+  for (std::size_t nextRowIndex = rows.size(); nextRowIndex-- > 0 && tracksPast < columns;) {
+    const Row& nextRow = rows[nextRowIndex];
+    double rowEnd = container.horizontal ? nextRow.offsetX + nextRow.width : nextRow.offsetY + nextRow.height;
+    if (rowEnd <= windowStart) {
+      ++tracksPast;
+      continue;
+    }
+    tracksPast = 0;
+    if (!container.hasTrustedSize(nextRowIndex)) {
+      return false;
+    }
+  }
+  return !rows.empty();
+}
+
+/*
  * How far past the top of the viewport the anchored row should sit.
  * Keeping the visible content in place stores this in pixels. A scroll to a key works it
  * out again each frame from the free space around the row. It stays right while the

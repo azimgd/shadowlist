@@ -1,6 +1,5 @@
 package com.shadowlist.kit
 
-import android.graphics.Color
 import android.graphics.drawable.Drawable
 
 /*
@@ -23,7 +22,9 @@ class ShadowListKitSwipeAction(
   var backgroundColor: Int? = null
 
   internal val shownColor: Int
-    get() = backgroundColor ?: if (style == Style.DESTRUCTIVE) Color.rgb(255, 59, 48) else Color.rgb(142, 142, 147)
+    get() = backgroundColor
+      ?: if (style == Style.DESTRUCTIVE) ShadowListKitCore.SWIPE_ACTION_COLOR_DESTRUCTIVE
+      else ShadowListKitCore.SWIPE_ACTION_COLOR_NORMAL
 }
 
 /*

@@ -6,6 +6,8 @@
 
 #include <shadowlist-core/host/StickyLayout.hpp>
 
+#include <algorithm>
+#include <utility>
 #include <vector>
 
 using namespace slt;
@@ -146,4 +148,64 @@ TEST(section_overlay_hides_without_an_active_header) {
   SectionOverlayPosition position = sectionOverlayPosition(atTop.data(), atTopSizes.data(), 1, -40.0);
   CHECK(position.visible);
   CHECK_EQ(position.translation, 0.0);
+}
+
+/*
+ * Where a host that pins inside the spans puts the header and the footer: the header at the
+ * viewport start and the footer at the viewport end, each held inside its span.
+ */
+std::pair<double, double> pinnedInSpans(const StickyInput& input) {
+  StickySpans spans = stickySpans(input);
+  double header = std::min(std::max(input.offset, spans.header.start), spans.header.end - input.headerSize);
+  double footer = std::min(std::max(input.offset + input.windowSize - input.footerSize, spans.footer.start),
+    spans.footer.end - input.footerSize);
+  return {header, footer};
+}
+
+TEST(sticky_spans_of_a_plain_header_and_footer_are_their_own_places) {
+  StickySpans spans = stickySpans(listAt(700.0));
+  CHECK_EQ(spans.header.start, 0.0);
+  CHECK_EQ(spans.header.end, 50.0);
+  CHECK_EQ(spans.footer.start, 1960.0);
+  CHECK_EQ(spans.footer.end, 2000.0);
+}
+
+TEST(sticky_spans_run_from_the_header_to_the_footer_and_to_the_viewport_end_of_a_short_list) {
+  StickyInput input = listAt(0.0);
+  input.stickyHeader = true;
+  input.stickyFooter = true;
+  StickySpans spans = stickySpans(input);
+  CHECK_EQ(spans.header.end, 1960.0);
+  CHECK_EQ(spans.footer.start, 50.0);
+  CHECK_EQ(spans.footer.end, 2000.0);
+  // A list shorter than its viewport rests its footer at the viewport end.
+  input.contentSize = 300.0;
+  input.footerStart = 260.0;
+  spans = stickySpans(input);
+  CHECK_EQ(spans.header.end, 260.0);
+  CHECK_EQ(spans.footer.end, 600.0);
+}
+
+TEST(pinning_inside_the_sticky_spans_matches_the_sticky_translations) {
+  for (double contentSize : {300.0, 600.0, 2000.0}) {
+    for (double windowSize : {60.0, 600.0}) {
+      for (int flags = 0; flags < 4; ++flags) {
+        StickyInput input = listAt(0.0);
+        input.contentSize = contentSize;
+        input.footerStart = contentSize - input.footerSize;
+        input.windowSize = windowSize;
+        input.stickyHeader = (flags & 1) != 0;
+        input.stickyFooter = (flags & 2) != 0;
+        double maxOffset = std::max(0.0, contentSize - windowSize);
+        for (double offset = 0.0; offset <= maxOffset; offset += 35.0) {
+          input.offset = offset;
+          StickyState state;
+          StickyTranslations translations = stickyTranslations(input, state);
+          std::pair<double, double> pinned = pinnedInSpans(input);
+          CHECK_EQ(pinned.first, translations.header);
+          CHECK_EQ(pinned.second, input.footerStart + translations.footer);
+        }
+      }
+    }
+  }
 }

@@ -183,8 +183,8 @@ public class ShadowListCellView extends ViewGroup {
   // region Swipe actions
 
   private static final float BUTTON_TEXT_SP = 15f;
-  private static final int DESTRUCTIVE_COLOR = Color.rgb(255, 59, 48);
-  private static final int DEFAULT_ACTION_COLOR = Color.rgb(142, 142, 147);
+  private static final int DESTRUCTIVE_COLOR = ShadowListSwipeReveal.ACTION_COLOR_DESTRUCTIVE;
+  private static final int DEFAULT_ACTION_COLOR = ShadowListSwipeReveal.ACTION_COLOR_NORMAL;
   /*
    * Slots of mSpans: the revealed gap's start and size, then a start and size per button.
    */

@@ -285,6 +285,7 @@ static inline BOOL SLFrameTraceEnabled(void)
   BOOL _scrollToTopJumpPending;
   CGFloat _scrollToTopJumpY;
   uint64_t _scrollToTopJumpToken;
+  uint64_t _scrollToTopJumpRevision;
 
   BOOL _scrollEnabled;
   BOOL _scrollsToTop;

@@ -2,15 +2,23 @@
  * Drag board: a row dragged out of one list into another. The home list closes the gap while
  * the held row is away, and the list under it opens a gap for a row it does not own. Grid
  * previews are checked against the core's own layout after the removal or insertion. DragBoard
- * decides when the row lifts out, which list it targets and how a release ends.
+ * decides when the row lifts out, which list it targets and how a release ends. The fuzz test
+ * runs a board against what its header says of every call. See tests_fuzz.cpp for how the
+ * fuzz tests run.
  */
 
+#include "FuzzHelpers.hpp"
 #include "TestFramework.hpp"
 #include "TestHelpers.hpp"
 
 #include <shadowlist-core/host/DragBoard.hpp>
 #include <shadowlist-core/host/DragReorder.hpp>
 
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -777,4 +785,566 @@ TEST(drag_board_return_offset_ends_with_a_lift_out_or_a_new_pickup) {
   board.frame({180.0, 200.0}, {100.0, 200.0}, {"a"}, 2000.0);
   board.begin("a", "k4", {100.0, 200.0}, {100.0, 200.0});
   CHECK_NEAR(board.returnOffset({100.0, 200.0}, 2010.0).x, 0.0, 1e-9);
+}
+
+TEST(drag_board_pickup_over_a_settling_flight_settles_its_own_picture) {
+  DragBoard board;
+  board.begin("a", "k3");
+  board.hover({"b"});
+  board.release(1, "b1", 4);
+  CHECK(board.landed("b", true));
+  CHECK(board.beginOverlaySettle());
+
+  // The next row is picked up while the picture still flies onto the first.
+  board.begin("a", "k4");
+  CHECK(!board.isOverlaySettling());
+  board.hover({"b"});
+  board.release(1, "b1", 5, 500.0);
+  CHECK(board.landed("b", true));
+  CHECK(!board.expired(500.0 + DRAG_BOARD_LAND_TIMEOUT_MS / 2.0));
+  CHECK(board.beginOverlaySettle());
+}
+
+/*
+ * A card's move on a board, as a plan over each column's keys.
+ */
+namespace {
+
+using Board = std::vector<std::vector<std::string>>;
+
+Board board() {
+  return {{"a", "b", "c"}, {"d", "e"}, {}};
+}
+
+void checkPlan(
+  const BoardMovePlan& plan,
+  std::size_t sourceColumn,
+  std::size_t sourceIndex,
+  std::size_t destinationColumn,
+  std::size_t destinationIndex) {
+  CHECK(!plan.isEmpty());
+  CHECK_EQ(plan.sourceColumn, sourceColumn);
+  CHECK_EQ(plan.sourceIndex, sourceIndex);
+  CHECK_EQ(plan.destinationColumn, destinationColumn);
+  CHECK_EQ(plan.destinationIndex, destinationIndex);
+}
+
+}
+
+TEST(a_board_move_into_another_column_lands_before_the_keyed_item) {
+  checkPlan(planBoardMove(board(), "b", 1, "e", 0), 0, 1, 1, 1);
+}
+
+TEST(a_board_move_with_an_empty_key_lands_at_the_end) {
+  checkPlan(planBoardMove(board(), "a", 2, "", 0), 0, 0, 2, 0);
+  checkPlan(planBoardMove(board(), "a", 1, "", 0), 0, 0, 1, 2);
+}
+
+TEST(a_board_move_before_a_missing_key_falls_back_to_the_index) {
+  checkPlan(planBoardMove(board(), "b", 1, "gone", 1), 0, 1, 1, 1);
+  // The index is kept inside the column.
+  checkPlan(planBoardMove(board(), "b", 1, "gone", 99), 0, 1, 1, 2);
+}
+
+TEST(a_board_move_before_a_missing_key_without_an_index_changes_nothing) {
+  CHECK(planBoardMove(board(), "b", 1, "gone", UNDEFINED_INDEX).isEmpty());
+  CHECK(planBoardMove(board(), "new", 1, "gone", UNDEFINED_INDEX).isEmpty());
+  // An empty key is the end, whatever the index.
+  checkPlan(planBoardMove(board(), "a", 1, "", UNDEFINED_INDEX), 0, 0, 1, 2);
+}
+
+TEST(a_board_move_within_a_column_counts_the_column_without_the_card) {
+  // Before c, which is index 1 once a is out.
+  checkPlan(planBoardMove(board(), "a", 0, "c", 0), 0, 0, 0, 1);
+  checkPlan(planBoardMove(board(), "a", 0, "", 0), 0, 0, 0, 2);
+  checkPlan(planBoardMove(board(), "c", 0, "a", 0), 0, 2, 0, 0);
+}
+
+TEST(a_board_move_to_the_same_place_changes_nothing) {
+  CHECK(planBoardMove(board(), "a", 0, "b", 0).isEmpty());
+  CHECK(planBoardMove(board(), "c", 0, "", 0).isEmpty());
+  CHECK(planBoardMove(board(), "b", 0, "gone", 1).isEmpty());
+}
+
+TEST(a_board_move_to_a_column_off_the_board_changes_nothing) {
+  CHECK(planBoardMove(board(), "a", 3, "", 0).isEmpty());
+  CHECK(planBoardMove(board(), "a", UNDEFINED_INDEX, "", 0).isEmpty());
+  CHECK(planBoardMove({}, "a", 0, "", 0).isEmpty());
+}
+
+TEST(a_board_move_of_a_card_on_no_column_has_no_source) {
+  checkPlan(planBoardMove(board(), "new", 1, "e", 0), UNDEFINED_INDEX, UNDEFINED_INDEX, 1, 1);
+}
+
+TEST(a_board_move_of_a_card_in_two_columns_is_never_empty) {
+  // The card already sits before b, and still has to leave the other column.
+  Board stale = {{"a", "b"}, {"a", "d"}};
+  checkPlan(planBoardMove(stale, "a", 0, "b", 0), 0, 0, 0, 0);
+}
+
+TEST(a_board_move_before_the_card_itself_falls_back_to_the_index) {
+  checkPlan(planBoardMove(board(), "b", 0, "b", 0), 0, 1, 0, 0);
+}
+
+TEST(a_board_move_leaves_the_columns_it_was_given) {
+  Board columns = board();
+  planBoardMove(columns, "b", 1, "e", 0);
+  CHECK(columns == board());
+}
+
+namespace {
+
+/*
+ * What DragBoard.hpp says a board is after each call, kept as plain state.
+ */
+struct BoardModel {
+  DragBoardPhase phase = DragBoardPhase::Idle;
+  std::string home;
+  std::string held;
+  std::string target;
+  std::uint64_t flight = 0;
+  bool overlaySettling = false;
+  double landDeadline = 0.0;
+  DragPoint grab;
+
+  /*
+   * The lift out: where the picture started, the finger then, when, and how far the picture
+   * had come at the frame before.
+   */
+  bool lifting = false;
+  DragPoint liftFrom;
+  DragPoint liftFinger;
+  double liftAt = 0.0;
+  double liftShare = 0.0;
+
+  /*
+   * The way back home: the picture's last center, when the row returned, what the first
+   * returnOffset measured and the share of it the call before gave.
+   */
+  DragPoint picture;
+  bool returning = false;
+  bool returnMeasured = false;
+  double returnAt = 0.0;
+  DragPoint returnDelta;
+  double returnShare = 1.0;
+
+  bool isDeciding() const {
+    return phase == DragBoardPhase::AtHome || phase == DragBoardPhase::Floating;
+  }
+
+  bool isLanding() const {
+    return phase == DragBoardPhase::Landing || phase == DragBoardPhase::Settling;
+  }
+
+  void goIdle() {
+    phase = DragBoardPhase::Idle;
+    home.clear();
+    held.clear();
+    target.clear();
+    overlaySettling = false;
+    lifting = false;
+    returning = false;
+  }
+
+  /*
+   * A hover: the home list wins among the candidates, otherwise the first one that has a name.
+   */
+  DragBoardStep hover(const std::vector<std::string>& candidates) {
+    DragBoardStep step;
+    if (!isDeciding()) {
+      return step;
+    }
+    std::string hovered;
+    for (const std::string& id : candidates) {
+      if (id == home) {
+        hovered = id;
+        break;
+      }
+      if (hovered.empty()) {
+        hovered = id;
+      }
+    }
+    if (phase == DragBoardPhase::AtHome) {
+      if (!hovered.empty() && hovered != home) {
+        step = {DragBoardStep::Kind::LiftOut, "", hovered};
+        phase = DragBoardPhase::Floating;
+        target = hovered;
+      }
+    } else if (hovered == home) {
+      step = {DragBoardStep::Kind::ReturnHome, target, ""};
+      phase = DragBoardPhase::AtHome;
+      target.clear();
+    } else if (!hovered.empty() && hovered != target) {
+      step = {DragBoardStep::Kind::Retarget, target, hovered};
+      target = hovered;
+    }
+    return step;
+  }
+};
+
+const char* nameOf(DragBoardPhase phase) {
+  switch (phase) {
+    case DragBoardPhase::Idle:
+      return "idle";
+    case DragBoardPhase::AtHome:
+      return "at home";
+    case DragBoardPhase::Floating:
+      return "floating";
+    case DragBoardPhase::Landing:
+      return "landing";
+    case DragBoardPhase::Settling:
+      return "settling";
+  }
+  return "";
+}
+
+const char* nameOf(DragBoardStep::Kind kind) {
+  switch (kind) {
+    case DragBoardStep::Kind::Stay:
+      return "stay";
+    case DragBoardStep::Kind::LiftOut:
+      return "lift out";
+    case DragBoardStep::Kind::ReturnHome:
+      return "return home";
+    case DragBoardStep::Kind::Retarget:
+      return "retarget";
+  }
+  return "";
+}
+
+bool samePoint(DragPoint a, DragPoint b) {
+  return std::fabs(a.x - b.x) <= 1e-6 && std::fabs(a.y - b.y) <= 1e-6;
+}
+
+std::string describe(DragPoint point) {
+  return "(" + std::to_string(point.x) + ", " + std::to_string(point.y) + ")";
+}
+
+/*
+ * How far point is along the way from start to end, by the axis the way is longer on. Fails
+ * when it is off the line between them.
+ */
+double shareAlong(const Trail& trail, DragPoint start, DragPoint end, DragPoint point, const std::string& what) {
+  double wayX = end.x - start.x;
+  double wayY = end.y - start.y;
+  bool byX = std::fabs(wayX) >= std::fabs(wayY);
+  double way = byX ? wayX : wayY;
+  if (std::fabs(way) <= 1e-6) {
+    if (!samePoint(point, end)) {
+      trail.failWith(what + " is at " + describe(point) + " and has nowhere to go from " + describe(end));
+    }
+    return 1.0;
+  }
+  double share = ((byX ? point.x : point.y) - (byX ? start.x : start.y)) / way;
+  if (!samePoint(point, {start.x + wayX * share, start.y + wayY * share})) {
+    trail.failWith(what + " at " + describe(point) + " left the line from " + describe(start) + " to " + describe(end));
+  }
+  return share;
+}
+
+}
+
+/*
+ * A board through pickups, drag frames over one list, several or none, releases, drops that
+ * land, time out or lose their list, pictures that settle, cancels and lists that leave. Every
+ * answer and the board's state after it are what DragBoard.hpp says, a pickup starts a new
+ * flight from whatever the flight before left, the picture lifts out along the line to its place
+ * under the finger and the row comes back home along the line from the picture.
+ */
+TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leaves) {
+  const FuzzKinds kinds = {
+    {"pickup", "pickup over a flight", "stay", "lift out", "return home", "retarget", "return offset",
+      "release at home", "release without a spot", "drop", "landed", "not landed", "settle", "settle refused",
+      "expired", "not expired", "end flight", "cancel", "leave"},
+    {},
+  };
+  forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
+    Trail trail(seed, episode);
+    std::mt19937 rng(seed);
+    DragBoard board;
+    BoardModel model;
+    const std::vector<std::string> lists = {"a", "b", "c", "d"};
+    // A host calls frame for a picture or hover without one, never both.
+    bool pictures = chance(rng, 75);
+    double now = 0.0;
+    std::size_t nextKey = 0;
+    auto pickPoint = [&] {
+      return DragPoint{static_cast<double>(pickInt(rng, 0, 800)), static_cast<double>(pickInt(rng, 0, 1200))};
+    };
+    auto pickList = [&] {
+      // The target comes up as often as every other list together.
+      if (!model.target.empty() && chance(rng, 50)) {
+        return model.target;
+      }
+      return lists[pickSize(rng, 0, lists.size() - 1)];
+    };
+
+    for (int step = 0; step < 40; ++step) {
+      int roll = pickPercent(rng);
+      // A dropped row mostly gets the calls of a landing.
+      if (model.isLanding() && chance(rng, 60)) {
+        roll = pickInt(rng, 70, 91);
+      }
+      if (roll < 12) {
+        episode.reach(model.phase == DragBoardPhase::Idle ? "pickup" : "pickup over a flight");
+        std::string home = lists[pickSize(rng, 0, lists.size() - 1)];
+        std::string key = chance(rng, 90) ? "k" + std::to_string(nextKey++) : std::string();
+        DragPoint finger = pickPoint();
+        DragPoint center = pickPoint();
+        trail.note("begin in " + home + " with '" + key + "'");
+        board.begin(home, key, finger, center);
+        model.goIdle();
+        model.phase = DragBoardPhase::AtHome;
+        model.home = home;
+        model.held = key;
+        model.flight += 1;
+        model.grab = {center.x - finger.x, center.y - finger.y};
+        if (!samePoint(board.getGrab(), model.grab)) {
+          trail.failWith("the grab is " + describe(board.getGrab()) + " expected " + describe(model.grab));
+        }
+      } else if (roll < 52) {
+        std::vector<std::string> candidates;
+        int count = pickInt(rng, 0, 3);
+        std::string named;
+        for (int candidate = 0; candidate < count; ++candidate) {
+          candidates.push_back(chance(rng, 12) ? std::string() : lists[pickSize(rng, 0, lists.size() - 1)]);
+          named += (candidate > 0 ? "," : "") + candidates.back();
+        }
+        now += pickInt(rng, 0, 60);
+        DragPoint finger = pickPoint();
+        DragPoint shown = pickPoint();
+        trail.note((pictures ? "frame over [" : "hover over [") + named + "] at " + std::to_string(now));
+        DragBoardStep expected = model.hover(candidates);
+        DragBoardFrame frame;
+        if (pictures) {
+          frame = board.frame(finger, shown, candidates, now);
+        } else {
+          frame.step = board.hover(candidates);
+        }
+        episode.reach(nameOf(expected.kind));
+        if (frame.step.kind != expected.kind || frame.step.previous != expected.previous ||
+            frame.step.next != expected.next) {
+          trail.failWith(std::string("the hover answered ") + nameOf(frame.step.kind) + " from '" +
+            frame.step.previous + "' to '" + frame.step.next + "' expected " + nameOf(expected.kind) + " from '" +
+            expected.previous + "' to '" + expected.next + "'");
+        }
+        if (!pictures) {
+          continue;
+        }
+        if (expected.kind == DragBoardStep::Kind::LiftOut) {
+          model.lifting = true;
+          model.liftFrom = shown;
+          model.liftFinger = finger;
+          model.liftAt = now;
+          model.liftShare = 0.0;
+          model.returning = false;
+        } else if (expected.kind == DragBoardStep::Kind::ReturnHome) {
+          model.returning = true;
+          model.returnMeasured = false;
+          model.returnAt = now;
+          model.returnShare = 1.0;
+          model.lifting = false;
+        }
+        bool floating = model.phase == DragBoardPhase::Floating;
+        bool hides = model.phase != DragBoardPhase::Idle && model.phase != DragBoardPhase::AtHome;
+        if (frame.floating != floating || frame.hideHeld != hides) {
+          trail.failWith("the frame says floating " + std::to_string(frame.floating) + " and hidden " +
+            std::to_string(frame.hideHeld) + " in phase " + nameOf(model.phase));
+        }
+        if (!floating) {
+          continue;
+        }
+        /*
+         * The picture starts where the row showed, has moved along with the finger since, and
+         * closes in on its place under the finger without ever falling back. After
+         * DRAG_BOARD_LIFT_OUT_MS it is there and stays.
+         */
+        DragPoint under{finger.x + model.grab.x, finger.y + model.grab.y};
+        if (model.lifting && now - model.liftAt >= DRAG_BOARD_LIFT_OUT_MS) {
+          model.lifting = false;
+        }
+        if (!model.lifting) {
+          if (!samePoint(frame.overlayCenter, under)) {
+            trail.failWith("the picture is at " + describe(frame.overlayCenter) + " expected " + describe(under) +
+              " under the finger");
+          }
+        } else {
+          DragPoint from{model.liftFrom.x + finger.x - model.liftFinger.x,
+            model.liftFrom.y + finger.y - model.liftFinger.y};
+          double share = shareAlong(trail, from, under, frame.overlayCenter, "the picture lifting out");
+          bool startsOff = now == model.liftAt && !samePoint(frame.overlayCenter, from);
+          if (share < model.liftShare - 1e-9 || share > 1.0 + 1e-9 || startsOff) {
+            trail.failWith("the picture is " + std::to_string(share) + " of its way out after " +
+              std::to_string(model.liftShare));
+          }
+          model.liftShare = share;
+        }
+        model.picture = frame.overlayCenter;
+      } else if (roll < 60) {
+        episode.reach("return offset");
+        now += pickInt(rng, 0, 60);
+        DragPoint placed = pickPoint();
+        trail.note("return offset at " + std::to_string(now));
+        DragPoint offset = board.returnOffset(placed, now);
+        bool returns = model.returning && model.phase == DragBoardPhase::AtHome;
+        if (returns && !model.returnMeasured) {
+          model.returnMeasured = true;
+          model.returnDelta = {model.picture.x - placed.x, model.picture.y - placed.y};
+        }
+        if (returns && now - model.returnAt >= DRAG_BOARD_RETURN_HOME_MS) {
+          model.returning = false;
+          returns = false;
+        }
+        if (!returns) {
+          if (!samePoint(offset, {})) {
+            trail.failWith("a return offset of " + describe(offset) + " with no way home left");
+          }
+          continue;
+        }
+        // The whole way from the picture at first, then less of it at every call.
+        double share = shareAlong(trail, {}, model.returnDelta, offset, "the return offset");
+        bool startsOff = now == model.returnAt && !samePoint(offset, model.returnDelta);
+        if (share > model.returnShare + 1e-9 || share < -1e-9 || startsOff) {
+          trail.failWith("the return offset is " + std::to_string(share) + " of the way after " +
+            std::to_string(model.returnShare));
+        }
+        model.returnShare = share;
+      } else if (roll < 70) {
+        std::size_t insertion = chance(rng, 15) ? UNDEFINED_INDEX : pickSize(rng, 0, 12);
+        std::string key = chance(rng, 30) ? std::string() : "t" + std::to_string(pickInt(rng, 0, 12));
+        std::size_t rowCount = chance(rng, 15) ? UNDEFINED_INDEX : pickSize(rng, 0, 10);
+        now += pickInt(rng, 0, 60);
+        trail.note("release at " + std::to_string(static_cast<std::ptrdiff_t>(insertion)) + " before '" + key +
+          "' of " + std::to_string(static_cast<std::ptrdiff_t>(rowCount)) + " rows");
+        DragBoardRelease release = board.release(insertion, key, rowCount, now);
+        DragBoardRelease expected;
+        if (model.phase != DragBoardPhase::Floating) {
+          episode.reach("release at home");
+          model.goIdle();
+        } else {
+          std::size_t index = insertion;
+          if (insertion != UNDEFINED_INDEX && rowCount != UNDEFINED_INDEX) {
+            index = key.empty() ? rowCount : std::min(insertion, rowCount);
+          }
+          if (model.target.empty() || model.held.empty() || index == UNDEFINED_INDEX) {
+            episode.reach("release without a spot");
+            expected.kind = DragBoardRelease::Kind::Cancel;
+            model.goIdle();
+          } else {
+            episode.reach("drop");
+            expected = {DragBoardRelease::Kind::Drop, model.target, index, key};
+            model.phase = DragBoardPhase::Landing;
+            model.landDeadline = now + DRAG_BOARD_LAND_TIMEOUT_MS;
+            model.lifting = false;
+          }
+        }
+        if (release.kind != expected.kind || release.listId != expected.listId || release.index != expected.index ||
+            release.key != expected.key) {
+          trail.failWith("the release answered kind " + std::to_string(static_cast<int>(release.kind)) + " into '" +
+            release.listId + "' at " + std::to_string(static_cast<std::ptrdiff_t>(release.index)) + " expected kind " +
+            std::to_string(static_cast<int>(expected.kind)) + " into '" + expected.listId + "' at " +
+            std::to_string(static_cast<std::ptrdiff_t>(expected.index)));
+        }
+      } else if (roll < 80) {
+        std::string list = pickList();
+        bool holds = chance(rng, 60);
+        trail.note("landed in " + list + (holds ? " with the row" : " without the row"));
+        bool expected = model.phase == DragBoardPhase::Landing && list == model.target && holds;
+        bool landed = false;
+        if (chance(rng, 50)) {
+          landed = board.landed(list, holds);
+        } else {
+          std::vector<std::string> keys = {"t0", "t1"};
+          if (holds) {
+            keys.insert(keys.begin() + 1, board.getHeldKey());
+          }
+          // A board without a held key finds no row by it.
+          expected = expected && !model.held.empty();
+          landed = board.landed(list, keys);
+        }
+        episode.reach(expected ? "landed" : "not landed");
+        if (landed != expected) {
+          trail.failWith("landed answered " + std::to_string(landed) + " in phase " + nameOf(model.phase));
+        }
+        if (expected) {
+          model.phase = DragBoardPhase::Settling;
+        }
+      } else if (roll < 86) {
+        bool expected = model.phase == DragBoardPhase::Settling && !model.overlaySettling;
+        episode.reach(expected ? "settle" : "settle refused");
+        trail.note("begin overlay settle");
+        if (board.beginOverlaySettle() != expected) {
+          trail.failWith(std::string("the picture ") + (expected ? "did not start" : "started") +
+            " to settle in phase " + nameOf(model.phase));
+        }
+        model.overlaySettling = model.overlaySettling || expected;
+      } else if (roll < 92) {
+        now += chance(rng, 40) ? pickInt(rng, 400, 1400) : pickInt(rng, 0, 60);
+        bool waiting = model.phase == DragBoardPhase::Landing ||
+          (model.phase == DragBoardPhase::Settling && !model.overlaySettling);
+        bool expected = waiting && now >= model.landDeadline;
+        episode.reach(expected ? "expired" : "not expired");
+        trail.note("expired at " + std::to_string(now));
+        if (board.expired(now) != expected) {
+          trail.failWith(std::string("the wait ") + (expected ? "did not run out" : "ran out") + " at " +
+            std::to_string(now) + " for a deadline of " + std::to_string(model.landDeadline) + " in phase " +
+            nameOf(model.phase));
+        }
+        if (expected) {
+          model.goIdle();
+        }
+      } else if (roll < 94) {
+        episode.reach("end flight");
+        trail.note("end flight");
+        board.endFlight();
+        model.goIdle();
+      } else if (roll < 96) {
+        episode.reach("cancel");
+        trail.note("cancel");
+        std::string target = board.cancel();
+        if (target != model.target) {
+          trail.failWith("cancel returned '" + target + "' for the target '" + model.target + "'");
+        }
+        model.goIdle();
+      } else {
+        episode.reach("leave");
+        std::string list = chance(rng, 10) ? std::string() : pickList();
+        if (chance(rng, 30) && !model.home.empty()) {
+          list = model.home;
+        }
+        trail.note("leave '" + list + "'");
+        board.leave(list);
+        // After a drop only the list the row lands in matters. Before it the home list ends the drag.
+        bool named = model.phase != DragBoardPhase::Idle && !list.empty();
+        bool ends = model.isLanding() ? list == model.target : list == model.home;
+        if (named && ends) {
+          model.goIdle();
+        } else if (named && !model.isLanding() && list == model.target) {
+          model.target.clear();
+        }
+      }
+
+      if (board.getPhase() != model.phase) {
+        trail.failWith(std::string("the board is ") + nameOf(board.getPhase()) + " expected " + nameOf(model.phase));
+      }
+      if (board.getHomeId() != model.home || board.getHeldKey() != model.held || board.getTargetId() != model.target) {
+        trail.failWith("the board holds '" + board.getHeldKey() + "' of '" + board.getHomeId() + "' over '" +
+          board.getTargetId() + "' expected '" + model.held + "' of '" + model.home + "' over '" + model.target + "'");
+      }
+      if (board.getFlight() != model.flight) {
+        trail.failWith("flight " + std::to_string(board.getFlight()) + " expected " + std::to_string(model.flight));
+      }
+      if (board.isOverlaySettling() != model.overlaySettling) {
+        trail.failWith(std::string("the picture ") + (board.isOverlaySettling() ? "flies" : "does not fly") +
+          " onto the row in phase " + nameOf(model.phase));
+      }
+      if (board.isFloating() != (model.phase == DragBoardPhase::Floating) || board.isDeciding() != model.isDeciding() ||
+          board.isLanding() != model.isLanding()) {
+        trail.failWith(std::string("the board's questions disagree with phase ") + nameOf(model.phase));
+      }
+      episode.observe(static_cast<int>(board.getPhase()));
+      episode.observe(board.getTargetId());
+      episode.observe(board.getFlight());
+    }
+  });
 }

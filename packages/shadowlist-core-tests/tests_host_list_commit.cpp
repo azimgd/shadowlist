@@ -42,12 +42,14 @@ TEST(list_commit_host_scroll_fills_the_frame) {
   state.userScrolled = true;
   state.scrollPhase = SCROLL_PHASE_DRAGGING;
   state.commitToken = 4;
+  state.commitRevision = 12;
   FrameInput input;
   applyHostScroll(input, state);
   CHECK_EQ(input.offsetY, 120.0);
   CHECK(input.userScrolled);
   CHECK(input.scrollPhase == ScrollPhase::Dragging);
   CHECK_EQ(input.commitToken, static_cast<std::uint64_t>(4));
+  CHECK_EQ(input.commitRevision, static_cast<std::uint64_t>(12));
 
 }
 
@@ -59,11 +61,13 @@ TEST(list_commit_publish_keeps_the_first_base_of_a_correction) {
   update.applyOffset = true;
   update.offsetY = 300.0;
   update.commitToken = 8;
+  update.commitRevision = 19;
   CHECK(publishStateUpdate(state, update));
   CHECK_EQ(state.baseY, 200.0);
   CHECK_EQ(state.offsetY, 300.0);
   CHECK(state.offsetEnabled);
   CHECK_EQ(state.commitToken, static_cast<std::uint64_t>(8));
+  CHECK_EQ(state.commitRevision, static_cast<std::uint64_t>(19));
 
   // A host report moved the offset, then the core retargets the same token.
   state.offsetY = 260.0;
@@ -75,6 +79,7 @@ TEST(list_commit_publish_keeps_the_first_base_of_a_correction) {
   // A new token starts a new base.
   state.offsetY = 330.0;
   update.commitToken = 9;
+  update.commitRevision = 20;
   update.offsetY = 400.0;
   publishStateUpdate(state, update);
   CHECK_EQ(state.baseY, 330.0);

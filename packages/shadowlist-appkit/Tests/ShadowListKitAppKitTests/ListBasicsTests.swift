@@ -7,6 +7,17 @@ import XCTest
  */
 @MainActor
 final class ListBasicsTests: XCTestCase {
+  /*
+   * Twelve items for four columns. The first and the last are tall and overlap every viewport,
+   * which keeps the ends of the mount plan while the rows between them come and go.
+   */
+  private func makeGridSource() -> SizedTestSource {
+    let source = SizedTestSource(count: 12)
+    source.defaultHeight = 100
+    source.heights = ["item-0": 2000, "item-2": 300, "item-5": 1900, "item-6": 1700, "item-11": 1900]
+    return source
+  }
+
   func testMountsTheCellsOfTheViewportFromTheTop() throws {
     let harness = ListHarness(source: TestSource(count: 100))
     let list = harness.list
@@ -133,6 +144,83 @@ final class ListBasicsTests: XCTestCase {
     list.contentOffset = CGPoint(x: 0, y: 9000)
     harness.layout()
     XCTAssertFalse(prefetch.cancelled.isEmpty)
+  }
+
+  func testAGridMountsARowThatComesIntoViewBetweenTheSameEnds() throws {
+    let harness = ListHarness(source: makeGridSource()) { $0.numberOfColumns = 4 }
+    let list = harness.list
+    XCTAssertEqual(list.contentSize.height, 2200, accuracy: 0.01)
+    XCTAssertNotNil(list.cellForItem(at: 2))
+    XCTAssertNil(list.cellForItem(at: 9))
+    list.contentOffset = CGPoint(x: 0, y: 1720)
+    harness.layout()
+    for index in [4, 9, 10] {
+      XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: index)), 2000 - 1720, accuracy: 0.01)
+    }
+    XCTAssertNil(list.cellForItem(at: 2))
+    list.contentOffset = CGPoint(x: 0, y: 100)
+    harness.layout()
+    XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 2)), -100, accuracy: 0.01)
+    XCTAssertNil(list.cellForItem(at: 9))
+  }
+
+  func testAGridMountsAgainWhenItsWindowGrowsOverMoreRows() throws {
+    let harness = ListHarness(source: makeGridSource(), size: NSSize(width: 320, height: 200)) { $0.numberOfColumns = 4 }
+    let list = harness.list
+    list.contentOffset = CGPoint(x: 0, y: 1300)
+    harness.layout()
+    XCTAssertNil(list.cellForItem(at: 9))
+    var frame = harness.window.frame
+    frame.size.height = 800
+    harness.window.setFrame(frame, display: false)
+    harness.layout()
+    XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 9)), 2000 - 1300, accuracy: 0.01)
+  }
+
+  /*
+   * The measured range first comes from the estimate, which ends far short of the viewport. The
+   * pass fills the viewport before the frame is drawn.
+   */
+  func testTheFirstFrameFillsTheViewportWhenRowsAreShorterThanTheirEstimate() {
+    let source = SizedTestSource(count: 3000)
+    source.defaultHeight = 10
+    let window = ScaleWindow(
+      contentRect: NSRect(x: -10_000, y: -10_000, width: 320, height: 480), styleMask: [.borderless],
+      backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    let list = ShadowListKitListView(frame: window.contentView!.bounds)
+    list.register(TestCell.self, forCellReuseIdentifier: "cell")
+    list.estimatedItemSize = 10_000
+    list.dataSource = source
+    window.contentView!.addSubview(list)
+    list.reloadData()
+    list.layoutSubtreeIfNeeded()
+    XCTAssertEqual(list.visibleRange, NSRange(location: 0, length: 48))
+    XCTAssertNotNil(list.cellForItem(at: 47))
+  }
+
+  func testAPropertySetAtRestLaysOutAgain() {
+    final class Edges: NSObject, ShadowListKitListViewDelegate {
+      var ends = 0
+      func listViewDidReachEnd(_ listView: ShadowListKitListView) { ends += 1 }
+    }
+    let edges = Edges()
+    let harness = ListHarness(source: SizedTestSource(count: 100))
+    let list = harness.list
+    list.delegate = edges
+    XCTAssertNil(list.cellForItem(at: 20))
+    list.mountOverscan = 1
+    list.layoutSubtreeIfNeeded()
+    XCTAssertNotNil(list.cellForItem(at: 20))
+    XCTAssertNil(list.cellForItem(at: 40))
+    list.overscan = 3
+    list.mountOverscan = 3
+    list.layoutSubtreeIfNeeded()
+    XCTAssertNotNil(list.cellForItem(at: 40))
+    XCTAssertEqual(edges.ends, 0)
+    list.endReachedThreshold = 10
+    list.layoutSubtreeIfNeeded()
+    XCTAssertEqual(edges.ends, 1)
   }
 
   func testSectionTitlesShowInTitleCellsBetweenItems() throws {

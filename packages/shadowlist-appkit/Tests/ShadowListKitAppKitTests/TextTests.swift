@@ -115,6 +115,36 @@ final class TextTests: XCTestCase {
     XCTAssertEqual(capped.size.height, style.lineHeight * 2)
   }
 
+  func testLineRectsCoverTheTextOfEachLine() {
+    for style in Self.styles {
+      // The third text has a blank line between its paragraphs.
+      for text in Self.texts where !text.isEmpty {
+        let layout = style.layout(text, width: 240)
+        var widest: CGFloat = 0
+        for line in 0..<Int(layout.lineCount) {
+          let rect = layout.rectForLine(at: UInt(line))
+          XCTAssertEqual(rect.minX, 0, accuracy: 0.01)
+          XCTAssertEqual(rect.minY, style.lineHeight * CGFloat(line))
+          XCTAssertEqual(rect.height, style.lineHeight)
+          XCTAssertLessThanOrEqual(rect.width, 240)
+          widest = max(widest, rect.width)
+        }
+        XCTAssertEqual(min(240, ceil(widest)), layout.size.width, "\(style.name) text=\(text.prefix(30))")
+        XCTAssertTrue(layout.rectForLine(at: layout.lineCount).isNull)
+      }
+    }
+    let style = Self.styles[0]
+    let paragraphs = style.layout("One\n\nTwo words", width: 240)
+    XCTAssertEqual(paragraphs.lineCount, 3)
+    XCTAssertEqual(paragraphs.rectForLine(at: 1).width, 0)
+    XCTAssertGreaterThan(paragraphs.rectForLine(at: 2).width, paragraphs.rectForLine(at: 0).width)
+    // A line set to the right starts where its text does.
+    let right = ShadowListKitTextLayout(
+      string: "Right", font: style.font, lineHeight: style.lineHeight, kern: style.kern, width: 240, maximumLines: 0,
+      alignment: .right)
+    XCTAssertEqual(right.rectForLine(at: 0).maxX, 240, accuracy: 0.5)
+  }
+
   func testEmptyTextHasNoLines() {
     let layout = Self.styles[0].layout("", width: 240)
     XCTAssertEqual(layout.lineCount, 0)

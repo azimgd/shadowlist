@@ -15,16 +15,67 @@ std::size_t dragBoardDropIndex(std::size_t insertionIndex, const std::string& in
   return insertionKey.empty() ? rowCount : std::min(insertionIndex, rowCount);
 }
 
+BoardMovePlan planBoardMove(
+  const std::vector<std::vector<std::string>>& columns,
+  const std::string& itemKey,
+  std::size_t destinationColumn,
+  const std::string& destinationKey,
+  std::size_t destinationIndex) {
+  BoardMovePlan plan;
+  if (destinationColumn >= columns.size()) {
+    return plan;
+  }
+
+  std::size_t heldCount = 0;
+  for (std::size_t column = 0; column < columns.size(); ++column) {
+    for (std::size_t index = 0; index < columns[column].size(); ++index) {
+      if (columns[column][index] != itemKey) {
+        continue;
+      }
+      if (heldCount == 0) {
+        plan.sourceColumn = column;
+        plan.sourceIndex = index;
+      }
+      ++heldCount;
+    }
+  }
+
+  // Indices below count the destination column without the card.
+  const std::vector<std::string>& destination = columns[destinationColumn];
+  std::size_t remaining = 0;
+  std::size_t keyed = UNDEFINED_INDEX;
+  for (const std::string& key : destination) {
+    if (key == itemKey) {
+      continue;
+    }
+    if (keyed == UNDEFINED_INDEX && !destinationKey.empty() && key == destinationKey) {
+      keyed = remaining;
+    }
+    ++remaining;
+  }
+  std::size_t wanted = destinationKey.empty() ? remaining : keyed != UNDEFINED_INDEX ? keyed : destinationIndex;
+  std::size_t landing = dragBoardDropIndex(wanted, destinationKey, remaining);
+  if (landing == UNDEFINED_INDEX) {
+    return {};
+  }
+
+  bool alreadyThere = heldCount == 1 && plan.sourceColumn == destinationColumn && plan.sourceIndex == landing;
+  if (alreadyThere) {
+    return {};
+  }
+  plan.destinationColumn = destinationColumn;
+  plan.destinationIndex = landing;
+  return plan;
+}
+
 void DragBoard::begin(std::string homeId, std::string heldKey, DragPoint finger, DragPoint heldCenter) {
+  // A pickup over a flight that has not ended takes nothing from it.
+  reset();
   phase_ = DragBoardPhase::AtHome;
   homeId_ = std::move(homeId);
   heldKey_ = std::move(heldKey);
-  targetId_.clear();
   flight_ += 1;
   grab_ = {heldCenter.x - finger.x, heldCenter.y - finger.y};
-  liftPending_ = false;
-  returnPending_ = false;
-  landDeadlineMs_ = 0.0;
 }
 
 DragBoardStep DragBoard::hover(const std::vector<std::string>& candidates) {

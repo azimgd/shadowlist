@@ -52,6 +52,12 @@ struct Peer {
   std::vector<std::size_t> prefetchFound;
   std::vector<std::size_t> cancelFound;
   std::vector<jint> prefetchPacked;
+
+  /*
+   * The edges a run reached whose measure threw. The next run hands them over.
+   */
+  bool reachedStart = false;
+  bool reachedEnd = false;
 };
 
 Peer* peerOf(jlong handle) {
@@ -255,6 +261,10 @@ enum ConstantSlot {
   CONSTANT_DRAG_LIFT_ELEVATION,
   CONSTANT_SCROLL_ANIMATION_DURATION_MS,
   CONSTANT_SCROLL_SETTLE_DURATION_MS,
+  CONSTANT_SWIPE_ACTION_COLOR_NORMAL,
+  CONSTANT_SWIPE_ACTION_COLOR_DESTRUCTIVE,
+  CONSTANT_DROP_NONE,
+  CONSTANT_DROP_MOVED,
   CONSTANT_SLOTS,
 };
 
@@ -370,6 +380,23 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetStickyIndices)(JNIEnv* env, j
   peerOf(handle)->driver.setStickyIndices(readIndices(env, indices));
 }
 
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetNonAnchorKeys)(
+  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends) {
+  peerOf(handle)->driver.setNonAnchorKeys(readPackedKeys(env, packed, ends));
+}
+
+/*
+ * Where a pinned list header and footer go, see StickySlot: the inputs are read from io and the
+ * translations and spans written back.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeStickyLayout)(JNIEnv* env, jclass, jdoubleArray io) {
+  jdouble slots[STICKY_SLOTS];
+  env->GetDoubleArrayRegion(io, 0, STICKY_SLOTS, slots);
+  writeStickyLayout(slots);
+  env->SetDoubleArrayRegion(io, STICKY_OUT_HEADER_TRANSLATION, STICKY_SLOTS - STICKY_OUT_HEADER_TRANSLATION,
+    slots + STICKY_OUT_HEADER_TRANSLATION);
+}
+
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeMarkRemeasure)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
   peerOf(handle)->driver.markRemeasure(readIndices(env, indices));
 }
@@ -383,7 +410,14 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeRunPasses)(JNIEnv* env, jobject 
   sl::PassResult result = peer->driver.runPasses(readPassInput(slots));
   peer->env = nullptr;
   peer->target = nullptr;
-  // The exception thrown by a measure reaches Kotlin with the outputs left as they were.
+  result.reachedStart = result.reachedStart || peer->reachedStart;
+  result.reachedEnd = result.reachedEnd || peer->reachedEnd;
+  /*
+   * The exception thrown by a measure reaches Kotlin with the outputs left as they were. The
+   * driver hands an edge over once, and the ones this run reached wait here for the next.
+   */
+  peer->reachedStart = env->ExceptionCheck() && result.reachedStart;
+  peer->reachedEnd = env->ExceptionCheck() && result.reachedEnd;
   if (env->ExceptionCheck()) {
     return;
   }
@@ -507,6 +541,15 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBegin)(
 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragEnd)(JNIEnv*, jclass, jlong handle) {
   peerOf(handle)->driver.dragEnd();
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetDropHint)(
+  JNIEnv* env, jclass, jlong handle, jint kind, jstring key) {
+  sl::DropHint hint;
+  if (kind == static_cast<jint>(sl::DropHint::Kind::Moved)) {
+    hint = {sl::DropHint::Kind::Moved, readString(env, key)};
+  }
+  peerOf(handle)->driver.setDropHint(std::move(hint));
 }
 
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeHeldIndex)(JNIEnv*, jclass, jlong handle) {
@@ -859,11 +902,26 @@ JNIEXPORT jdoubleArray JNICALL SHADOWLIST_KIT_JNI(nativeConstants)(JNIEnv* env, 
   values[CONSTANT_DRAG_LIFT_ELEVATION] = sl::DRAG_LIFT_ELEVATION;
   values[CONSTANT_SCROLL_ANIMATION_DURATION_MS] = sl::SCROLL_ANIMATION_DURATION_MS;
   values[CONSTANT_SCROLL_SETTLE_DURATION_MS] = sl::SCROLL_SETTLE_DURATION_MS;
+  values[CONSTANT_SWIPE_ACTION_COLOR_NORMAL] = sl::SWIPE_ACTION_COLOR_NORMAL;
+  values[CONSTANT_SWIPE_ACTION_COLOR_DESTRUCTIVE] = sl::SWIPE_ACTION_COLOR_DESTRUCTIVE;
+  values[CONSTANT_DROP_NONE] = static_cast<double>(sl::DropHint::Kind::None);
+  values[CONSTANT_DROP_MOVED] = static_cast<double>(sl::DropHint::Kind::Moved);
   jdoubleArray array = env->NewDoubleArray(CONSTANT_SLOTS);
   if (array != nullptr) {
     env->SetDoubleArrayRegion(array, 0, CONSTANT_SLOTS, values);
   }
   return array;
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeShouldSkipMount)(
+  JNIEnv* env, jclass, jdoubleArray previous, jdoubleArray next, jdouble offset, jint numberOfColumns, jboolean holdsRow) {
+  jdouble previousSlots[MOUNT_SLOTS];
+  jdouble nextSlots[MOUNT_SLOTS];
+  env->GetDoubleArrayRegion(previous, 0, MOUNT_SLOTS, previousSlots);
+  env->GetDoubleArrayRegion(next, 0, MOUNT_SLOTS, nextSlots);
+  bool skips = sl::shouldSkipMount(readMountRecord(previousSlots), readMountRecord(nextSlots), offset,
+    static_cast<std::size_t>(std::max(numberOfColumns, 1)), holdsRow == JNI_TRUE);
+  return skips ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativePageScrollTarget)(
@@ -1159,6 +1217,16 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeInsertRows)(
     live->driver.insertKeys(kept, keptKeys);
   }
   statePeerOf(handle)->keys.insertRows(kept, std::move(keptKeys));
+}
+
+/*
+ * The content versions of items a change inserted, at their positions among the items held. The
+ * versions of the other items stay as they are.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeInsertVersions)(
+  JNIEnv* env, jclass, jlong handle, jintArray items, jlongArray versions) {
+  StatePeer* peer = statePeerOf(handle);
+  peer->versions.insert(peer->keys.items(), readIndices(env, items), readLongs(env, versions));
 }
 
 /*

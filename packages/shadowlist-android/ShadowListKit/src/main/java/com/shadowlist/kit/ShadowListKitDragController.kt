@@ -56,12 +56,13 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
   private var movedSinceLift = false
 
   /*
-   * A menu showed for this touch, which owns the rest of it.
+   * A menu showed or the delegate took a long press for this touch, which owns the rest of it.
    */
-  private var menuShown = false
+  private var holdTaken = false
 
   /*
-   * A hold lifts a row that can move. On a row that cannot it shows the row's menu.
+   * A hold lifts a row that can move. On a row that cannot it shows the row's menu, and without
+   * a menu the delegate hears a long press.
    */
   private val longPress = Runnable {
     pressPending = false
@@ -71,23 +72,23 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
       return@Runnable
     }
     val cell = list.itemCellAt(touchX, touchY) ?: return@Runnable
-    if (list.showMenu(cell)) {
-      menuShown = true
+    if (list.showMenu(cell) || list.longPressCell(cell)) {
+      holdTaken = true
       list.abandonScrollGesture()
       list.cancelChildTouches()
     }
   }
 
   /*
-   * Watch a touch for a long press and own it once a drag runs or a menu shows. Returns
-   * whether the drag took the event.
+   * Watch a touch for a long press and own it once a drag runs, a menu shows or the delegate
+   * took a long press. Returns whether the drag took the event.
    */
   fun handle(event: MotionEvent): Boolean {
-    if (!list.reorderEnabled && !list.hasMenus && !hasHeldRow && !menuShown) return false
+    if (!list.reorderEnabled && !list.hasMenus && !hasHeldRow && !holdTaken) return false
     touchX = event.x
     touchY = event.y
-    if (menuShown) {
-      if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) menuShown = false
+    if (holdTaken) {
+      if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) holdTaken = false
       return true
     }
     if (hasHeldRow) {
@@ -107,7 +108,7 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
   fun reset() {
     end(false)
     cancelLongPress()
-    menuShown = false
+    holdTaken = false
   }
 
   /*
@@ -312,8 +313,8 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
       cell.translationY = shownTop - cell.top
     }
     drop(cell)
-    // A row lifted and let go in place shows its menu.
-    if (commit && !moved && !movedSinceLift) list.showMenu(cell)
+    // A row lifted and let go in place shows its menu, and without one the delegate hears a long press.
+    if (commit && !moved && !movedSinceLift && !list.showMenu(cell)) list.longPressCell(cell)
   }
 
   private fun drop(cell: ShadowListKitListCell) {

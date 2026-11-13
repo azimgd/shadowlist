@@ -36,6 +36,13 @@ export interface ShadowListKitModule {
     indices: number,
     count: number
   ): void;
+  _ShadowListKitCore_nativeSetNonAnchorKeys(
+    handle: number,
+    packed: number,
+    ends: number,
+    count: number
+  ): void;
+  _ShadowListKitCore_nativeStickyLayout(slots: number): void;
   _ShadowListKitCore_nativeMarkRemeasure(
     handle: number,
     indices: number,
@@ -65,6 +72,13 @@ export interface ShadowListKitModule {
     trailingInset: number,
     out: number
   ): void;
+  _ShadowListKitCore_nativeShouldSkipMount(
+    previous: number,
+    next: number,
+    offset: number,
+    numberOfColumns: number,
+    holdsRow: number
+  ): number;
   _ShadowListKitCore_nativeShouldMount(
     handle: number,
     index: number,
@@ -184,6 +198,12 @@ export interface ShadowListKitModule {
     indices: number,
     packed: number,
     ends: number,
+    count: number
+  ): void;
+  _ShadowListKitListState_nativeInsertVersions(
+    handle: number,
+    items: number,
+    versions: number,
     count: number
   ): void;
   _ShadowListKitListState_nativeDeleteRows(

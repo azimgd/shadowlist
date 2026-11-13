@@ -57,6 +57,7 @@ enum OutSlot {
   OUT_HAS_ANCHOR_REQUEST,
   OUT_ANCHOR_REQUEST_SEQUENCE,
   OUT_FRAME_LANDED,
+  OUT_COMMIT_REVISION,
   OUT_SLOTS,
 };
 
@@ -102,6 +103,7 @@ void writePatch(
   more[OUT_HAS_ANCHOR_REQUEST - OUT_COMMAND_VIEW_OFFSET] = patch.hasAnchorRequest ? 1.0 : 0.0;
   more[OUT_ANCHOR_REQUEST_SEQUENCE - OUT_COMMAND_VIEW_OFFSET] = patch.anchorRequestSequence;
   more[OUT_FRAME_LANDED - OUT_COMMAND_VIEW_OFFSET] = frameLanded ? 1.0 : 0.0;
+  more[OUT_COMMIT_REVISION - OUT_COMMAND_VIEW_OFFSET] = static_cast<double>(patch.report.commitRevision);
   env->SetDoubleArrayRegion(out, OUT_COMMAND_VIEW_OFFSET, OUT_SLOTS - OUT_COMMAND_VIEW_OFFSET, more);
 }
 
@@ -152,6 +154,7 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeBeginMount)(
   jdouble baseX,
   jdouble baseY,
   jdouble commitToken,
+  jdouble commitRevision,
   jboolean userScrolled,
   jdouble scrollPhase,
   jdouble concealGeneration,
@@ -173,6 +176,7 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeBeginMount)(
   mounted.baseX = baseX;
   mounted.baseY = baseY;
   mounted.commitToken = static_cast<std::uint64_t>(commitToken);
+  mounted.commitRevision = static_cast<std::uint64_t>(commitRevision);
   mounted.userScrolled = userScrolled == JNI_TRUE;
   mounted.scrollPhase = scrollPhase;
   mounted.concealGeneration = concealGeneration;

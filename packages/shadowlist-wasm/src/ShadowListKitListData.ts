@@ -127,7 +127,22 @@ export class ShadowListKitListData {
     forEachRun(sorted, (first, last) =>
       this.keys.splice(sorted[first]!, 0, ...inserted.slice(first, last + 1))
     );
+    this.insertContentVersions(sorted);
     this.list.structureChanged();
+  }
+
+  /*
+   * The content version of the items a change inserted, which the next applyChanges compares
+   * against. items are their positions in the keys after the change. The versions of the other
+   * items stay as they are.
+   */
+  private insertContentVersions(items: ReadonlyArray<number>): void {
+    const source = this.list.dataSource;
+    if (!source?.contentVersionForItem || items.length === 0) return;
+    this.state.insertVersions(
+      items,
+      items.map((item) => source.contentVersionForItem!(this.list, item))
+    );
   }
 
   deleteItems(indices: ReadonlyArray<number>): void {
@@ -243,6 +258,7 @@ export class ShadowListKitListData {
       if (key !== undefined) reloadedKeys.add(key);
     }
     let next: string[] | null = null;
+    let inserted: number[] = [];
     if (!needsReload) {
       const nextCount = Math.max(0, source.numberOfItems(this.list));
       const plan = this.state.planTakenBatch(this.keys.length, nextCount);
@@ -251,13 +267,20 @@ export class ShadowListKitListData {
         next = Array.from(plan, (from, index) =>
           from < 0 ? source.keyForItem(this.list, index) : this.keys[from]!
         );
+        plan.forEach((from, index) => {
+          if (from < 0) inserted.push(index);
+        });
       } else {
         console.warn(
           `ShadowListKitListView: batch updates do not add up to ${nextCount} items, reloading`
         );
       }
     }
-    this.commitKeys(next ?? this.readKeys(), {});
+    // A batch read again names no items. The ones it inserted are the keys the data did not hold.
+    const diffs = !next && !!source.contentVersionForItem;
+    const committed = this.commitKeys(next ?? this.readKeys(), { diff: diffs });
+    if (diffs && committed) inserted = insertedOf(committed);
+    this.insertContentVersions(inserted);
     this.reloadKeyRows(reloadedKeys, payload);
   }
 
@@ -318,6 +341,14 @@ export class ShadowListKitListData {
       reloaded
     );
   }
+}
+
+/*
+ * The inserted items of a packed COMMIT_DIFF diff, which follow its deleted ones.
+ */
+function insertedOf(diff: Int32Array): number[] {
+  const at = 1 + diff[0]!;
+  return Array.from(diff.subarray(at + 1, at + 1 + diff[at]!));
 }
 
 /*
