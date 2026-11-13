@@ -2,6 +2,7 @@
 
 #include <shadowlist-core/host/RowSizeSpec.hpp>
 #include <shadowlist-core/utils/Avatar.hpp>
+#include <shadowlist-core/utils/BoardColumnLayout.hpp>
 #include <shadowlist-core/utils/ChatLayout.hpp>
 #include <shadowlist-core/utils/ContactSection.hpp>
 #include <shadowlist-core/utils/FeedImageFrame.hpp>
@@ -189,6 +190,22 @@ static NSString *makeString(const std::string& text)
 + (NSInteger)pollPercentForVotes:(double)votes totalVotes:(double)totalVotes
 {
   return pollPercent(votes, totalVotes);
+}
+
+#pragma mark - Board
+
++ (ShadowListUtilsBoardColumnLayout)boardColumnLayoutForWidth:(CGFloat)boardWidth columnWidth:(CGFloat)columnWidth sidePadding:(CGFloat)sidePadding
+{
+  BoardColumnLayout layout = boardColumnLayout(boardWidth, columnWidth, sidePadding);
+  return (ShadowListUtilsBoardColumnLayout){.columnWidth = layout.columnWidth, .sidePadding = layout.sidePadding, .snapInterval = layout.snapInterval};
+}
+
++ (CGFloat)boardColumnHeightForHeights:(NSArray<NSNumber *> *)heights minimum:(CGFloat)minimum maximum:(CGFloat)maximum
+{
+  std::vector<double> values;
+  values.reserve(heights.count);
+  for (NSNumber *height in heights) values.push_back(height.doubleValue);
+  return boardColumnHeight(values, minimum, maximum);
 }
 
 @end

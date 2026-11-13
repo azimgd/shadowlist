@@ -657,6 +657,8 @@ struct ExampleRoute {
     ExampleRoute(route: "Snap", title: "Destinations", summary: "Cards that snap into place") { SnapScreen() },
     ExampleRoute(route: "Sections", title: "Sections", summary: "Section headers, footers, an index and self-sizing cells") { SectionsScreen() },
     ExampleRoute(route: "Activity", title: "Activity", summary: "Unread activity and pull to refresh") { ActivityScreen() },
+    ExampleRoute(route: "Board", title: "Travel board", summary: "Move cards within and between columns") { BoardScreen() },
+    ExampleRoute(route: "Tree", title: "Files", summary: "Expand folders and open files") { TreeScreen() },
     ExampleRoute(route: "Poll", title: "Poll", summary: "Choose a destination and see the votes") { PollScreen() },
     ExampleRoute(route: "Inbox", title: "Inbox", summary: "Swipe actions, a menu on long press and selection") { InboxScreen() },
   ]

@@ -112,6 +112,9 @@ internal open class ShadowListUtilsListAdapter(protected val list: ShadowListUti
 
   // region Drag
 
+  override fun moveItemToList(listView: ShadowListKitListView, sourceIndex: Int, destinationListId: String, destinationIndex: Int, destinationKey: String) =
+    list.didMoveItemToList(sourceIndex, destinationListId, destinationIndex, destinationKey)
+
   override fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int) =
     list.didMoveItem(sourceIndex, destinationIndex)
 

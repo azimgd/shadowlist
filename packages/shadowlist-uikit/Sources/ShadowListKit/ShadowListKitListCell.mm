@@ -1,4 +1,5 @@
 #import "Internal/ShadowListKitListCell+Private.h"
+#import "Internal/ShadowListKitListView+Private.h"
 
 @implementation ShadowListKitListCell
 
@@ -14,6 +15,14 @@
 
 - (void)prepareForReuse
 {
+}
+
+- (NSArray<UIAccessibilityCustomAction *> *)accessibilityCustomActions
+{
+  NSArray<UIAccessibilityCustomAction *> *own = super.accessibilityCustomActions;
+  ShadowListKitListView *list = [self.superview isKindOfClass:ShadowListKitListView.class] ? (id)self.superview : nil;
+  NSArray<UIAccessibilityCustomAction *> *board = [list dragBoardAccessibilityActionsForCell:self];
+  return board.count ? [(own ?: @[]) arrayByAddingObjectsFromArray:board] : own;
 }
 
 /*

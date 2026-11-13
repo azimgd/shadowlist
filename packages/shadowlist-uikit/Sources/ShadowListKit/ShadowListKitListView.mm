@@ -20,6 +20,8 @@ __attribute__((used)) static const char *const ShadowListKitListViewCategoryLink
   &ShadowListKitListViewCommandsLink,
   &ShadowListKitListViewDataLink,
   &ShadowListKitListViewDragLink,
+  &ShadowListKitListViewDragBoardLink,
+  &ShadowListKitListViewDragBoardAccessibilityLink,
   &ShadowListKitListViewPassesLink,
   &ShadowListKitListViewSectionsLink,
   &ShadowListKitListViewSelectionLink,
@@ -65,6 +67,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 @dynamic numberOfSections;
 @dynamic selectedIndices;
 @dynamic anchorState;
+@dynamic dragBoardId, dragListId, dragListLabel;
 
 - (instancetype)initWithFrame:(CGRect)frame
 {
@@ -122,6 +125,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 
 - (void)dealloc
 {
+  [self leaveDragBoard];
   [_settleLink invalidate];
   [_dragLink invalidate];
 }
@@ -135,7 +139,10 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   [super willMoveToWindow:newWindow];
   if (!newWindow) {
     [self cancelHeldRow];
+    [self leaveDragBoard];
     [self closeSwipeAnimated:NO];
+  } else {
+    [self joinDragBoard];
   }
 }
 
@@ -396,6 +403,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 - (void)setReorderEnabled:(BOOL)reorderEnabled
 {
   _reorderEnabled = reorderEnabled;
+  if (!reorderEnabled) [self cancelHeldRow];
   [self enableDragPress:reorderEnabled];
 }
 

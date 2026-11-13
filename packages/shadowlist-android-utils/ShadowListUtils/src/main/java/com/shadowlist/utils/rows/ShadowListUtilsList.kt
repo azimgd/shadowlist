@@ -319,6 +319,8 @@ open class ShadowListUtilsList private constructor(
    * What a screen reader can do with an item besides pressing it: the template's closures that
    * are otherwise behind a gesture.
    */
+  internal open fun didMoveItemToList(sourceIndex: Int, destinationListId: String, destinationIndex: Int, destinationKey: String) {}
+
   internal open fun accessibilityActions(index: Int): List<ShadowListUtilsAccessibilityAction> = emptyList()
 
   /*

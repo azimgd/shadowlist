@@ -155,6 +155,8 @@ internal class ShadowListKitCore(
     private const val CONSTANT_SWIPE_ACTION_COLOR_DESTRUCTIVE = 16
     private const val CONSTANT_DROP_NONE = 17
     private const val CONSTANT_DROP_MOVED = 18
+    private const val CONSTANT_DROP_REMOVED = 19
+    private const val CONSTANT_DROP_INSERTED = 20
 
     private val constants: DoubleArray by lazy { nativeConstants() }
 
@@ -180,6 +182,8 @@ internal class ShadowListKitCore(
     val DROP_DURATION_MS: Long get() = constants[CONSTANT_DRAG_DROP_DURATION_MS].toLong()
     val DROP_NONE: Int get() = constants[CONSTANT_DROP_NONE].toInt()
     val DROP_MOVED: Int get() = constants[CONSTANT_DROP_MOVED].toInt()
+    val DROP_REMOVED: Int get() = constants[CONSTANT_DROP_REMOVED].toInt()
+    val DROP_INSERTED: Int get() = constants[CONSTANT_DROP_INSERTED].toInt()
 
     /*
      * The core's press that lifts a row: how long it holds, how far it may drift in dp, see
@@ -223,6 +227,36 @@ internal class ShadowListKitCore(
     const val CHANGE_INSERT = 1
     const val CHANGE_CARRY = 2
 
+    /*
+     * DragBoard frame slots and kinds, mirrored by the shared JNI bridge.
+     */
+    const val BOARD_FRAME_STEP = 0
+    const val BOARD_FRAME_X = 1
+    const val BOARD_FRAME_Y = 2
+    const val BOARD_FRAME_FLOATING = 3
+    const val BOARD_FRAME_HIDE_HELD = 4
+    const val BOARD_FRAME_SLOTS = 5
+    const val BOARD_STAY = 0
+    const val BOARD_HOME = 0
+    const val BOARD_CANCEL = 1
+    const val BOARD_DROP = 2
+    const val BOARD_RELEASE_INDEX = 0
+    const val BOARD_RELEASE_SLOTS = 1
+
+    @JvmStatic external fun nativeDragBoardCreate(): Long
+    @JvmStatic external fun nativeDragBoardDestroy(handle: Long)
+    @JvmStatic external fun nativeDragBoardBegin(handle: Long, home: String, key: String, x: Double, y: Double, centerX: Double, centerY: Double)
+    @JvmStatic external fun nativeDragBoardScrollDelta(handle: Long, finger: Double, touch: Double, windowSize: Double, density: Double, dtSeconds: Double): Double
+    @JvmStatic external fun nativeDragBoardFrame(handle: Long, x: Double, y: Double, centerX: Double, centerY: Double, candidate: String, nowMs: Double, out: DoubleArray)
+    @JvmStatic external fun nativeDragBoardRelease(handle: Long, index: Int, key: String, count: Int, nowMs: Double, out: DoubleArray): Int
+    @JvmStatic external fun nativeDragBoardEnd(handle: Long)
+    @JvmStatic external fun nativeDragBoardLeave(handle: Long, listId: String)
+    @JvmStatic external fun nativeDragBoardReturnOffset(handle: Long, x: Double, y: Double, nowMs: Double, out: DoubleArray)
+    @JvmStatic external fun nativeDragBoardLanded(handle: Long, listId: String, holdsKey: Boolean): Boolean
+    @JvmStatic external fun nativeDragBoardBeginOverlaySettle(handle: Long): Boolean
+    @JvmStatic external fun nativeDragBoardFlight(handle: Long): Long
+    @JvmStatic external fun nativeDragBoardIsIdle(handle: Long): Boolean
+
     @JvmStatic private external fun nativeDestroy(handle: Long)
     @JvmStatic private external fun nativeSetSettings(
       handle: Long, estimatedRowSize: Double, overscan: Double, startReachedThreshold: Double,
@@ -250,6 +284,10 @@ internal class ShadowListKitCore(
     @JvmStatic private external fun nativeLand(handle: Long): Boolean
     @JvmStatic private external fun nativeDragBegin(handle: Long, index: Int, touchAlong: Double, touchCross: Double)
     @JvmStatic private external fun nativeDragEnd(handle: Long)
+    @JvmStatic private external fun nativeDragSetHeldAway(handle: Long, away: Boolean)
+    @JvmStatic private external fun nativeDragBeginForeign(handle: Long, extent: Double, crossExtent: Double)
+    @JvmStatic private external fun nativeIsDragForeign(handle: Long): Boolean
+    @JvmStatic private external fun nativeDragInsertionKey(handle: Long): String
     @JvmStatic private external fun nativeSetDropHint(handle: Long, kind: Int, key: String)
     @JvmStatic private external fun nativeHeldIndex(handle: Long): Int
     @JvmStatic private external fun nativeDragFrame(
@@ -462,6 +500,10 @@ internal class ShadowListKitCore(
   fun dragBegin(index: Int, touchAlong: Double, touchCross: Double) =
     nativeDragBegin(handle, index, touchAlong, touchCross)
   fun dragEnd() = nativeDragEnd(handle)
+  fun dragSetHeldAway(away: Boolean) = nativeDragSetHeldAway(handle, away)
+  fun dragBeginForeign(extent: Double, crossExtent: Double) = nativeDragBeginForeign(handle, extent, crossExtent)
+  val isDragForeign: Boolean get() = nativeIsDragForeign(handle)
+  val dragInsertionKey: String get() = nativeDragInsertionKey(handle)
   fun setDropHint(kind: Int, key: String) = nativeSetDropHint(handle, kind, key)
   val heldIndex: Int get() = nativeHeldIndex(handle)
 

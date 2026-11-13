@@ -901,6 +901,11 @@ void ListDriver::dragEnd() {
   drag_.end();
 }
 
+void ListDriver::dragBeginForeign(double extent, double crossExtent) {
+  heldKey_.clear();
+  drag_.beginForeign(extent, crossExtent, settings_.numberOfColumns);
+}
+
 void ListDriver::setDropHint(DropHint hint) {
   std::lock_guard<std::recursive_mutex> lock(core_->coreMutex);
   dropHint_ = std::move(hint);

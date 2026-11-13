@@ -52,7 +52,7 @@ class FeedScreen(context: Context, posts: List<ShadowListUtilsFeedItem>) {
 }
 ```
 
-Add `list` to your screen's view hierarchy. A template list is a `ShadowListKitListView`, and every property of the
+Add `list` to your screen's view hierarchy. A single-list template is a `ShadowListKitListView`, and every property of the
 kit list stays reachable: `headerView`, `footerView`, `refreshing`, `scrollToItem` and the rest. It is its own data
 source and delegate and gives closures instead. An app that needs a delegate call the template does not surface
 uses a `ShadowListKitListView` with the library's rows.
@@ -297,3 +297,37 @@ They load the native libraries and replay the vector files of `packages/shadowli
 `--es SLRoute` and a route: `Feed`, `Masonry`, `Chat`, `Contacts`, `SectionList`, `Reorder`, `ReorderGrid`, `Snap`,
 `Nested`, `Inbox`, `Activity` or `Poll`. `--es SLStates 1` adds placeholder posts to Feed and captions and sending and failed messages to
 Chat, `--es SLSelectDemo 1` opens Inbox editing with two rows selected, and `--es SLImages 0` loads no image.
+
+
+## Tree
+
+`ShadowListUtilsTreeList` takes `items` of `ShadowListUtilsTreeNode(key, name, children, kind)`.
+`children == null` is a leaf; an empty list can still show a folder glyph. The shared kit's `TreeSource` owns
+visible traversal, expansion splices and retained expansion intent. Kotlin only encodes the application's node objects.
+
+`initialExpandedKeys` supplies uncontrolled initial state. Leave `expandedKeys` null for internal expansion, or set it
+to a set for app-controlled expansion: `onExpandedChange` requests a set and the app assigns its accepted set.
+Hidden branches and keys whose nodes arrive later retain expansion intent. `onPressItem` handles leaves.
+`scrollToNode(key, viewPosition)` uses a visible stable key and leaves a collapsed descendant alone.
+`rowForItem` receives `ShadowListUtilsTreeListRenderItemInfo` with the item, depth, indent, `isExpanded`,
+`hasChildren` and `toggle`. `indentWidth` and `labels.expand`/`labels.collapse` customize the default row.
+
+## Board
+
+`ShadowListUtilsBoardList<Item>` takes generic `ShadowListUtilsBoardColumn<Item>` values (`key`, `title`, `items`),
+a `keyExtractor` and a `rowForItem` renderer. Each board isolates its drag identity, and its columns retain their
+native lists across updates. `ShadowListUtilsBoardCard` is an optional row with title, label, detail and color.
+
+`onMoveItem` requests a `ShadowListUtilsBoardMoveInfo<Item>` containing the item, `sourceColumnKey`,
+`destinationColumnKey`, `destinationKey` and `destinationIndex`. Assign the new columns in that callback to accept
+it; leaving state unchanged rejects it. `shadowListUtilsMoveBoardItem` applies the shared C++ move plan to application
+objects. A destination key wins over the fallback index, and an empty key appends. Both within-column reorders and
+cross-column drops use this callback. The kit owns drag flights, foreign insertion sessions and cleanup.
+
+`renderColumnHeader` and `renderColumnFooter` stay outside draggable rows; a renderer returning null removes its view.
+`columnWidth`, `sidePadding`, `columnHeight` (`FILL` or `CONTENT`), `minColumnHeight`, `maxColumnHeight` and
+`estimatedItemHeight` use the shared column layout helpers and take dp. Content mode gives all column bodies one
+bounded height. `labels` customizes column summaries and empty-column messages. The example app includes Tree and
+Board routes. The board container hosts a horizontal kit list with column snapping and drag-driven sideways edge
+scrolling. Its column views stay mounted while their inner lists virtualize rows. Cross-list accessibility actions
+append to the named destination and use the same application-controlled move callback.

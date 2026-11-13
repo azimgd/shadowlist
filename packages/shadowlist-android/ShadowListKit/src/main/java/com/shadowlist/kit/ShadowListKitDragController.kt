@@ -87,6 +87,7 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     if (!list.reorderEnabled && !list.hasMenus && !hasHeldRow && !holdTaken) return false
     touchX = event.x
     touchY = event.y
+    list.dragBoard?.noteFinger(list, touchX, touchY)
     if (holdTaken) {
       if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) holdTaken = false
       return true
@@ -166,6 +167,8 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     list.core.dragBegin(cell.row, list.contentAlongAt(x, y).toDouble(), list.contentCrossAt(x, y).toDouble())
     heldCell = cell
     lift(cell)
+    ShadowListKitDragBoard.join(list)
+    list.dragBoard?.begin(list, cell, x, y)
     lastFrameNanos = 0L
     Choreographer.getInstance().postFrameCallback(this)
     update()
@@ -213,7 +216,9 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
    * Rows mounted since the last frame jump straight to their shift. A new drop spot ticks.
    */
   fun update() {
+    list.dragBoard?.refreshTouch(list)
     val cell = heldCell ?: return
+    val floating = list.dragBoard?.update(list, cell) == true
     frameCells.clear()
     for (mounted in list.mounted.values) {
       if (mounted !== cell && mounted.visibility == View.VISIBLE && mounted.row >= 0) frameCells.add(mounted)
@@ -233,7 +238,41 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     }
     if (frameOut[ShadowListKitCore.DRAG_FRAME_TICK] != 0.0) cell.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
     translate(cell, frameOut[ShadowListKitCore.DRAG_FRAME_HELD_ALONG].toFloat(), frameOut[ShadowListKitCore.DRAG_FRAME_HELD_CROSS].toFloat())
+    if (!floating) list.dragBoard?.returnOffset(list, cell)?.let {
+      cell.translationX += it[ShadowListKitDragBoard.POINT_X].toFloat()
+      cell.translationY += it[ShadowListKitDragBoard.POINT_Y].toFloat()
+    }
     val animated = frameOut[ShadowListKitCore.DRAG_FRAME_INSERTION_MOVED] != 0.0
+    applyFrameShifts(count, animated)
+    frameCells.clear()
+  }
+
+  fun updateForeign(x: Float, y: Float) {
+    frameCells.clear()
+    frameCells.addAll(list.mounted.values.filter { it.visibility == View.VISIBLE && it.row >= 0 })
+    val count = frameCells.size
+    if (frameRows.size < count) frameRows = IntArray(count * 2)
+    if (frameOut.size < ShadowListKitCore.DRAG_FRAME_SLOTS + count * 2) frameOut = DoubleArray(ShadowListKitCore.DRAG_FRAME_SLOTS + count * 4)
+    for (at in 0 until count) frameRows[at] = frameCells[at].row
+    list.core.dragFrame(list.contentAlongAt(x, y).toDouble(), list.contentCrossAt(x, y).toDouble(), frameRows, count,
+      SystemClock.uptimeMillis().toDouble(), frameOut)
+    applyFrameShifts(count, frameOut[ShadowListKitCore.DRAG_FRAME_INSERTION_MOVED] != 0.0)
+    frameCells.clear()
+  }
+
+  fun clearForeign() {
+    shiftTargets.clear()
+    for (cell in list.mounted.values) animateTranslation(cell, 0f, 0f, ShadowListKitCore.SHIFT_DURATION_MS)
+  }
+
+  fun releaseHeldForBoard() {
+    heldCell?.alpha = 1f
+    heldCell = null
+    list.core.dragEnd()
+    shiftTargets.clear()
+  }
+
+  private fun applyFrameShifts(count: Int, animated: Boolean) {
     for (at in 0 until count) {
       val shifted = frameCells[at]
       val shiftAlong = frameOut[ShadowListKitCore.DRAG_FRAME_SLOTS + at * 2].toFloat()
@@ -245,11 +284,15 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
       if (animated && known != null) animateTranslation(shifted, shiftAlong, shiftCross, ShadowListKitCore.SHIFT_DURATION_MS)
       else setTranslation(shifted, shiftAlong, shiftCross)
     }
-    frameCells.clear()
   }
 
   private fun packTarget(along: Float, cross: Float): Long =
     (along.toRawBits().toLong() shl 32) or (cross.toRawBits().toLong() and 0xffffffffL)
+
+  fun setTouch(x: Float, y: Float) {
+    touchX = x
+    touchY = y
+  }
 
   private fun setTranslation(cell: ShadowListKitListCell, along: Float, cross: Float) {
     cell.animate().cancel()
@@ -277,6 +320,11 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     // The speed is per second. The first frame of a drag counts as one at 60 Hz.
     val dtSeconds = if (lastFrameNanos == 0L) 1.0 / 60.0 else (frameTimeNanos - lastFrameNanos) / 1e9
     lastFrameNanos = frameTimeNanos
+    if (list.dragBoard?.scroll(list, dtSeconds) == true) {
+      update()
+      Choreographer.getInstance().postFrameCallback(this)
+      return
+    }
     val touch = list.windowAlongAt(touchX, touchY).toDouble()
     val offset = list.offset.toDouble()
     val next = ShadowListKitCore.dragAutoScrollOffset(
@@ -298,15 +346,18 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     cancelLongPress()
     val cell = heldCell ?: return
     Choreographer.getInstance().removeFrameCallback(this)
-    val from = list.core.dragOriginIndex
-    val to = list.core.dragInsertionIndex
+    val core = list.core
+    val from = core.dragOriginIndex
+    val to = core.dragInsertionIndex
+    val crossed = list.dragBoard?.finish(list, commit) == true
+    if (heldCell != null && heldCell !== cell) return
     heldCell = null
-    list.core.dragEnd()
+    if (core.handle != 0L) core.dragEnd()
     shiftTargets.clear()
     val shownLeft = cell.left + cell.translationX
     val shownTop = cell.top + cell.translationY
     var moved = false
-    if (commit && from >= 0 && to >= 0 && from != to) {
+    if (commit && !crossed && from >= 0 && to >= 0 && from != to) {
       for (mounted in list.mounted.values) setTranslation(mounted, 0f, 0f)
       moved = list.commitMove(from, to)
       cell.translationX = shownLeft - cell.left
@@ -314,7 +365,7 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     }
     drop(cell)
     // A row lifted and let go in place shows its menu, and without one the delegate hears a long press.
-    if (commit && !moved && !movedSinceLift && !list.showMenu(cell)) list.longPressCell(cell)
+    if (commit && !crossed && !moved && !movedSinceLift && !list.showMenu(cell)) list.longPressCell(cell)
   }
 
   private fun drop(cell: ShadowListKitListCell) {

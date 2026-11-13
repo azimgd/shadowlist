@@ -119,6 +119,10 @@ class ShadowListUtilsListAdapter: NSObject, ShadowListKitListViewDataSource, Sha
     list?.moveItem(from: sourceIndex, to: destinationIndex)
   }
 
+  func listView(_ listView: ShadowListKitListView, moveItemAt sourceIndex: Int, toListId: String, destinationIndex: Int, destinationKey: String) {
+    list?.moveItem(from: sourceIndex, toListId: toListId, destinationIndex: destinationIndex, destinationKey: destinationKey)
+  }
+
   // MARK: - Swipe actions
 
   func listView(_ listView: ShadowListKitListView, leadingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {

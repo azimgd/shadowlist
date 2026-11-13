@@ -238,6 +238,16 @@ NS_SWIFT_UI_ACTOR
  */
 - (void)listView:(ShadowListKitListView *)listView moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
 
+#if !TARGET_OS_OSX
+/*
+ * A held item was dropped into another list of the same board. The source hears the request;
+ * update both data sources before returning. destinationKey is the item to insert before,
+ * empty to append, with destinationIndex as the fallback when that key no longer exists.
+ */
+- (void)listView:(ShadowListKitListView *)listView moveItemAtIndex:(NSInteger)sourceIndex
+       toListId:(NSString *)destinationListId destinationIndex:(NSInteger)destinationIndex destinationKey:(NSString *)destinationKey;
+#endif
+
 /*
  * The scroll position came within startReachedThreshold or endReachedThreshold of an edge.
  */

@@ -851,6 +851,41 @@ TEST(list_driver_drag_reaches_the_last_and_first_slot_through_the_content_edge) 
   host.driver.dragEnd();
 }
 
+TEST(list_driver_foreign_drag_uses_target_geometry_and_keys_then_returns_to_normal) {
+  Host host(8);
+  host.uniformSize = 100.0;
+  host.settle();
+  host.driver.dragBegin(2, 210.0, 0.0);
+  host.driver.dragSetHeldAway(true);
+  CHECK(host.driver.isDragHeldAway());
+  CHECK_EQ(host.driver.dragShiftFor(3).leading, -100.0);
+  CHECK_EQ(host.driver.getDragInsertionIndex(), UNDEFINED_INDEX);
+  host.driver.dragSetHeldAway(false);
+  CHECK_EQ(host.driver.getDragInsertionIndex(), std::size_t{2});
+
+  host.driver.dragBeginForeign(80.0, 200.0);
+  CHECK(host.driver.isDragForeign());
+  CHECK(!host.driver.isDragging());
+  CHECK_EQ(host.driver.getHeldIndex(), UNDEFINED_INDEX);
+  host.driver.dragPlaceForeignCenter(120.0, 0.0);
+  host.driver.dragUpdateInsertion({3, 0, 2, 1});
+  CHECK_EQ(host.driver.getDragInsertionIndex(), std::size_t{1});
+  CHECK_EQ(host.driver.getDragInsertionKey(), std::string{"k1"});
+  CHECK_EQ(host.driver.dragShiftFor(0).leading, 0.0);
+  CHECK_EQ(host.driver.dragShiftFor(1).leading, 80.0);
+  host.driver.dragPlaceForeignCenter(900.0, 0.0);
+  host.driver.dragUpdateInsertion({4, 5, 6, 7});
+  CHECK_EQ(host.driver.getDragInsertionIndex(), std::size_t{8});
+  CHECK(host.driver.getDragInsertionKey().empty());
+  host.driver.dragEnd();
+  CHECK(!host.driver.isDragForeign());
+  CHECK_EQ(host.driver.dragShiftFor(1).leading, 0.0);
+  host.driver.dragBegin(1, 110.0, 0.0);
+  CHECK(host.driver.isDragging());
+  CHECK(!host.driver.isDragForeign());
+  CHECK(!host.driver.isDragHeldAway());
+}
+
 TEST(list_driver_drag_moves_the_drop_slot_and_skips_the_held_row) {
   Host host(100);
   host.settle();

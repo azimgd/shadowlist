@@ -159,6 +159,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL snapToItem;
 @property (nonatomic) ShadowListKitSnapAlignment snapAlignment;
 @property (nonatomic) BOOL reorderEnabled;
+@property (nonatomic, copy, nullable) NSString *dragBoardId;
+@property (nonatomic, copy, nullable) NSString *dragListId;
+@property (nonatomic, copy, nullable) NSString *dragListLabel;
 @property (nonatomic) BOOL animatesChanges;
 @property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
 @property (nonatomic) BOOL stickySectionHeaders;

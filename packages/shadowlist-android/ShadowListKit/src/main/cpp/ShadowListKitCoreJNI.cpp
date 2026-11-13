@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <shadowlist-core/host/ChangeAnimation.hpp>
+#include <shadowlist-core/host/DragBoard.hpp>
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/KitBridge.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
@@ -63,6 +64,15 @@ struct Peer {
 Peer* peerOf(jlong handle) {
   return reinterpret_cast<Peer*>(handle);
 }
+
+struct DragBoardPeer {
+  sl::DragBoard core;
+  sl::DragBoardScroll scroll;
+};
+
+static_assert(static_cast<int>(sl::DragBoardStep::Kind::Stay) == 0);
+static_assert(static_cast<int>(sl::DragBoardRelease::Kind::Home) == 0 &&
+  static_cast<int>(sl::DragBoardRelease::Kind::Cancel) == 1 && static_cast<int>(sl::DragBoardRelease::Kind::Drop) == 2);
 
 std::vector<jint> readInts(JNIEnv* env, jintArray array) {
   if (array == nullptr) {
@@ -265,6 +275,8 @@ enum ConstantSlot {
   CONSTANT_SWIPE_ACTION_COLOR_DESTRUCTIVE,
   CONSTANT_DROP_NONE,
   CONSTANT_DROP_MOVED,
+  CONSTANT_DROP_REMOVED,
+  CONSTANT_DROP_INSERTED,
   CONSTANT_SLOTS,
 };
 
@@ -546,8 +558,8 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragEnd)(JNIEnv*, jclass, jlong 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetDropHint)(
   JNIEnv* env, jclass, jlong handle, jint kind, jstring key) {
   sl::DropHint hint;
-  if (kind == static_cast<jint>(sl::DropHint::Kind::Moved)) {
-    hint = {sl::DropHint::Kind::Moved, readString(env, key)};
+  if (kind >= static_cast<jint>(sl::DropHint::Kind::Moved) && kind <= static_cast<jint>(sl::DropHint::Kind::Inserted)) {
+    hint = {static_cast<sl::DropHint::Kind>(kind), readString(env, key)};
   }
   peerOf(handle)->driver.setDropHint(std::move(hint));
 }
@@ -567,10 +579,16 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragFrame)(JNIEnv* env, jclass, 
   Peer* peer = peerOf(handle);
   sl::ListDriver& driver = peer->driver;
   std::size_t held = driver.getHeldIndex();
-  if (held == sl::UNDEFINED_INDEX || held >= driver.getRowCount()) {
+  bool foreign = driver.isDragForeign();
+  if (!foreign && (held == sl::UNDEFINED_INDEX || held >= driver.getRowCount())) {
     return -1;
   }
-  sl::DragOffset placed = driver.placeHeld(held, touchAlong, touchCross);
+  sl::DragOffset placed;
+  if (foreign) {
+    driver.dragPlaceForeignCenter(touchAlong, touchCross);
+  } else {
+    placed = driver.placeHeld(held, touchAlong, touchCross);
+  }
   std::size_t insertion = driver.getDragInsertionIndex();
   jsize given = std::clamp(count, 0, env->GetArrayLength(rows));
   std::vector<jint>& ints = peer->dragInts;
@@ -598,7 +616,106 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragFrame)(JNIEnv* env, jclass, 
   }
   jsize length = std::min(env->GetArrayLength(out), static_cast<jsize>(values.size()));
   env->SetDoubleArrayRegion(out, 0, length, values.data());
-  return static_cast<jint>(held);
+  return jintFromIndex(held);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragSetHeldAway)(JNIEnv*, jclass, jlong handle, jboolean away) {
+  peerOf(handle)->driver.dragSetHeldAway(away);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBeginForeign)(JNIEnv*, jclass, jlong handle, jdouble extent, jdouble crossExtent) {
+  peerOf(handle)->driver.dragBeginForeign(extent, crossExtent);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeIsDragForeign)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->driver.isDragForeign();
+}
+
+JNIEXPORT jstring JNICALL SHADOWLIST_KIT_JNI(nativeDragInsertionKey)(JNIEnv* env, jclass, jlong handle) {
+  return env->NewStringUTF(peerOf(handle)->driver.getDragInsertionKey().c_str());
+}
+
+/*
+ * The board's phase and flight stay in the shared DragBoard. The Android picture and weak
+ * list membership never decide a second target or landing state.
+ */
+JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardCreate)(JNIEnv*, jclass) {
+  return reinterpret_cast<jlong>(new DragBoardPeer());
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardDestroy)(JNIEnv*, jclass, jlong handle) {
+  delete reinterpret_cast<DragBoardPeer*>(handle);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardBegin)(JNIEnv* env, jclass, jlong handle, jstring home, jstring key,
+  jdouble x, jdouble y, jdouble centerX, jdouble centerY) {
+  reinterpret_cast<DragBoardPeer*>(handle)->core.begin(readString(env, home), readString(env, key), {x, y}, {centerX, centerY});
+  reinterpret_cast<DragBoardPeer*>(handle)->scroll.begin(x);
+}
+
+JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardScrollDelta)(JNIEnv*, jclass, jlong handle,
+  jdouble finger, jdouble touch, jdouble windowSize, jdouble density, jdouble dtSeconds) {
+  sl::DragAutoScrollConfig config{sl::DRAG_BOARD_SCROLL_ANDROID.edge * density, sl::DRAG_BOARD_SCROLL_ANDROID.maxSpeed * density};
+  return reinterpret_cast<DragBoardPeer*>(handle)->scroll.delta(config, sl::DRAG_BOARD_SCROLL_ARM_ANDROID * density,
+    finger, touch, windowSize, dtSeconds);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardFrame)(JNIEnv* env, jclass, jlong handle, jdouble x, jdouble y,
+  jdouble centerX, jdouble centerY, jstring candidate, jdouble nowMs, jdoubleArray out) {
+  enum BoardFrameSlot { BOARD_FRAME_STEP, BOARD_FRAME_X, BOARD_FRAME_Y, BOARD_FRAME_FLOATING, BOARD_FRAME_HIDE_HELD, BOARD_FRAME_SLOTS };
+  if (env->GetArrayLength(out) < BOARD_FRAME_SLOTS) return;
+  sl::DragBoardFrame frame = reinterpret_cast<DragBoardPeer*>(handle)->core.frame({x, y}, {centerX, centerY}, {readString(env, candidate)}, nowMs);
+  jdouble values[BOARD_FRAME_SLOTS];
+  values[BOARD_FRAME_STEP] = static_cast<int>(frame.step.kind);
+  values[BOARD_FRAME_X] = frame.overlayCenter.x;
+  values[BOARD_FRAME_Y] = frame.overlayCenter.y;
+  values[BOARD_FRAME_FLOATING] = frame.floating;
+  values[BOARD_FRAME_HIDE_HELD] = frame.hideHeld;
+  env->SetDoubleArrayRegion(out, 0, BOARD_FRAME_SLOTS, values);
+}
+
+JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardRelease)(JNIEnv* env, jclass, jlong handle, jint index, jstring key,
+  jint count, jdouble nowMs, jdoubleArray out) {
+  enum BoardReleaseSlot { BOARD_RELEASE_INDEX, BOARD_RELEASE_SLOTS };
+  sl::DragBoardRelease released = reinterpret_cast<DragBoardPeer*>(handle)->core.release(indexFromJint(index), readString(env, key), indexFromJint(count), nowMs);
+  jdouble values[BOARD_RELEASE_SLOTS];
+  values[BOARD_RELEASE_INDEX] = static_cast<double>(jintFromIndex(released.index));
+  if (env->GetArrayLength(out) >= BOARD_RELEASE_SLOTS) env->SetDoubleArrayRegion(out, 0, BOARD_RELEASE_SLOTS, values);
+  return static_cast<jint>(released.kind);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardEnd)(JNIEnv*, jclass, jlong handle) {
+  reinterpret_cast<DragBoardPeer*>(handle)->core.endFlight();
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardLeave)(JNIEnv* env, jclass, jlong handle, jstring listId) {
+  reinterpret_cast<DragBoardPeer*>(handle)->core.leave(readString(env, listId));
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardReturnOffset)(JNIEnv* env, jclass, jlong handle, jdouble x, jdouble y,
+  jdouble nowMs, jdoubleArray out) {
+  enum PointSlot { POINT_X, POINT_Y, POINT_SLOTS };
+  sl::DragPoint offset = reinterpret_cast<DragBoardPeer*>(handle)->core.returnOffset({x, y}, nowMs);
+  jdouble values[POINT_SLOTS];
+  values[POINT_X] = offset.x;
+  values[POINT_Y] = offset.y;
+  if (env->GetArrayLength(out) >= POINT_SLOTS) env->SetDoubleArrayRegion(out, 0, POINT_SLOTS, values);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardLanded)(JNIEnv* env, jclass, jlong handle, jstring listId, jboolean holdsKey) {
+  return reinterpret_cast<DragBoardPeer*>(handle)->core.landed(readString(env, listId), holdsKey);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardBeginOverlaySettle)(JNIEnv*, jclass, jlong handle) {
+  return reinterpret_cast<DragBoardPeer*>(handle)->core.beginOverlaySettle();
+}
+
+JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardFlight)(JNIEnv*, jclass, jlong handle) {
+  return static_cast<jlong>(reinterpret_cast<DragBoardPeer*>(handle)->core.getFlight());
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardIsIdle)(JNIEnv*, jclass, jlong handle) {
+  return reinterpret_cast<DragBoardPeer*>(handle)->core.getPhase() == sl::DragBoardPhase::Idle;
 }
 
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragOriginIndex)(JNIEnv*, jclass, jlong handle) {
@@ -906,6 +1023,8 @@ JNIEXPORT jdoubleArray JNICALL SHADOWLIST_KIT_JNI(nativeConstants)(JNIEnv* env, 
   values[CONSTANT_SWIPE_ACTION_COLOR_DESTRUCTIVE] = sl::SWIPE_ACTION_COLOR_DESTRUCTIVE;
   values[CONSTANT_DROP_NONE] = static_cast<double>(sl::DropHint::Kind::None);
   values[CONSTANT_DROP_MOVED] = static_cast<double>(sl::DropHint::Kind::Moved);
+  values[CONSTANT_DROP_REMOVED] = static_cast<double>(sl::DropHint::Kind::Removed);
+  values[CONSTANT_DROP_INSERTED] = static_cast<double>(sl::DropHint::Kind::Inserted);
   jdoubleArray array = env->NewDoubleArray(CONSTANT_SLOTS);
   if (array != nullptr) {
     env->SetDoubleArrayRegion(array, 0, CONSTANT_SLOTS, values);

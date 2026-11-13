@@ -163,6 +163,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
     fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int) {}
 
     /*
+     * A drop into another list of the same board. Apply both data sources before returning.
+     * destinationKey names the item to insert before, empty to append; the index is a fallback.
+     */
+    fun moveItemToList(listView: ShadowListKitListView, sourceIndex: Int, destinationListId: String, destinationIndex: Int, destinationKey: String) {}
+
+    /*
      * The scroll position came within startReachedThreshold or endReachedThreshold of an edge.
      */
     fun didReachStart(listView: ShadowListKitListView) {}
@@ -449,7 +455,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * never attaches leaves its core to ShadowListKitCore's reclaimer, which frees the peer once the list is
    * collected.
    */
-  private var coreOrNull: ShadowListKitCore? = null
+  internal var coreOrNull: ShadowListKitCore? = null
+    private set
   internal val core: ShadowListKitCore
     get() = coreOrNull ?: createCore()
 
@@ -475,7 +482,25 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal val state = ShadowListKitListState()
   internal val changes = ShadowListKitChangeAnimator(this)
   internal val gesture = ShadowListKitScrollGesture(this)
-  private val drag = ShadowListKitDragController(this)
+  internal val drag = ShadowListKitDragController(this)
+  internal var dragBoard: ShadowListKitDragBoard? = null
+  var dragBoardId: String? = null
+    set(value) {
+      if (field == value) return
+      drag.end(false)
+      dragBoard?.leave(this)
+      field = value
+      ShadowListKitDragBoard.join(this)
+    }
+  var dragListId: String? = null
+    set(value) {
+      if (field == value) return
+      drag.end(false)
+      dragBoard?.leave(this)
+      field = value
+      ShadowListKitDragBoard.join(this)
+    }
+  var dragListLabel: String? = null
   internal val swipe = ShadowListKitSwipeController(this)
   internal val refresh = ShadowListKitRefreshIndicator(this)
   private val sectionIndex = ShadowListKitSectionIndex(this)
@@ -653,6 +678,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     gesture.reset()
     gesture.releaseTracker()
     drag.reset()
+    dragBoard?.leave(this)
     swipe.reset()
     swipe.releaseTracker()
     refresh.reset()
@@ -660,6 +686,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
     destroyCore()
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) contentNode?.discardDisplayList()
     contentStale = true
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    ShadowListKitDragBoard.join(this)
   }
 
   // region Axis

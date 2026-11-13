@@ -50,6 +50,15 @@ typedef struct {
 } ShadowListUtilsFeedImageFrame;
 
 /*
+ * A board's columns in points, from the shared layout helper.
+ */
+typedef struct {
+  CGFloat columnWidth;
+  CGFloat sidePadding;
+  CGFloat snapInterval;
+} ShadowListUtilsBoardColumnLayout;
+
+/*
  * What of a chat message changes its row's height. The fields are the core's ChatMessageShape.
  */
 typedef struct {
@@ -133,6 +142,9 @@ NS_SWIFT_SENDABLE
 + (NSString *)sectionOtherTitle;
 + (ShadowListUtilsPollTally)pollTallyForVotes:(NSArray<NSNumber *> *)votes;
 + (NSInteger)pollPercentForVotes:(double)votes totalVotes:(double)totalVotes;
+
++ (ShadowListUtilsBoardColumnLayout)boardColumnLayoutForWidth:(CGFloat)boardWidth columnWidth:(CGFloat)columnWidth sidePadding:(CGFloat)sidePadding;
++ (CGFloat)boardColumnHeightForHeights:(NSArray<NSNumber *> *)heights minimum:(CGFloat)minimum maximum:(CGFloat)maximum;
 
 @end
 

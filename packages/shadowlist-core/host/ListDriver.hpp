@@ -461,6 +461,16 @@ public:
   bool isDragging() const { return !heldKey_.empty(); }
 
   /*
+   * The home row can hover another list, which opens a foreign session there. Both use the
+   * same shared drag and insertion math as a normal reorder; dragEnd ends either session.
+   */
+  void dragSetHeldAway(bool away) { drag_.setHeldAway(away); }
+  bool isDragHeldAway() const { return drag_.isHeldAway(); }
+  void dragBeginForeign(double extent, double crossExtent);
+  void dragPlaceForeignCenter(double center, double crossCenter) { drag_.placeForeignCenter(center, crossCenter); }
+  bool isDragForeign() const { return drag_.isForeign(); }
+
+  /*
    * The key change a drop's synchronous data update is expected to make. The next pass sends
    * it once. An empty hint clears it and any unused hint in the core when that update ends.
    */
@@ -486,6 +496,7 @@ public:
   DragOffset dragShiftFor(std::size_t index) const { return drag_.offsetFor(index); }
   std::size_t getDragOriginIndex() const { return drag_.getOriginIndex(); }
   std::size_t getDragInsertionIndex() const { return drag_.getInsertionIndex(); }
+  const std::string& getDragInsertionKey() const { return drag_.getInsertionKey(); }
 
 private:
   void installCallbacks();

@@ -154,6 +154,16 @@ internal object ShadowListUtilsCore {
   fun pollTally(votes: DoubleArray, out: DoubleArray) = nativePollTally(votes, out)
   fun pollPercent(votes: Double, totalVotes: Double): Int = nativePollPercent(votes, totalVotes)
 
+  const val BOARD_COLUMN_WIDTH = 0
+  const val BOARD_SIDE_PADDING = 1
+  const val BOARD_SNAP_INTERVAL = 2
+  const val BOARD_LAYOUT_SLOTS = 3
+
+  fun boardColumnLayout(boardWidth: Double, columnWidth: Double, sidePadding: Double, out: DoubleArray) = nativeBoardColumnLayout(boardWidth, columnWidth, sidePadding, out)
+  fun boardColumnHeight(heights: DoubleArray, minimum: Double, maximum: Double): Double = nativeBoardColumnHeight(heights, minimum, maximum)
+
+  @JvmStatic private external fun nativeBoardColumnLayout(boardWidth: Double, columnWidth: Double, sidePadding: Double, out: DoubleArray)
+  @JvmStatic private external fun nativeBoardColumnHeight(heights: DoubleArray, minimum: Double, maximum: Double): Double
   @JvmStatic private external fun nativePollTally(votes: DoubleArray, out: DoubleArray)
   @JvmStatic private external fun nativePollPercent(votes: Double, totalVotes: Double): Int
   @JvmStatic private external fun nativeConstants(): DoubleArray

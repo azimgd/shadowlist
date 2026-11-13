@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <shadowlist-core/utils/Avatar.hpp>
+#include <shadowlist-core/utils/BoardColumnLayout.hpp>
 #include <shadowlist-core/utils/ChatLayout.hpp>
 #include <shadowlist-core/utils/ContactSection.hpp>
 #include <shadowlist-core/utils/FeedImageFrame.hpp>
@@ -282,5 +283,25 @@ JNIEXPORT void JNICALL SHADOWLIST_UTILS_JNI(nativePollTally)(JNIEnv* env, jclass
 JNIEXPORT jint JNICALL SHADOWLIST_UTILS_JNI(nativePollPercent)(JNIEnv*, jclass, jdouble votes, jdouble totalVotes) {
   return static_cast<jint>(sl::pollPercent(votes, totalVotes));
 }
+
+JNIEXPORT void JNICALL SHADOWLIST_UTILS_JNI(nativeBoardColumnLayout)(
+  JNIEnv* env, jclass, jdouble boardWidth, jdouble columnWidth, jdouble sidePadding, jdoubleArray out) {
+  enum BoardLayoutSlot { BOARD_COLUMN_WIDTH = 0, BOARD_SIDE_PADDING, BOARD_SNAP_INTERVAL, BOARD_LAYOUT_SLOTS };
+  auto layout = sl::boardColumnLayout(boardWidth, columnWidth, sidePadding);
+  jdouble values[BOARD_LAYOUT_SLOTS];
+  values[BOARD_COLUMN_WIDTH] = layout.columnWidth;
+  values[BOARD_SIDE_PADDING] = layout.sidePadding;
+  values[BOARD_SNAP_INTERVAL] = layout.snapInterval;
+  env->SetDoubleArrayRegion(out, 0, BOARD_LAYOUT_SLOTS, values);
+}
+
+JNIEXPORT jdouble JNICALL SHADOWLIST_UTILS_JNI(nativeBoardColumnHeight)(
+  JNIEnv* env, jclass, jdoubleArray heights, jdouble minimum, jdouble maximum) {
+  auto count = env->GetArrayLength(heights);
+  std::vector<double> values(count);
+  env->GetDoubleArrayRegion(heights, 0, count, values.data());
+  return sl::boardColumnHeight(values, minimum, maximum);
+}
+
 
 }

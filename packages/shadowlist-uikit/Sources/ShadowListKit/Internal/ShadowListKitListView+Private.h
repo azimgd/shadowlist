@@ -26,6 +26,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class ShadowListKitChangeAnimator;
+@class ShadowListKitDragBoard;
 @class ShadowListKitRowAccessibilityElement;
 @class ShadowListKitSwipeActionsView;
 #if !TARGET_OS_OSX
@@ -50,6 +51,10 @@ extern const char ShadowListKitListViewActionsLink;
 extern const char ShadowListKitListViewCommandsLink;
 extern const char ShadowListKitListViewDataLink;
 extern const char ShadowListKitListViewDragLink;
+#if !TARGET_OS_OSX
+extern const char ShadowListKitListViewDragBoardLink;
+extern const char ShadowListKitListViewDragBoardAccessibilityLink;
+#endif
 extern const char ShadowListKitListViewPassesLink;
 #if TARGET_OS_OSX
 extern const char ShadowListKitListViewScrollingLink;
@@ -243,6 +248,12 @@ struct ShadowListKitPassGeometry {
   CGPoint _dragTouch;
   CGPoint _dragStart;
   CADisplayLink *_dragLink;
+#if !TARGET_OS_OSX
+  ShadowListKitDragBoard *_dragBoard;
+  NSString *_dragBoardId;
+  NSString *_dragListId;
+  NSString *_dragListLabel;
+#endif
 
   ShadowListKitListCell *_swipeCell;
   ShadowListKitSwipeActionsView *_swipeActionsView;
@@ -598,6 +609,29 @@ struct ShadowListKitPassGeometry {
 - (void)adoptHeldCell:(ShadowListKitListCell *)cell;
 - (void)enableDragPress:(BOOL)enabled;
 - (void)applyDragShiftsAnimated:(BOOL)animated;
+- (std::vector<std::size_t>)mountedIndices;
+
+@end
+
+@interface ShadowListKitListView (DragBoard)
+
+- (void)beginDragBoard;
+- (void)noteDragBoardFinger:(CGPoint)location;
+- (void)refreshDragBoardTouch;
+- (BOOL)updateDragBoard;
+- (BOOL)finishDragBoard:(BOOL)commit;
+- (BOOL)scrollDragBoard:(CADisplayLink *)link;
+- (CGPoint)dragBoardReturnOffsetForCenter:(CGPoint)center;
+- (void)leaveDragBoard;
+- (void)joinDragBoard;
+- (BOOL)moveDragBoardItemAtIndex:(NSInteger)source toList:(ShadowListKitListView *)target destinationIndex:(NSInteger)index destinationKey:(NSString *)key;
+
+@end
+
+@interface ShadowListKitListView (DragBoardAccessibility)
+
+- (NSArray<ShadowListKitListView *> *)dragBoardMoveTargets;
+- (NSArray<UIAccessibilityCustomAction *> *)dragBoardAccessibilityActionsForCell:(ShadowListKitListCell *)cell;
 
 @end
 

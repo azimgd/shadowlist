@@ -261,6 +261,8 @@ open class ShadowListUtilsList: ShadowListKitListView {
    * What a screen reader can do with an item besides pressing it: the template's closures that
    * are otherwise behind a gesture.
    */
+  func moveItem(from sourceIndex: Int, toListId: String, destinationIndex: Int, destinationKey: String) {}
+
   func accessibilityActions(at index: Int) -> [UIAccessibilityCustomAction] {
     []
   }

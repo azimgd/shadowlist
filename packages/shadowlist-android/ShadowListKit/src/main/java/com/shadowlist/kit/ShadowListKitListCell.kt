@@ -2,9 +2,12 @@ package com.shadowlist.kit
 
 import android.content.Context
 import android.os.Build
+import android.os.Bundle
 import android.view.ViewPropertyAnimator
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
+import androidx.core.view.ViewCompat
+import java.lang.ref.WeakReference
 
 /*
  * The view that shows an item. Subclasses lay out their children by hand in onMeasure and onLayout for speed,
@@ -17,6 +20,9 @@ import android.widget.FrameLayout
  * state list drawables follow.
  */
 open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?) : FrameLayout(context) {
+  private var boardActionIds = emptyList<Int>()
+  private var boardActionLabels = emptyList<String>()
+  private var boardActionTargets = emptyList<WeakReference<ShadowListKitListView>>()
   companion object {
     const val NO_INDEX = -1
   }
@@ -94,6 +100,10 @@ open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?)
   override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
     super.onInitializeAccessibilityNodeInfo(info)
     val list = parent as? ShadowListKitListView ?: return
+    refreshBoardActions(list)
+    for (at in boardActionIds.indices) {
+      info.addAction(AccessibilityNodeInfo.AccessibilityAction(boardActionIds[at], boardActionLabels[at]))
+    }
     if (index < 0) {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.isHeading = true
       return
@@ -106,5 +116,45 @@ open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?)
     } else {
       AccessibilityNodeInfo.CollectionItemInfo.obtain(line, 1, track, 1, false, isSelected)
     }
+  }
+
+  /*
+   * AndroidX allocates the custom action ids, which compose with a row's own actions. Refresh
+   * only when membership or labels change, and read the current item again on invocation.
+   */
+  private fun refreshBoardActions(list: ShadowListKitListView) {
+    val targets = if (index >= 0 && list.delegate?.canMoveItem(list, index) != false) list.dragBoard?.moveTargets(list).orEmpty() else emptyList()
+    val labels = targets.map { context.getString(R.string.shadowlist_move_to, it.dragListLabel?.takeIf { label -> label.isNotEmpty() } ?: it.dragListId) }
+    if (labels == boardActionLabels && targets.size == boardActionTargets.size && targets.indices.all { targets[it] === boardActionTargets[it].get() }) return
+    boardActionIds.forEach { ViewCompat.removeAccessibilityAction(this, it) }
+    val ids = ArrayList<Int>()
+    val keptLabels = ArrayList<String>()
+    val keptTargets = ArrayList<WeakReference<ShadowListKitListView>>()
+    for (at in targets.indices) {
+      val destination = WeakReference(targets[at])
+      val id = ViewCompat.addAccessibilityAction(this, labels[at]) { _, _ ->
+        val source = parent as? ShadowListKitListView
+        val target = destination.get()
+        source != null && target != null && index >= 0 && source.dragBoard?.performAccessibilityMove(source, index, target) == true
+      }
+      if (id != NO_ID) {
+        ids.add(id)
+        keptLabels.add(labels[at])
+        keptTargets.add(destination)
+      }
+    }
+    boardActionIds = ids
+    boardActionLabels = keptLabels
+    boardActionTargets = keptTargets
+  }
+
+  override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
+    val at = boardActionIds.indexOf(action)
+    if (at >= 0) {
+      val source = parent as? ShadowListKitListView ?: return false
+      val destination = boardActionTargets[at].get() ?: return false
+      return index >= 0 && source.dragBoard?.performAccessibilityMove(source, index, destination) == true
+    }
+    return super.performAccessibilityAction(action, arguments)
   }
 }
