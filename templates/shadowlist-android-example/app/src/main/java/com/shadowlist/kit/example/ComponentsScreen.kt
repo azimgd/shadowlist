@@ -89,6 +89,19 @@ class ComponentsScreen(private val context: Context) : Screen {
       addView(more, LinearLayout.LayoutParams(40.dp, 40.dp).apply { marginStart = 12.dp })
     }
     append(buttons); append(add)
+    val direct = ShadowListUtilsChip(context, "Direct routes", theme).apply { isSelected = true; maxFontSizeMultiplier = 1.5f }
+    val seat = ShadowListUtilsChip(context, "Seat 12A", theme).apply {
+      variant = ShadowListUtilsChipVariant.PLAIN; size = ShadowListUtilsChipSize.COMPACT; mono = true
+    }
+    val train = ShadowListUtilsChoiceChip(context, "Train", theme.colors.fill, true, theme)
+    val flight = ShadowListUtilsChoiceChip(context, "Flight", theme.colors.accentSoft, false, theme)
+    val chips = ShadowListUtilsChipRow(context, listOf(direct, seat, train, flight), theme)
+    direct.onPress = { direct.isSelected = !direct.isSelected; status.text = if (direct.isSelected) "Direct routes selected" else "Direct routes cleared" }
+    direct.onClear = { chips.children = chips.children.filter { it !== direct }; status.text = "Direct routes removed" }
+    seat.onClear = { chips.children = chips.children.filter { it !== seat }; status.text = "Seat preference removed" }
+    train.onPress = { train.isSelected = true; flight.isSelected = false; status.text = "Train selected" }
+    flight.onPress = { train.isSelected = false; flight.isSelected = true; status.text = "Flight selected" }
+    append(chips)
     val latest = ShadowListUtilsAssistantScrollButton(context, theme).apply {
       visible = true
       onPress = { scroll.smoothScrollTo(0, 0); status.text = "Returned to the first component" }

@@ -162,6 +162,24 @@ internal object ShadowListUtilsCore {
   const val BOARD_SNAP_INTERVAL = 2
   const val BOARD_LAYOUT_SLOTS = 3
 
+  /* Slots mirrored by WrapSizeSlot/WrapFrameSlot in the JNI; the result begins with height. */
+  const val WRAP_SIZE_WIDTH = 0
+  const val WRAP_SIZE_HEIGHT = 1
+  const val WRAP_SIZE_SLOTS = 2
+  const val WRAP_FRAME_X = 0
+  const val WRAP_FRAME_Y = 1
+  const val WRAP_FRAME_WIDTH = 2
+  const val WRAP_FRAME_HEIGHT = 3
+  const val WRAP_FRAME_SLOTS = 4
+  const val WRAP_OUT_HEIGHT = 0
+  const val WRAP_OUT_FRAMES = 1
+
+  fun wrapLayout(width: Double, sizes: DoubleArray, gap: Double): DoubleArray {
+    require(sizes.size % WRAP_SIZE_SLOTS == 0)
+    return nativeWrapLayout(width, sizes, gap)
+  }
+  @JvmStatic private external fun nativeWrapLayout(width: Double, sizes: DoubleArray, gap: Double): DoubleArray
+
   fun boardColumnLayout(boardWidth: Double, columnWidth: Double, sidePadding: Double, out: DoubleArray) = nativeBoardColumnLayout(boardWidth, columnWidth, sidePadding, out)
   fun boardColumnHeight(heights: DoubleArray, minimum: Double, maximum: Double): Double = nativeBoardColumnHeight(heights, minimum, maximum)
 

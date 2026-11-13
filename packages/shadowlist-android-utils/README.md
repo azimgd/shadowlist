@@ -466,3 +466,26 @@ badge and re-enables Continue, and More routes reports its application callback.
 scroll button is centered at its intended 36dp size.
 
 Android expanded hit targets preserve existing parent delegates and each control’s native accessibility bounds. On API 29 and newer, delegate metadata refers to the mounted control; an opaque existing parent delegate retains its own metadata. Earlier API levels keep native touch delegation without the newer metadata/hover APIs.
+
+### Chips and wrapping choices
+
+`ShadowListUtilsChip(context, label)` has independent optional `onPress` and `onClear`
+actions. An absent press callback keeps normal styling and button accessibility; it does not
+disable clear. Selection uses the inherited Android `isSelected` / `setSelected` state
+(the counterpart of Swift `selected`), defaults to false and updates paint/accessibility
+without invoking either callback. `variant` is `TINTED` (default) or `PLAIN`, `size` is
+`REGULAR` (default, 34dp) or `COMPACT` (28dp), and `mono` defaults to false. Labels stay on
+one line and intrinsic width is capped at 240dp. `maxFontSizeMultiplier` caps only the label;
+null or a value below 1 leaves native text scaling uncapped. `accessibilityLabel` defaults
+to the label and `clearAccessibilityLabel` to `Clear <label>`. Clear is a separate accessible
+button with an 8dp expanded hit area, bounded by its parent.
+
+`ShadowListUtilsChoiceChip(context, label, tint, selected)` uses the supplied color, a selected
+ring and the existing 14dp check icon. Its inherited `isSelected` remains controlled; `onPress`
+requests an application update. No extra disabled, clear or variant props are introduced.
+`ShadowListUtilsChipRow(context, children)` measures native children and passes their sizes to
+the shared C++ `wrapLayout`, using `theme.spacing.sm` between children and lines and the existing
+native RTL frame mirroring. Child identity and order remain application-owned.
+
+The Components route demonstrates toggling and removing Direct routes, clearing a compact
+monospaced seat preference without a primary press handler, and controlled Train/Flight choices.

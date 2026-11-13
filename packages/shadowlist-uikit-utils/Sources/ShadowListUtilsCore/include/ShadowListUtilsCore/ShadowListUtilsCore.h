@@ -4,6 +4,7 @@
 #import <Foundation/Foundation.h>
 #import "ShadowListUtilsMarkdownBlock.h"
 #import "ShadowListUtilsAssistantStep.h"
+#import "ShadowListUtilsWrapLayout.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

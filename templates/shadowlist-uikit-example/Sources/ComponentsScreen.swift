@@ -106,6 +106,30 @@ final class ComponentsScreen: UIViewController {
     buttons.axis = .horizontal; buttons.alignment = .center; buttons.spacing = theme.spacing.md
     NSLayoutConstraint.activate([badge.widthAnchor.constraint(equalToConstant: 22), badge.heightAnchor.constraint(equalToConstant: 22), more.widthAnchor.constraint(equalToConstant: 40), more.heightAnchor.constraint(equalToConstant: 40)])
     stack.addArrangedSubview(buttons); stack.addArrangedSubview(add)
+    let direct = ShadowListUtilsChip(label: "Direct routes", theme: theme)
+    direct.selected = true; direct.maxFontSizeMultiplier = 1.5
+    let seat = ShadowListUtilsChip(label: "Seat 12A", theme: theme)
+    seat.variant = .plain; seat.size = .compact; seat.mono = true
+    let train = ShadowListUtilsChoiceChip(label: "Train", tint: theme.colors.fill, selected: true, theme: theme)
+    let flight = ShadowListUtilsChoiceChip(label: "Flight", tint: theme.colors.accentSoft, selected: false, theme: theme)
+    let chips = ShadowListUtilsChipRow(children: [direct, seat, train, flight], theme: theme)
+    direct.onPress = { [weak self, weak direct] in
+      guard let direct else { return }
+      direct.selected.toggle(); self?.status.text = direct.selected ? "Direct routes selected" : "Direct routes cleared"
+    }
+    direct.onClear = { [weak self, weak chips, weak direct] in
+      chips?.children.removeAll { $0 === direct }; self?.status.text = "Direct routes removed"
+    }
+    seat.onClear = { [weak self, weak chips, weak seat] in
+      chips?.children.removeAll { $0 === seat }; self?.status.text = "Seat preference removed"
+    }
+    train.onPress = { [weak self, weak train, weak flight] in
+      train?.selected = true; flight?.selected = false; self?.status.text = "Train selected"
+    }
+    flight.onPress = { [weak self, weak train, weak flight] in
+      train?.selected = false; flight?.selected = true; self?.status.text = "Flight selected"
+    }
+    stack.addArrangedSubview(chips)
     latest.visible = true
     latest.onPress = { [weak self] in self?.scroll.setContentOffset(.zero, animated: true); self?.status.text = "Returned to the first component" }
     let latestContainer = UIView()

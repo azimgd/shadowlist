@@ -471,3 +471,25 @@ uses native pressed state, without a second animation or gesture engine.
 Components uses matching light-theme data on both platforms: Continue disables itself, Add route
 increments the badge and re-enables Continue, and More routes reports its application callback.
 The standalone scroll button is centered at its intended 36-point size.
+
+### Chips and wrapping choices
+
+`ShadowListUtilsChip(label:)` has independent optional `onPress` and `onClear` actions.
+An absent press callback keeps normal styling and button accessibility; it does not disable
+the clear action. `selected` is controlled, defaults to false and never changes as a side
+effect of either callback. `variant` is `.tinted` (default) or `.plain`, `size` is `.regular`
+(default, 34 high) or `.compact` (28 high), and `mono` defaults to false. Labels stay on one
+line and intrinsic width is capped at 240. `maxFontSizeMultiplier` caps only the label; nil or a
+value below 1 leaves native text scaling uncapped. `accessibilityLabel` defaults to the label,
+and `clearAccessibilityLabel` defaults to `Clear <label>`. Clear is a separate accessible
+button with an 8-point expanded hit area, bounded by its parent.
+
+`ShadowListUtilsChoiceChip(label:tint:selected:)` uses the supplied tint, a selected ring
+and the existing 14-point check icon. `onPress` requests an application update; it does not
+change selection. No extra disabled, clear or variant props are introduced.
+`ShadowListUtilsChipRow(children:)` measures native children and passes their sizes to the
+shared C++ `wrapLayout`, using `theme.spacing.sm` between children and lines and the existing
+native RTL frame mirroring. Child identity and order remain application-owned.
+
+The Components route demonstrates toggling and removing Direct routes, clearing a compact
+monospaced seat preference without a primary press handler, and controlled Train/Flight choices.

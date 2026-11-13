@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,7 @@
 #include <shadowlist-core/utils/MarkdownDocument.hpp>
 #include <shadowlist-core/utils/RelativeTime.hpp>
 #include <shadowlist-core/utils/Text.hpp>
+#include <shadowlist-core/utils/WrapLayout.hpp>
 
 namespace {
 
@@ -290,6 +292,45 @@ JNIEXPORT void JNICALL SHADOWLIST_UTILS_JNI(nativePollTally)(JNIEnv* env, jclass
 
 JNIEXPORT jint JNICALL SHADOWLIST_UTILS_JNI(nativePollPercent)(JNIEnv*, jclass, jdouble votes, jdouble totalVotes) {
   return static_cast<jint>(sl::pollPercent(votes, totalVotes));
+}
+
+JNIEXPORT jdoubleArray JNICALL SHADOWLIST_UTILS_JNI(nativeWrapLayout)(
+  JNIEnv* env, jclass, jdouble width, jdoubleArray sizes, jdouble gap) {
+  enum WrapSizeSlot { WRAP_SIZE_WIDTH, WRAP_SIZE_HEIGHT, WRAP_SIZE_SLOTS };
+  enum WrapFrameSlot { WRAP_FRAME_X, WRAP_FRAME_Y, WRAP_FRAME_WIDTH, WRAP_FRAME_HEIGHT, WRAP_FRAME_SLOTS };
+  enum WrapOutSlot { WRAP_OUT_HEIGHT, WRAP_OUT_FRAMES };
+  jsize count = env->GetArrayLength(sizes);
+  if (count % WRAP_SIZE_SLOTS != 0) {
+    env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"), "Expected width/height pairs");
+    return nullptr;
+  }
+  std::vector<double> values(static_cast<std::size_t>(count));
+  if (count > 0) env->GetDoubleArrayRegion(sizes, 0, count, values.data());
+  if (env->ExceptionCheck()) return nullptr;
+  std::vector<sl::Size> measured;
+  measured.reserve(values.size() / WRAP_SIZE_SLOTS);
+  for (std::size_t index = 0; index < values.size(); index += WRAP_SIZE_SLOTS) {
+    measured.push_back({values[index + WRAP_SIZE_WIDTH], values[index + WRAP_SIZE_HEIGHT]});
+  }
+  auto layout = sl::wrapLayout(width, measured, gap);
+  if (layout.frames.size() > (std::numeric_limits<jsize>::max() - WRAP_OUT_FRAMES) / WRAP_FRAME_SLOTS) {
+    env->ThrowNew(env->FindClass("java/lang/IllegalArgumentException"), "Too many measured children");
+    return nullptr;
+  }
+  values.assign(WRAP_OUT_FRAMES + layout.frames.size() * WRAP_FRAME_SLOTS, 0.0);
+  values[WRAP_OUT_HEIGHT] = layout.height;
+  for (std::size_t index = 0; index < layout.frames.size(); ++index) {
+    const auto& frame = layout.frames[index];
+    std::size_t offset = WRAP_OUT_FRAMES + index * WRAP_FRAME_SLOTS;
+    values[offset + WRAP_FRAME_X] = frame.x;
+    values[offset + WRAP_FRAME_Y] = frame.y;
+    values[offset + WRAP_FRAME_WIDTH] = frame.width;
+    values[offset + WRAP_FRAME_HEIGHT] = frame.height;
+  }
+  jdoubleArray result = env->NewDoubleArray(static_cast<jsize>(values.size()));
+  if (!result) return nullptr;
+  env->SetDoubleArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
+  return result;
 }
 
 JNIEXPORT void JNICALL SHADOWLIST_UTILS_JNI(nativeBoardColumnLayout)(
