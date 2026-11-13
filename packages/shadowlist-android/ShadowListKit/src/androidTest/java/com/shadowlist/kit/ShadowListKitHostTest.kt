@@ -934,6 +934,119 @@ class ShadowListKitHostTest {
   }
 
   @Test
+  fun auto_hide_bars_follow_user_moves_and_rebase_commands_without_a_core_pass() = onMain {
+    val list = ShadowListKitListView(context)
+    val header = template(120)
+    val footer = template(100)
+    list.headerView = header
+    list.footerView = footer
+    list.autoHideHeader = true
+    list.autoHideFooter = true
+    makeSizedList(SizedRows(100, 100.0), list)
+    list.scrollDriven = true
+    list.scrollTo(0, 1050)
+    // As in the driven-host baseline, the pass after a jump publishes its reusable band.
+    list.adjustOffsetBy(1.0)
+    assertEquals(0, header.top - list.scrollY)
+    val passes = list.corePassCount
+    list.writeOffset(1081, byUser = true)
+    list.layoutPass()
+    assertEquals(-30, header.top - list.scrollY)
+    assertEquals(HEIGHT + 30, footer.bottom - list.scrollY)
+    assertEquals(passes, list.corePassCount)
+    // A no-op layout cannot accumulate the same user move a second time.
+    list.layoutPass()
+    assertEquals(-30, header.top - list.scrollY)
+    list.scrollTo(0, 1500)
+    assertEquals(-30, header.top - list.scrollY)
+    list.writeOffset(1480, byUser = true)
+    list.layoutPass()
+    assertEquals(-10, header.top - list.scrollY)
+    assertEquals(HEIGHT + 10, footer.bottom - list.scrollY)
+    // A no-op user write must not mark a later command as user movement.
+    list.writeOffset(1480, byUser = true)
+    list.scrollTo(0, 1700)
+    assertEquals(-10, header.top - list.scrollY)
+  }
+
+  @Test
+  fun a_user_move_then_a_correction_inside_one_mount_pass_accumulates_only_the_user_move() = onMain {
+    val list = ShadowListKitListView(context)
+    val header = template(120)
+    list.headerView = header
+    list.autoHideHeader = true
+    val rows = SizedRows(100, 100.0)
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    var armed = false
+    list.dataSource = object : ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+      override fun numberOfItems(listView: ShadowListKitListView) = rows.keys.size
+      override fun keyForItem(listView: ShadowListKitListView, index: Int) = rows.keys[index]
+      override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int) = 100
+      override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell {
+        if (armed) {
+          armed = false
+          listView.writeOffset(4030, byUser = true)
+          listView.writeOffset(4500)
+        }
+        return listView.dequeueReusableCell("row")
+      }
+    }
+    list.reloadData()
+    layOut(list)
+    list.scrollTo(0, 1000)
+    armed = true
+    // New mounted cells invoke the callback while layoutPass suppresses recursive scroll passes.
+    list.scrollTo(0, 4000)
+    assertFalse(armed)
+    list.layoutPass()
+    assertEquals(-30, header.top - list.scrollY)
+  }
+
+  @Test
+  fun auto_hide_state_survives_flag_and_template_changes_and_resets_near_the_edge() = onMain {
+    val list = ShadowListKitListView(context)
+    var header = template(120)
+    list.headerView = header
+    list.autoHideHeader = true
+    makeSizedList(SizedRows(100, 100.0), list)
+    list.scrollTo(0, 1000)
+    list.writeOffset(1040, byUser = true)
+    list.layoutPass()
+    assertEquals(-40, header.top - list.scrollY)
+    list.autoHideHeader = false
+    layOut(list)
+    assertEquals(0, header.top)
+    list.autoHideHeader = true
+    layOut(list)
+    assertEquals(-40, header.top - list.scrollY)
+    list.headerView = null
+    layOut(list)
+    header = template(120)
+    list.headerView = header
+    layOut(list)
+    assertEquals(-40, header.top - list.scrollY)
+    list.scrollTo(0, 40)
+    assertEquals(0, header.top - list.scrollY)
+  }
+
+  @Test
+  fun horizontal_auto_hide_uses_the_scroll_axis_in_both_layout_directions() = onMain {
+    for (inverted in listOf(false, true)) {
+      val list = ShadowListKitListView(context)
+      list.horizontal = true
+      list.inverted = inverted
+      val header = View(context).apply { minimumWidth = 120 }
+      list.headerView = header
+      list.autoHideHeader = true
+      makeSizedList(SizedRows(100, 100.0), list)
+      list.scrollTo(1000, 0)
+      list.writeOffset(1020, byUser = true)
+      list.layoutPass()
+      assertEquals(-20, header.left - list.scrollX)
+    }
+  }
+
+  @Test
   fun the_footer_pushes_a_pinned_header_off_and_a_pinned_footer_stays_under_the_header() = onMain {
     val list = ShadowListKitListView(context)
     val header = template(120)

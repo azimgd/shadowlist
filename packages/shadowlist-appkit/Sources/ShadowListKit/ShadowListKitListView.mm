@@ -268,6 +268,7 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
  */
 - (void)writeOffset:(double)offset byUser:(BOOL)byUser
 {
+  [self updateStickyOffset:offset byUser:byUser];
   _previousOffset = offset;
   if (byUser) {
     _userScrolled = YES;
@@ -617,6 +618,28 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   self.needsLayout = YES;
 }
 
+- (BOOL)autoHideHeader
+{
+  return _autoHideHeader;
+}
+
+- (void)setAutoHideHeader:(BOOL)autoHideHeader
+{
+  _autoHideHeader = autoHideHeader;
+  self.needsLayout = YES;
+}
+
+- (BOOL)autoHideFooter
+{
+  return _autoHideFooter;
+}
+
+- (void)setAutoHideFooter:(BOOL)autoHideFooter
+{
+  _autoHideFooter = autoHideFooter;
+  self.needsLayout = YES;
+}
+
 - (NSView *)emptyView
 {
   return _emptyView;
@@ -856,7 +879,7 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   if (!_scrollDriven || _needsFrame || self.needsLayout || _windowAlong <= 0 || _windowCross <= 0) {
     return NO;
   }
-  if (_driver.hasSticky() || [self hasHeldRow] || _swipeCell || _changes || _hoverActive || _hoveredCell) {
+  if (_autoHideHeader || _autoHideFooter || _driver.hasSticky() || [self hasHeldRow] || _swipeCell || _changes || _hoverActive || _hoveredCell) {
     return NO;
   }
   double offset = [self offset];

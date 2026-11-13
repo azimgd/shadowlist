@@ -147,3 +147,21 @@ TEST(kit_bridge_packs_a_commit_as_counts_then_indices) {
   std::vector<std::int32_t> expected = {1, 1, 2, 0, 4, 1, 2, 3, 1, 5};
   CHECK(packed == expected);
 }
+
+TEST(kit_bridge_auto_hide_slots_keep_driver_state_and_leave_output_slots_unchanged) {
+  ListDriver driver;
+  double slots[kit::STICKY_SLOTS] = {};
+  slots[kit::STICKY_HEADER_SIZE] = 60.0;
+  slots[kit::STICKY_AUTO_HIDE_HEADER] = 1.0;
+  slots[kit::STICKY_OFFSET] = 200.0;
+  kit::writeStickyLayout(slots, driver);
+  CHECK_EQ(slots[kit::STICKY_OUT_HEADER_TRANSLATION], 200.0);
+  slots[kit::STICKY_OFFSET] = 225.0;
+  slots[kit::STICKY_ACCUMULATE] = 1.0;
+  kit::writeStickyLayout(slots, driver);
+  CHECK_EQ(slots[kit::STICKY_OUT_HEADER_TRANSLATION], 200.0);
+  slots[kit::STICKY_OFFSET] = 325.0;
+  slots[kit::STICKY_ACCUMULATE] = 0.0;
+  kit::writeStickyLayout(slots, driver);
+  CHECK_EQ(slots[kit::STICKY_OUT_HEADER_TRANSLATION], 300.0);
+}

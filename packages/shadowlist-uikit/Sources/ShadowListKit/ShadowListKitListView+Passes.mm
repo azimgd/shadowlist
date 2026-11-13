@@ -214,7 +214,9 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   if (std::fabs(current - _previousOffset) < OFFSET_MOVED_THRESHOLD) {
     return;
   }
-  if ([self corePhase] != ScrollPhase::Idle) {
+  BOOL byUser = [self corePhase] != ScrollPhase::Idle;
+  [self updateStickyOffset:current byUser:byUser];
+  if (byUser) {
     _userScrolled = YES;
   }
   _previousOffset = current;
@@ -394,7 +396,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
  * layer's translation on every pass and sits over the rows. The empty view shows right after the
  * header while the core says the list has no rows.
  */
-- (void)layoutTemplates
+- (StickyInput)stickyInput
 {
   StickyInput sticky;
   sticky.offset = [self offset];
@@ -403,14 +405,28 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   sticky.hasHeader = _headerView != nil;
   sticky.headerSize = _headerSize;
   sticky.stickyHeader = _stickyHeader;
+  sticky.autoHideHeader = _autoHideHeader;
   sticky.hasFooter = _footerView != nil;
   sticky.footerSize = _footerSize;
   sticky.footerStart = _footerStart;
   sticky.stickyFooter = _stickyFooter;
-  StickyState state;
-  StickyTranslations translations = stickyTranslations(sticky, state);
+  sticky.autoHideFooter = _autoHideFooter;
+  return sticky;
+}
+
+- (void)updateStickyOffset:(double)offset byUser:(BOOL)byUser
+{
+  StickyInput sticky = [self stickyInput];
+  sticky.offset = offset;
+  sticky.accumulate = byUser;
+  _driver.stickyTranslations(sticky);
+}
+
+- (void)layoutTemplates
+{
+  StickyTranslations translations = _driver.stickyTranslations([self stickyInput]);
   if (_headerView) {
-    [self placeTemplate:_headerView start:translations.header size:_headerSize pinned:_stickyHeader];
+    [self placeTemplate:_headerView start:translations.header size:_headerSize pinned:(_stickyHeader || _autoHideHeader)];
   }
   if (_emptyView) {
     if (_emptyView.hidden == _showsEmpty) {
@@ -419,7 +435,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     [self placeTemplate:_emptyView start:_headerSize size:_emptySize pinned:NO];
   }
   if (_footerView) {
-    [self placeTemplate:_footerView start:_footerStart + translations.footer size:_footerSize pinned:_stickyFooter];
+    [self placeTemplate:_footerView start:_footerStart + translations.footer size:_footerSize pinned:(_stickyFooter || _autoHideFooter)];
   }
 }
 
@@ -450,8 +466,8 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 - (BOOL)isUnderPinnedTemplate:(CGPoint)point
 {
-  return (_stickyHeader && _headerView && CGRectContainsPoint(_headerView.frame, point)) ||
-    (_stickyFooter && _footerView && CGRectContainsPoint(_footerView.frame, point));
+  return ((_stickyHeader || _autoHideHeader) && _headerView && CGRectContainsPoint(_headerView.frame, point)) ||
+    ((_stickyFooter || _autoHideFooter) && _footerView && CGRectContainsPoint(_footerView.frame, point));
 }
 
 - (void)sendNonAnchorKeys

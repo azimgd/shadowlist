@@ -371,6 +371,15 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { field = value; requestLayout() }
 
   /*
+   * Slide a pinned bar away with the user's scrolling and reveal it on reversal. Offset
+   * corrections and commands only rebase the shared state; they never slide either bar.
+   */
+  var autoHideHeader = false
+    set(value) { field = value; requestLayout() }
+  var autoHideFooter = false
+    set(value) { field = value; requestLayout() }
+
+  /*
    * A view shown while the list has no items, and no section header or footer rows. It sits right
    * after headerView at its own size, measured like the header's, and footerView follows it. It
    * stays hidden until a layout pass says the list has no rows.
@@ -734,6 +743,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * auto scroll, counts as the user's scrolling.
    */
   internal fun writeOffset(value: Int, byUser: Boolean = false) {
+    updateStickyLayout(byUser && value != offset, value + offsetFraction)
     previousOffset = value
     if (byUser) userScrolled = true
     if (horizontal) super.scrollTo(value, 0) else super.scrollTo(0, value)
@@ -1177,7 +1187,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private fun trackUserScroll() {
     val current = offset
     if (abs(current - previousOffset) < ShadowListKitCore.OFFSET_MOVED_THRESHOLD) return
-    if (scrollPhase() != ShadowListKitCore.PHASE_IDLE) userScrolled = true
+    val byUser = scrollPhase() != ShadowListKitCore.PHASE_IDLE
+    if (byUser) userScrolled = true
+    updateStickyLayout(byUser)
     previousOffset = current
   }
 
@@ -1200,22 +1212,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private fun layoutTemplates() {
     val header = headerView
     val footer = footerView
-    var headerStart = 0.0
-    var footerPlace = footerStart
-    if ((stickyHeader && header != null) || (stickyFooter && footer != null)) {
-      val slots = stickySlots
-      slots[ShadowListKitCore.STICKY_OFFSET] = exactOffset
-      slots[ShadowListKitCore.STICKY_WINDOW_SIZE] = windowAlong.toDouble()
-      slots[ShadowListKitCore.STICKY_CONTENT_SIZE] = contentAlong.toDouble()
-      slots[ShadowListKitCore.STICKY_HEADER_SIZE] = if (header != null) headerSize.toDouble() else 0.0
-      slots[ShadowListKitCore.STICKY_FOOTER_SIZE] = if (footer != null) footerSize.toDouble() else 0.0
-      slots[ShadowListKitCore.STICKY_FOOTER_START] = footerStart
-      slots[ShadowListKitCore.STICKY_HEADER] = if (stickyHeader) 1.0 else 0.0
-      slots[ShadowListKitCore.STICKY_FOOTER] = if (stickyFooter) 1.0 else 0.0
-      ShadowListKitCore.stickyLayout(slots)
-      headerStart = slots[ShadowListKitCore.STICKY_OUT_HEADER_TRANSLATION]
-      footerPlace += slots[ShadowListKitCore.STICKY_OUT_FOOTER_TRANSLATION]
-    }
+    updateStickyLayout(false)
+    val headerStart = stickySlots[ShadowListKitCore.STICKY_OUT_HEADER_TRANSLATION]
+    val footerPlace = footerStart + stickySlots[ShadowListKitCore.STICKY_OUT_FOOTER_TRANSLATION]
     header?.let { placeTemplate(it, headerStart, headerSize) }
     emptyView?.let {
       val visibility = if (showsEmpty) VISIBLE else INVISIBLE
@@ -1228,13 +1227,30 @@ open class ShadowListKitListView @JvmOverloads constructor(
     footer?.let { placeTemplate(it, footerPlace, footerSize) }
   }
 
+  private fun updateStickyLayout(accumulate: Boolean, atOffset: Double = exactOffset) {
+    val active = coreOrNull ?: return
+    val slots = stickySlots
+    slots[ShadowListKitCore.STICKY_OFFSET] = atOffset
+    slots[ShadowListKitCore.STICKY_WINDOW_SIZE] = windowAlong.toDouble()
+    slots[ShadowListKitCore.STICKY_CONTENT_SIZE] = contentAlong.toDouble()
+    slots[ShadowListKitCore.STICKY_HEADER_SIZE] = if (headerView != null) headerSize.toDouble() else 0.0
+    slots[ShadowListKitCore.STICKY_FOOTER_SIZE] = if (footerView != null) footerSize.toDouble() else 0.0
+    slots[ShadowListKitCore.STICKY_FOOTER_START] = footerStart
+    slots[ShadowListKitCore.STICKY_HEADER] = if (stickyHeader) 1.0 else 0.0
+    slots[ShadowListKitCore.STICKY_FOOTER] = if (stickyFooter) 1.0 else 0.0
+    slots[ShadowListKitCore.STICKY_AUTO_HIDE_HEADER] = if (autoHideHeader) 1.0 else 0.0
+    slots[ShadowListKitCore.STICKY_AUTO_HIDE_FOOTER] = if (autoHideFooter) 1.0 else 0.0
+    slots[ShadowListKitCore.STICKY_ACCUMULATE] = if (accumulate) 1.0 else 0.0
+    active.stickyLayout(slots)
+  }
+
   /*
    * Whether a pinned header or footer covers a point of the content, and with it the rows there.
    */
   private fun isUnderPinnedTemplate(contentX: Float, contentY: Float): Boolean {
     fun covers(view: View?): Boolean = view != null && contentX >= view.left && contentX < view.right &&
       contentY >= view.top && contentY < view.bottom
-    return (stickyHeader && covers(headerView)) || (stickyFooter && covers(footerView))
+    return ((stickyHeader || autoHideHeader) && covers(headerView)) || ((stickyFooter || autoHideFooter) && covers(footerView))
   }
 
   private fun placeTemplate(view: View, start: Double, size: Int) {
@@ -1809,8 +1825,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
   override fun dispatchDraw(canvas: Canvas) {
     for (decoration in decorations) decoration.onDraw(canvas, this)
     liftedCount = 0
-    if (stickyHeader) lift(headerView)
-    if (stickyFooter) lift(footerView)
+    if (stickyHeader || autoHideHeader) lift(headerView)
+    if (stickyFooter || autoHideFooter) lift(footerView)
     lift(stickyPinning.stickyCell)
     lift(drag.heldCell)
     lifted.copyInto(liftedSorted, 0, 0, liftedCount)

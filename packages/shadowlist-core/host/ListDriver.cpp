@@ -292,6 +292,10 @@ FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, boo
   return frame;
 }
 
+StickyTranslations ListDriver::stickyTranslations(const StickyInput& input) {
+  return azimgd::shadowlist::stickyTranslations(input, stickyState_);
+}
+
 PassResult ListDriver::runPasses(const PassInput& input) {
   windowCross_ = input.windowCross;
   if (keysChanged_) {

@@ -302,7 +302,10 @@ export class ShadowListKitCore {
   static readonly STICKY_OUT_HEADER_SPAN_END = 11;
   static readonly STICKY_OUT_FOOTER_SPAN_START = 12;
   static readonly STICKY_OUT_FOOTER_SPAN_END = 13;
-  static readonly STICKY_SLOTS = 14;
+  static readonly STICKY_AUTO_HIDE_HEADER = 14;
+  static readonly STICKY_AUTO_HIDE_FOOTER = 15;
+  static readonly STICKY_ACCUMULATE = 16;
+  static readonly STICKY_SLOTS = 17;
 
   /*
    * Slots of plan, the same as PlanSlot in the wasm side. A missing row is -1.

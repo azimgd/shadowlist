@@ -272,6 +272,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
  */
 - (void)writeOffset:(double)offset byUser:(BOOL)byUser
 {
+  [self updateStickyOffset:offset byUser:byUser];
   _previousOffset = offset;
   if (byUser) {
     _userScrolled = YES;
@@ -450,6 +451,18 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 - (void)setStickyFooter:(BOOL)stickyFooter
 {
   _stickyFooter = stickyFooter;
+  [self setNeedsLayout];
+}
+
+- (void)setAutoHideHeader:(BOOL)autoHideHeader
+{
+  _autoHideHeader = autoHideHeader;
+  [self setNeedsLayout];
+}
+
+- (void)setAutoHideFooter:(BOOL)autoHideFooter
+{
+  _autoHideFooter = autoHideFooter;
   [self setNeedsLayout];
 }
 
@@ -753,6 +766,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
  */
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+  [self trackUserScroll];
   if ([_userDelegate respondsToSelector:@selector(listViewDidScroll:)]) {
     [_userDelegate listViewDidScroll:self];
   }

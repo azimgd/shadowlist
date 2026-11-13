@@ -217,6 +217,8 @@ struct ShadowListKitPassGeometry {
   ShadowListKitView *_emptyView;
   BOOL _stickyHeader;
   BOOL _stickyFooter;
+  BOOL _autoHideHeader;
+  BOOL _autoHideFooter;
   BOOL _showsEmpty;
   NSIndexSet *_stickyIndices;
   BOOL _stickySectionHeaders;
@@ -391,6 +393,7 @@ struct ShadowListKitPassGeometry {
 - (void)unpinCell:(ShadowListKitListCell *)cell;
 - (BOOL)readGeometry;
 - (void)trackUserScroll;
+- (void)updateStickyOffset:(double)offset byUser:(BOOL)byUser;
 - (void)runPasses;
 - (void)resetKeepingPosition;
 - (ShadowListKitListCell *)makeCellAtRow:(NSInteger)row;

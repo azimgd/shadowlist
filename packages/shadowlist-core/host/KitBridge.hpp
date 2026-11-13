@@ -96,10 +96,13 @@ enum StickySlot : int {
   STICKY_OUT_HEADER_SPAN_END,
   STICKY_OUT_FOOTER_SPAN_START,
   STICKY_OUT_FOOTER_SPAN_END,
+  STICKY_AUTO_HIDE_HEADER,
+  STICKY_AUTO_HIDE_FOOTER,
+  STICKY_ACCUMULATE,
   STICKY_SLOTS,
 };
 
-static_assert(STICKY_SLOTS == 14, "ShadowListKitCore.kt and ShadowListKitCore.ts mirror the sticky slots");
+static_assert(STICKY_SLOTS == 17, "ShadowListKitCore.kt and ShadowListKitCore.ts mirror the sticky slots");
 
 /*
  * Bits of a key commit's flags: whether it diffs the items, records their content versions or
@@ -275,16 +278,16 @@ inline StickyInput readStickyInput(const double* slots) {
   input.hasFooter = input.footerSize > 0.0;
   input.footerStart = slots[STICKY_FOOTER_START];
   input.stickyFooter = slots[STICKY_FOOTER] != 0.0;
+  input.autoHideHeader = slots[STICKY_AUTO_HIDE_HEADER] != 0.0;
+  input.autoHideFooter = slots[STICKY_AUTO_HIDE_FOOTER] != 0.0;
+  input.accumulate = slots[STICKY_ACCUMULATE] != 0.0;
   return input;
 }
 
 /*
  * Write the translations and the spans of the pinning the slots describe.
  */
-inline void writeStickyLayout(double* slots) {
-  StickyInput input = readStickyInput(slots);
-  StickyState state;
-  StickyTranslations translations = stickyTranslations(input, state);
+inline void writeStickyLayout(double* slots, const StickyInput& input, const StickyTranslations& translations) {
   StickySpans spans = stickySpans(input);
   slots[STICKY_OUT_HEADER_TRANSLATION] = translations.header;
   slots[STICKY_OUT_FOOTER_TRANSLATION] = translations.footer;
@@ -292,6 +295,17 @@ inline void writeStickyLayout(double* slots) {
   slots[STICKY_OUT_HEADER_SPAN_END] = spans.header.end;
   slots[STICKY_OUT_FOOTER_SPAN_START] = spans.footer.start;
   slots[STICKY_OUT_FOOTER_SPAN_END] = spans.footer.end;
+}
+
+inline void writeStickyLayout(double* slots) {
+  StickyInput input = readStickyInput(slots);
+  StickyState state;
+  writeStickyLayout(slots, input, stickyTranslations(input, state));
+}
+
+inline void writeStickyLayout(double* slots, ListDriver& driver) {
+  StickyInput input = readStickyInput(slots);
+  writeStickyLayout(slots, input, driver.stickyTranslations(input));
 }
 
 inline bool validRow(const ListDriver& driver, std::int64_t index) {

@@ -92,7 +92,10 @@ internal class ShadowListKitCore(
     const val STICKY_OUT_HEADER_SPAN_END = 11
     const val STICKY_OUT_FOOTER_SPAN_START = 12
     const val STICKY_OUT_FOOTER_SPAN_END = 13
-    const val STICKY_SLOTS = 14
+    const val STICKY_AUTO_HIDE_HEADER = 14
+    const val STICKY_AUTO_HIDE_FOOTER = 15
+    const val STICKY_ACCUMULATE = 16
+    const val STICKY_SLOTS = 17
 
     /*
      * Values of PASS_PHASE, the same as the core's ScrollPhase.
@@ -264,7 +267,7 @@ internal class ShadowListKitCore(
       snapToItem: Boolean, snapAlignment: Int)
     @JvmStatic private external fun nativeSetStickyIndices(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeSetNonAnchorKeys(handle: Long, packed: CharArray, ends: IntArray)
-    @JvmStatic private external fun nativeStickyLayout(io: DoubleArray)
+    @JvmStatic private external fun nativeStickyLayout(handle: Long, io: DoubleArray)
     @JvmStatic private external fun nativeMarkRemeasure(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeResetKeepingPosition(handle: Long)
     @JvmStatic private external fun nativeRowCount(handle: Long): Int
@@ -363,12 +366,6 @@ internal class ShadowListKitCore(
     fun shouldSkipMount(
       previous: DoubleArray, next: DoubleArray, offset: Double, numberOfColumns: Int, holdsRow: Boolean,
     ): Boolean = nativeShouldSkipMount(previous, next, offset, numberOfColumns, holdsRow)
-
-    /*
-     * The core's stickyTranslations and stickySpans over the inputs in slots, see STICKY_*: where
-     * a pinned list header and footer go for an offset.
-     */
-    fun stickyLayout(slots: DoubleArray) = nativeStickyLayout(slots)
 
     /*
      * The core's pageScrollTarget: one window toward the end or the start, inside the content.
@@ -545,6 +542,11 @@ internal class ShadowListKitCore(
    * Section shl ROW_KIND_BITS or a ROW_* kind, or -1 past the end.
    */
   fun placeOfRow(row: Int): Int = nativePlaceOfRow(handle, row)
+
+  /*
+   * The driver's persistent header/footer pinning state, from the inputs in STICKY_*.
+   */
+  fun stickyLayout(slots: DoubleArray) = nativeStickyLayout(handle, slots)
 
   /*
    * The rows that stick: the sticky items' rows and with sectionHeaders every header row,

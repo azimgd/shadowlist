@@ -401,10 +401,10 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetNonAnchorKeys)(
  * Where a pinned list header and footer go, see StickySlot: the inputs are read from io and the
  * translations and spans written back.
  */
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeStickyLayout)(JNIEnv* env, jclass, jdoubleArray io) {
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeStickyLayout)(JNIEnv* env, jclass, jlong handle, jdoubleArray io) {
   jdouble slots[STICKY_SLOTS];
   env->GetDoubleArrayRegion(io, 0, STICKY_SLOTS, slots);
-  writeStickyLayout(slots);
+  writeStickyLayout(slots, peerOf(handle)->driver);
   env->SetDoubleArrayRegion(io, STICKY_OUT_HEADER_TRANSLATION, STICKY_SLOTS - STICKY_OUT_HEADER_TRANSLATION,
     slots + STICKY_OUT_HEADER_TRANSLATION);
 }

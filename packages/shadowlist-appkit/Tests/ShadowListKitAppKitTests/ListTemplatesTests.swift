@@ -43,6 +43,33 @@ final class ListTemplatesTests: XCTestCase {
     harness.layout()
   }
 
+  func testAutoHideBarsAccumulateOnlyTrackpadMovementAndRetainIntentAcrossCommands() throws {
+    let header = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 60))
+    let footer = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 40))
+    let harness = ListHarness(source: SizedTestSource(count: 100)) {
+      $0.headerView = header
+      $0.footerView = footer
+      $0.autoHideHeader = true
+      $0.autoHideFooter = true
+    }
+    scroll(harness, to: 200)
+    XCTAssertEqual(frame(header, in: harness.list).minY, 0, accuracy: 0.01)
+    drag(harness, by: 25)
+    XCTAssertEqual(frame(header, in: harness.list).minY, -25, accuracy: 0.01)
+    XCTAssertEqual(frame(footer, in: harness.list).maxY, 505, accuracy: 0.01)
+    harness.list.setContentOffset(CGPoint(x: 0, y: 325), animated: false)
+    harness.layout()
+    XCTAssertEqual(frame(header, in: harness.list).minY, -25, accuracy: 0.01)
+    harness.list.autoHideHeader = false
+    harness.layout()
+    harness.list.autoHideHeader = true
+    harness.layout()
+    XCTAssertEqual(frame(header, in: harness.list).minY, -25, accuracy: 0.01)
+    harness.list.scrollToStart(animated: false)
+    harness.layout()
+    XCTAssertEqual(frame(header, in: harness.list).minY, 0, accuracy: 0.01)
+  }
+
   func testAStickyHeaderStaysAtTheViewportStartUntilTheFooterPushesItOff() throws {
     let header = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 60))
     let footer = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 50))

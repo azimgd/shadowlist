@@ -169,6 +169,11 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, nullable) UIView *footerView;
 @property (nonatomic) BOOL stickyHeader;
 @property (nonatomic) BOOL stickyFooter;
+/*
+ * User scrolls hide these pinned views; commands and corrections retain their hidden amount.
+ */
+@property (nonatomic) BOOL autoHideHeader;
+@property (nonatomic) BOOL autoHideFooter;
 @property (nonatomic, strong, nullable) UIView *emptyView;
 @property (nonatomic, copy, nullable) NSSet<NSString *> *nonAnchorKeys;
 @property (nonatomic, readonly, getter=isAtEnd) BOOL atEnd;

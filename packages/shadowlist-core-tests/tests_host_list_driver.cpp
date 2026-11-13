@@ -1487,3 +1487,38 @@ TEST(list_driver_remeasuring_changed_content_releases_a_previous_clamped_hold) {
   host.settle();
   CHECK_NEAR(host.offset, 800.0, 0.5);
 }
+
+TEST(list_driver_auto_hide_keeps_user_intent_across_corrections_and_flag_changes) {
+  ListDriver driver;
+  StickyInput input;
+  input.windowSize = 400.0;
+  input.contentSize = 2000.0;
+  input.hasHeader = input.hasFooter = true;
+  input.headerSize = 60.0;
+  input.footerSize = 40.0;
+  input.footerStart = 1960.0;
+  input.autoHideHeader = input.autoHideFooter = true;
+  input.offset = 200.0;
+  driver.stickyTranslations(input); // A command rebases without hiding.
+  input.accumulate = true;
+  input.offset = 225.0;
+  auto moved = driver.stickyTranslations(input);
+  CHECK_EQ(moved.header, 200.0);
+  CHECK_EQ(moved.footer, 225.0 + 400.0 - 40.0 - 1960.0 + 25.0);
+  input.accumulate = false;
+  input.offset = 325.0; // A prepend correction is separate from the finger's 25.
+  auto corrected = driver.stickyTranslations(input);
+  CHECK_EQ(corrected.header, 300.0);
+  input.autoHideHeader = false;
+  driver.stickyTranslations(input);
+  input.autoHideHeader = true;
+  CHECK_EQ(driver.stickyTranslations(input).header, 300.0);
+  input.offset = 315.0;
+  input.accumulate = true;
+  CHECK_EQ(driver.stickyTranslations(input).header, 300.0);
+  // Repeated layout of the same input cannot count the movement twice.
+  CHECK_EQ(driver.stickyTranslations(input).header, 300.0);
+  ListDriver other;
+  input.accumulate = false;
+  CHECK_EQ(other.stickyTranslations(input).header, 315.0);
+}

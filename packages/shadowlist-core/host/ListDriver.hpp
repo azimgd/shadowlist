@@ -8,6 +8,7 @@
 #include <shadowlist-core/host/MountedRange.hpp>
 #include <shadowlist-core/host/Prefetch.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
+#include <shadowlist-core/host/StickyLayout.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -326,6 +327,12 @@ public:
   PassResult runPasses(const PassInput& input);
 
   /*
+   * Keep auto hide intent across frames. Report genuine user offsets before core correction,
+   * then rebase the final layout with accumulate false. Property changes retain the state.
+   */
+  StickyTranslations stickyTranslations(const StickyInput& input);
+
+  /*
    * Drop all sizes after a cross size change and hold the first visible row.
    */
   void resetKeepingPosition();
@@ -519,6 +526,7 @@ private:
   void aimAtRow(std::size_t index, double viewPosition, double viewOffset);
 
   std::unique_ptr<Container> core_;
+  StickyState stickyState_;
   MeasureRow measureRow_;
   MeasureRows measureRows_;
 
