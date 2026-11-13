@@ -42,6 +42,26 @@ final class ComponentsScreen: UIViewController {
     finish.setTitle("Finish search and add a vote", for: .normal)
     finish.addAction(UIAction { [weak self] _ in self?.finish() }, for: .touchUpInside)
     stack.addArrangedSubview(finish)
+    let routeName = ShadowListUtilsFormInput(value: "Lisbon", accessibilityLabel: "Route name", theme: AppTheme.theme)
+    routeName.placeholder = "Route name"
+    routeName.returnKeyType = .done
+    routeName.onChange = { [weak routeName] in routeName?.value = $0 }
+    routeName.onSubmitEditing = { [weak self, weak routeName] in self?.status.text = "Route submitted: \(routeName?.value ?? "")" }
+    let budget = ShadowListUtilsFormInput(value: "24", accessibilityLabel: "Budget", theme: AppTheme.theme)
+    budget.numeric = true
+    budget.onChange = { [weak budget] in budget?.value = $0 }
+    stack.addArrangedSubview(ShadowListUtilsFormCard(children: [
+      ShadowListUtilsFormRow(label: "Route", children: [routeName], theme: AppTheme.theme),
+      ShadowListUtilsFormRow(label: "Budget", children: [budget], theme: AppTheme.theme),
+    ], theme: AppTheme.theme))
+    let search = ShadowListUtilsSearchField(value: "", theme: AppTheme.theme)
+    search.labels.placeholder = "Filter routes"
+    search.onChange = { [weak self, weak search] in search?.value = $0; self?.status.text = "Filter: \($0)" }
+    stack.addArrangedSubview(search)
+    let notes = ShadowListUtilsTextField(value: "", theme: AppTheme.theme)
+    notes.placeholder = "Travel notes"; notes.accessibilityLabel = "Travel notes"; notes.multiline = true
+    notes.onChange = { [weak notes] in notes?.value = $0 }
+    stack.addArrangedSubview(notes)
     latest.visible = true
     latest.onPress = { [weak self] in self?.scroll.setContentOffset(.zero, animated: true); self?.status.text = "Returned to the first component" }
     stack.addArrangedSubview(latest)

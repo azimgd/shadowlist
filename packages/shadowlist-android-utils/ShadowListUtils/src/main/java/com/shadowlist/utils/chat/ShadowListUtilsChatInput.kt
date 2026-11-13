@@ -3,12 +3,8 @@ package com.shadowlist.utils
 import android.content.Context
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.text.Editable
-import android.text.InputFilter
-import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Button
 
@@ -26,18 +22,18 @@ class ShadowListUtilsChatInput(
   var value: String? = null
     set(value) {
       field = value
-      showText(value ?: draft)
+      editing.value = value
+      updateSend()
     }
   var disabled = false
     set(value) { field = value; updateSend() }
   var maxLength = 500
-    set(value) { field = value; input.filters = arrayOf(InputFilter.LengthFilter(value.coerceAtLeast(0))) }
+    set(value) { field = value; editing.maxLength = value }
   var labels = ShadowListUtilsChatLabels()
     set(value) { field = value; updateSend() }
-  internal val input = EditText(context)
+  internal val input = ShadowListUtilsTextInputEditText(context)
+  private val editing = ShadowListUtilsTextInput(input, defaultValue, initialMaxLength = maxLength)
   internal val send = Button(context)
-  private var draft = defaultValue
-  private var updating = false
 
   init {
     orientation = HORIZONTAL
@@ -55,8 +51,7 @@ class ShadowListUtilsChatInput(
       cornerRadius = (theme.radius.lg + 2).pxf
       setStroke(1, theme.colors.separator)
     }
-    input.filters = arrayOf(InputFilter.LengthFilter(maxLength))
-    input.setText(defaultValue)
+    editing.maxLength = maxLength
     addView(input, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = theme.spacing.sm.px })
     send.text = "↑"
     send.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
@@ -68,30 +63,11 @@ class ShadowListUtilsChatInput(
     send.setPadding(0, 0, 0, 0)
     addView(send, LayoutParams(32f.px, 32f.px).apply { bottomMargin = theme.spacing.xxs.px })
     send.setOnClickListener { sendText() }
-    input.addTextChangedListener(object : TextWatcher {
-      override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {}
-      override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) {}
-      override fun afterTextChanged(text: Editable?) {
-        if (updating) return
-        val next = text.toString()
-        if (value == null) draft = next
-        onChangeText?.invoke(next)
-        if (value != null) showText(value ?: draft)
-        updateSend()
-      }
-    })
+    editing.onChangeText = { onChangeText?.invoke(it) }
+    editing.onContentSizeChange = { updateSend() }
     updateSend()
   }
 
-  private fun showText(text: String) {
-    if (input.text.toString() != text) {
-      updating = true
-      input.setText(text)
-      input.setSelection(input.text.length)
-      updating = false
-    }
-    updateSend()
-  }
 
   private fun updateSend() {
     input.isEnabled = !disabled
@@ -112,8 +88,7 @@ class ShadowListUtilsChatInput(
     val controlled = value != null
     onSend?.invoke(text)
     if (!controlled) {
-      draft = ""
-      showText(value ?: draft)
+      editing.clearDraft()
     }
   }
 }

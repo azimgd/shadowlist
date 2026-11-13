@@ -47,6 +47,30 @@ class ComponentsScreen(private val context: Context) : Screen {
     append(ShadowListUtilsFormCard(context, listOf(save, delete), theme))
     append(ShadowListUtilsGroupedCard(context, listOf(accountValue, ShadowListUtilsGroupedSeparator(context, theme = theme)), theme))
     append(ShadowListUtilsGroupedSection(context, "Travel account", listOf(ShadowListUtilsFormValue(context, "Lisbon · Tuesday", theme)), theme))
+    val routeName = ShadowListUtilsFormInput(context, "Lisbon", "Route name", theme).apply {
+      placeholder = "Route name"
+      returnKeyType = ShadowListUtilsReturnKeyType.DONE
+      onChange = { value = it }
+      onSubmitEditing = { status.text = "Route submitted: $value" }
+    }
+    val budget = ShadowListUtilsFormInput(context, "24", "Budget", theme).apply {
+      numeric = true
+      onChange = { value = it }
+    }
+    append(ShadowListUtilsFormCard(context, listOf(
+      ShadowListUtilsFormRow(context, "Route", listOf(routeName), theme),
+      ShadowListUtilsFormRow(context, "Budget", listOf(budget), theme),
+    ), theme))
+    append(ShadowListUtilsSearchField(context, "", theme).apply {
+      labels = ShadowListUtilsSearchFieldLabels("Filter routes")
+      onChange = { value = it; status.text = "Filter: $it" }
+    })
+    append(ShadowListUtilsTextField(context, "", theme).apply {
+      placeholder = "Travel notes"
+      accessibilityLabel = "Travel notes"
+      multiline = true
+      onChange = { value = it }
+    })
     append(ShadowListUtilsAssistantScrollButton(context, theme).apply {
       visible = true
       onPress = { scroll.smoothScrollTo(0, 0); status.text = "Returned to the first component" }

@@ -404,3 +404,35 @@ val section = ShadowListUtilsGroupedSection(context, "Account", listOf(value))
 ```
 
 Form fields, Grouped.Row/Actions and the remaining Controls are separate parity milestones.
+
+### Controlled form and text fields
+
+`ShadowListUtilsFormRow(context, label, children)` aligns its controls with the trailing value
+edge; `stacked` or the existing large-text threshold places the label above its controls.
+`ShadowListUtilsFormInput(context, value, accessibilityLabel)` takes a controlled `value` and
+`onChange`. Numeric inputs default to `DECIMAL_PAD` (decimal, without a signed flag); an explicit
+`keyboardType` wins. Numeric and email inputs default to no capitalization/correction, with
+optional `autoCapitalize` and `autoCorrect` overrides. `returnKeyType` supports the RN names
+`DONE`, `NEXT`, `GO`, `SEARCH`, and `SEND`; `onSubmitEditing` receives the native submit action.
+The application must apply accepted edits:
+
+```kotlin
+val name = ShadowListUtilsFormInput(context, "Lisbon", "Route name")
+name.onChange = { name.value = it }
+val row = ShadowListUtilsFormRow(context, "Route", listOf(name))
+```
+
+`ShadowListUtilsTextField(context, value)` has `onChange`, `placeholder`, `keyboardType`,
+`accessibilityLabel`, and `multiline` (false by default). The multiline box uses native monospace
+14sp text and is 104dp high; the single-line box is 40dp. The accessible label defaults to the
+placeholder. Correction and capitalization are disabled. `NUMERIC` is signed and decimal,
+`DECIMAL_PAD` is decimal only, and `NUMBER_PAD` is integer only; iOS-only keyboard choices fall
+back to native text as in RN's Android adapter.
+
+`ShadowListUtilsSearchField(context, value)` takes `onChange`, an optional native `icon`, and
+`ShadowListUtilsSearchFieldLabels.placeholder` (default `Search`), also its accessible label.
+Android follows RN's platform behavior for the iOS-only clearButtonMode affordance.
+All four share ChatInput's native editing owner: programmatic values are silent, user edits
+request `onChange`, and app-controlled replacements wait until native composition finishes.
+The new wrappers do not add an uncontrolled mode or a secure-entry prop. Components owns the
+controlled Route, Budget, Search and Notes values.

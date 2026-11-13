@@ -415,3 +415,32 @@ let section = ShadowListUtilsGroupedSection(title: "Account", children: [value])
 ```
 
 Form fields, Grouped.Row/Actions and the remaining Controls are separate parity milestones.
+
+### Controlled form and text fields
+
+`ShadowListUtilsFormRow(label:children:)` aligns its controls with the trailing value edge;
+`stacked` or the existing large-text threshold moves the label above its controls.
+`ShadowListUtilsFormInput(value:accessibilityLabel:)` takes a controlled `value` and `onChange`.
+Numeric inputs default to `.decimalPad`; explicit `keyboardType` wins. Numeric and email inputs
+default to no capitalization/correction; `autoCapitalize` and `autoCorrect` can override those
+choices. `returnKeyType` and `onSubmitEditing` configure the native single-line submit action.
+Its clear affordance appears while editing. The application must apply accepted edits:
+
+```swift
+let name = ShadowListUtilsFormInput(value: "Lisbon", accessibilityLabel: "Route name")
+name.onChange = { [weak name] in name?.value = $0 }
+let row = ShadowListUtilsFormRow(label: "Route", children: [name])
+```
+
+`ShadowListUtilsTextField(value:)` has `onChange`, `placeholder`, `keyboardType`,
+`accessibilityLabel` and `multiline` (false by default). Multiline uses the existing monospaced
+font at 14 points before system scaling and a 104-point box; the single-line box is 40 points.
+The accessible label defaults to the placeholder. Correction and capitalization are disabled.
+`ShadowListUtilsSearchField(value:)` takes `onChange`, an optional native `icon`, and
+`ShadowListUtilsSearchFieldLabels.placeholder` (default `Search`), which is also its accessible
+label. Its native clear affordance remains available without focusing first.
+
+All four use the same native editing owner as ChatInput. Setting a controlled value is silent;
+user edits request `onChange`, and application values wait until native marked-text composition
+finishes. These wrappers add no uncontrolled mode, secure-entry prop or independent streaming
+state. The Components example owns controlled Route, Budget, Search and Notes values.

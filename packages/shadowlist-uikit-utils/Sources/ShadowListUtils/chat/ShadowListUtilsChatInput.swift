@@ -10,31 +10,17 @@ import ShadowListUtilsCore
  */
 public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
   public var value: String? {
-    didSet { input.text = value ?? draft; updateSend() }
+    didSet { editing.value = value; updateSend() }
   }
   public var onChangeText: ((String) -> Void)?
   public var disabled = false { didSet { updateSend() } }
-  public var maxLength = 500
+  public var maxLength = 500 { didSet { editing.maxLength = maxLength } }
   public var labels = ShadowListUtilsChatLabels() { didSet { updateSend() } }
   public let theme: ShadowListUtilsTheme
-  private var draft: String
+  private let editing: ShadowListUtilsTextInput
 
   public func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
-    guard !disabled, let current = textView.text else { return false }
-    let previous = current as NSString
-    guard range.location <= previous.length, range.length <= previous.length - range.location else { return false }
-    let replacement = text as NSString
-    var allowed = max(0, maxLength - previous.length + range.length)
-    if replacement.length <= allowed { return true }
-    // Match RN's native iOS input: a long paste keeps the fitting prefix, never half a composed character.
-    guard replacement.length > 1, allowed > 0 else { return false }
-    let cutoff = replacement.rangeOfComposedCharacterSequence(at: allowed - 1)
-    if NSMaxRange(cutoff) > allowed { allowed = cutoff.location }
-    guard allowed > 0 else { return false }
-    textView.text = previous.replacingCharacters(in: range, with: replacement.substring(to: allowed))
-    textView.selectedRange = NSRange(location: range.location + allowed, length: 0)
-    textViewDidChange(textView)
-    return false
+    editing.textView(textView, shouldChangeTextIn: range, replacementText: text)
   }
 
   public var onSend: ((String) -> Void)?
@@ -49,14 +35,16 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
   private var sendWidth: NSLayoutConstraint!
   private var sendGap: NSLayoutConstraint!
   private let box = UIView()
-  let input = UITextView()
+  let input: ShadowListUtilsTextInputView
   private let placeholder = UILabel()
   let send = UIButton(type: .system)
   private var inputHeight: NSLayoutConstraint!
 
   public init(defaultValue: String = "", theme: ShadowListUtilsTheme = .system) {
     self.theme = theme
-    draft = defaultValue
+    let input = ShadowListUtilsTextInputView(frame: .zero, textContainer: nil)
+    self.input = input
+    editing = ShadowListUtilsTextInput(input: .textView(input), defaultValue: defaultValue)
     super.init(frame: .zero)
     backgroundColor = theme.colors.background
     let border = UIView()
@@ -69,8 +57,7 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
     input.backgroundColor = .clear
     input.textContainerInset = .zero
     input.textContainer.lineFragmentPadding = 0
-    input.delegate = self
-    input.text = draft
+    editing.maxLength = maxLength
     input.accessibilityLabel = labels.placeholder
     placeholder.font = input.font
     placeholder.textColor = theme.colors.secondaryLabel
@@ -106,19 +93,18 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
       send.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
       send.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -2),
     ])
+    editing.onChangeText = { [weak self] in self?.onChangeText?($0) }
+    editing.onContentSizeChange = { [weak self] in self?.updateInputHeight(); self?.updateSend() }
     updateSend()
   }
 
   public required init?(coder: NSCoder) { fatalError() }
 
-  public func textViewDidChange(_ textView: UITextView) {
-    let next = textView.text ?? ""
-    if value == nil { draft = next }
-    onChangeText?(next)
-    if value != nil { input.text = value ?? draft }
-    let height = min(maximumInputHeight, max(22, ceil(textView.sizeThatFits(CGSize(width: textView.bounds.width, height: .greatestFiniteMagnitude)).height)))
+  public func textViewDidChange(_ textView: UITextView) { editing.textViewDidChange(textView) }
+
+  private func updateInputHeight() {
+    let height = min(maximumInputHeight, max(22, ceil(input.sizeThatFits(CGSize(width: input.bounds.width, height: CGFloat.greatestFiniteMagnitude)).height)))
     inputHeight.constant = height
-    updateSend()
   }
 
   public override func layoutSubviews() {
@@ -146,8 +132,7 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
     let controlled = value != nil
     onSend?(text)
     if !controlled {
-      draft = ""
-      input.text = value ?? draft
+      editing.clearDraft()
       inputHeight.constant = 22
     }
     updateSend()
