@@ -76,11 +76,19 @@ describe('moveBoardItem', () => {
         moveBoardItem(columns, move(columns, 'a', 'todo', 'doing', 'gone', 9))
       ).doing
     ).toEqual(['d', 'e', 'a']);
+  });
+
+  it('changes nothing for a key no longer in the column and no index', () => {
+    const columns = board();
+    expect(
+      moveBoardItem(columns, move(columns, 'a', 'todo', 'doing', 'gone', -1))
+    ).toBe(columns);
+    // An empty key is the end, whatever the index.
     expect(
       keysOf(
-        moveBoardItem(columns, move(columns, 'a', 'todo', 'doing', 'gone', -1))
+        moveBoardItem(columns, move(columns, 'a', 'todo', 'doing', '', -1))
       ).doing
-    ).toEqual(['a', 'd', 'e']);
+    ).toEqual(['d', 'e', 'a']);
   });
 
   it('reorders within one column', () => {

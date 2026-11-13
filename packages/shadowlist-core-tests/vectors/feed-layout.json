@@ -1,0 +1,192 @@
+[
+  {
+    "name": "a square image",
+    "input": {
+      "width": 1000,
+      "height": 1000
+    },
+    "output": {
+      "aspectRatio": 1
+    }
+  },
+  {
+    "name": "a tall image is kept at three to four",
+    "input": {
+      "width": 600,
+      "height": 1600
+    },
+    "output": {
+      "aspectRatio": 0.75
+    }
+  },
+  {
+    "name": "a wide image is kept at sixteen to nine",
+    "input": {
+      "width": 3000,
+      "height": 500
+    },
+    "output": {
+      "aspectRatio": 1.7777777777777777
+    }
+  },
+  {
+    "name": "exactly three to four",
+    "input": {
+      "width": 300,
+      "height": 400
+    },
+    "output": {
+      "aspectRatio": 0.75
+    }
+  },
+  {
+    "name": "exactly sixteen to nine",
+    "input": {
+      "width": 1600,
+      "height": 900
+    },
+    "output": {
+      "aspectRatio": 1.7777777777777777
+    }
+  },
+  {
+    "name": "four to three",
+    "input": {
+      "width": 400,
+      "height": 300
+    },
+    "output": {
+      "aspectRatio": 1.3333333333333333
+    }
+  },
+  {
+    "name": "an image inside the range keeps its aspect",
+    "input": {
+      "width": 1080,
+      "height": 1350
+    },
+    "output": {
+      "aspectRatio": 0.8
+    }
+  },
+  {
+    "name": "an image without a size",
+    "input": {
+      "width": null,
+      "height": null
+    },
+    "output": {
+      "height": 200
+    }
+  },
+  {
+    "name": "an image without a height",
+    "input": {
+      "width": 800,
+      "height": null
+    },
+    "output": {
+      "height": 200
+    }
+  },
+  {
+    "name": "an image without a width",
+    "input": {
+      "width": null,
+      "height": 600
+    },
+    "output": {
+      "height": 200
+    }
+  },
+  {
+    "name": "a width of zero",
+    "input": {
+      "width": 0,
+      "height": 600
+    },
+    "output": {
+      "height": 200
+    }
+  },
+  {
+    "name": "a height of zero",
+    "input": {
+      "width": 800,
+      "height": 0
+    },
+    "output": {
+      "height": 200
+    }
+  },
+  {
+    "name": "sizes with fractions",
+    "input": {
+      "width": 333.5,
+      "height": 250.25
+    },
+    "output": {
+      "aspectRatio": 1.3326673326673326
+    }
+  },
+  {
+    "name": "a negative width is kept at three to four",
+    "input": {
+      "width": -800,
+      "height": 600
+    },
+    "output": {
+      "aspectRatio": 0.75
+    }
+  },
+  {
+    "name": "a negative height is kept at three to four",
+    "input": {
+      "width": 800,
+      "height": -600
+    },
+    "output": {
+      "aspectRatio": 0.75
+    }
+  },
+  {
+    "name": "two negative sides keep their aspect",
+    "input": {
+      "width": -800,
+      "height": -600
+    },
+    "output": {
+      "aspectRatio": 1.3333333333333333
+    }
+  },
+  {
+    "name": "a width and a height of zero",
+    "input": {
+      "width": 0,
+      "height": 0
+    },
+    "output": {
+      "height": 200
+    }
+  },
+  {
+    "name": "a very small height is kept at sixteen to nine",
+    "input": {
+      "width": 800,
+      "height": 1e-300
+    },
+    "output": {
+      "aspectRatio": 1.7777777777777777
+    }
+  },
+  {
+    "name": "a very large height is kept at three to four",
+    "input": {
+      "width": 1,
+      "height": 1e+300
+    },
+    "output": {
+      "aspectRatio": 0.75
+    }
+  }
+]

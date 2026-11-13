@@ -1,14 +1,16 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { ShadowList, type ShadowListProps } from 'shadowlist';
-import { createStyles } from '../theme';
+import { createStyles, useTheme } from '../theme';
+import { getCardHeight } from './cardHeight';
 import { NestedCard } from './NestedCard';
 import type { NestedCardItem, NestedItem } from './types';
 
@@ -26,6 +28,13 @@ const renderCard: RenderCard = ({ item }) => <NestedCard item={item} />;
 export const NestedRow = memo(
   ({ item, onPressCard, style, titleStyle }: NestedRowProps) => {
     const styles = useStyles();
+    const theme = useTheme();
+    const { fontScale } = useWindowDimensions();
+    // The list is as tall as a card, which grows with the reader's text size.
+    const listStyle = useMemo(
+      () => [styles.list, { height: getCardHeight(theme, fontScale) }],
+      [styles, theme, fontScale]
+    );
     const renderPressableCard = useCallback<RenderCard>(
       ({ item: card }) => (
         <NestedCard item={card} onPress={() => onPressCard?.(card, item)} />
@@ -41,7 +50,7 @@ export const NestedRow = memo(
         <ShadowList
           data={item.cards}
           horizontal
-          style={styles.list}
+          style={listStyle}
           renderItem={
             onPressCard === undefined ? renderCard : renderPressableCard
           }
@@ -55,7 +64,6 @@ const useStyles = createStyles((theme) =>
   StyleSheet.create({
     row: {
       marginBottom: theme.spacing.lg,
-      height: 300,
     },
     title: {
       color: theme.colors.label,

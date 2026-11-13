@@ -6,16 +6,17 @@ import Foundation
  */
 enum Engine: String, CaseIterable {
   /*
-   * ShadowListKitListView with sizes from the precomputed layouts.
+   * The ShadowListUtils template list of the screen, with sizes from its precomputed layouts.
    */
   case shadowlist = "sl"
   /*
-   * ShadowListKitListView measuring each row through its cell's sizeThatFits on the main thread.
+   * ShadowListKitListView with the library's rows, measuring each through its cell's sizeThatFits
+   * on the main thread.
    */
   case shadowlistAuto = "sl-auto"
   /*
-   * UITableView with heightForRowAt from the same precomputed layouts. Grids use a
-   * UICollectionView with a custom column layout instead.
+   * UITableView hosting the library's row views, with heightForRowAt from the same precomputed
+   * layouts. Grids use a UICollectionView with a custom column layout instead.
    */
   case table = "table"
   /*
@@ -48,4 +49,10 @@ enum Settings {
   }
   static var debug: Bool { defaults.string(forKey: "SLDebug") == "1" }
   static var images: Bool { defaults.string(forKey: "SLImages") != "0" }
+
+  /*
+   * -SLStates 1: the Feed and Chat screens also show what their fixtures lack: placeholder
+   * posts, messages that are sending or failed, and captions.
+   */
+  static var states: Bool { defaults.string(forKey: "SLStates") == "1" }
 }

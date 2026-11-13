@@ -1,3 +1,4 @@
+import ShadowListUtils
 import UIKit
 
 /*
@@ -10,7 +11,7 @@ enum TextCheck {
     let label = UILabel()
     label.numberOfLines = 0
     var mismatches = 0
-    for style in [("subhead", TextStyle.subhead), ("body", TextStyle.body)] {
+    for style in [("subhead", AppTheme.typography.subhead), ("body", AppTheme.typography.body)] {
       for width in [306.0, 262.0, 233.5, 240.0] as [CGFloat] {
         for text in FixtureStrings.sampleTexts {
           label.attributedText = style.1.string(text)

@@ -1,0 +1,265 @@
+[
+  {
+    "name": "no options",
+    "input": {
+      "votes": []
+    },
+    "output": {
+      "totalVotes": 0,
+      "leadingIndex": -1,
+      "percents": []
+    }
+  },
+  {
+    "name": "one option without votes",
+    "input": {
+      "votes": [
+        0
+      ]
+    },
+    "output": {
+      "totalVotes": 0,
+      "leadingIndex": 0,
+      "percents": [
+        0
+      ]
+    }
+  },
+  {
+    "name": "nobody voted yet",
+    "input": {
+      "votes": [
+        0,
+        0,
+        0
+      ]
+    },
+    "output": {
+      "totalVotes": 0,
+      "leadingIndex": 0,
+      "percents": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  {
+    "name": "one option with votes",
+    "input": {
+      "votes": [
+        7
+      ]
+    },
+    "output": {
+      "totalVotes": 7,
+      "leadingIndex": 0,
+      "percents": [
+        100
+      ]
+    }
+  },
+  {
+    "name": "the second option leads",
+    "input": {
+      "votes": [
+        3,
+        9,
+        1
+      ]
+    },
+    "output": {
+      "totalVotes": 13,
+      "leadingIndex": 1,
+      "percents": [
+        23,
+        69,
+        8
+      ]
+    }
+  },
+  {
+    "name": "the first of two equal options leads",
+    "input": {
+      "votes": [
+        5,
+        5,
+        2
+      ]
+    },
+    "output": {
+      "totalVotes": 12,
+      "leadingIndex": 0,
+      "percents": [
+        42,
+        42,
+        17
+      ]
+    }
+  },
+  {
+    "name": "the last option leads",
+    "input": {
+      "votes": [
+        1,
+        2,
+        3
+      ]
+    },
+    "output": {
+      "totalVotes": 6,
+      "leadingIndex": 2,
+      "percents": [
+        17,
+        33,
+        50
+      ]
+    }
+  },
+  {
+    "name": "thirds round to 33",
+    "input": {
+      "votes": [
+        1,
+        1,
+        1
+      ]
+    },
+    "output": {
+      "totalVotes": 3,
+      "leadingIndex": 0,
+      "percents": [
+        33,
+        33,
+        33
+      ]
+    }
+  },
+  {
+    "name": "a half rounds up",
+    "input": {
+      "votes": [
+        1,
+        7
+      ]
+    },
+    "output": {
+      "totalVotes": 8,
+      "leadingIndex": 1,
+      "percents": [
+        13,
+        88
+      ]
+    }
+  },
+  {
+    "name": "halves of an eighth",
+    "input": {
+      "votes": [
+        1,
+        3,
+        4
+      ]
+    },
+    "output": {
+      "totalVotes": 8,
+      "leadingIndex": 2,
+      "percents": [
+        13,
+        38,
+        50
+      ]
+    }
+  },
+  {
+    "name": "one vote in two hundred rounds up to one",
+    "input": {
+      "votes": [
+        1,
+        199
+      ]
+    },
+    "output": {
+      "totalVotes": 200,
+      "leadingIndex": 1,
+      "percents": [
+        1,
+        100
+      ]
+    }
+  },
+  {
+    "name": "one vote in a thousand rounds to zero",
+    "input": {
+      "votes": [
+        1,
+        999
+      ]
+    },
+    "output": {
+      "totalVotes": 1000,
+      "leadingIndex": 1,
+      "percents": [
+        0,
+        100
+      ]
+    }
+  },
+  {
+    "name": "large counts",
+    "input": {
+      "votes": [
+        1234567,
+        7654321,
+        1111111
+      ]
+    },
+    "output": {
+      "totalVotes": 9999999,
+      "leadingIndex": 1,
+      "percents": [
+        12,
+        77,
+        11
+      ]
+    }
+  },
+  {
+    "name": "votes with fractions",
+    "input": {
+      "votes": [
+        0.5,
+        1.5
+      ]
+    },
+    "output": {
+      "totalVotes": 2,
+      "leadingIndex": 1,
+      "percents": [
+        25,
+        75
+      ]
+    }
+  },
+  {
+    "name": "a later equal option does not take the lead",
+    "input": {
+      "votes": [
+        0,
+        4,
+        4,
+        4
+      ]
+    },
+    "output": {
+      "totalVotes": 12,
+      "leadingIndex": 1,
+      "percents": [
+        0,
+        33,
+        33,
+        33
+      ]
+    }
+  }
+]

@@ -63,6 +63,12 @@ const BULLET = /^\s{0,3}[-*](?:\s+(.*))?$/;
 const ORDERED = /^\s{0,3}(\d+)\.(?:\s+(.*))?$/;
 const TABLE_ROW = /^\|/;
 /*
+ * The whole of a table row, whatever it holds. A line can hold a carriage return while its
+ * line feed is still streaming in, which a dot does not match. A row the collector does not
+ * take would start the same table again without end.
+ */
+const TABLE_ROW_LINE = /^(\|[^]*)$/;
+/*
  * A row with no cell content. That is the alignment row, any part of it streamed so far,
  * and the bare pipe every row starts as. Matching only the full alignment row would show
  * these as data rows that vanish a token later. The table would lose a row mid stream.
@@ -375,7 +381,7 @@ export function parseMarkdownFrom(
     }
 
     if (TABLE_ROW.test(line)) {
-      const { captures, raw } = collect(/^(\|.*)$/);
+      const { captures, raw } = collect(TABLE_ROW_LINE);
       const rowLines = captures
         .map((match) => match[1] ?? '')
         .filter((rowLine) => !TABLE_STRUCTURE_ROW.test(rowLine));

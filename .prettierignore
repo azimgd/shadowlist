@@ -11,9 +11,15 @@ templates/shadowlist-fabric-example/ios
 packages/shadowlist-android/**/.cxx
 packages/shadowlist-android/**/build
 packages/shadowlist-android/results
+packages/shadowlist-android-utils/**/.cxx
+packages/shadowlist-android-utils/**/build
+# Gradle keeps the Kotlin daemon's session files here while it runs.
+**/.kotlin
 packages/shadowlist-uikit/build
 packages/shadowlist-uikit/results
 **/Pods
 .claude
 # README tables use compact Markdown; yarn docs:check validates their layout.
 **/README.md
+# The jest vector tests write the vector files, with UPDATE_VECTORS=1.
+packages/shadowlist-core-tests/vectors

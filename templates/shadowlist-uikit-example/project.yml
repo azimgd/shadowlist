@@ -31,6 +31,37 @@ targets:
         HEADER_SEARCH_PATHS: ['$(SRCROOT)/../../packages']
         CLANG_ENABLE_OBJC_ARC: YES
         GENERATE_INFOPLIST_FILE: YES
+  ShadowListUtilsCore:
+    type: framework.static
+    platform: iOS
+    sources:
+      - path: ../../packages/shadowlist-uikit-utils/Sources/ShadowListUtilsCore/include/ShadowListUtilsCore
+        headerVisibility: public
+      - path: ../../packages/shadowlist-uikit-utils/Sources/ShadowListUtilsCore
+        includes: ['*.mm']
+      - path: ../../packages/shadowlist-core
+        includes: ['utils/*.cpp']
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: shadowlist.utils.core
+        DEFINES_MODULE: YES
+        HEADER_SEARCH_PATHS: ['$(SRCROOT)/../../packages']
+        CLANG_ENABLE_OBJC_ARC: YES
+        GENERATE_INFOPLIST_FILE: YES
+  ShadowListUtils:
+    type: framework.static
+    platform: iOS
+    sources:
+      - path: ../../packages/shadowlist-uikit-utils/Sources/ShadowListUtils
+    dependencies:
+      - target: ShadowListKit
+      - target: ShadowListUtilsCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: shadowlist.utils
+        DEFINES_MODULE: YES
+        SWIFT_VERSION: '5.9'
+        GENERATE_INFOPLIST_FILE: YES
   ShadowListKitExample:
     type: application
     platform: iOS
@@ -39,6 +70,8 @@ targets:
       - path: ../../packages/shadowlist-uikit/Bench/ShadowListKitBench.m
     dependencies:
       - target: ShadowListKit
+      - target: ShadowListUtilsCore
+      - target: ShadowListUtils
     info:
       path: Sources/Info.plist
       properties:

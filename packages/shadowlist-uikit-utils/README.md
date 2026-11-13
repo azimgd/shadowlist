@@ -1,0 +1,251 @@
+# ShadowListUtils for UIKit
+
+ShadowListUtils is the templates package for ShadowListKit on UIKit: themed lists, rows and primitives for feeds,
+chats, inboxes, contacts, grids and more. It is written in Swift on ShadowListKit and the shared C++ core.
+
+## Install
+
+Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the ShadowListUtils product. It builds for iOS only.
+
+```swift
+.package(url: "https://github.com/azimgd/shadowlist", from: "0.10.0")
+```
+
+CocoaPods:
+
+```ruby
+pod 'ShadowListUtils', '~> 0.10'
+```
+
+Both bring [ShadowListKit](../shadowlist-uikit/README.md) with them. Then `import ShadowListUtils` in Swift.
+
+### Requirements
+
+| Dependency | Version |
+| --- | --- |
+| iOS | 16 or newer |
+
+The default image loader fetches over the network. An app that loads from plain `http` adds its App Transport Security
+exception, or replaces the loader.
+
+## Usage
+
+Every type has the `ShadowListUtils` prefix.
+
+```swift
+import ShadowListUtils
+
+final class FeedController: UIViewController {
+  private let list = ShadowListUtilsFeedList()
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    list.frame = view.bounds
+    list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    list.onPressItem = { [weak self] post in self?.open(post) }
+    list.onEndReached = { [weak self] in self?.loadMore() }
+    view.addSubview(list)
+    list.items = posts
+  }
+}
+```
+
+A template list is a `ShadowListKitListView`, and every property of the kit list stays reachable: `headerView`,
+`footerView`, `isRefreshing`, `scrollToItem(at:viewPosition:animated:)` and the rest. It is its own data source and
+delegate and gives closures instead. An app that needs a delegate call the template does not surface uses a
+`ShadowListKitListView` with the library's rows.
+
+## API
+
+Lengths are points as `CGFloat`. Colors are `UIColor`s.
+
+Text follows the reader's text size setting, sizes and line heights alike. An avatar's initials and a reorder tile's
+label keep their size. At a text scale of 1.3 or more a masonry or tile title takes up to four lines, and a contact's
+name and subtitle wrap.
+
+A row mirrors its frames when the app lays out from right to left. The kit list mirrors its own parts, like swipe
+actions, by the view's layout direction.
+
+`ShadowListUtilsCore` is the bridge to the shared C++ core. It is an implementation detail: it is not part of the
+documented API and can change in any release. With Swift Package Manager it is an Objective-C++ module of its own,
+and with CocoaPods it is part of the ShadowListUtils module.
+
+Every template list has the same five members, with its own item type:
+
+| API | Notes |
+| --- | --- |
+| `items` | The items shown. Setting it is `setItems(items, animated: false)`. |
+| `setItems(_:animated:)` | Shows new items. The list diffs them by `key` and configures the cells whose item changed. |
+| `onPressItem` | A tap on an item. While it is nil the list has `allowsSelection` off. |
+| `rowForItem` | A row of the app's own for every item, in place of the template's. |
+| `labels` | The template's strings. |
+
+### Theming
+
+```swift
+var theme = ShadowListUtilsTheme.dark
+theme.colors.accent = .orange
+let list = ShadowListUtilsFeedList(theme: theme)
+```
+
+A list made without a theme follows the device appearance. A list made with a theme, or given one through `theme`
+later, keeps it. A row holds the theme it was built with. There is no global current theme.
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsTheme` | `colors`, `typography`, `spacing`, `radius`, `grouped`, `rowInset`, `tapTarget`. A struct: a copy with a changed field overrides a token. |
+| `ShadowListUtilsTheme.light`, `dark`, `system` | The included themes, and one whose colors resolve to the light or dark values of the appearance they are drawn in. |
+| `ShadowListUtilsTheme.hairline` | The thickness of a hairline, one device pixel. |
+| `ShadowListUtilsThemeColors` | `background`, `elevated`, `elevated2`, `groupedBackground`, `groupedCell`, `label`, `secondaryLabel`, `tertiaryLabel`, `separator`, `fill`, `accent`, `accentSoft`, `onAccent`, `blue`, `green`, `orange`, `red`, `redSoft`, `avatarPalette`. |
+| `ShadowListUtilsThemeTypography` | `largeTitle`, `title2`, `title3`, `headline`, `body`, `callout`, `subhead`, `footnote`, `caption`, each a `ShadowListUtilsTextStyle`. |
+| `ShadowListUtilsTextStyle` | `fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`, `with(_:)`, `layout(_:width:maxLines:)`. Every line of a layout is the style's line height tall, at the reader's text size. |
+| `ShadowListUtilsFontWeight` | `regular`, `semibold`, `bold`. |
+| `ShadowListUtilsThemeSpacing`, `ShadowListUtilsThemeRadius` | `xxs`, `xs`, `sm`, `md`, `lg`, `xl`, `xxl`, and `sm`, `md`, `lg`, `xl`, `pill`. |
+| `ShadowListUtilsThemeGrouped` | `inset`, `radius`, `rowInset`, `rowHeight`, `captionCase`, `chevron`. `ShadowListUtilsCaptionCase.none` keeps the title of a section header as written. |
+
+### Labels
+
+All visible and accessibility strings come from a template's `labels`, a struct whose defaults are the English
+strings. Some labels are functions.
+
+```swift
+let list = ShadowListUtilsChatList()
+list.labels.failed = "Nicht zugestellt. Tippen zum Wiederholen."
+```
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsRelativeTimeLabels` | `now`, `minutes`, `hours`, `days`. `format(dateMs:nowMs:)` words a time with them, and a week or more back as the month and day in the reader's locale. |
+| `ShadowListUtilsMasonryLabels`, `ShadowListUtilsFeedLabels`, `ShadowListUtilsReorderLabels`, `ShadowListUtilsSnapLabels`, `ShadowListUtilsContactsLabels`, `ShadowListUtilsInboxLabels`, `ShadowListUtilsChatLabels` | One per template. |
+
+### Rows
+
+A row is the model of what one cell shows. Its layout is a pure function of the row and a width, safe off the main
+thread, and its view only copies the frames the layout holds. The template lists build their rows from items. A
+`ShadowListUtilsList` takes rows directly, of the library's or of the app's own.
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsRow` | `key`, `contentVersion`, `viewClass`, `reuseIdentifier`, `layout(width:)`. A new `contentVersion` under the same key configures the cell again. `reuseIdentifier` defaults to the name of `viewClass`. In a horizontal list `width` is the list's height, and the layout's `width` is the row's size along the list. |
+| `ShadowListUtilsRowLayout` | `width`, `height`. Subclasses add their row's frames. A layout never changes once made. |
+| `ShadowListUtilsRowView` | An open `ShadowListKitListCell`. `row`, `configure(_:layout:)`, and `fill(_:)` and `apply(_:layout:)` to override. Without a layout it lays itself out on the main thread. |
+| `ShadowListUtilsLayoutCache` | `layout(_:width:)`, `prefetch(_:width:around:)`, `invalidate(_:)`, `invalidateAll()`. `layout` is safe on any thread. |
+| `ShadowListUtilsList` | `theme`, `rows`, `setRows(_:animated:)`, `onEndReached`, `onStartReached`, `onRefresh`, `onScroll`. Setting `onRefresh` turns pull to refresh on. Set the kit's `isRefreshing` back to false when done. |
+
+The layout of each of the library's rows holds a frame for every part of the row, in points, and the typeset text of
+its text parts. A frame of a part the row lacks is empty.
+
+| Layout | Members |
+| --- | --- |
+| `ShadowListUtilsSectionHeaderLayout` | `title`, `titleFrame`, `count`, `countFrame`. |
+| `ShadowListUtilsMasonryCardLayout` | `imageFrame`, `title`, `titleFrame`. |
+| `ShadowListUtilsFeedRowLayout` | `avatarFrame`, `name`, `nameFrame`, `handle`, `handleFrame`, `time`, `timeFrame`, `text`, `textFrame`, `imageFrame`, `stripFrame`, `stripImageFrames`, `separatorFrame`. `stripImageFrames` are in the strip's content. |
+| `ShadowListUtilsReorderRowLayout` | `avatarFrame`, `name`, `nameFrame`, `subtitle`, `subtitleFrame`, `gripFrame`, `separatorFrame`. |
+| `ShadowListUtilsReorderTileLayout` | `swatchFrame`, `label`, `labelFrame`, `title`, `titleFrame`. |
+| `ShadowListUtilsSnapCardLayout` | `cardFrame`, `captionFrame`, `title`, `titleFrame`, `subtitle`, `subtitleFrame`. `captionFrame` is in the card, and the text frames are in the caption. |
+| `ShadowListUtilsNestedRowLayout` | `title`, `titleFrame`, `listFrame`. |
+| `ShadowListUtilsNestedCardLayout` | `imageFrame`, `title`, `titleFrame`. |
+| `ShadowListUtilsContactRowLayout` | `avatarFrame`, `name`, `nameFrame`, `subtitle`, `subtitleFrame`, `chevronFrame`, `separatorFrame`. |
+| `ShadowListUtilsInboxRowLayout` | `unreadDotFrame`, `checkFrame`, `avatarFrame`, `sender`, `senderFrame`, `flagFrame`, `time`, `timeFrame`, `subject`, `subjectFrame`, `preview`, `previewFrame`. |
+| `ShadowListUtilsChatBubbleLayout` | `maximumBubbleWidth`, `avatarFrame`, `name`, `nameFrame`, `bubbleFrame`, `text`, `textFrame`, `caption`, `captionFrame`, `failed`, `failedFrame`, `imagesFrame`, `imageFrames`. `imageFrames` are in `imagesFrame`. |
+
+### Primitives
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsAvatar(size:theme:)` | `show(name:imageUrl:color:)`. Initials on a color derived from the name, with the image on top once it loads. |
+| `ShadowListUtilsImageView()` | `url`, `cornerRadius`, `placeholderColor`, and UIImageView's `image`. Fills its frame and clips to it. |
+| `ShadowListUtilsImageLoader` | An open class with `load(_:into:)` and `cancel(_:)`. `ShadowListUtilsImageLoader.shared` is the loader every image view uses. The default keeps decoded images in memory, fetches each url once, ends a fetch nobody waits for and keeps responses on disk in the platform's HTTP cache. Replace it with a subclass to use the app's image stack. |
+| `ShadowListUtilsListHeader(title:subtitle:theme:)`, `ShadowListUtilsListFooter(text:theme:)` | Header and footer blocks for a list's `headerView` and `footerView`. |
+| `ShadowListUtilsSectionHeader(key:title:count:theme:)` | The row of a section header, with `ShadowListUtilsSectionHeaderLayout` and `ShadowListUtilsSectionHeaderView`. |
+| `ShadowListUtilsItemSeparator(theme:)` | An inset hairline. `inset` defaults to the theme's `rowInset`. |
+| `ShadowListUtilsSpinner(size:color:theme:)` | Centered activity indicator. |
+| `ShadowListUtilsRedactedText.bars(for:lineHeight:)` | One bar per line of a text layout that holds text, as wide as the line's text, for a placeholder row. |
+| `ShadowListUtilsEmptyState(title:message:icon:theme:)` | What a screen says before it has anything to show. |
+
+Every primitive view has a settable `theme`.
+
+### Masonry
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsMasonryList` | A grid of image cards. Sets `numberOfColumns` to 3. |
+| `ShadowListUtilsMasonryItem(key:image:title:)`, `ShadowListUtilsMasonryImage(url:width:height:alt:)` | Only the ratio of `width` and `height` is read. |
+| `ShadowListUtilsMasonryCard(item:theme:labels:)` | The row, with `ShadowListUtilsMasonryCardLayout` and `ShadowListUtilsMasonryCardView`. |
+
+### Feed
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsFeedList` | A feed of posts. `onPressImage(item, index)` and `formatTime(createdAtMs)` besides the shared members. Every image is an accessibility element with its `alt`, and a button while `onPressImage` is set. |
+| `ShadowListUtilsFeedItem(key:author:text:images:createdAtMs:placeholder:)`, `ShadowListUtilsFeedAuthor`, `ShadowListUtilsFeedImage` | A `placeholder` item draws its strings as bars and its images as colored frames. |
+| `ShadowListUtilsFeedRow(item:theme:labels:formatTime:)` | The row, with `ShadowListUtilsFeedRowLayout` and `ShadowListUtilsFeedRowView`. `time` is the post's age in words, worked out when the row is made. One image keeps its aspect between 3:4 and 16:9, and several scroll sideways in a strip. |
+
+### Reorder
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsReorderList` | Contacts that reorder on a touch and hold. Sets `reorderEnabled`. Items are `ShadowListUtilsContactItem`s. |
+| `ShadowListUtilsReorderGrid` | Tiles that reorder, in 3 columns. `tileAspectRatio` shapes every tile alike. |
+| `onMoveItem(sourceIndex, destinationIndex, items)` | On both. The list already shows the moved items. A screen reader moves an item by one place through the same call. A drop where the item was picked up does not run it. |
+| `ShadowListUtilsReorderTileItem(key:title:label:color:aspectRatio:)` | The item of a tile. |
+| `ShadowListUtilsReorderRow(item:theme:labels:)`, `ShadowListUtilsReorderTile(item:aspectRatio:theme:labels:)` | The rows, with their layouts and views. |
+
+### Snap
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsSnapList` | Cards the list rests on. Sets `snapToItem`. `cardHeight` in points, a quarter of the height of the list's window when nil. |
+| `ShadowListUtilsSnapItem(key:title:subtitle:imageUrl:imageAlt:color:)` | The item of a card. |
+| `ShadowListUtilsSnapCard(item:height:theme:labels:)` | The row, with `ShadowListUtilsSnapCardLayout` and `ShadowListUtilsSnapCardView`. |
+
+### Nested
+
+There is no list for nested rows. Put them into a `ShadowListUtilsList` with `setRows`.
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsNestedRow(item:theme:onPressCard:)` | A title over a horizontal list of cards. The horizontal list keeps its place while its row is off screen. |
+| `ShadowListUtilsNestedCard(item:theme:)` | A card of that list. |
+| `ShadowListUtilsNestedItem(key:title:cards:)`, `ShadowListUtilsNestedCardItem(key:title:imageUrl:imageAlt:)` | The items of a row and of a card. |
+
+### Contacts
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsContactsList` | A list of contacts. `onDelete(item)` adds a trailing swipe action in the theme's red, and `disclosureIndicator` shows a chevron on rows that can be pressed. |
+| `ShadowListUtilsContactsSectionList` | The same in sections under sticky headers. `sections`, `setSections(_:animated:)`, `sectionIndexTitles`. Setting `items` groups them. |
+| `ShadowListUtilsContactItem(key:name:subtitle:avatarUrl:avatarColor:)`, `ShadowListUtilsContactSection(key:title:items:)` | The item and a section of them. |
+| `ShadowListUtilsContactRow(item:showsChevron:theme:)` | The row, with `ShadowListUtilsContactRowLayout` and `ShadowListUtilsContactRowView`. |
+| `shadowListUtilsGroupIntoSections(_:)` | Sections by the first character of each name in upper case, sorted in the reader's locale, with `#` last for names that start with no letter. |
+
+### Inbox
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsInboxList` | A mail list with swipe actions, a menu on a hold and selection while the kit's `isEditing` is on. Sets `showsSeparators`. |
+| `onToggleRead`, `onToggleFlag`, `onDelete`, `onReply` | Each takes the message. An action whose closure is nil is left out of the swipes and the menu. |
+| `selectedKeys`, `onSelectionChange(keys)` | The selection while editing. Leaving editing clears it and reports no keys. The menu's Select reports its one key, for the app to turn editing on with. |
+| `ShadowListUtilsInboxMessage(key:sender:subject:preview:receivedAtMs:read:flagged:avatarUrl:)` | The item. Only `avatarUrl` has a default. |
+| `ShadowListUtilsInboxRow(item:editing:theme:labels:)` | The row, with `ShadowListUtilsInboxRowLayout` and `ShadowListUtilsInboxRowView`. `time` is the message's age in words, worked out when the row is made. |
+
+### Chat
+
+| API | Notes |
+| --- | --- |
+| `ShadowListUtilsChatList` | Messages oldest first. Sets `isInverted`. `onRetryMessage`, `onLongPressMessage`, `captionForItem` and `showsAuthor` besides the shared members. A hold on a bubble runs `onLongPressMessage`, and the lift that ends it is not a tap. A press on or near the line under a failed message runs `onRetryMessage`. |
+| `ShadowListUtilsChatMessage(key:author:isOwn:text:images:createdAtMs:status:)`, `ShadowListUtilsChatAuthor`, `ShadowListUtilsChatMessageStatus` | The status of the reader's own messages is `sending`, `sent`, `delivered`, `read` or `failed`. A failed message adds a retry line. |
+| `ShadowListUtilsChatBubble(item:caption:showsAuthor:theme:labels:)` | The row, with `ShadowListUtilsChatBubbleLayout` and `ShadowListUtilsChatBubbleView`. `showsAuthor` false drops the name and avatar of a message from someone else and keeps the avatar's place. |
+
+## Tests
+
+`xcodebuild test -scheme ShadowListUtilsTests-Package -destination 'platform=iOS Simulator,name=<simulator>'` in
+this folder runs the library's tests on a simulator. They replay the vector files of
+`packages/shadowlist-core-tests/vectors`.
+
+## Example app
+
+[shadowlist-uikit-example](../../templates/shadowlist-uikit-example) has a screen per template. Open one with
+`-SLRoute` and a route: `Feed`, `Masonry`, `Chat`, `Contacts`, `SectionList`, `Reorder`, `ReorderGrid`, `Snap`,
+`Nested` or `Inbox`. `-SLStates 1` adds placeholder posts to Feed and captions and sending and failed messages to
+Chat, `-SLSelectDemo 1` opens Inbox editing with two rows selected, and `-SLImages 0` loads no image.

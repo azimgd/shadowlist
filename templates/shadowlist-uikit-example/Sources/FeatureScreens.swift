@@ -1,56 +1,54 @@
 import ShadowListKit
+import ShadowListUtils
 import UIKit
 
 // MARK: - Sections
 
 /*
- * Travellers grouped by the first letter of their name: built-in section headers that stick,
- * a count in each section's footer, a section index, separators and Auto Layout cells that size
- * themselves. The data source gives no sizes.
+ * Travellers grouped by the first letter of their name on the kit list itself: built-in section
+ * headers that stick, a count in each section's footer, a section index, separators and Auto
+ * Layout cells that size themselves. The data source gives no sizes.
  */
 final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
   let list = ShadowListKitListView()
-  private(set) var sections: [(letter: String, contacts: [Contact])] = []
+  private(set) var sections: [ShadowListUtilsContactSection] = []
   private var fresh = 5000
 
   override func viewDidLoad() {
     super.viewDidLoad()
     title = "Sections"
-    view.backgroundColor = Theme.background
+    view.backgroundColor = AppTheme.colors.background
     list.frame = view.bounds
     list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    list.backgroundColor = Theme.background
+    list.backgroundColor = AppTheme.colors.background
     list.estimatedItemSize = 64
     list.stickySectionHeaders = true
     list.showsSeparators = true
-    list.separatorInsetStart = 68
+    list.separatorInsetStart = AppTheme.theme.rowInset
     list.register(AutoContactCell.self, forCellReuseIdentifier: "contact")
     list.dataSource = self
     list.delegate = self
     view.addSubview(list)
-    group((0..<400).map { Contact(index: $0) })
+    group((0..<400).map { Items.contact(Contact(index: $0)) })
     list.reloadData()
     navigationItem.rightBarButtonItem = UIBarButtonItem(systemItem: .add, primaryAction: UIAction { [weak self] _ in self?.addTraveller() })
     FeatureScenario.startSections(self)
   }
 
-  func group(_ contacts: [Contact]) {
-    let sorted = contacts.sorted { $0.author.name < $1.author.name }
-    sections = Dictionary(grouping: sorted) { String($0.author.name.prefix(1)) }
-      .map { (letter: $0.key, contacts: $0.value) }
-      .sorted { $0.letter < $1.letter }
+  func group(_ contacts: [ShadowListUtilsContactItem]) {
+    sections = shadowListUtilsGroupIntoSections(contacts.sorted { $0.name < $1.name })
   }
 
-  var allContacts: [Contact] { sections.flatMap(\.contacts) }
+  var allContacts: [ShadowListUtilsContactItem] { sections.flatMap(\.items) }
 
-  func contact(at index: Int) -> Contact { allContacts[index] }
+  func contact(at index: Int) -> ShadowListUtilsContactItem { allContacts[index] }
 
   /*
    * A new traveller lands in its section. The list reads the sections again and keeps its place.
    */
   func addTraveller() {
     var contacts = allContacts
-    contacts.append(Contact(index: fresh))
+    contacts.append(Items.contact(Contact(index: fresh)))
     fresh += 1
     group(contacts)
     list.insertItems(at: IndexSet(integer: 0))
@@ -58,21 +56,23 @@ final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, S
 
   func numberOfItems(in listView: ShadowListKitListView) -> Int { allContacts.count }
   func numberOfSections(in listView: ShadowListKitListView) -> Int { sections.count }
-  func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { sections[section].contacts.count }
-  func listView(_ listView: ShadowListKitListView, keyForSection section: Int) -> String { sections[section].letter }
-  func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { sections[section].letter }
+  func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { sections[section].items.count }
+  func listView(_ listView: ShadowListKitListView, keyForSection section: Int) -> String { sections[section].key }
+  func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { sections[section].title }
   func listView(_ listView: ShadowListKitListView, titleForFooterInSection section: Int) -> String? {
-    "\(sections[section].contacts.count) travellers"
+    "\(sections[section].items.count) travellers"
   }
-  func sectionIndexTitles(for listView: ShadowListKitListView) -> [String]? { sections.map(\.letter) }
+  func sectionIndexTitles(for listView: ShadowListKitListView) -> [String]? { sections.map(\.title) }
 
-  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { contact(at: index).id }
+  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { contact(at: index).key }
 
   func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
-    let cell = listView.dequeueReusableCell(withIdentifier: "contact") as! AutoContactCell
+    let cell = listView.dequeueReusableCell(withIdentifier: "contact")
     let contact = contact(at: index)
+    let subtitle = contact.subtitle ?? ""
     // Every fifth traveller has a longer note, which wraps and makes the row taller.
-    cell.show(contact, note: index % 5 == 0 ? "\(contact.subtitle) · Window seat, travelling with two bags and a guitar case that goes in the cabin." : contact.subtitle)
+    (cell as? AutoContactCell)?.show(
+      contact, note: index % 5 == 0 ? "\(subtitle) · Window seat, travelling with two bags and a guitar case that goes in the cabin." : subtitle)
     return cell
   }
 
@@ -85,21 +85,17 @@ final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, S
  * A row laid out with Auto Layout. ShadowListKitListCell fits its constraints for the row height.
  */
 final class AutoContactCell: ShadowListKitListCell {
-  private let avatar = UILabel()
+  private let avatar = ShadowListUtilsAvatar(theme: AppTheme.theme)
   private let name = UILabel()
   private let note = UILabel()
 
   override init(reuseIdentifier: String?) {
     super.init(reuseIdentifier: reuseIdentifier)
-    backgroundColor = Theme.background
-    avatar.textAlignment = .center
-    avatar.textColor = .white
-    avatar.font = .systemFont(ofSize: 15, weight: .semibold)
-    avatar.layer.cornerRadius = 20
-    avatar.clipsToBounds = true
+    backgroundColor = AppTheme.colors.background
     name.font = .preferredFont(forTextStyle: .body)
+    name.textColor = AppTheme.colors.label
     note.font = .preferredFont(forTextStyle: .subheadline)
-    note.textColor = Theme.secondaryLabel
+    note.textColor = AppTheme.colors.secondaryLabel
     note.numberOfLines = 0
     for view in [avatar, name, note] {
       view.translatesAutoresizingMaskIntoConstraints = false
@@ -108,8 +104,8 @@ final class AutoContactCell: ShadowListKitListCell {
     NSLayoutConstraint.activate([
       avatar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
       avatar.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-      avatar.widthAnchor.constraint(equalToConstant: 40),
-      avatar.heightAnchor.constraint(equalToConstant: 40),
+      avatar.widthAnchor.constraint(equalToConstant: avatar.size),
+      avatar.heightAnchor.constraint(equalToConstant: avatar.size),
       avatar.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -12),
       name.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 12),
       name.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
@@ -121,19 +117,16 @@ final class AutoContactCell: ShadowListKitListCell {
     ])
   }
 
-  required init?(coder: NSCoder) { fatalError() }
-
-  func show(_ contact: Contact, note text: String) {
-    avatar.text = contact.author.initials
-    avatar.backgroundColor = contact.author.color
-    name.text = contact.author.name
+  func show(_ contact: ShadowListUtilsContactItem, note text: String) {
+    avatar.show(name: contact.name, imageUrl: contact.avatarUrl, color: contact.avatarColor)
+    name.text = contact.name
     note.text = text
   }
 
   override func setHighlighted(_ highlighted: Bool, animated: Bool) {
     super.setHighlighted(highlighted, animated: animated)
     UIView.animate(withDuration: animated ? 0.2 : 0) {
-      self.backgroundColor = highlighted ? Theme.elevated2 : Theme.background
+      self.backgroundColor = highlighted ? AppTheme.colors.elevated2 : AppTheme.colors.background
     }
   }
 }
@@ -141,61 +134,34 @@ final class AutoContactCell: ShadowListKitListCell {
 // MARK: - Inbox
 
 /*
- * One message of the inbox.
+ * The library's inbox: swipe actions, a menu on a long press, selection while editing, pull to
+ * refresh and separators. Changes go through setItems, which has the kit diff them by key and
+ * animate them.
  */
-struct Message {
-  let id: String
-  let author: Author
-  let text: String
-  var read: Bool
-  var flagged: Bool
-  var version: Int
-
-  init(index: Int) {
-    id = "message-\(index)"
-    author = Author(FixtureStrings.characterNames[index % FixtureStrings.characterNames.count])
-    text = FixtureStrings.sampleTexts[index % FixtureStrings.sampleTexts.count]
-    read = index % 3 == 0
-    flagged = false
-    version = 0
-  }
-}
-
-/*
- * An inbox that uses the list's interaction features: swipe actions, a context menu, selection
- * with editing, pull to refresh, separators, batch updates, applyChanges with content versions,
- * payload reloads, prefetching and a saved scroll position. Changes animate.
- */
-final class InboxScreen: UIViewController, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate, ShadowListKitListViewPrefetchDataSource {
-  let list = ShadowListKitListView()
-  var messages: [Message] = (0..<200).map { Message(index: $0) }
+final class InboxScreen: UIViewController {
+  let list = ShadowListUtilsInboxList(theme: AppTheme.theme)
+  private(set) var messages: [ShadowListUtilsInboxMessage] = (0..<200).map { Items.mail($0) }
   private var fresh = 1000
   private var savedPlace: ShadowListKitAnchorState?
-  private(set) var prefetched = 0
-  private(set) var cancelled = 0
-  private(set) var reconfigured = 0
   private(set) var refreshes = 0
-  var onSelectionChange: (() -> Void)?
+  private var editButton: UIBarButtonItem?
 
   override func viewDidLoad() {
     super.viewDidLoad()
     title = "Inbox"
-    view.backgroundColor = Theme.background
+    view.backgroundColor = AppTheme.colors.background
     list.frame = view.bounds
     list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    list.backgroundColor = Theme.background
-    list.estimatedItemSize = 76
-    list.animatesChanges = true
-    list.showsSeparators = true
-    list.separatorInsetStart = 72
-    list.refreshEnabled = true
-    list.reorderEnabled = Settings.debug
-    list.register(MessageCell.self, forCellReuseIdentifier: "message")
-    list.dataSource = self
-    list.delegate = self
-    list.prefetchDataSource = self
+    list.alwaysBounceVertical = true
+    list.onPressItem = { [weak self] in self?.toggleRead($0) }
+    list.onToggleRead = { [weak self] in self?.toggleRead($0) }
+    list.onToggleFlag = { [weak self] in self?.toggleFlag($0) }
+    list.onDelete = { [weak self] in self?.delete($0) }
+    list.onReply = { [weak self] in self?.reply($0) }
+    list.onSelectionChange = { [weak self] in self?.selectionChanged($0) }
+    list.onRefresh = { [weak self] in self?.refresh() }
     view.addSubview(list)
-    list.reloadData()
+    show()
     installActions()
     FeatureScenario.startInbox(self)
     // -SLSwipeDemo 1 opens the trailing actions of the second row, for screenshots.
@@ -204,241 +170,105 @@ final class InboxScreen: UIViewController, ShadowListKitListViewDataSource, Shad
         self?.list.shadowListKit_swipeItem(at: 1, distance: -170, velocity: 0)
       }
     }
+    // -SLSelectDemo 1 starts editing with the second and third rows selected, for screenshots.
+    if UserDefaults.standard.string(forKey: "SLSelectDemo") == "1" {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+        guard let self else { return }
+        self.selectionChanged(Set(self.messages[1...2].map(\.key)))
+      }
+    }
   }
 
   private func installActions() {
     let edit = UIBarButtonItem(title: "Edit", primaryAction: UIAction { [weak self] _ in self?.toggleEditing() })
-    let shuffle = UIAction(title: "Shuffle with applyChanges", image: UIImage(systemName: "shuffle")) { [weak self] _ in self?.shuffle() }
-    let batch = UIAction(title: "Batch update", image: UIImage(systemName: "square.stack")) { [weak self] _ in self?.batchUpdate() }
+    let shuffle = UIAction(title: "Shuffle", image: UIImage(systemName: "shuffle")) { [weak self] _ in self?.shuffle() }
     let save = UIAction(title: "Save place", image: UIImage(systemName: "bookmark")) { [weak self] _ in self?.savedPlace = self?.list.anchorState }
     let restore = UIAction(title: "Back to saved place", image: UIImage(systemName: "bookmark.fill")) { [weak self] _ in
       if let place = self?.savedPlace { self?.list.restoreAnchorState(place) }
     }
-    let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: UIMenu(children: [shuffle, batch, save, restore]))
+    let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: UIMenu(children: [shuffle, save, restore]))
+    editButton = edit
     navigationItem.rightBarButtonItems = [more, edit]
+  }
+
+  func show(animated: Bool = false) {
+    list.setItems(messages, animated: animated)
   }
 
   func toggleEditing() {
     list.setEditing(!list.isEditing, animated: true)
-    list.allowsMultipleSelection = list.isEditing
-    navigationItem.rightBarButtonItems?.last?.title = list.isEditing ? "Done" : "Edit"
+    editButton?.title = list.isEditing ? "Done" : "Edit"
+    title = "Inbox"
   }
 
   /*
-   * New mail on top, a removed message and a moved one, all in one animated pass.
+   * A tap changed the selection while editing, or the menu's Select entry asked to start
+   * editing with one message.
    */
-  func batchUpdate() {
-    guard messages.count > 6 else { return }
-    // Before: m0 m1 m2 m3 m4 m5. After: new m5 m1 m2 m3 m4, with m2 marked read or unread.
-    let moved = messages.remove(at: 5)
-    messages.remove(at: 0)
-    messages.insert(moved, at: 0)
-    messages.insert(Message(index: fresh), at: 0)
-    fresh += 1
-    messages[3].read.toggle()
-    list.performBatchUpdates({
-      list.deleteItems(at: IndexSet(integer: 0))
-      list.moveItem(at: 5, to: 1)
-      list.insertItems(at: IndexSet(integer: 0))
-      list.reloadItems(at: IndexSet(integer: 2))
-    }, completion: nil)
+  private func selectionChanged(_ keys: Set<String>) {
+    if !list.isEditing {
+      toggleEditing()
+      list.selectedKeys = keys
+    }
+    title = keys.isEmpty ? "Inbox" : "\(keys.count) Selected"
   }
 
   /*
    * Shuffle a few messages, edit two and hand the list the new data to diff.
    */
-  @discardableResult
-  func shuffle() -> ShadowListKitListChanges {
+  func shuffle() {
     let range = 2..<min(12, messages.count)
     let reversed = Array(messages[range].reversed())
     messages.replaceSubrange(range, with: reversed)
-    messages[1].version += 1
     messages[1].flagged.toggle()
-    messages.insert(Message(index: fresh), at: 4)
+    messages.insert(Items.mail(fresh), at: 4)
     fresh += 1
-    messages.remove(at: messages.count - 1)
-    return list.applyChanges()
+    messages.removeLast()
+    show(animated: true)
   }
 
   func addNewMail(_ count: Int) {
-    let new = (0..<count).map { offset in Message(index: fresh + offset) }
+    let new = (0..<count).map { offset -> ShadowListUtilsInboxMessage in
+      var mail = Items.mail(fresh + offset)
+      mail.read = false
+      mail.receivedAtMs = Date().timeIntervalSince1970 * 1000
+      return mail
+    }
     fresh += count
     messages.insert(contentsOf: new, at: 0)
-    list.insertItems(at: IndexSet(0..<count))
+    show(animated: true)
   }
 
-  func numberOfItems(in listView: ShadowListKitListView) -> Int { messages.count }
-  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { messages[index].id }
-  func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 76 }
-  func listView(_ listView: ShadowListKitListView, contentVersionForItemAt index: Int) -> Int { messages[index].version }
-
-  func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
-    let cell = listView.dequeueReusableCell(withIdentifier: "message") as! MessageCell
-    cell.show(messages[index])
-    return cell
+  private func change(_ message: ShadowListUtilsInboxMessage, _ edit: (inout ShadowListUtilsInboxMessage) -> Void) {
+    guard let index = messages.firstIndex(where: { $0.key == message.key }) else { return }
+    edit(&messages[index])
+    show()
   }
 
-  func listView(_ listView: ShadowListKitListView, reconfigureCell cell: ShadowListKitListCell, at index: Int, payload: Any?) -> Bool {
-    guard let cell = cell as? MessageCell, payload as? String == "read" else { return false }
-    reconfigured += 1
-    cell.show(messages[index])
-    return true
+  func toggleRead(_ message: ShadowListUtilsInboxMessage) {
+    change(message) { $0.read.toggle() }
   }
 
-  func listView(_ listView: ShadowListKitListView, prefetchItemsAt indices: IndexSet) { prefetched += indices.count }
-  func listView(_ listView: ShadowListKitListView, cancelPrefetchingForItemsAt indices: IndexSet) { cancelled += indices.count }
-
-  func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) {
-    if !listView.isEditing {
-      listView.deselectItem(at: index, animated: true)
-      toggleRead(index)
-    }
-    onSelectionChange?()
+  func toggleFlag(_ message: ShadowListUtilsInboxMessage) {
+    change(message) { $0.flagged.toggle() }
   }
 
-  func listView(_ listView: ShadowListKitListView, didDeselectItemAt index: Int) { onSelectionChange?() }
-
-  func toggleRead(_ index: Int) {
-    messages[index].read.toggle()
-    list.reloadItems(at: IndexSet(integer: index), payload: "read")
+  func delete(_ message: ShadowListUtilsInboxMessage) {
+    messages.removeAll { $0.key == message.key }
+    show(animated: true)
   }
 
-  func delete(_ index: Int) {
-    messages.remove(at: index)
-    list.deleteItems(at: IndexSet(integer: index))
+  private func reply(_ message: ShadowListUtilsInboxMessage) {
+    let alert = UIAlertController(title: "Reply to \(message.sender)", message: message.subject, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "OK", style: .default))
+    present(alert, animated: true)
   }
 
-  func listView(_ listView: ShadowListKitListView, leadingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
-    let read = ShadowListKitSwipeAction(style: .normal, title: messages[index].read ? "Unread" : "Read") { [weak self] _, done in
-      self?.toggleRead(index)
-      done(true)
-    }
-    read.backgroundColor = Theme.accent
-    return ShadowListKitSwipeActionsConfiguration(actions: [read])
-  }
-
-  func listView(_ listView: ShadowListKitListView, trailingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
-    let key = messages[index].id
-    let delete = ShadowListKitSwipeAction(style: .destructive, title: "Delete") { [weak self] _, done in
-      guard let self, let at = self.messages.firstIndex(where: { $0.id == key }) else { return done(false) }
-      self.delete(at)
-      done(true)
-    }
-    let flag = ShadowListKitSwipeAction(style: .normal, title: "Flag") { [weak self] _, done in
-      guard let self, let at = self.messages.firstIndex(where: { $0.id == key }) else { return done(false) }
-      self.messages[at].flagged.toggle()
-      self.list.reloadItems(at: IndexSet(integer: at), payload: "read")
-      done(true)
-    }
-    flag.backgroundColor = .systemOrange
-    return ShadowListKitSwipeActionsConfiguration(actions: [delete, flag])
-  }
-
-  func listView(_ listView: ShadowListKitListView, contextMenuForItemAt index: Int) -> UIMenu? {
-    let key = messages[index].id
-    let at = { [weak self] in self?.messages.firstIndex(where: { $0.id == key }) }
-    return UIMenu(children: [
-      UIAction(title: "Pin to Top", image: UIImage(systemName: "pin")) { [weak self] _ in
-        guard let self, let from = at() else { return }
-        let message = self.messages.remove(at: from)
-        self.messages.insert(message, at: 0)
-        self.list.moveItem(at: from, to: 0)
-      },
-      UIAction(title: messages[index].read ? "Mark Unread" : "Mark Read", image: UIImage(systemName: "envelope")) { [weak self] _ in
-        if let from = at() { self?.toggleRead(from) }
-      },
-      UIAction(title: "Delete", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
-        if let from = at() { self?.delete(from) }
-      },
-    ])
-  }
-
-  func listViewDidBeginRefreshing(_ listView: ShadowListKitListView) {
+  private func refresh() {
     refreshes += 1
     DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
       self?.addNewMail(3)
       self?.list.isRefreshing = false
-    }
-  }
-}
-
-/*
- * A message row: avatar, sender, text, an unread dot and a flag. It shows highlight, selection
- * and, while editing, a check circle.
- */
-final class MessageCell: ShadowListKitListCell {
-  private let avatar = UILabel()
-  private let sender = UILabel()
-  private let body = UILabel()
-  private let dot = UIView()
-  private let flag = UIImageView(image: UIImage(systemName: "flag.fill"))
-  private let check = UIImageView()
-
-  override init(reuseIdentifier: String?) {
-    super.init(reuseIdentifier: reuseIdentifier)
-    backgroundColor = Theme.background
-    avatar.textAlignment = .center
-    avatar.textColor = .white
-    avatar.font = .systemFont(ofSize: 15, weight: .semibold)
-    avatar.layer.cornerRadius = 22
-    avatar.clipsToBounds = true
-    sender.font = .systemFont(ofSize: 16, weight: .semibold)
-    body.font = .systemFont(ofSize: 14)
-    body.textColor = Theme.secondaryLabel
-    body.numberOfLines = 2
-    dot.backgroundColor = Theme.accent
-    dot.layer.cornerRadius = 5
-    flag.tintColor = .systemOrange
-    check.tintColor = Theme.accent
-    [avatar, sender, body, dot, flag, check].forEach(addSubview)
-  }
-
-  required init?(coder: NSCoder) { fatalError() }
-
-  func show(_ message: Message) {
-    avatar.text = message.author.initials
-    avatar.backgroundColor = message.author.color
-    sender.text = message.author.name
-    body.text = message.text
-    dot.isHidden = message.read
-    flag.isHidden = !message.flagged
-    accessibilityLabel = "\(message.author.name), \(message.read ? "read" : "unread"), \(message.text)"
-    isAccessibilityElement = true
-  }
-
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    let width = bounds.width
-    let lead: CGFloat = isEditing ? 40 : 0
-    check.frame = CGRect(x: 12, y: 26, width: 24, height: 24)
-    check.alpha = isEditing ? 1 : 0
-    dot.frame = CGRect(x: lead + 4, y: 33, width: 10, height: 10)
-    avatar.frame = CGRect(x: lead + 18, y: 16, width: 44, height: 44)
-    sender.frame = CGRect(x: lead + 72, y: 10, width: width - lead - 72 - 40, height: 20)
-    body.frame = CGRect(x: lead + 72, y: 31, width: width - lead - 72 - 16, height: 36)
-    flag.frame = CGRect(x: width - 34, y: 10, width: 18, height: 18)
-  }
-
-  override func setHighlighted(_ highlighted: Bool, animated: Bool) {
-    super.setHighlighted(highlighted, animated: animated)
-    updateBackground(animated)
-  }
-
-  override func setSelected(_ selected: Bool, animated: Bool) {
-    super.setSelected(selected, animated: animated)
-    check.image = UIImage(systemName: selected ? "checkmark.circle.fill" : "circle")
-    updateBackground(animated)
-  }
-
-  override func setEditing(_ editing: Bool, animated: Bool) {
-    super.setEditing(editing, animated: animated)
-    check.image = UIImage(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-    UIView.animate(withDuration: animated ? 0.25 : 0) { self.layoutSubviews() }
-  }
-
-  private func updateBackground(_ animated: Bool) {
-    UIView.animate(withDuration: animated ? 0.2 : 0) {
-      self.backgroundColor = self.isHighlighted ? Theme.elevated2 : self.isSelected ? Theme.elevated : Theme.background
     }
   }
 }
@@ -497,42 +327,33 @@ enum FeatureScenario {
       list.itemAnimator = animator
 
       // Selection follows keys.
-      list.allowsMultipleSelection = true
-      list.selectItem(at: 1, animated: false)
-      list.selectItem(at: 3, animated: false)
-      list.deselectItem(at: 1, animated: false)
-      screen.messages.remove(at: 0)
-      list.deleteItems(at: IndexSet(integer: 0))
+      screen.toggleEditing()
+      list.selectedKeys = [screen.messages[3].key]
+      screen.delete(screen.messages[0])
       list.layoutIfNeeded()
       result["selectedAfterDelete"] = Array(list.selectedIndices)
-      list.allowsMultipleSelection = false
+      result["selectedKeysAfterDelete"] = Array(list.selectedKeys)
+      screen.toggleEditing()
 
-      // A batch: new mail, a delete, a move and a reload.
-      screen.batchUpdate()
+      // setItems diffs the new data.
+      screen.shuffle()
       list.layoutIfNeeded()
-      result["batchConsistent"] = consistent(screen)
+      result["shuffleConsistent"] = consistent(screen)
 
-      // applyChanges diffs the new data.
-      let changes = screen.shuffle()
-      list.layoutIfNeeded()
-      result["applyChanges"] = ["deleted": changes.deletedIndices.count, "inserted": changes.insertedIndices.count,
-                                "moved": changes.movedFromIndices.count, "reloaded": changes.reloadedIndices.count]
-      result["applyConsistent"] = consistent(screen)
-
-      // A payload reload updates the shown cell in place.
+      // A changed item is configured again in the cell it has.
       let cellBefore = list.cellForItem(at: 2)
-      screen.toggleRead(2)
+      screen.toggleRead(screen.messages[2])
       list.layoutIfNeeded()
-      result["payloadKeptCell"] = cellBefore != nil && cellBefore === list.cellForItem(at: 2)
-      result["reconfigured"] = screen.reconfigured
+      result["changeKeptCell"] = cellBefore != nil && cellBefore === list.cellForItem(at: 2)
+      result["changeShown"] = ((cellBefore as? ShadowListUtilsRowView)?.row as? ShadowListUtilsInboxRow)?.item.read == screen.messages[2].read
 
       // Swipe the third row all the way: its delete runs.
       let count = screen.messages.count
-      let swiped = screen.messages[2].id
+      let swiped = screen.messages[2].key
       list.shadowListKit_swipeItem(at: 2, distance: -list.bounds.width, velocity: 0)
       after(0.6) {
         list.layoutIfNeeded()
-        result["fullSwipeDeleted"] = screen.messages.count == count - 1 && !screen.messages.contains { $0.id == swiped }
+        result["fullSwipeDeleted"] = screen.messages.count == count - 1 && !screen.messages.contains { $0.key == swiped }
         // A partial swipe opens the row. Closing it puts it back.
         list.shadowListKit_swipeItem(at: 1, distance: 120, velocity: 0)
         let open = list.cellForItem(at: 1)?.transform.tx ?? 0
@@ -548,7 +369,7 @@ enum FeatureScenario {
 
         // Refresh through the control the list owns.
         list.refreshControl?.sendActions(for: .valueChanged)
-        result["refreshDelegateCalls"] = screen.refreshes
+        result["refreshCalls"] = screen.refreshes
 
         // The saved position lands again after rows above it changed.
         list.scrollToItem(at: 60, viewPosition: 0, animated: false)
@@ -560,14 +381,10 @@ enum FeatureScenario {
         list.layoutIfNeeded()
         list.restoreAnchorState(place)
         list.layoutIfNeeded()
-        let index = screen.messages.firstIndex { $0.id == place.key } ?? 0
+        let index = screen.messages.firstIndex { $0.key == place.key } ?? 0
         let viewportTop = list.contentOffset.y + list.adjustedContentInset.top
         result["anchorKey"] = place.key
         result["anchorError"] = Double((viewportTop - list.rectForItem(at: index).minY) - place.offset)
-
-        // Prefetching followed the scrolling.
-        result["prefetched"] = screen.prefetched
-        result["cancelled"] = screen.cancelled
         result["animatorCalls"] = animator.calls
         result["separators"] = list.visibleCells.filter { cell in cell.layer.sublayers?.contains { $0.zPosition == 1000 && !$0.isHidden } ?? false }.count
         report(result)
@@ -580,12 +397,12 @@ enum FeatureScenario {
    */
   private static func consistent(_ screen: InboxScreen) -> Bool {
     let range = screen.list.visibleRange
-    guard range.location != NSNotFound else { return false }
+    guard range.location != NSNotFound, screen.list.rows.count == screen.messages.count else { return false }
     for index in range.location..<NSMaxRange(range) {
-      guard let cell = screen.list.cellForItem(at: index) else { continue }
-      if cell.accessibilityLabel?.hasPrefix(screen.messages[index].author.name) != true { return false }
+      guard let cell = screen.list.cellForItem(at: index) as? ShadowListUtilsRowView else { continue }
+      if cell.row?.key != screen.messages[index].key { return false }
     }
-    return screen.list.numberOfItemsCheck(screen.messages.count)
+    return true
   }
 
   private static func visibleItems(_ list: ShadowListKitListView) -> [String: CGFloat] {
@@ -631,14 +448,5 @@ final class CountingAnimator: ShadowListKitDefaultItemAnimator {
   override func listView(_ listView: ShadowListKitListView, animateMoveOf cell: ShadowListKitListCell, fromOffset offset: CGPoint) {
     calls += 1
     super.listView(listView, animateMoveOf: cell, fromOffset: offset)
-  }
-}
-
-private extension ShadowListKitListView {
-  /*
-   * Whether the list holds count items: the last one has a frame and the one after does not.
-   */
-  func numberOfItemsCheck(_ count: Int) -> Bool {
-    !rectForItem(at: count - 1).isNull && rectForItem(at: count).isNull
   }
 }

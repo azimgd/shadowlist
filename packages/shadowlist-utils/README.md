@@ -3,7 +3,7 @@
 ShadowListUtils is the hooks and helpers package for [ShadowList](../shadowlist-fabric/README.md), plus
 themed React Native list kits. Install it from npm as `shadowlist-utils`.
 
-Contents: [Install](#install) · [Usage](#usage) · [API](#api) · [Native kits](#native-kits)
+Contents: [Install](#install) · [Usage](#usage) · [API](#api) · [Templates](#templates)
 
 ## Install
 
@@ -135,7 +135,10 @@ For local data, connect `data`, `handleRefresh`, `handleStartReached` and `handl
 | `groupIntoSections(items, { getSectionTitle, compareSections?, compareItems? })` → `{ key, title, data }[]` | Groups a flat array into SectionList sections. Wrap the call in `useMemo`. |
 | `collectExpandableKeys(nodes, { getChildren, keyExtractor })` → `string[]` | Returns the key of every node that has children, at any depth. Use it for a TreeList "Expand all" (`expandedKeys`). |
 
-## Native kits
+## Templates
+
+The same templates in Swift and in Kotlin, on the native kits: [ShadowListUtils for UIKit](../shadowlist-uikit-utils/README.md)
+and [ShadowListUtils for Android](../shadowlist-android-utils/README.md).
 
 Import kits from `shadowlist-utils/native`, for example `Chat.List` and `Chat.Bubble`. Lists forward the props allowed
 by their exported `*ListProps` type and expose the underlying list commands through `ref` (`Tree.List` uses
@@ -310,7 +313,7 @@ transport as well as finishing the writer when stopping a reply.
 
 | Export | Purpose |
 | --- | --- |
-| `Assistant.List` | Message list; requires `store`, accepts `streaming` and reply callbacks. Keeps the end in view as replies arrive and grow, `onAtEndChange` reports a reader who scrolled away, and a drag dismisses the keyboard |
+| `Assistant.List` | Message list; requires `store`, accepts `streaming` and reply callbacks. Keeps the end in view as replies arrive and grow, `onAtEndChange` reports a reader who scrolled away or a scroll command that landed away from the end, and a drag dismisses the keyboard |
 | `Assistant.Composer` | Send/Stop, attachments and editing; ref supports `setDraft`, `clearDraft`, `focus`. Pass `value` and `onChangeText` to own the draft, and `accessory` for a control in its toolbar |
 | `createStreamStore`, `useStreamingTurn` | Store lifecycle and a subscription for each message |
 | `createTurnWriter` | Batched thinking/content, tool calls, completion, failure and stop |
@@ -394,7 +397,7 @@ page. Until a column has measured its cards, each counts `estimatedItemHeight` (
 Labels: `defaultBoardLabels` (`emptyColumn`, `emptyColumnReadOnly`, `columnSummary(title, count)`). See
 [BoardScreen](../../templates/shadowlist-fabric-example/src/screens/BoardScreen.tsx).
 
-### Other kits
+### Other templates
 
 | Kit | Input / behavior | Example / source |
 | --- | --- | --- |

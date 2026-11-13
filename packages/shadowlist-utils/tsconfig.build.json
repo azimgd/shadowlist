@@ -25,5 +25,5 @@
       ]
     }
   },
-  "exclude": ["lib", "**/__tests__"]
+  "exclude": ["lib", "**/__tests__", "**/__fixtures__"]
 }

@@ -1,0 +1,1144 @@
+[
+  {
+    "name": "a list without rows",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 0,
+      "initialCount": 20,
+      "inverted": false,
+      "target": -1,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": -1,
+      "high": -1
+    }
+  },
+  {
+    "name": "from the start",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": -1,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 0,
+      "high": 20
+    }
+  },
+  {
+    "name": "a list shorter than the initial count",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 5,
+      "initialCount": 20,
+      "inverted": false,
+      "target": -1,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 0,
+      "high": 4
+    }
+  },
+  {
+    "name": "a list of one row",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1,
+      "initialCount": 20,
+      "inverted": false,
+      "target": -1,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 0,
+      "high": 0
+    }
+  },
+  {
+    "name": "an initial count of zero",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 100,
+      "initialCount": 0,
+      "inverted": false,
+      "target": -1,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 0,
+      "high": 0
+    }
+  },
+  {
+    "name": "an inverted list ends at the last row",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": true,
+      "target": -1,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 980,
+      "high": 999
+    }
+  },
+  {
+    "name": "an inverted list shorter than the initial count",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 5,
+      "initialCount": 20,
+      "inverted": true,
+      "target": -1,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 0,
+      "high": 4
+    }
+  },
+  {
+    "name": "an inverted list with an initial count of zero",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 100,
+      "initialCount": 0,
+      "inverted": true,
+      "target": -1,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 100,
+      "high": 99
+    }
+  },
+  {
+    "name": "around a target",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 400,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 396,
+      "high": 420
+    }
+  },
+  {
+    "name": "a target wins over the inverted start",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": true,
+      "target": 400,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 396,
+      "high": 420
+    }
+  },
+  {
+    "name": "a target of the first row",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 0,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 0,
+      "high": 20
+    }
+  },
+  {
+    "name": "a target near the start keeps the low end at zero",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 2,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 0,
+      "high": 22
+    }
+  },
+  {
+    "name": "a target past the end is the last row",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 5000,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 995,
+      "high": 999
+    }
+  },
+  {
+    "name": "a target of the last row",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 999,
+      "overscanRows": 4,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 995,
+      "high": 999
+    }
+  },
+  {
+    "name": "a target centered",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 400,
+      "overscanRows": 4,
+      "viewPosition": 0.5
+    },
+    "output": {
+      "low": 386,
+      "high": 410
+    }
+  },
+  {
+    "name": "a target at the end of the window",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 400,
+      "overscanRows": 4,
+      "viewPosition": 1
+    },
+    "output": {
+      "low": 376,
+      "high": 400
+    }
+  },
+  {
+    "name": "a target a third down the window",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 400,
+      "overscanRows": 4,
+      "viewPosition": 0.33
+    },
+    "output": {
+      "low": 389,
+      "high": 413
+    }
+  },
+  {
+    "name": "a view position whose rows round up at a half",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 5,
+      "inverted": false,
+      "target": 400,
+      "overscanRows": 4,
+      "viewPosition": 0.5
+    },
+    "output": {
+      "low": 393,
+      "high": 402
+    }
+  },
+  {
+    "name": "a target with no overscan",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 400,
+      "overscanRows": 0,
+      "viewPosition": 0
+    },
+    "output": {
+      "low": 400,
+      "high": 420
+    }
+  },
+  {
+    "name": "a target with a wide overscan",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 400,
+      "overscanRows": 50,
+      "viewPosition": 1
+    },
+    "output": {
+      "low": 330,
+      "high": 400
+    }
+  },
+  {
+    "name": "a target at the end of the window near the start",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1000,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 3,
+      "overscanRows": 4,
+      "viewPosition": 1
+    },
+    "output": {
+      "low": 0,
+      "high": 3
+    }
+  },
+  {
+    "name": "a target in a list of one row",
+    "function": "initialMountedRange",
+    "input": {
+      "size": 1,
+      "initialCount": 20,
+      "inverted": false,
+      "target": 0,
+      "overscanRows": 4,
+      "viewPosition": 0.5
+    },
+    "output": {
+      "low": 0,
+      "high": 0
+    }
+  },
+  {
+    "name": "a range in the middle stays",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 100,
+        "high": 140
+      },
+      "lowAtStart": false,
+      "highAtEnd": false,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 100,
+      "high": 140
+    }
+  },
+  {
+    "name": "a low edge at the start takes the leading pad",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 5,
+        "high": 40
+      },
+      "lowAtStart": true,
+      "highAtEnd": false,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 0,
+      "high": 40
+    }
+  },
+  {
+    "name": "a low edge at the start with room for the whole pad",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 30,
+        "high": 60
+      },
+      "lowAtStart": true,
+      "highAtEnd": false,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 20,
+      "high": 60
+    }
+  },
+  {
+    "name": "a high edge at the end takes the leading pad",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 100,
+        "high": 140
+      },
+      "lowAtStart": false,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 100,
+      "high": 150
+    }
+  },
+  {
+    "name": "a high edge at the end stops at the last row",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 100,
+        "high": 995
+      },
+      "lowAtStart": false,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 100,
+      "high": 999
+    }
+  },
+  {
+    "name": "a high edge on the last row",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 100,
+        "high": 999
+      },
+      "lowAtStart": false,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 100,
+      "high": 999
+    }
+  },
+  {
+    "name": "both edges at their ends",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 3,
+        "high": 96
+      },
+      "lowAtStart": true,
+      "highAtEnd": true,
+      "size": 100,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 0,
+      "high": 99
+    }
+  },
+  {
+    "name": "edges the wrong way round are sorted",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 140,
+        "high": 100
+      },
+      "lowAtStart": false,
+      "highAtEnd": false,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 100,
+      "high": 140
+    }
+  },
+  {
+    "name": "a followed tail takes a short append",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 960,
+        "high": 989
+      },
+      "lowAtStart": false,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": 960,
+      "high": 999
+    }
+  },
+  {
+    "name": "a followed tail takes an append up to the limit",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 920,
+        "high": 949
+      },
+      "lowAtStart": false,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": 920,
+      "high": 999
+    }
+  },
+  {
+    "name": "a followed tail moves to the end after a burst",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 100,
+        "high": 129
+      },
+      "lowAtStart": false,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": 920,
+      "high": 999
+    }
+  },
+  {
+    "name": "a followed tail in a short list",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 0,
+        "high": 9
+      },
+      "lowAtStart": true,
+      "highAtEnd": true,
+      "size": 12,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": 0,
+      "high": 11
+    }
+  },
+  {
+    "name": "a followed tail keeps a low edge that grew",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 995,
+        "high": 999
+      },
+      "lowAtStart": true,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": 985,
+      "high": 999
+    }
+  },
+  {
+    "name": "follow without the high edge at the end grows nothing",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 100,
+        "high": 140
+      },
+      "lowAtStart": false,
+      "highAtEnd": false,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": 100,
+      "high": 140
+    }
+  },
+  {
+    "name": "a leading pad of zero",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 0,
+        "high": 40
+      },
+      "lowAtStart": true,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 0,
+      "followTail": false
+    },
+    "output": {
+      "low": 0,
+      "high": 40
+    }
+  },
+  {
+    "name": "a high edge past the last row comes back inside",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 100,
+        "high": 1500
+      },
+      "lowAtStart": false,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 100,
+      "high": 999
+    }
+  },
+  {
+    "name": "a range of one row",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 7,
+        "high": 7
+      },
+      "lowAtStart": false,
+      "highAtEnd": false,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 7,
+      "high": 7
+    }
+  },
+  {
+    "name": "a missing low edge is empty",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": -1,
+        "high": 4
+      },
+      "lowAtStart": true,
+      "highAtEnd": true,
+      "size": 100,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": -1,
+      "high": -1
+    }
+  },
+  {
+    "name": "a missing high edge is empty",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 4,
+        "high": -1
+      },
+      "lowAtStart": true,
+      "highAtEnd": true,
+      "size": 100,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": -1,
+      "high": -1
+    }
+  },
+  {
+    "name": "both edges missing is empty",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": -1,
+        "high": -1
+      },
+      "lowAtStart": false,
+      "highAtEnd": false,
+      "size": 100,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": -1,
+      "high": -1
+    }
+  },
+  {
+    "name": "a list without rows is empty",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 0,
+        "high": 4
+      },
+      "lowAtStart": true,
+      "highAtEnd": true,
+      "size": 0,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": -1,
+      "high": -1
+    }
+  },
+  {
+    "name": "a list without rows and no follow is empty",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 0,
+        "high": 4
+      },
+      "lowAtStart": false,
+      "highAtEnd": false,
+      "size": 0,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": -1,
+      "high": -1
+    }
+  },
+  {
+    "name": "a high edge past the last row away from the end stays",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 100,
+        "high": 1500
+      },
+      "lowAtStart": false,
+      "highAtEnd": false,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": false
+    },
+    "output": {
+      "low": 100,
+      "high": 1500
+    }
+  },
+  {
+    "name": "a followed tail past the last row",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 990,
+        "high": 1500
+      },
+      "lowAtStart": false,
+      "highAtEnd": true,
+      "size": 1000,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": 990,
+      "high": 999
+    }
+  },
+  {
+    "name": "a list of one row",
+    "function": "grownMountedRange",
+    "input": {
+      "edges": {
+        "low": 0,
+        "high": 0
+      },
+      "lowAtStart": true,
+      "highAtEnd": true,
+      "size": 1,
+      "overscanRowsLeading": 10,
+      "followTail": true
+    },
+    "output": {
+      "low": 0,
+      "high": 0
+    }
+  },
+  {
+    "name": "two ranges apart",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 0,
+        "high": 3
+      },
+      "second": {
+        "low": 10,
+        "high": 12
+      }
+    },
+    "output": [
+      0,
+      1,
+      2,
+      3,
+      10,
+      11,
+      12
+    ]
+  },
+  {
+    "name": "two ranges apart, the high one first",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 10,
+        "high": 12
+      },
+      "second": {
+        "low": 0,
+        "high": 3
+      }
+    },
+    "output": [
+      0,
+      1,
+      2,
+      3,
+      10,
+      11,
+      12
+    ]
+  },
+  {
+    "name": "two ranges that overlap",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 0,
+        "high": 5
+      },
+      "second": {
+        "low": 3,
+        "high": 9
+      }
+    },
+    "output": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ]
+  },
+  {
+    "name": "two ranges that touch",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 0,
+        "high": 4
+      },
+      "second": {
+        "low": 5,
+        "high": 9
+      }
+    },
+    "output": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ]
+  },
+  {
+    "name": "two ranges one row apart",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 0,
+        "high": 4
+      },
+      "second": {
+        "low": 6,
+        "high": 9
+      }
+    },
+    "output": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      6,
+      7,
+      8,
+      9
+    ]
+  },
+  {
+    "name": "one range inside the other",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 0,
+        "high": 20
+      },
+      "second": {
+        "low": 5,
+        "high": 9
+      }
+    },
+    "output": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+    ]
+  },
+  {
+    "name": "the same range twice",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 4,
+        "high": 8
+      },
+      "second": {
+        "low": 4,
+        "high": 8
+      }
+    },
+    "output": [
+      4,
+      5,
+      6,
+      7,
+      8
+    ]
+  },
+  {
+    "name": "an empty first range",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": -1,
+        "high": -1
+      },
+      "second": {
+        "low": 2,
+        "high": 4
+      }
+    },
+    "output": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "name": "an empty second range",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 2,
+        "high": 4
+      },
+      "second": {
+        "low": -1,
+        "high": -1
+      }
+    },
+    "output": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "name": "two empty ranges",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": -1,
+        "high": -1
+      },
+      "second": {
+        "low": -1,
+        "high": -1
+      }
+    },
+    "output": []
+  },
+  {
+    "name": "a range the wrong way round is empty",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 5,
+        "high": 2
+      },
+      "second": {
+        "low": 7,
+        "high": 8
+      }
+    },
+    "output": [
+      7,
+      8
+    ]
+  },
+  {
+    "name": "ranges of one row",
+    "function": "unionRangeIndices",
+    "input": {
+      "first": {
+        "low": 3,
+        "high": 3
+      },
+      "second": {
+        "low": 4,
+        "high": 4
+      }
+    },
+    "output": [
+      3,
+      4
+    ]
+  },
+  {
+    "name": "a new index",
+    "function": "shouldReseedFromIndex",
+    "input": {
+      "previousIndex": 3,
+      "nextIndex": 9
+    },
+    "output": true
+  },
+  {
+    "name": "the same index",
+    "function": "shouldReseedFromIndex",
+    "input": {
+      "previousIndex": 9,
+      "nextIndex": 9
+    },
+    "output": false
+  },
+  {
+    "name": "no target after one",
+    "function": "shouldReseedFromIndex",
+    "input": {
+      "previousIndex": 9,
+      "nextIndex": -1
+    },
+    "output": false
+  },
+  {
+    "name": "a target after none",
+    "function": "shouldReseedFromIndex",
+    "input": {
+      "previousIndex": -1,
+      "nextIndex": 0
+    },
+    "output": true
+  },
+  {
+    "name": "no target twice",
+    "function": "shouldReseedFromIndex",
+    "input": {
+      "previousIndex": -1,
+      "nextIndex": -1
+    },
+    "output": false
+  }
+]

@@ -72,6 +72,13 @@ describe('parseMarkdown', () => {
     }
   });
 
+  it('ends on a table row that holds a line terminator', () => {
+    // The carriage return of a Windows line ending, before its line feed arrives.
+    const [table] = parseMarkdown('| a | b |\r');
+    expect(table).toMatchObject({ type: 'table', raw: '| a | b |\r' });
+    expect(parseMarkdown('|a\u2028b|\n|c|')).toHaveLength(1);
+  });
+
   it('keeps finished blocks as the same objects while streaming', () => {
     const first = parseMarkdownFrom(null, '# Title\n\nfirst para\n\nsec');
     const next = parseMarkdownFrom(first, '# Title\n\nfirst para\n\nsecond');

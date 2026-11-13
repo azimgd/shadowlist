@@ -1,3 +1,5 @@
+import ShadowListKit
+import ShadowListUtils
 import UIKit
 
 /*
@@ -17,13 +19,20 @@ enum FakeNetwork {
 
 /*
  * A screen with one list and the header actions every example has: add rows at the start,
- * add rows at the end and jump to a random row.
+ * add rows at the end and jump to a random row. With the sl engine the list is the screen's
+ * ShadowListUtils template. The other engines host the same rows for comparison.
  */
 class ListScreen: UIViewController {
   let engine = Settings.engine
   var list: ListController!
 
-  func makeList() -> ListController { ListController(engine: engine) }
+  /*
+   * The template list the sl engine shows, the grid columns and whether the list is inverted.
+   */
+  func makeTemplate() -> ShadowListUtilsList? { nil }
+  var columns: Int { 1 }
+  var inverted: Bool { false }
+
   func prependRows() {}
   func appendRows() {}
 
@@ -37,8 +46,8 @@ class ListScreen: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    view.backgroundColor = Theme.background
-    list = makeList()
+    view.backgroundColor = AppTheme.colors.background
+    list = ListController(engine: engine, template: makeTemplate(), columns: columns, inverted: inverted)
     list.view.translatesAutoresizingMaskIntoConstraints = false
     list.view.accessibilityIdentifier = "list"
     view.addSubview(list.view)
@@ -46,7 +55,7 @@ class ListScreen: UIViewController {
     installActions()
     let opaque = UINavigationBarAppearance()
     opaque.configureWithOpaqueBackground()
-    opaque.backgroundColor = Theme.background
+    opaque.backgroundColor = AppTheme.colors.background
     navigationItem.standardAppearance = opaque
     navigationItem.scrollEdgeAppearance = opaque
     navigationItem.largeTitleDisplayMode = .never
@@ -60,6 +69,18 @@ class ListScreen: UIViewController {
       list.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
       list.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
+  }
+
+  /*
+   * Show the screen's items: through the template's setter with the sl engine, and as rows the
+   * controller hosts with the others.
+   */
+  func show<Item>(_ items: [Item], _ change: RowChange, template: ([Item]) -> Void, row: (Item) -> ShadowListUtilsRow) {
+    if list.template != nil {
+      list.update { template(items) }
+    } else {
+      list.setRows(items.map(row), change: change)
+    }
   }
 
   private func installActions() {
@@ -84,16 +105,19 @@ class ListScreen: UIViewController {
 // MARK: - Feed
 
 final class FeedScreen: ListScreen {
+  private let feed = ShadowListUtilsFeedList(theme: AppTheme.theme)
   private var generated = 0
-  private var posts: [FeedPost] = []
+  private var posts: [ShadowListUtilsFeedItem] = []
   private var loading = false
 
   override var prependTitle: String { "Publish New Posts" }
   override var appendTitle: String { "Load More Posts" }
 
-  private func generate(_ count: Int) -> [FeedPost] {
+  override func makeTemplate() -> ShadowListUtilsList? { feed }
+
+  private func generate(_ count: Int) -> [ShadowListUtilsFeedItem] {
     defer { generated += count }
-    return (generated..<generated + count).map { FeedPost(index: $0) }
+    return (generated..<generated + count).map { Items.feed(FeedPost(index: $0), states: Settings.states) }
   }
 
   override func viewDidLoad() {
@@ -101,12 +125,9 @@ final class FeedScreen: ListScreen {
     title = "Feed"
     let count = Settings.count
     let seed = generate(max(1000, count))
-    list.footer = SpinnerView()
+    list.footer = ShadowListUtilsSpinner(theme: AppTheme.theme)
     list.onEndReached = { [weak self] in self?.appendRows() }
-    let refresh = UIRefreshControl()
-    refresh.tintColor = Theme.secondaryLabel
-    refresh.addTarget(self, action: #selector(refreshPulled), for: .valueChanged)
-    list.view.refreshControl = refresh
+    installRefresh()
     FakeNetwork.reply { [weak self] in
       guard let self else { return }
       self.posts = Array(seed.prefix(count))
@@ -114,8 +135,25 @@ final class FeedScreen: ListScreen {
     }
   }
 
-  private func show(_ change: RowChange) {
-    list.setRows(posts.map { FeedRow(post: $0) }, change: change)
+  /*
+   * The template turns pull to refresh on with its closure. The other engines take a refresh
+   * control of their own.
+   */
+  private func installRefresh() {
+    if list.template != nil {
+      feed.onRefresh = { [weak self] in self?.refresh() }
+      return
+    }
+    let control = UIRefreshControl()
+    control.tintColor = AppTheme.colors.secondaryLabel
+    control.addTarget(self, action: #selector(refresh), for: .valueChanged)
+    list.view.refreshControl = control
+  }
+
+  private func show(_ change: RowChange, animated: Bool = false) {
+    show(
+      posts, change, template: { feed.setItems($0, animated: animated) },
+      row: { ShadowListUtilsFeedRow(item: $0, theme: AppTheme.theme, labels: ShadowListUtilsFeedLabels()) })
   }
 
   override func appendRows() {
@@ -139,14 +177,26 @@ final class FeedScreen: ListScreen {
     show(.append(20))
   }
 
-  @objc private func refreshPulled() {
+  @objc private func refresh() {
     FakeNetwork.reply { [weak self] in
       guard let self else { return }
       let count = Settings.count
       self.posts = Array((self.generate(10) + self.posts).prefix(count))
       self.show(.prepend(10))
+      self.feed.isRefreshing = false
       self.list.view.refreshControl?.endRefreshing()
     }
+  }
+
+  /*
+   * For the animate scenario: take out the post after the first visible one and put a new post
+   * in after the next, in one animated change.
+   */
+  func animateChange(first: Int) {
+    guard posts.count > first + 2 else { return }
+    posts.remove(at: first + 1)
+    posts.insert(Items.feed(FeedPost(index: 900_000)), at: first + 2)
+    show(.update, animated: true)
   }
 }
 
@@ -156,9 +206,11 @@ final class ChatScreen: ListScreen {
   private static let pageSize = 50
   private static let history = 1000
 
+  private let chat = ShadowListUtilsChatList(theme: AppTheme.theme)
   private var all: [ChatMessage] = []
   private var firstLoaded = 0
-  private var messages: [ChatMessage] = []
+  private var messages: [ShadowListUtilsChatMessage] = []
+  private var captions: [String: String] = [:]
   private var nextForward = 1
   private var nextPrepended = 1
   private var loadingEarlier = false
@@ -166,8 +218,9 @@ final class ChatScreen: ListScreen {
 
   override var prependTitle: String { "Load Earlier Messages" }
   override var appendTitle: String { "Simulate Incoming Messages" }
+  override var inverted: Bool { true }
 
-  override func makeList() -> ListController { ListController(engine: engine, inverted: true) }
+  override func makeTemplate() -> ShadowListUtilsList? { chat }
 
   override func layoutList() {
     composer.translatesAutoresizingMaskIntoConstraints = false
@@ -189,33 +242,63 @@ final class ChatScreen: ListScreen {
     title = "Chat"
     let count = Settings.count
     all = (0..<Self.history + count).map { ChatMessage(index: $0) }
-    list.header = ListHeaderView(title: "Lisbon Crew", subtitle: "8 travellers · departs Oct 12")
+    let own = all.filter(\.isOwn)
+    sendingId = own.last?.id
+    failedId = own.dropLast().last?.id
+    list.header = ShadowListUtilsListHeader(title: "Lisbon Crew", subtitle: "8 travellers · departs Oct 12", theme: AppTheme.theme)
     list.onStartReached = { [weak self] in self?.prependRows() }
+    chat.captionForItem = { [weak self] in self?.captions[$0.key] }
+    chat.onRetryMessage = { [weak self] in self?.retry($0) }
     FakeNetwork.reply { [weak self] in
       guard let self else { return }
       self.firstLoaded = self.all.count - count
-      self.messages = self.all[self.firstLoaded...].map { self.numbered($0) }
+      self.messages = self.all[self.firstLoaded...].map { self.item($0) }
       self.show(.reset)
     }
   }
 
-  private func numbered(_ message: ChatMessage, prepended: Bool = false) -> ChatMessage {
-    guard Settings.debug else { return message }
-    var message = message
-    if prepended {
-      message.caption = "prepended: " + Ordinals.label(nextPrepended)
-      nextPrepended += 1
-    } else {
-      message.caption = Ordinals.label(nextForward)
-      nextForward += 1
+  /*
+   * A fixture message as the template's item. With -SLDebug 1 every message is captioned with
+   * its place in the order it arrived. With -SLStates 1 every message whose index is 2 past a
+   * multiple of 5 carries a caption, the newest of the reader's own messages is on its way and
+   * the one before it failed.
+   */
+  private func item(_ message: ChatMessage, prepended: Bool = false) -> ShadowListUtilsChatMessage {
+    if Settings.debug {
+      if prepended {
+        captions[message.id] = "prepended: " + Ordinals.label(nextPrepended)
+        nextPrepended += 1
+      } else {
+        captions[message.id] = Ordinals.label(nextForward)
+        nextForward += 1
+      }
     }
-    return message
+    guard Settings.states else { return Items.chat(message) }
+    if !Settings.debug, let index = message.index, index % Self.captionEvery == Self.captionOffset {
+      captions[message.id] = "Edited"
+    }
+    let status: ShadowListUtilsChatMessageStatus? =
+      message.id == sendingId ? .sending : message.id == failedId ? .failed : message.isOwn ? .sent : nil
+    return Items.chat(message, status: status)
   }
 
+  /*
+   * The newest of the reader's own messages when the screen opened, and the one before it.
+   */
+  private var sendingId: String?
+  private var failedId: String?
+
+  private static let captionEvery = 5
+  private static let captionOffset = 2
+
   private func show(_ change: RowChange) {
-    list.setRows(messages.map { ChatRow(message: $0, caption: $0.caption) }, change: change)
+    show(
+      messages, change, template: { chat.setItems($0, animated: false) },
+      row: {
+        ShadowListUtilsChatBubble(item: $0, caption: captions[$0.key], showsAuthor: true, theme: AppTheme.theme, labels: ShadowListUtilsChatLabels())
+      })
     if firstLoaded == 0 && list.footer == nil {
-      list.footer = ListFooterView("Start of the trip chat")
+      list.footer = ShadowListUtilsListFooter(text: "Start of the trip chat", theme: AppTheme.theme)
     }
   }
 
@@ -224,20 +307,15 @@ final class ChatScreen: ListScreen {
     loadingEarlier = true
     FakeNetwork.reply { [weak self] in
       guard let self else { return }
-      let start = max(0, self.firstLoaded - Self.pageSize)
-      // Numbered outward from the previous top row, which means walking the page bottom up.
-      let page = self.all[start..<self.firstLoaded].reversed().map { self.numbered($0, prepended: true) }.reversed()
-      self.messages = Array(page) + self.messages
-      let added = self.firstLoaded - start
-      self.firstLoaded = start
       self.loadingEarlier = false
-      self.show(.prepend(added))
+      self.prependRowsNow()
     }
   }
 
   override func prependRowsNow() {
     let start = max(0, firstLoaded - Self.pageSize)
-    let page = all[start..<firstLoaded].reversed().map { numbered($0, prepended: true) }.reversed()
+    // Numbered outward from the previous top row, which means walking the page bottom up.
+    let page = all[start..<firstLoaded].reversed().map { item($0, prepended: true) }.reversed()
     messages = Array(page) + messages
     let added = firstLoaded - start
     firstLoaded = start
@@ -249,15 +327,24 @@ final class ChatScreen: ListScreen {
     let start = all.count
     let incoming = (start..<start + 10).map { ChatMessage(index: $0) }
     all += incoming
-    messages += incoming.map { numbered($0) }
+    messages += incoming.map { item($0) }
     show(.append(10))
   }
 
   private func send(_ text: String) {
     let message = ChatMessage(id: "sent-\(UUID().uuidString)", author: Author("Me"), isOwn: true, text: text)
-    messages.append(numbered(message))
+    messages.append(item(message))
     show(.append(1))
     list.scrollToEnd(animated: true)
+  }
+
+  /*
+   * A failed message goes out again and arrives.
+   */
+  private func retry(_ message: ShadowListUtilsChatMessage) {
+    guard let index = messages.firstIndex(where: { $0.key == message.key }) else { return }
+    messages[index].status = .sent
+    show(.update)
   }
 }
 
@@ -271,19 +358,19 @@ final class ChatComposer: UIView, UITextViewDelegate {
 
   override init(frame: CGRect) {
     super.init(frame: frame)
-    backgroundColor = Theme.background
+    backgroundColor = AppTheme.colors.background
     let border = UIView()
-    border.backgroundColor = Theme.separator
+    border.backgroundColor = AppTheme.colors.separator
     box.layer.cornerRadius = 18
-    box.layer.borderWidth = Theme.hairline
-    box.layer.borderColor = Theme.separator.cgColor
-    input.font = TextStyle.body.font
-    input.textColor = Theme.label
+    box.layer.borderWidth = ShadowListUtilsTheme.hairline
+    box.layer.borderColor = AppTheme.colors.separator.cgColor
+    input.font = AppTheme.typography.body.font
+    input.textColor = AppTheme.colors.label
     input.backgroundColor = .clear
     input.textContainerInset = .zero
     input.textContainer.lineFragmentPadding = 0
     input.delegate = self
-    placeholder.attributedText = TextStyle.body.string("Message your crew", Theme.secondaryLabel)
+    placeholder.attributedText = AppTheme.typography.body.string("Message your crew", AppTheme.colors.secondaryLabel)
     send.setImage(UIImage(systemName: "arrow.up", withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .bold)), for: .normal)
     send.layer.cornerRadius = 16
     send.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
@@ -296,7 +383,7 @@ final class ChatComposer: UIView, UITextViewDelegate {
       border.topAnchor.constraint(equalTo: topAnchor),
       border.leadingAnchor.constraint(equalTo: leadingAnchor),
       border.trailingAnchor.constraint(equalTo: trailingAnchor),
-      border.heightAnchor.constraint(equalToConstant: Theme.hairline),
+      border.heightAnchor.constraint(equalToConstant: ShadowListUtilsTheme.hairline),
       box.topAnchor.constraint(equalTo: topAnchor, constant: 8),
       box.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
       box.trailingAnchor.constraint(equalTo: send.leadingAnchor, constant: -8),
@@ -327,8 +414,8 @@ final class ChatComposer: UIView, UITextViewDelegate {
   private func updateSend() {
     let enabled = !input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     placeholder.isHidden = !input.text.isEmpty
-    send.backgroundColor = enabled ? Theme.accent : Theme.fill
-    send.tintColor = enabled ? Theme.onAccent : Theme.secondaryLabel
+    send.backgroundColor = enabled ? AppTheme.colors.accent : AppTheme.colors.fill
+    send.tintColor = enabled ? AppTheme.colors.onAccent : AppTheme.colors.secondaryLabel
     send.isEnabled = enabled
   }
 
@@ -342,26 +429,136 @@ final class ChatComposer: UIView, UITextViewDelegate {
   }
 }
 
+// MARK: - Contacts
+
+/*
+ * A plain list of contacts: a tap opens the contact and a swipe removes it.
+ */
+final class ContactsScreen: ListScreen {
+  private let companions = ShadowListUtilsContactsList(theme: AppTheme.theme)
+  private var generated = 0
+  private var contacts: [ShadowListUtilsContactItem] = []
+
+  override var prependTitle: String { "Add Companions" }
+  override var appendTitle: String { "Add More Companions" }
+
+  override func makeTemplate() -> ShadowListUtilsList? { companions }
+
+  private func generate(_ count: Int) -> [ShadowListUtilsContactItem] {
+    defer { generated += count }
+    return (generated..<generated + count).map { Items.contact(Contact(index: $0)) }
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    title = "Companions"
+    companions.onPressItem = { [weak self] in self?.open($0) }
+    companions.onDelete = { [weak self] in self?.delete($0) }
+    let seed = generate(min(Settings.count, 200))
+    FakeNetwork.reply { [weak self] in
+      guard let self else { return }
+      self.contacts = seed
+      self.show(.reset)
+    }
+  }
+
+  private func show(_ change: RowChange, animated: Bool = false) {
+    show(
+      contacts, change, template: { companions.setItems($0, animated: animated) },
+      row: { ShadowListUtilsContactRow(item: $0, showsChevron: false, theme: AppTheme.theme) })
+    list.footer = ShadowListUtilsListFooter(text: "\(contacts.count) companions", theme: AppTheme.theme)
+  }
+
+  override func prependRows() {
+    contacts = generate(10) + contacts
+    show(.prepend(10))
+  }
+
+  override func appendRows() {
+    contacts += generate(10)
+    show(.append(10))
+  }
+
+  private func open(_ contact: ShadowListUtilsContactItem) {
+    navigationController?.pushViewController(ContactScreen(contact), animated: true)
+  }
+
+  private func delete(_ contact: ShadowListUtilsContactItem) {
+    contacts.removeAll { $0.key == contact.key }
+    show(.update, animated: true)
+  }
+}
+
+/*
+ * One contact, shown with the library's empty state: a large avatar over the name.
+ */
+final class ContactScreen: UIViewController {
+  private let state: ShadowListUtilsEmptyState
+
+  init(_ contact: ShadowListUtilsContactItem) {
+    let avatar = ShadowListUtilsAvatar(size: 96, theme: AppTheme.theme)
+    avatar.show(name: contact.name, imageUrl: contact.avatarUrl, color: contact.avatarColor)
+    state = ShadowListUtilsEmptyState(title: contact.name, message: contact.subtitle, icon: avatar, theme: AppTheme.theme)
+    super.init(nibName: nil, bundle: nil)
+    title = contact.name
+    navigationItem.largeTitleDisplayMode = .never
+  }
+
+  required init?(coder: NSCoder) { fatalError() }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    view.backgroundColor = AppTheme.colors.background
+    view.addSubview(state)
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    let area = view.bounds.inset(by: view.safeAreaInsets)
+    let size = state.sizeThatFits(CGSize(width: area.width, height: .greatestFiniteMagnitude))
+    state.frame = CGRect(x: area.minX, y: area.minY, width: area.width, height: size.height)
+  }
+}
+
 // MARK: - Directory
 
+/*
+ * Contacts in sections by the first letter of their name. The template shows them with the
+ * kit's sections, sticky headers and section index. The other engines show the same rows flat,
+ * with the header rows stuck by index and a rail of the example's own.
+ */
 final class DirectoryScreen: ListScreen {
+  private let directory = ShadowListUtilsContactsSectionList(theme: AppTheme.theme)
   private var generated = 0
-  private var contacts: [Contact] = []
+  private var contacts: [ShadowListUtilsContactItem] = []
   private var headerIndices: [Int] = []
-  private var titles: [String] = []
   private let rail = SectionIndexRail()
 
   override var prependTitle: String { "Add Travellers" }
   override var appendTitle: String { "Add More Travellers" }
 
-  private func generate(_ count: Int) -> [Contact] {
+  override func makeTemplate() -> ShadowListUtilsList? { directory }
+
+  private func generate(_ count: Int) -> [ShadowListUtilsContactItem] {
     defer { generated += count }
-    return (generated..<generated + count).map { Contact(index: $0) }
+    return (generated..<generated + count).map { Items.contact(Contact(index: $0)) }
   }
 
   override func viewDidLoad() {
     super.viewDidLoad()
     title = "Directory"
+    if list.template == nil {
+      installRail()
+    }
+    let seed = generate(Settings.count)
+    FakeNetwork.reply { [weak self] in
+      guard let self else { return }
+      self.contacts = seed
+      self.show(.reset)
+    }
+  }
+
+  private func installRail() {
     rail.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(rail)
     NSLayoutConstraint.activate([
@@ -373,39 +570,31 @@ final class DirectoryScreen: ListScreen {
       guard let self, section < self.headerIndices.count else { return }
       self.list.scrollToItem(at: self.headerIndices[section], animated: false)
     }
-    let seed = generate(Settings.count)
-    FakeNetwork.reply { [weak self] in
-      guard let self else { return }
-      self.contacts = seed
-      self.show(.reset)
-    }
   }
 
   private func show(_ change: RowChange) {
-    var groups: [String: [Contact]] = [:]
-    for contact in contacts {
-      let title = contact.author.name.first.map { String($0).uppercased() } ?? "#"
-      groups[title, default: []].append(contact)
+    // A stable sort by name. The library groups them and keeps this order inside a section.
+    let sorted = contacts.enumerated().sorted {
+      let order = $0.element.name.localizedCompare($1.element.name)
+      return order == .orderedSame ? $0.offset < $1.offset : order == .orderedAscending
+    }.map(\.element)
+    let sections = shadowListUtilsGroupIntoSections(sorted)
+    list.footer = ShadowListUtilsListFooter(text: "\(contacts.count) travellers", theme: AppTheme.theme)
+    if list.template != nil {
+      list.update { directory.setSections(sections, animated: false) }
+      directory.sectionIndexTitles = sections.map(\.title)
+      return
     }
-    titles = groups.keys.sorted { $0.localizedCompare($1) == .orderedAscending }
-    var rows: [Row] = []
+    var rows: [ShadowListUtilsRow] = []
     headerIndices = []
-    for title in titles {
-      // A stable sort. Equal names keep their order.
-      let members = groups[title]!.enumerated().sorted {
-        let order = $0.element.author.name.localizedCompare($1.element.author.name)
-        return order == .orderedSame ? $0.offset < $1.offset : order == .orderedAscending
-      }.map(\.element)
+    for section in sections {
       headerIndices.append(rows.count)
-      rows.append(SectionHeaderRow(title: title, count: members.count))
-      for (position, contact) in members.enumerated() {
-        rows.append(ContactRow(contact: contact, separatorBelow: position < members.count - 1))
-      }
+      rows.append(ShadowListUtilsSectionHeader(key: "section-\(section.key)", title: section.title, count: section.items.count, theme: AppTheme.theme))
+      rows += section.items.map { ShadowListUtilsContactRow(item: $0, showsChevron: false, theme: AppTheme.theme) }
     }
-    list.footer = ListFooterView("\(contacts.count) travellers")
     list.stickyIndices = headerIndices
     list.setRows(rows, change: change)
-    rail.titles = titles
+    rail.titles = sections.map(\.title)
   }
 
   override func prependRows() {
@@ -449,7 +638,7 @@ final class SectionIndexRail: UIView {
     for title in titles {
       let label = UILabel()
       label.attributedText = NSAttributedString(string: title, attributes: [
-        .font: UIFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: Theme.accent,
+        .font: UIFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: AppTheme.colors.accent,
       ])
       label.heightAnchor.constraint(equalToConstant: 14).isActive = true
       stack.addArrangedSubview(label)
@@ -476,18 +665,20 @@ final class SectionIndexRail: UIView {
 // MARK: - Gallery
 
 final class GalleryScreen: ListScreen {
+  private let gallery = ShadowListUtilsMasonryList(theme: AppTheme.theme)
   private var generated = 0
-  private var photos: [Photo] = []
+  private var photos: [ShadowListUtilsMasonryItem] = []
   private var loading = false
 
   override var prependTitle: String { "Publish New Photos" }
   override var appendTitle: String { "Load More Photos" }
+  override var columns: Int { 3 }
 
-  override func makeList() -> ListController { ListController(engine: engine, columns: 3) }
+  override func makeTemplate() -> ShadowListUtilsList? { gallery }
 
-  private func generate(_ count: Int) -> [Photo] {
+  private func generate(_ count: Int) -> [ShadowListUtilsMasonryItem] {
     defer { generated += count }
-    return (generated..<generated + count).map { Photo(index: $0) }
+    return (generated..<generated + count).map { Items.photo(Photo(index: $0)) }
   }
 
   override func viewDidLoad() {
@@ -495,7 +686,7 @@ final class GalleryScreen: ListScreen {
     title = "Gallery"
     let count = Settings.count
     let seed = generate(max(100, count))
-    list.footer = SpinnerView()
+    list.footer = ShadowListUtilsSpinner(theme: AppTheme.theme)
     list.onEndReached = { [weak self] in self?.appendRows() }
     FakeNetwork.reply { [weak self] in
       guard let self else { return }
@@ -505,7 +696,9 @@ final class GalleryScreen: ListScreen {
   }
 
   private func show(_ change: RowChange) {
-    list.setRows(photos.map { PhotoRow(photo: $0) }, change: change)
+    show(
+      photos, change, template: { gallery.setItems($0, animated: false) },
+      row: { ShadowListUtilsMasonryCard(item: $0, theme: AppTheme.theme, labels: ShadowListUtilsMasonryLabels()) })
   }
 
   override func appendRows() {
@@ -536,12 +729,15 @@ struct ExampleRoute {
   static let all: [ExampleRoute] = [
     ExampleRoute(route: "Feed", title: "Feed", summary: "Posts with photo carousels and pull to refresh") { FeedScreen() },
     ExampleRoute(route: "Masonry", title: "Gallery", summary: "Photos in three columns") { GalleryScreen() },
+    ExampleRoute(route: "Nested", title: "Explore", summary: "Horizontal shelves inside a vertical list") { NestedScreen() },
     ExampleRoute(route: "Chat", title: "Chat", summary: "Group chat that keeps your place as messages arrive") { ChatScreen() },
+    ExampleRoute(route: "Contacts", title: "Companions", summary: "Swipe a row to remove it") { ContactsScreen() },
     ExampleRoute(route: "SectionList", title: "Directory", summary: "Sections with sticky headers and an index") { DirectoryScreen() },
     ExampleRoute(route: "Reorder", title: "Boarding Order", summary: "Touch and hold a row, then drag it") { ReorderScreen() },
+    ExampleRoute(route: "ReorderGrid", title: "Sky Wishlist", summary: "Touch and hold a card, then drag it across the grid") { ReorderGridScreen() },
     ExampleRoute(route: "Snap", title: "Destinations", summary: "Cards that snap into place") { SnapScreen() },
     ExampleRoute(route: "Sections", title: "Sections", summary: "Section headers, footers, an index and self-sizing cells") { SectionsScreen() },
-    ExampleRoute(route: "Inbox", title: "Inbox", summary: "Swipe actions, menus, selection, refresh and batch updates") { InboxScreen() },
+    ExampleRoute(route: "Inbox", title: "Inbox", summary: "Swipe actions, a menu on long press and selection") { InboxScreen() },
   ]
 }
 

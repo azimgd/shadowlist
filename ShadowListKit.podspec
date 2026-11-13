@@ -17,6 +17,8 @@ Pod::Spec.new do |s|
   # The AppKit kit links the platform neutral files of the UIKit kit, which compile once in each.
   s.source_files = "packages/shadowlist-core/**/*.{hpp,cpp}"
   s.project_header_files = "packages/shadowlist-core/**/*.hpp"
+  # The template logic in utils belongs to the ShadowListUtils pod.
+  s.exclude_files = "packages/shadowlist-core/utils/**/*"
 
   s.ios.source_files = "packages/shadowlist-uikit/Sources/ShadowListKit/**/*.{h,mm}"
   s.ios.public_header_files = "packages/shadowlist-uikit/Sources/ShadowListKit/include/ShadowListKit/*.h"

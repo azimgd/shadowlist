@@ -13,6 +13,19 @@ import android.view.ViewConfiguration
 import android.widget.LinearLayout
 import com.shadowlist.kit.ShadowListKitListCell
 import com.shadowlist.kit.ShadowListKitListView
+import com.shadowlist.utils.ShadowListUtilsContactsList
+import com.shadowlist.utils.ShadowListUtilsLayoutCache
+import com.shadowlist.utils.ShadowListUtilsList
+import com.shadowlist.utils.ShadowListUtilsListFooter
+import com.shadowlist.utils.ShadowListUtilsListHeader
+import com.shadowlist.utils.ShadowListUtilsNestedRow
+import com.shadowlist.utils.ShadowListUtilsReorderGrid
+import com.shadowlist.utils.ShadowListUtilsReorderLabels
+import com.shadowlist.utils.ShadowListUtilsReorderList
+import com.shadowlist.utils.ShadowListUtilsReorderRow
+import com.shadowlist.utils.ShadowListUtilsRow
+import com.shadowlist.utils.ShadowListUtilsRowView
+import com.shadowlist.utils.ShadowListUtilsSnapList
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.abs
@@ -27,23 +40,21 @@ interface Screen {
 }
 
 /*
- * An ShadowListKitListView over example rows, for the feature screens. With the sl engine sizes come
- * from the rows' precomputed layouts, with sl-auto from measuring the cells. These screens
- * always run on ShadowListKitListView.
+ * A ShadowListKitListView over the library's rows, for the screens that show a kit feature with
+ * the kit's own calls. The screen is the list's data: it changes its rows and tells the list
+ * what changed. With the sl engine sizes come from the rows' layouts, with sl-auto from measuring
+ * the cells.
  */
-class RowsList(context: Context, engine: Engine) : ShadowListKitListView.Delegate {
+class RowsList(context: Context, engine: Engine) {
   val list = ShadowListKitListView(context)
-  var rows: List<Row> = emptyList()
+  var rows: List<ShadowListUtilsRow> = emptyList()
     private set
-  var onMove: ((from: Int, to: Int) -> Unit)? = null
-  var onEndScrolling: (() -> Unit)? = null
-  private val layouts = LayoutCache()
+  private val layouts = ShadowListUtilsLayoutCache()
   private val registered = HashSet<String>()
   private val sized = !engine.selfSizing
 
   init {
-    list.setBackgroundColor(Theme.background)
-    list.delegate = this
+    list.setBackgroundColor(context.listTheme.colors.background)
     list.dataSource = if (sized) SizedSource() else Source()
   }
 
@@ -53,8 +64,8 @@ class RowsList(context: Context, engine: Engine) : ShadowListKitListView.Delegat
 
     override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell {
       val row = rows[index]
-      if (registered.add(row.viewType)) listView.registerCell(row.viewType) { row.makeView(it) }
-      val cell = listView.dequeueReusableCell<RowView>(row.viewType)
+      if (registered.add(row.reuseIdentifier)) listView.registerCell(row.reuseIdentifier) { row.makeView(it) }
+      val cell = listView.dequeueReusableCell<ShadowListUtilsRowView>(row.reuseIdentifier)
       val width = (list.width - list.paddingLeft - list.paddingRight) / list.numberOfColumns
       cell.configure(row, if (sized) layouts.layout(row, width) else null)
       return cell
@@ -63,77 +74,100 @@ class RowsList(context: Context, engine: Engine) : ShadowListKitListView.Delegat
 
   private inner class SizedSource : Source(), ShadowListKitListView.Sizing {
     override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int =
-      layouts.layout(rows[index], crossSize).height
+      layouts.layout(rows[index], crossSize).heightPx
   }
 
-  fun setRows(rows: List<Row>) {
+  fun setRows(rows: List<ShadowListUtilsRow>) {
     this.rows = rows
     list.reloadData()
-  }
-
-  override fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int) {
-    onMove?.invoke(sourceIndex, destinationIndex)
-  }
-
-  override fun didEndDragging(listView: ShadowListKitListView, willDecelerate: Boolean) {
-    if (!willDecelerate) onEndScrolling?.invoke()
-  }
-
-  override fun didEndDecelerating(listView: ShadowListKitListView) {
-    onEndScrolling?.invoke()
-  }
-
-  override fun didEndScrollingAnimation(listView: ShadowListKitListView) {
-    onEndScrolling?.invoke()
   }
 }
 
 /*
- * Touch and hold a traveller, then drag it to change the boarding order. With columns > 1 the
- * same in a grid of numbered tiles.
+ * Travellers as the reorder template's rows, for the screens above.
  */
-class ReorderScreen(context: Context, engine: Engine, private val columns: Int) : Screen {
-  private val rows = RowsList(context, engine)
-  private val items = ArrayList<Row>()
-  override val view: View get() = rows.list
+private fun travellerRows(context: Context, count: Int, first: Int = 0): List<ShadowListUtilsRow> {
+  val theme = context.listTheme
+  val labels = ShadowListUtilsReorderLabels()
+  return List(count) { ShadowListUtilsReorderRow(Items.contact(Contact(first + it)), theme, labels) }
+}
+
+/*
+ * A plain list of travellers. A tap opens nothing here and only shows the row's highlight and
+ * its chevron. A swipe from the trailing side deletes the traveller.
+ */
+class ContactsScreen(context: Context) : Screen {
+  private val list = ShadowListUtilsContactsList(context)
+  override val view: View get() = list
 
   override fun load() {
-    val list = rows.list
-    list.reorderEnabled = true
-    list.numberOfColumns = columns
-    if (columns == 1) {
-      items.addAll(List(80) { ReorderRow(Contact(it)) })
-      list.headerView = ListFooterView(view.context, "Touch and hold a traveller, then drag to change the order.")
-    } else {
-      items.addAll(List(60) { TileRow(it) })
-    }
-    rows.onMove = { from, to -> items.add(to, items.removeAt(from)) }
-    rows.setRows(items)
-    AutoDrag.runIfRequested(list, columns) { items.take(if (columns == 1) 6 else 9).map(::label) }
+    list.headerView = ShadowListUtilsListHeader(view.context, "Travellers", "Swipe a row to delete it.", view.context.listTheme)
+    list.onPressItem = { Log.i("SLEXAMPLE", "pressed ${it.name}") }
+    list.onDelete = { deleted -> list.setItems(list.items.filter { it.key != deleted.key }, true) }
+    list.items = List(200) { Items.contact(Contact(it)) }
   }
+}
 
-  private fun label(row: Row): String = when (row) {
-    is ReorderRow -> row.contact.author.name
-    is TileRow -> "${row.number}"
-    else -> row.key
+/*
+ * Touch and hold a traveller, then drag it to change the boarding order.
+ */
+class ReorderScreen(context: Context) : Screen {
+  private val list = ShadowListUtilsReorderList(context)
+  override val view: View get() = list
+
+  override fun load() {
+    list.headerView = ShadowListUtilsListFooter(
+      view.context, "Touch and hold a traveller, then drag to change the order.", view.context.listTheme)
+    list.onMoveItem = { from, to, _ -> Log.i("SLEXAMPLE", "moved $from to $to") }
+    list.items = List(80) { Items.contact(Contact(it)) }
+    AutoDrag.runIfRequested(list, 1) { list.items.take(6).map { it.name } }
+  }
+}
+
+/*
+ * The same in a grid of numbered tiles, which stack like a masonry gallery.
+ */
+class ReorderGridScreen(context: Context) : Screen {
+  private val list = ShadowListUtilsReorderGrid(context)
+  override val view: View get() = list
+
+  override fun load() {
+    list.onMoveItem = { from, to, _ -> Log.i("SLEXAMPLE", "moved $from to $to") }
+    list.items = List(60) { Items.tile(it) }
+    AutoDrag.runIfRequested(list, 3) { list.items.take(9).map { it.label ?: it.key } }
   }
 }
 
 /*
  * Destination cards a quarter of the screen tall. A fling rests on a card's top edge.
  */
-class SnapScreen(context: Context, engine: Engine) : Screen {
-  private val rows = RowsList(context, engine)
-  override val view: View get() = rows.list
+class SnapScreen(context: Context) : Screen {
+  private val list = ShadowListUtilsSnapList(context)
+  override val view: View get() = list
 
   override fun load() {
-    rows.list.snapToItem = true
-    val height = context().resources.displayMetrics.heightPixels / 4
-    rows.setRows(List(50) { SnapRow(it, height) })
-    AutoFling.runIfRequested(rows)
+    list.items = List(50) { Items.snap(it) }
+    AutoFling.runIfRequested(list)
   }
+}
 
-  private fun context() = rows.list.context
+/*
+ * Shelves of pictures, each a horizontal list inside a row of a vertical one. A shelf keeps its
+ * place while it is off screen.
+ */
+class NestedScreen(context: Context) : Screen {
+  private val list = ShadowListUtilsList(context)
+  override val view: View get() = list
+
+  override fun load() {
+    val context = view.context
+    list.headerView = ShadowListUtilsListHeader(context, "Shelves", "Every row scrolls sideways.", context.listTheme)
+    list.setRows(List(40) { shelf ->
+      ShadowListUtilsNestedRow(Items.shelf(shelf), context.listTheme) { card, row ->
+        Log.i("SLEXAMPLE", "pressed ${card.title} in ${row.title}")
+      }
+    })
+  }
 }
 
 /*
@@ -149,8 +183,8 @@ class HorizontalScreen(context: Context, private val engine: Engine) : Screen, S
 
   init {
     page.orientation = LinearLayout.VERTICAL
-    page.setBackgroundColor(Theme.background)
-    page.addView(ListFooterView(context, "Destinations by letter, scroll sideways."),
+    page.setBackgroundColor(context.listTheme.colors.background)
+    page.addView(ShadowListUtilsListFooter(context, "Destinations by letter, scroll sideways.", context.listTheme),
       LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
     page.addView(list, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 140.dp))
     list.horizontal = true
@@ -162,6 +196,7 @@ class HorizontalScreen(context: Context, private val engine: Engine) : Screen, S
     val titles = List(600) { FixtureStrings.imageTitles[it % FixtureStrings.imageTitles.size] to it }
       .sortedBy { it.first }
     val sticky = ArrayList<Int>()
+    val palette = view.context.listTheme.colors.avatarPalette
     var letter = ""
     for ((title, index) in titles) {
       val first = title.take(1).uppercase()
@@ -170,7 +205,7 @@ class HorizontalScreen(context: Context, private val engine: Engine) : Screen, S
         sticky.add(items.size)
         items.add(StripItem("head-$first", first, true, 0))
       }
-      items.add(StripItem("strip-$index", title, false, Theme.avatarPalette[items.size % Theme.avatarPalette.size]))
+      items.add(StripItem("strip-$index", title, false, palette[items.size % palette.size]))
     }
     list.dataSource = if (engine.selfSizing) this else SizedStrip()
     list.stickyIndices = sticky.toIntArray()
@@ -253,7 +288,7 @@ object AutoDrag {
       val x = start.centerX() + list.paddingLeft - list.scrollX
       val y = start.centerY() + list.paddingTop - list.scrollY
       val dx = if (columns > 1) start.width() else 0f
-      val dy = if (columns > 1) start.height() * 2.2f else 67.dpf * 4.2f
+      val dy = start.height() * (if (columns > 1) 2.2f else 4.2f)
       script.down(x, y)
       script.after(ViewConfiguration.getLongPressTimeout() + 150L) {
         script.frames(30, { frame ->
@@ -277,10 +312,22 @@ object AutoDrag {
  * was from the nearest card edge.
  */
 object AutoFling {
-  fun runIfRequested(rows: RowsList) {
+  /*
+   * How long the list goes without a scroll event before a fling counts as ended.
+   */
+  private const val SCROLL_IDLE_MS = 250L
+
+  fun runIfRequested(list: ShadowListUtilsList) {
     if (LaunchArgs.get("SLScenario") != "snap") return
-    val list = rows.list
     val script = TouchScript(list)
+    val handler = Handler(Looper.getMainLooper())
+    var onEndScrolling: (() -> Unit)? = null
+    val ended = Runnable { onEndScrolling?.invoke() }
+    // The template list owns its delegate. Its scroll events going quiet mark the end of a fling.
+    list.onScroll = {
+      handler.removeCallbacks(ended)
+      handler.postDelayed(ended, SCROLL_IDLE_MS)
+    }
     val rests = JSONArray()
     var worst = 0f
     val directions = listOf(1, 1, -1)
@@ -293,8 +340,8 @@ object AutoFling {
       val direction = directions[round]
       val x = list.width / 2f
       val y = if (direction > 0) list.height * 0.75f else list.height * 0.25f
-      rows.onEndScrolling = {
-        rows.onEndScrolling = null
+      onEndScrolling = {
+        onEndScrolling = null
         // The pass after the fling ends places the last rows. Judge the rest a frame later.
         script.after(100) {
           val distance = edgeDistance(list)
@@ -401,13 +448,13 @@ object LaunchArgs {
  */
 class ChangesScreen(context: Context, engine: Engine) : Screen {
   private val rows = RowsList(context, engine)
-  private val items = ArrayList<Row>()
+  private val items = ArrayList<ShadowListUtilsRow>()
   private var fresh = 1000
   override val view: View get() = rows.list
 
   override fun load() {
     rows.list.animatesChanges = true
-    items.addAll(List(80) { ReorderRow(Contact(it)) })
+    items.addAll(travellerRows(view.context, 80))
     rows.setRows(items)
     if (LaunchArgs.get("SLScenario") == "animate") TouchScript(rows.list).after(1500) { runCheck() }
   }
@@ -418,8 +465,8 @@ class ChangesScreen(context: Context, engine: Engine) : Screen {
   fun change() {
     items.removeAt(2)
     rows.list.deleteItems(intArrayOf(2))
-    items.add(4, ReorderRow(Contact(fresh++)))
-    items.add(5, ReorderRow(Contact(fresh++)))
+    items.addAll(4, travellerRows(view.context, 2, fresh))
+    fresh += 2
     rows.list.insertItems(intArrayOf(4, 5))
   }
 
@@ -453,7 +500,7 @@ class ChangesScreen(context: Context, engine: Engine) : Screen {
   private fun fadingCells(list: ShadowListKitListView, key: String): Int {
     var count = 0
     for (index in 0 until list.childCount) {
-      val cell = list.getChildAt(index) as? RowView ?: continue
+      val cell = list.getChildAt(index) as? ShadowListUtilsRowView ?: continue
       if (cell.visibility == View.VISIBLE && cell.row?.key == key) ++count
     }
     return count
@@ -475,9 +522,9 @@ class CollapsingScreen(context: Context, engine: Engine) : Screen {
   init {
     // The footer view sizes itself. A frame around it holds the bar's height.
     val title = android.widget.FrameLayout(themed)
-    title.setBackgroundColor(Theme.elevated)
+    title.setBackgroundColor(themed.listTheme.colors.elevated)
     title.minimumHeight = 56.dp
-    title.addView(ListFooterView(themed, "A bar that collapses as the list scrolls."), android.widget.FrameLayout.LayoutParams(
+    title.addView(ShadowListUtilsListFooter(themed, "A bar that collapses as the list scrolls.", themed.listTheme), android.widget.FrameLayout.LayoutParams(
       android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.BOTTOM))
     val params = com.google.android.material.appbar.AppBarLayout.LayoutParams(
       android.view.ViewGroup.LayoutParams.MATCH_PARENT, 200.dp)
@@ -493,7 +540,7 @@ class CollapsingScreen(context: Context, engine: Engine) : Screen {
   }
 
   override fun load() {
-    rows.setRows(List(80) { ReorderRow(Contact(it)) })
+    rows.setRows(travellerRows(view.context, 80))
     if (LaunchArgs.get("SLScenario") == "nested") runCheck()
   }
 

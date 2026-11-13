@@ -34,7 +34,7 @@
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
     "target": "ESNext",
-    "types": ["jest"],
+    "types": ["jest", "node"],
     "verbatimModuleSyntax": true
   },
   "include": ["src"],

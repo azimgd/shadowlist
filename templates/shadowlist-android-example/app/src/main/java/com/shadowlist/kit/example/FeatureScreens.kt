@@ -1,23 +1,22 @@
 package com.shadowlist.kit.example
 
 import android.content.Context
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Parcelable
+import android.util.Log
 import android.util.SparseArray
-import android.view.Gravity
-import android.view.Menu
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.shadowlist.kit.ShadowListKitAnchorState
 import com.shadowlist.kit.ShadowListKitDefaultItemAnimator
 import com.shadowlist.kit.ShadowListKitListCell
-import com.shadowlist.kit.ShadowListKitListChanges
 import com.shadowlist.kit.ShadowListKitListView
-import com.shadowlist.kit.ShadowListKitSwipeAction
-import com.shadowlist.kit.ShadowListKitSwipeActionsConfiguration
+import com.shadowlist.utils.ShadowListUtilsAvatar
+import com.shadowlist.utils.ShadowListUtilsContactItem
+import com.shadowlist.utils.ShadowListUtilsContactSection
+import com.shadowlist.utils.ShadowListUtilsInboxList
+import com.shadowlist.utils.ShadowListUtilsInboxMessage
+import com.shadowlist.utils.shadowListUtilsGroupIntoSections
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.abs
@@ -32,13 +31,14 @@ import kotlin.math.max
  */
 class SectionsScreen(context: Context) : Screen, ShadowListKitListView.DataSource, ShadowListKitListView.Sections, ShadowListKitListView.Delegate {
   val list = ShadowListKitListView(context)
-  var sections: List<Pair<String, List<Contact>>> = emptyList()
+  var sections: List<ShadowListUtilsContactSection> = emptyList()
     private set
   private var fresh = 5000
   override val view: View get() = list
 
   override fun load() {
-    list.setBackgroundColor(Theme.background)
+    list.setBackgroundColor(view.context.listTheme.colors.background)
+    list.separatorColor = view.context.listTheme.colors.separator
     list.estimatedItemSizePx = 64.dpf
     list.stickySectionHeaders = true
     list.showsSeparators = true
@@ -46,40 +46,41 @@ class SectionsScreen(context: Context) : Screen, ShadowListKitListView.DataSourc
     list.registerCell("contact") { ContactCell(it) }
     list.dataSource = this
     list.delegate = this
-    group(List(400) { Contact(it) })
+    group(List(400) { Items.contact(Contact(it)) })
     list.reloadData()
     if (LaunchArgs.get("SLScenario") == "sections") TouchScript(list).after(1500) { FeatureScenario.sections(this) }
   }
 
-  fun group(contacts: List<Contact>) {
-    sections = contacts.sortedBy { it.author.name }.groupBy { it.author.name.take(1) }.toList().sortedBy { it.first }
+  fun group(contacts: List<ShadowListUtilsContactItem>) {
+    sections = shadowListUtilsGroupIntoSections(contacts.sortedBy { it.name })
   }
 
-  val allContacts: List<Contact> get() = sections.flatMap { it.second }
+  val allContacts: List<ShadowListUtilsContactItem> get() = sections.flatMap { it.items }
 
   /*
    * A new traveller lands in its section. The list reads the sections again and keeps its place.
    */
   fun addTraveller() {
-    group(allContacts + Contact(fresh++))
+    group(allContacts + Items.contact(Contact(fresh++)))
     list.insertItems(intArrayOf(0))
   }
 
   override fun numberOfItems(listView: ShadowListKitListView) = allContacts.size
   override fun numberOfSections(listView: ShadowListKitListView) = sections.size
-  override fun numberOfItemsInSection(listView: ShadowListKitListView, section: Int) = sections[section].second.size
-  override fun keyForSection(listView: ShadowListKitListView, section: Int) = sections[section].first
-  override fun titleForHeaderInSection(listView: ShadowListKitListView, section: Int) = sections[section].first
-  override fun titleForFooterInSection(listView: ShadowListKitListView, section: Int) = "${sections[section].second.size} travellers"
-  override fun sectionIndexTitles(listView: ShadowListKitListView) = sections.map { it.first }
+  override fun numberOfItemsInSection(listView: ShadowListKitListView, section: Int) = sections[section].items.size
+  override fun keyForSection(listView: ShadowListKitListView, section: Int) = sections[section].key
+  override fun titleForHeaderInSection(listView: ShadowListKitListView, section: Int) = sections[section].title
+  override fun titleForFooterInSection(listView: ShadowListKitListView, section: Int) = "${sections[section].items.size} travellers"
+  override fun sectionIndexTitles(listView: ShadowListKitListView) = sections.map { it.title }
 
-  override fun keyForItem(listView: ShadowListKitListView, index: Int) = allContacts[index].id
+  override fun keyForItem(listView: ShadowListKitListView, index: Int) = allContacts[index].key
 
   override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell {
     val cell = listView.dequeueReusableCell<ContactCell>("contact")
     val contact = allContacts[index]
     // Every fifth traveller has a longer note, which wraps and makes the row taller.
-    cell.show(contact, if (index % 5 == 0) "${contact.subtitle} · Window seat, travelling with two bags and a guitar case that goes in the cabin." else contact.subtitle)
+    val note = contact.subtitle.orEmpty()
+    cell.show(contact, if (index % 5 == 0) "$note · Window seat, travelling with two bags and a guitar case that goes in the cabin." else note)
     return cell
   }
 
@@ -92,20 +93,17 @@ class SectionsScreen(context: Context) : Screen, ShadowListKitListView.DataSourc
  * A row of plain views measured by the list: its height follows the wrapped note.
  */
 class ContactCell(context: Context) : ShadowListKitListCell(context, "contact") {
-  private val avatar = TextView(context)
+  private val theme = context.listTheme
+  private val avatar = ShadowListUtilsAvatar(context, theme = theme)
   private val name = TextView(context)
   private val note = TextView(context)
 
   init {
-    setBackgroundColor(Theme.background)
-    avatar.gravity = Gravity.CENTER
-    avatar.setTextColor(Color.WHITE)
-    avatar.textSize = 15f
-    avatar.setTypeface(avatar.typeface, Typeface.BOLD)
+    setBackgroundColor(theme.colors.background)
     name.textSize = 17f
-    name.setTextColor(Theme.label)
+    name.setTextColor(theme.colors.label)
     note.textSize = 15f
-    note.setTextColor(Theme.secondaryLabel)
+    note.setTextColor(theme.colors.secondaryLabel)
     val column = LinearLayout(context).apply {
       orientation = LinearLayout.VERTICAL
       addView(name)
@@ -120,19 +118,15 @@ class ContactCell(context: Context) : ShadowListKitListCell(context, "contact") 
     addView(row)
   }
 
-  fun show(contact: Contact, text: String) {
-    avatar.text = contact.author.initials
-    avatar.background = GradientDrawable().apply {
-      shape = GradientDrawable.OVAL
-      setColor(contact.author.color)
-    }
-    name.text = contact.author.name
+  fun show(contact: ShadowListUtilsContactItem, text: String) {
+    avatar.show(contact.name)
+    name.text = contact.name
     note.text = text
   }
 
   override fun setHighlighted(highlighted: Boolean, animated: Boolean) {
     super.setHighlighted(highlighted, animated)
-    setBackgroundColor(if (highlighted) Theme.elevated2 else Theme.background)
+    setBackgroundColor(if (highlighted) theme.colors.elevated2 else theme.colors.background)
   }
 }
 
@@ -141,116 +135,92 @@ class ContactCell(context: Context) : ShadowListKitListCell(context, "contact") 
 // region Inbox
 
 /*
- * One message of the inbox.
+ * An inbox on the library's template: swipe actions, a menu on a hold, selection while editing,
+ * pull to refresh and separators, with animated changes. The screen keeps the messages and hands
+ * the template a new list for every change. The menu's Select starts editing, and deselecting
+ * the last message ends it. The same screen as the UIKit Inbox route.
  */
-class Message(index: Int) {
-  val id = "message-$index"
-  val author = Author(FixtureStrings.characterNames[index % FixtureStrings.characterNames.size])
-  val text = FixtureStrings.sampleTexts[index % FixtureStrings.sampleTexts.size]
-  var read = index % 3 == 0
-  var flagged = false
-  var version = 0L
-}
-
-/*
- * An inbox that uses the list's interaction features: swipe actions, a context menu, selection
- * with editing, pull to refresh, separators, batch updates, applyChanges with content versions,
- * payload reloads, prefetching and a saved scroll position. Changes animate. The same screen as
- * the UIKit Inbox route.
- */
-class InboxScreen(context: Context) : Screen, ShadowListKitListView.DataSource, ShadowListKitListView.Sizing, ShadowListKitListView.ContentVersions,
-  ShadowListKitListView.Delegate, ShadowListKitListView.PrefetchDataSource {
-  val list = ShadowListKitListView(context)
-  val messages = ArrayList<Message>(List(200) { Message(it) })
+class InboxScreen(context: Context) : Screen, ShadowListKitListView.PrefetchDataSource {
+  val list = ShadowListUtilsInboxList(context)
+  var messages: List<ShadowListUtilsInboxMessage> = List(200) { Items.mail(it) }
+    private set
   private var fresh = 1000
   var prefetched = 0
   var cancelled = 0
-  var reconfigured = 0
   var refreshes = 0
-  var menus = 0
+  var pressed = 0
+  var selections = 0
   override val view: View get() = list
 
   override fun load() {
-    list.setBackgroundColor(Theme.background)
-    list.estimatedItemSizePx = 76.dpf
-    list.animatesChanges = true
-    list.showsSeparators = true
-    list.separatorInsetStartPx = 72.dp
-    list.refreshEnabled = true
-    list.registerCell("message") { MessageCell(it) }
-    list.dataSource = this
-    list.delegate = this
     list.prefetchDataSource = this
-    list.reloadData()
+    list.onPressItem = {
+      pressed++
+      toggleRead(it)
+    }
+    list.onToggleRead = ::toggleRead
+    list.onToggleFlag = { message -> replace(message.copy(flagged = !message.flagged)) }
+    list.onDelete = ::delete
+    list.onReply = { Log.i("SLEXAMPLE", "reply to ${it.sender}") }
+    list.onSelectionChange = { keys ->
+      selections++
+      // The menu's Select hands over one key while the list is not editing yet.
+      if (!list.editing) {
+        list.setEditing(true, true)
+        list.selectedKeys = keys
+      } else if (keys.isEmpty()) {
+        list.setEditing(false, true)
+      }
+    }
+    list.onRefresh = {
+      refreshes++
+      list.postDelayed({
+        addNewMail(3)
+        list.refreshing = false
+      }, 1000)
+    }
+    list.items = messages
+    if (Settings.selectDemo) {
+      list.postDelayed({
+        list.setEditing(true, false)
+        list.selectedKeys = messages.subList(1, 3).mapTo(HashSet()) { it.key }
+      }, SELECT_DEMO_DELAY_MS)
+    }
     if (LaunchArgs.get("SLScenario") == "features") TouchScript(list).after(1500) { FeatureScenario.inbox(this) }
   }
 
-  fun toggleEditing() {
-    list.setEditing(!list.editing, true)
-    list.allowsMultipleSelection = list.editing
+  private fun show(next: List<ShadowListUtilsInboxMessage>) {
+    messages = next
+    list.setItems(next, true)
   }
+
+  private fun replace(message: ShadowListUtilsInboxMessage) = show(messages.map { if (it.key == message.key) message else it })
+
+  fun toggleRead(message: ShadowListUtilsInboxMessage) = replace(message.copy(read = !message.read))
+
+  fun delete(message: ShadowListUtilsInboxMessage) = show(messages.filter { it.key != message.key })
+
+  private fun newMail() =
+    Items.mail(fresh++).copy(read = false, receivedAtMs = System.currentTimeMillis().toDouble())
 
   /*
-   * New mail on top, a removed message and a moved one, all in one animated pass.
-   * Before: m0 m1 m2 m3 m4 m5. After: new m5 m1 m2 m3 m4, with m2 marked read or unread.
+   * New mail on top. The visible messages stay where they are.
    */
-  fun batchUpdate() {
-    if (messages.size <= 6) return
-    val moved = messages.removeAt(5)
-    messages.removeAt(0)
-    messages.add(0, moved)
-    messages.add(0, Message(fresh++))
-    messages[3].read = !messages[3].read
-    list.performBatchUpdates({
-      list.deleteItems(intArrayOf(0))
-      list.moveItem(5, 1)
-      list.insertItems(intArrayOf(0))
-      list.reloadItems(intArrayOf(2))
-    })
-  }
-
-  /*
-   * Shuffle a few messages, edit one and hand the list the new data to diff.
-   */
-  fun shuffle(): ShadowListKitListChanges {
-    val reversed = messages.subList(2, minOf(12, messages.size)).reversed()
-    for ((offset, message) in reversed.withIndex()) messages[2 + offset] = message
-    messages[1].version += 1
-    messages[1].flagged = !messages[1].flagged
-    messages.add(4, Message(fresh++))
-    messages.removeAt(messages.size - 1)
-    return list.applyChanges()
-  }
-
   fun addNewMail(count: Int) {
-    messages.addAll(0, List(count) { Message(fresh + it) })
-    fresh += count
-    list.insertItems(IntArray(count) { it })
+    show(List(count) { newMail() } + messages)
   }
 
-  fun toggleRead(index: Int) {
-    messages[index].read = !messages[index].read
-    list.reloadItems(intArrayOf(index), "read")
-  }
-
-  fun delete(index: Int) {
-    messages.removeAt(index)
-    list.deleteItems(intArrayOf(index))
-  }
-
-  override fun numberOfItems(listView: ShadowListKitListView) = messages.size
-  override fun keyForItem(listView: ShadowListKitListView, index: Int) = messages[index].id
-  override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int) = 76.dp
-  override fun contentVersionForItem(listView: ShadowListKitListView, index: Int) = messages[index].version
-
-  override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
-    listView.dequeueReusableCell<MessageCell>("message").also { it.show(messages[index]) }
-
-  override fun reconfigureCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int, payload: Any?): Boolean {
-    if (cell !is MessageCell || payload != "read") return false
-    reconfigured++
-    cell.show(messages[index])
-    return true
+  /*
+   * Reverse a few messages, flag one, add one and drop the last, in one change the list diffs.
+   */
+  fun shuffle() {
+    val next = ArrayList(messages)
+    val reversed = next.subList(2, minOf(12, next.size)).reversed()
+    for ((offset, message) in reversed.withIndex()) next[2 + offset] = message
+    next[1] = next[1].copy(flagged = !next[1].flagged)
+    next.add(4, newMail())
+    next.removeAt(next.size - 1)
+    show(next)
   }
 
   override fun prefetchItems(listView: ShadowListKitListView, indices: IntArray) {
@@ -261,161 +231,8 @@ class InboxScreen(context: Context) : Screen, ShadowListKitListView.DataSource, 
     cancelled += indices.size
   }
 
-  override fun didSelectItem(listView: ShadowListKitListView, index: Int) {
-    if (!listView.editing) {
-      listView.deselectItem(index, true)
-      toggleRead(index)
-    }
-  }
-
-  override fun leadingSwipeActionsForItem(listView: ShadowListKitListView, index: Int): ShadowListKitSwipeActionsConfiguration {
-    val key = messages[index].id
-    val read = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, if (messages[index].read) "Unread" else "Read") { _, done ->
-      val at = messages.indexOfFirst { it.id == key }
-      if (at >= 0) toggleRead(at)
-      done(at >= 0)
-    }
-    read.backgroundColor = Theme.accent
-    return ShadowListKitSwipeActionsConfiguration(listOf(read))
-  }
-
-  override fun trailingSwipeActionsForItem(listView: ShadowListKitListView, index: Int): ShadowListKitSwipeActionsConfiguration {
-    val key = messages[index].id
-    val delete = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.DESTRUCTIVE, "Delete") { _, done ->
-      val at = messages.indexOfFirst { it.id == key }
-      if (at >= 0) delete(at)
-      done(at >= 0)
-    }
-    val flag = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Flag") { _, done ->
-      val at = messages.indexOfFirst { it.id == key }
-      if (at >= 0) {
-        messages[at].flagged = !messages[at].flagged
-        list.reloadItems(intArrayOf(at), "read")
-      }
-      done(at >= 0)
-    }
-    flag.backgroundColor = 0xFFFF9500.toInt()
-    return ShadowListKitSwipeActionsConfiguration(listOf(delete, flag))
-  }
-
-  override fun contextMenuForItem(listView: ShadowListKitListView, index: Int, menu: Menu): Boolean {
-    menus++
-    val key = messages[index].id
-    fun at() = messages.indexOfFirst { it.id == key }
-    menu.add("Pin to Top").setOnMenuItemClickListener {
-      val from = at()
-      if (from >= 0) {
-        messages.add(0, messages.removeAt(from))
-        list.moveItem(from, 0)
-      }
-      true
-    }
-    menu.add(if (messages[index].read) "Mark Unread" else "Mark Read").setOnMenuItemClickListener {
-      at().takeIf { it >= 0 }?.let(::toggleRead)
-      true
-    }
-    menu.add("Delete").setOnMenuItemClickListener {
-      at().takeIf { it >= 0 }?.let(::delete)
-      true
-    }
-    return true
-  }
-
-  override fun didBeginRefreshing(listView: ShadowListKitListView) {
-    refreshes++
-    listView.postDelayed({
-      addNewMail(3)
-      list.refreshing = false
-    }, 1000)
-  }
-}
-
-/*
- * A message row: avatar, sender, text, an unread dot and a flag. It shows highlight, selection
- * and, while editing, a check circle.
- */
-class MessageCell(context: Context) : ShadowListKitListCell(context, "message") {
-  private val avatar = TextView(context)
-  private val sender = TextView(context)
-  private val body = TextView(context)
-  private val dot = View(context)
-  private val flag = TextView(context)
-  private val check = TextView(context)
-
-  init {
-    setBackgroundColor(Theme.background)
-    avatar.gravity = Gravity.CENTER
-    avatar.setTextColor(Color.WHITE)
-    avatar.textSize = 15f
-    sender.textSize = 16f
-    sender.setTypeface(sender.typeface, Typeface.BOLD)
-    sender.setTextColor(Theme.label)
-    sender.maxLines = 1
-    body.textSize = 14f
-    body.setTextColor(Theme.secondaryLabel)
-    body.maxLines = 2
-    dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Theme.accent) }
-    flag.text = "⚑"
-    flag.setTextColor(0xFFFF9500.toInt())
-    check.textSize = 20f
-    check.setTextColor(Theme.accent)
-    for (view in listOf(avatar, sender, body, dot, flag, check)) addView(view)
-  }
-
-  fun show(message: Message) {
-    avatar.text = message.author.initials
-    avatar.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(message.author.color) }
-    sender.text = message.author.name
-    body.text = message.text
-    dot.visibility = if (message.read) INVISIBLE else VISIBLE
-    flag.visibility = if (message.flagged) VISIBLE else INVISIBLE
-    contentDescription = "${message.author.name}, ${if (message.read) "read" else "unread"}, ${message.text}"
-  }
-
-  override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-    val width = MeasureSpec.getSize(widthMeasureSpec)
-    val lead = if (editing) 40.dp else 0
-    fun exact(view: View, w: Int, h: Int) =
-      view.measure(MeasureSpec.makeMeasureSpec(max(0, w), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
-    exact(check, 24.dp, 24.dp)
-    exact(dot, 10.dp, 10.dp)
-    exact(avatar, 44.dp, 44.dp)
-    exact(sender, width - lead - 72.dp - 40.dp, 22.dp)
-    exact(body, width - lead - 72.dp - 16.dp, 40.dp)
-    exact(flag, 20.dp, 22.dp)
-    setMeasuredDimension(width, 76.dp)
-  }
-
-  override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-    val lead = if (editing) 40.dp else 0
-    check.layout(12.dp, 26.dp, 36.dp, 50.dp)
-    check.alpha = if (editing) 1f else 0f
-    dot.layout(lead + 4.dp, 33.dp, lead + 14.dp, 43.dp)
-    avatar.layout(lead + 18.dp, 16.dp, lead + 62.dp, 60.dp)
-    sender.layout(lead + 72.dp, 9.dp, lead + 72.dp + sender.measuredWidth, 31.dp)
-    body.layout(lead + 72.dp, 31.dp, lead + 72.dp + body.measuredWidth, 71.dp)
-    flag.layout(width - 34.dp, 9.dp, width - 14.dp, 31.dp)
-  }
-
-  override fun setHighlighted(highlighted: Boolean, animated: Boolean) {
-    super.setHighlighted(highlighted, animated)
-    updateBackground()
-  }
-
-  override fun setSelected(selected: Boolean, animated: Boolean) {
-    super.setSelected(selected, animated)
-    check.text = if (selected) "●" else "○"
-    updateBackground()
-  }
-
-  override fun setEditing(editing: Boolean, animated: Boolean) {
-    super.setEditing(editing, animated)
-    check.text = if (isSelected) "●" else "○"
-    requestLayout()
-  }
-
-  private fun updateBackground() {
-    setBackgroundColor(if (highlighted) Theme.elevated2 else if (isSelected) Theme.elevated else Theme.background)
+  private companion object {
+    const val SELECT_DEMO_DELAY_MS = 1000L
   }
 }
 
@@ -467,39 +284,30 @@ object FeatureScenario {
     val animator = CountingAnimator()
     list.itemAnimator = animator
 
-    // Selection follows keys.
-    list.allowsMultipleSelection = true
-    list.selectItem(1)
-    list.selectItem(3)
-    list.deselectItem(1)
-    screen.messages.removeAt(0)
-    list.deleteItems(intArrayOf(0))
+    // Selection follows keys while editing, and goes when editing ends.
+    list.setEditing(true, false)
+    list.selectedKeys = setOf(screen.messages[1].key, screen.messages[3].key)
+    screen.delete(screen.messages[0])
     relayout(list)
     result.put("selectedAfterDelete", JSONArray(list.selectedIndices.toList()))
-    list.allowsMultipleSelection = false
-
-    // A batch: new mail, a delete, a move and a reload.
-    screen.batchUpdate()
+    list.setEditing(false, false)
     relayout(list)
-    result.put("batchConsistent", consistent(screen))
+    result.put("selectedAfterEditing", list.selectedKeys.size)
 
-    // applyChanges diffs the new data.
-    val changes = screen.shuffle()
+    // Several messages change at once and the list diffs them.
+    screen.shuffle()
     relayout(list)
-    result.put("applyChanges", JSONObject().put("deleted", changes.deletedIndices.size).put("inserted", changes.insertedIndices.size)
-      .put("moved", changes.movedFromIndices.size).put("reloaded", changes.reloadedIndices.size))
-    result.put("applyConsistent", consistent(screen))
+    result.put("shuffleConsistent", consistent(screen))
 
-    // A payload reload updates the shown cell in place.
-    val cellBefore = list.cellForItem(2)
-    screen.toggleRead(2)
+    // A message marked read shows its new state under the same key.
+    val toggled = screen.messages[2]
+    screen.toggleRead(toggled)
     relayout(list)
-    result.put("payloadKeptCell", cellBefore != null && cellBefore === list.cellForItem(2))
-    result.put("reconfigured", screen.reconfigured)
+    result.put("toggledReadShown", list.cellForItem(2)?.contentDescription?.startsWith("Unread") == toggled.read)
 
     // Swipe the third row all the way across with synthesized touches: its delete runs.
     val count = screen.messages.size
-    val swiped = screen.messages[2].id
+    val swiped = screen.messages[2].key
     val row = list.rectForItem(2) ?: return report(result.put("error", "no row 2"))
     val y = row.centerY() + list.paddingTop - list.scrollY
     val startX = list.width - 40f
@@ -508,14 +316,14 @@ object FeatureScenario {
       script.up(startX - list.width * 1.1f, y)
       script.after(600) {
         relayout(list)
-        result.put("fullSwipeDeleted", screen.messages.size == count - 1 && screen.messages.none { it.id == swiped })
+        result.put("fullSwipeDeleted", screen.messages.size == count - 1 && screen.messages.none { it.key == swiped })
         partialSwipe(screen, result)
       }
     }
   }
 
   /*
-   * A partial swipe opens a row. Closing it puts it back. Then the menu, refresh, saved place.
+   * A partial swipe opens a row. Closing it puts it back. Then a tap, refresh and the saved place.
    */
   private fun partialSwipe(screen: InboxScreen, result: JSONObject) {
     val list = screen.list
@@ -529,21 +337,27 @@ object FeatureScenario {
         result.put("swipeOpenOffset", (list.cellForItem(1)?.translationX ?: 0f) / density)
         list.closeSwipeActions(false)
         result.put("swipeClosedOffset", list.cellForItem(1)?.translationX ?: -1f)
-        longPress(screen, result)
+        tap(screen, result)
       }
     }
   }
 
-  private fun longPress(screen: InboxScreen, result: JSONObject) {
+  /*
+   * A tap presses the message, which this screen marks read or unread.
+   */
+  private fun tap(screen: InboxScreen, result: JSONObject) {
     val list = screen.list
     val script = TouchScript(list)
     val row = list.rectForItem(4) ?: return report(result)
     val y = row.centerY() + list.paddingTop - list.scrollY
+    val before = screen.messages[4]
     script.down(list.width / 2f, y)
-    script.after(800) {
+    script.after(60) {
       script.up(list.width / 2f, y)
-      result.put("contextMenu", screen.menus > 0)
-      pullToRefresh(screen, result)
+      script.after(400) {
+        result.put("tapPressed", screen.pressed).put("tapToggledRead", screen.messages[4].read != before.read)
+        pullToRefresh(screen, result)
+      }
     }
   }
 
@@ -555,10 +369,10 @@ object FeatureScenario {
     script.down(list.width / 2f, 100.dpf)
     script.frames(20, { frame -> script.move(list.width / 2f, 100.dpf + (frame + 1) * 12.dpf) }) {
       script.up(list.width / 2f, 340.dpf)
-      result.put("refreshDelegateCalls", screen.refreshes)
+      result.put("refreshCalls", screen.refreshes)
       var before: Map<String, Int> = emptyMap()
       script.after(800) { before = visibleItems(list) }
-      script.after(1500) {
+      script.after(1800) {
         val after = visibleItems(list)
         result.put("refreshShift", before.entries.maxOfOrNull { (key, y) -> after[key]?.let { abs(it - y) } ?: 0 } ?: -1)
         result.put("refreshingAfterDone", list.refreshing)
@@ -598,7 +412,7 @@ object FeatureScenario {
 
   private fun anchorError(screen: InboxScreen, place: ShadowListKitAnchorState): Float {
     val list = screen.list
-    val index = screen.messages.indexOfFirst { it.id == place.key }
+    val index = screen.messages.indexOfFirst { it.key == place.key }
     val viewportTop = list.scrollY
     val top = list.rectForItem(index)?.top ?: return -1f
     return (viewportTop - top) - place.offset
@@ -612,13 +426,15 @@ object FeatureScenario {
     val range = list.visibleRange ?: return false
     for (index in range) {
       val cell = list.cellForItem(index) ?: continue
-      if (cell.contentDescription?.startsWith(screen.messages[index].author.name) != true) return false
+      if (cell.contentDescription?.contains(screen.messages[index].preview) != true) return false
     }
     return list.rectForItem(screen.messages.size - 1) != null && list.rectForItem(screen.messages.size) == null
   }
 
-  private fun visibleItems(list: ShadowListKitListView): Map<String, Int> =
-    list.visibleCells.associate { (list.dataSource!!.keyForItem(list, it.index)) to (it.top - list.scrollY) }
+  private fun visibleItems(list: ShadowListKitListView): Map<String, Int> {
+    val source = list.dataSource ?: return emptyMap()
+    return list.visibleCells.associate { source.keyForItem(list, it.index) to (it.top - list.scrollY) }
+  }
 
   private fun relayout(list: ShadowListKitListView) {
     list.measure(View.MeasureSpec.makeMeasureSpec(list.width, View.MeasureSpec.EXACTLY),

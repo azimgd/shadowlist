@@ -6,7 +6,7 @@ import android.content.Intent
  * The list implementation a screen runs on, picked with --es SLEngine.
  */
 enum class Engine(val id: String, val title: String) {
-  // ShadowListKitListView with sizes from the precomputed layouts.
+  // The library's template list, a ShadowListKitListView with sizes from layouts computed ahead.
   SHADOWLIST("sl", "ShadowListKitListView"),
   // ShadowListKitListView measuring each row through its cell on the UI thread.
   SHADOWLIST_AUTO("sl-auto", "ShadowListKitListView (self-sizing)"),
@@ -55,6 +55,20 @@ object Settings {
   var drawDelayMs: Long = 0
     private set
 
+  /*
+   * SLStates 1: the Feed and Chat screens also show what their fixtures lack: placeholder posts,
+   * and messages with a caption, on their way or failed.
+   */
+  var states: Boolean = false
+    private set
+
+  /*
+   * SLSelectDemo 1: the Inbox screen starts editing with the second and third rows selected, for
+   * screenshots.
+   */
+  var selectDemo: Boolean = false
+    private set
+
   fun read(intent: Intent) {
     route = intent.getStringExtra("SLRoute")
     engine = Engine.of(intent.getStringExtra("SLEngine"))
@@ -62,6 +76,8 @@ object Settings {
     images = intent.getStringExtra("SLImages") != "0"
     padding = intent.getStringExtra("SLPadding")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
     animate = intent.getStringExtra("SLAnimate") == "1"
+    states = intent.getStringExtra("SLStates") == "1"
+    selectDemo = intent.getStringExtra("SLSelectDemo") == "1"
     drawDelayMs = intent.getStringExtra("SLBenchDrawDelay")?.toDoubleOrNull()?.toLong()?.coerceAtLeast(0) ?: 0
   }
 }

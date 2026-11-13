@@ -3,6 +3,7 @@ import UIKit
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
   func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+    Rendering.apply()
     TextCheck.run()
     return true
   }
@@ -21,10 +22,10 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     let navigation = UINavigationController(rootViewController: HomeScreen())
     navigation.navigationBar.prefersLargeTitles = true
-    navigation.navigationBar.tintColor = Theme.accent
+    navigation.navigationBar.tintColor = AppTheme.colors.accent
     let opaque = UINavigationBarAppearance()
     opaque.configureWithOpaqueBackground()
-    opaque.backgroundColor = Theme.background
+    opaque.backgroundColor = AppTheme.colors.background
     if let route = Settings.route, let example = ExampleRoute.all.first(where: { $0.route == route }) {
       let screen = example.make()
       screen.navigationItem.largeTitleDisplayMode = .never

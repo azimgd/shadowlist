@@ -10,6 +10,9 @@ import android.view.Choreographer
 import android.view.View
 import android.view.ViewGroup
 import com.shadowlist.kit.ShadowListKitListView
+import com.shadowlist.utils.ShadowListUtilsList
+import com.shadowlist.utils.ShadowListUtilsListFooter
+import com.shadowlist.utils.ShadowListUtilsRowView
 import org.json.JSONObject
 import kotlin.math.abs
 import kotlin.math.max
@@ -39,7 +42,7 @@ class Scenario private constructor(private val screen: ListScreen, private val e
       scenario.costRuns = intent.getStringExtra("SLCostRuns")?.toIntOrNull()?.takeIf { it > 0 } ?: 15
       when (name) {
         // The background layout prefetch finishes first. It would compete with the timed updates.
-        "cost" -> scenario.after(2000) { screen.list.layouts.whenIdle { scenario.measureUpdateCost() } }
+        "cost" -> scenario.after(2000) { screen.list.whenIdle { scenario.measureUpdateCost() } }
         "prepend", "append" -> scenario.after(1500) { scenario.measureShift(name) }
         "edges" -> scenario.after(1500) { EdgeChecks(screen) { scenario.report(it, name) }.start() }
       }
@@ -88,10 +91,10 @@ class Scenario private constructor(private val screen: ListScreen, private val e
   private fun measureUpdateCost() {
     view.scrollBy(0, 20000)
     forceLayout()
-    screen.list.layouts.prefetchPaused = true
+    screen.list.prefetchPaused = true
     val prepends = List(costRuns) { timed { screen.prependRows() } }
     val appends = List(costRuns) { timed { screen.appendRows() } }
-    screen.list.layouts.prefetchPaused = false
+    screen.list.prefetchPaused = false
     fun median(values: List<Double>) = values.sorted()[values.size / 2]
     report(JSONObject().put("rows", screen.list.rows.size)
       .put("prependMs", median(prepends.map { it.first })).put("appendMs", median(appends.map { it.first }))
@@ -144,7 +147,7 @@ fun visibleRowsOf(view: View): Map<String, Int> {
   val bottom = top + view.height
   val group = view as? ViewGroup ?: return rows
   for (index in 0 until group.childCount) {
-    val child = group.getChildAt(index) as? RowView ?: continue
+    val child = group.getChildAt(index) as? ShadowListUtilsRowView ?: continue
     val key = child.row?.key ?: continue
     if (child.visibility != View.VISIBLE) continue
     child.getLocationOnScreen(location)
@@ -296,7 +299,7 @@ private class EdgeChecks(private val screen: ListScreen, private val done: (JSON
           val group = view as ViewGroup
           var lastBottom = Int.MIN_VALUE
           for (index in 0 until group.childCount) {
-            val child = group.getChildAt(index) as? RowView ?: continue
+            val child = group.getChildAt(index) as? ShadowListUtilsRowView ?: continue
             if (child.visibility != View.VISIBLE || child.row == null) continue
             val at = IntArray(2)
             child.getLocationOnScreen(at)
@@ -373,18 +376,27 @@ private class EdgeChecks(private val screen: ListScreen, private val done: (JSON
    */
   private fun reached(next: () -> Unit) {
     val list = kit ?: return next()
+    val template = list as? ShadowListUtilsList
     val previous = list.delegate
     var starts = 0
     var ends = 0
     var loaded = false
-    list.delegate = object : ShadowListKitListView.Delegate {
-      override fun didReachStart(listView: ShadowListKitListView) { ++starts }
-      override fun didReachEnd(listView: ShadowListKitListView) {
-        ++ends
-        if (!loaded) {
-          loaded = true
-          handler.post { screen.appendRows() }
-        }
+    val reachedStart = { ++starts }
+    val reachedEnd = {
+      ++ends
+      if (!loaded) {
+        loaded = true
+        handler.post { screen.appendRows() }
+      }
+    }
+    // The template list owns its delegate and gives closures for the same calls.
+    if (template != null) {
+      template.onStartReached = { reachedStart() }
+      template.onEndReached = { reachedEnd() }
+    } else {
+      list.delegate = object : ShadowListKitListView.Delegate {
+        override fun didReachStart(listView: ShadowListKitListView) { reachedStart() }
+        override fun didReachEnd(listView: ShadowListKitListView) { reachedEnd() }
       }
     }
     list.scrollToItem(screen.list.rows.size / 2)
@@ -402,7 +414,12 @@ private class EdgeChecks(private val screen: ListScreen, private val done: (JSON
           list.scrollToStart()
           handler.postDelayed({
             result.put("reachedStarts", starts)
-            list.delegate = previous
+            if (template != null) {
+              template.onStartReached = null
+              template.onEndReached = null
+            } else {
+              list.delegate = previous
+            }
             next()
           }, 500)
         }, 500)
@@ -455,7 +472,7 @@ private class EdgeChecks(private val screen: ListScreen, private val done: (JSON
     val spans = ArrayList<IntArray>()
     for (index in 0 until group.childCount) {
       val child = group.getChildAt(index)
-      if (child.visibility != View.VISIBLE || child !is RowView && child.javaClass.simpleName != "ListFooterView" &&
+      if (child.visibility != View.VISIBLE || child !is ShadowListUtilsRowView && child !is ShadowListUtilsListFooter &&
         child !is android.widget.FrameLayout) continue
       val top = (child.top + child.translationY).toInt() - view.scrollY
       spans.add(intArrayOf(top, top + child.height))

@@ -10,6 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { createStyles } from '../theme';
+import { CARD_IMAGE_HEIGHT, CARD_TITLE_LINES } from './cardHeight';
 import type { NestedCardItem } from './types';
 
 export interface NestedCardProps {
@@ -33,7 +34,7 @@ export const NestedCard = memo(
             accessibilityLabel={item.image.alt}
           />
         </View>
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={styles.title} numberOfLines={CARD_TITLE_LINES}>
           {item.title}
         </Text>
       </>
@@ -63,7 +64,7 @@ const useStyles = createStyles((theme) =>
     },
     imageFrame: {
       width: 180,
-      height: 220,
+      height: CARD_IMAGE_HEIGHT,
       borderRadius: theme.radius.md,
       overflow: 'hidden',
       backgroundColor: theme.colors.elevated2,

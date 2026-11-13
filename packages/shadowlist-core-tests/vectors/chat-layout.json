@@ -1,0 +1,564 @@
+[
+  {
+    "name": "a message from someone else counts the sender line",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": false,
+        "showsAuthor": true,
+        "hasCaption": false,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": {
+      "fontSize": 17,
+      "lineHeight": 22,
+      "letterSpacing": -0.43,
+      "widthFraction": 0.75,
+      "insetWidth": 46,
+      "insetHeight": 38
+    }
+  },
+  {
+    "name": "a message that hides its author",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": false,
+        "showsAuthor": false,
+        "hasCaption": false,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": {
+      "fontSize": 17,
+      "lineHeight": 22,
+      "letterSpacing": -0.43,
+      "widthFraction": 0.75,
+      "insetWidth": 46,
+      "insetHeight": 20
+    }
+  },
+  {
+    "name": "the reader's own message has no sender line",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": true,
+        "showsAuthor": true,
+        "hasCaption": false,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": {
+      "fontSize": 17,
+      "lineHeight": 22,
+      "letterSpacing": -0.43,
+      "widthFraction": 0.75,
+      "insetWidth": 46,
+      "insetHeight": 20
+    }
+  },
+  {
+    "name": "the reader's own message that hides its author",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": true,
+        "showsAuthor": false,
+        "hasCaption": false,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": {
+      "fontSize": 17,
+      "lineHeight": 22,
+      "letterSpacing": -0.43,
+      "widthFraction": 0.75,
+      "insetWidth": 46,
+      "insetHeight": 20
+    }
+  },
+  {
+    "name": "a caption adds its line",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": false,
+        "showsAuthor": true,
+        "hasCaption": true,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": {
+      "fontSize": 17,
+      "lineHeight": 22,
+      "letterSpacing": -0.43,
+      "widthFraction": 0.75,
+      "insetWidth": 46,
+      "insetHeight": 58
+    }
+  },
+  {
+    "name": "a failed message adds its status line",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": true,
+        "showsAuthor": true,
+        "hasCaption": false,
+        "failed": true
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": {
+      "fontSize": 17,
+      "lineHeight": 22,
+      "letterSpacing": -0.43,
+      "widthFraction": 0.75,
+      "insetWidth": 46,
+      "insetHeight": 40
+    }
+  },
+  {
+    "name": "a failed message with a caption from someone else",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": false,
+        "showsAuthor": true,
+        "hasCaption": true,
+        "failed": true
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": {
+      "fontSize": 17,
+      "lineHeight": 22,
+      "letterSpacing": -0.43,
+      "widthFraction": 0.75,
+      "insetWidth": 46,
+      "insetHeight": 78
+    }
+  },
+  {
+    "name": "a message with images has no size spec",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": true,
+        "isOwn": false,
+        "showsAuthor": true,
+        "hasCaption": false,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": null
+  },
+  {
+    "name": "a message without text has no size spec",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": false,
+        "hasImages": false,
+        "isOwn": false,
+        "showsAuthor": true,
+        "hasCaption": false,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": null
+  },
+  {
+    "name": "a message without text and with images has no size spec",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": false,
+        "hasImages": true,
+        "isOwn": false,
+        "showsAuthor": true,
+        "hasCaption": false,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": null
+  },
+  {
+    "name": "the desktop theme",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": false,
+        "showsAuthor": true,
+        "hasCaption": false,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 6,
+        "spacingMd": 8,
+        "spacingLg": 12,
+        "bodyFontSize": 13,
+        "bodyLineHeight": 16,
+        "bodyLetterSpacing": -0.08,
+        "captionLineHeight": 13
+      }
+    },
+    "output": {
+      "fontSize": 13,
+      "lineHeight": 16,
+      "letterSpacing": -0.08,
+      "widthFraction": 0.75,
+      "insetWidth": 40,
+      "insetHeight": 31
+    }
+  },
+  {
+    "name": "the desktop theme, own and failed",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": true,
+        "showsAuthor": true,
+        "hasCaption": false,
+        "failed": true
+      },
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 6,
+        "spacingMd": 8,
+        "spacingLg": 12,
+        "bodyFontSize": 13,
+        "bodyLineHeight": 16,
+        "bodyLetterSpacing": -0.08,
+        "captionLineHeight": 13
+      }
+    },
+    "output": {
+      "fontSize": 13,
+      "lineHeight": 16,
+      "letterSpacing": -0.08,
+      "widthFraction": 0.75,
+      "insetWidth": 40,
+      "insetHeight": 33
+    }
+  },
+  {
+    "name": "metrics with fractions",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": false,
+        "showsAuthor": true,
+        "hasCaption": true,
+        "failed": false
+      },
+      "metrics": {
+        "spacingXxs": 1.1,
+        "spacingXs": 3.3,
+        "spacingSm": 7.7,
+        "spacingMd": 12.3,
+        "spacingLg": 15.7,
+        "bodyFontSize": 16.5,
+        "bodyLineHeight": 21.25,
+        "bodyLetterSpacing": 0.1,
+        "captionLineHeight": 14.6
+      }
+    },
+    "output": {
+      "fontSize": 16.5,
+      "lineHeight": 21.25,
+      "letterSpacing": 0.1,
+      "widthFraction": 0.75,
+      "insetWidth": 46.45,
+      "insetHeight": 51.199999999999996
+    }
+  },
+  {
+    "name": "metrics with fractions, every line",
+    "function": "chatMessageSizeSpec",
+    "input": {
+      "shape": {
+        "hasText": true,
+        "hasImages": false,
+        "isOwn": false,
+        "showsAuthor": true,
+        "hasCaption": true,
+        "failed": true
+      },
+      "metrics": {
+        "spacingXxs": 1.1,
+        "spacingXs": 3.3,
+        "spacingSm": 7.7,
+        "spacingMd": 12.3,
+        "spacingLg": 15.7,
+        "bodyFontSize": 16.5,
+        "bodyLineHeight": 21.25,
+        "bodyLetterSpacing": 0.1,
+        "captionLineHeight": 14.6
+      }
+    },
+    "output": {
+      "fontSize": 16.5,
+      "lineHeight": 21.25,
+      "letterSpacing": 0.1,
+      "widthFraction": 0.75,
+      "insetWidth": 46.45,
+      "insetHeight": 69.1
+    }
+  },
+  {
+    "name": "a user message",
+    "function": "assistantUserMessageSizeSpec",
+    "input": {
+      "hasText": true,
+      "hasAttachments": false,
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": {
+      "fontSize": 17,
+      "lineHeight": 22,
+      "letterSpacing": -0.43,
+      "widthFraction": 0.8,
+      "insetWidth": 53.6,
+      "insetHeight": 36
+    }
+  },
+  {
+    "name": "a user message with attachments has no size spec",
+    "function": "assistantUserMessageSizeSpec",
+    "input": {
+      "hasText": true,
+      "hasAttachments": true,
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": null
+  },
+  {
+    "name": "a user message without text has no size spec",
+    "function": "assistantUserMessageSizeSpec",
+    "input": {
+      "hasText": false,
+      "hasAttachments": false,
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 8,
+        "spacingMd": 12,
+        "spacingLg": 16,
+        "bodyFontSize": 17,
+        "bodyLineHeight": 22,
+        "bodyLetterSpacing": -0.43,
+        "captionLineHeight": 16
+      }
+    },
+    "output": null
+  },
+  {
+    "name": "a user message on the desktop theme",
+    "function": "assistantUserMessageSizeSpec",
+    "input": {
+      "hasText": true,
+      "hasAttachments": false,
+      "metrics": {
+        "spacingXxs": 2,
+        "spacingXs": 4,
+        "spacingSm": 6,
+        "spacingMd": 8,
+        "spacingLg": 12,
+        "bodyFontSize": 13,
+        "bodyLineHeight": 16,
+        "bodyLetterSpacing": -0.08,
+        "captionLineHeight": 13
+      }
+    },
+    "output": {
+      "fontSize": 13,
+      "lineHeight": 16,
+      "letterSpacing": -0.08,
+      "widthFraction": 0.8,
+      "insetWidth": 47.2,
+      "insetHeight": 32
+    }
+  },
+  {
+    "name": "a user message with metrics with fractions",
+    "function": "assistantUserMessageSizeSpec",
+    "input": {
+      "hasText": true,
+      "hasAttachments": false,
+      "metrics": {
+        "spacingXxs": 1.1,
+        "spacingXs": 3.3,
+        "spacingSm": 7.7,
+        "spacingMd": 12.3,
+        "spacingLg": 15.7,
+        "bodyFontSize": 16.5,
+        "bodyLineHeight": 21.25,
+        "bodyLetterSpacing": 0.1,
+        "captionLineHeight": 14.6
+      }
+    },
+    "output": {
+      "fontSize": 16.5,
+      "lineHeight": 21.25,
+      "letterSpacing": 0.1,
+      "widthFraction": 0.8,
+      "insetWidth": 53.120000000000005,
+      "insetHeight": 35.4
+    }
+  }
+]

@@ -9,37 +9,21 @@ object Fixtures {
     val clean = FixtureStrings.images[index % FixtureStrings.images.size].removePrefix("https://")
     return "https://images.weserv.nl/?url=$clean&q=60&w=$width"
   }
-
-  fun avatarColor(name: String): Int {
-    var hash = 0L
-    for (unit in name) hash = (hash * 31 + unit.code) % 2_147_483_647
-    return Theme.avatarPalette[(hash % Theme.avatarPalette.size).toInt()]
-  }
-
-  fun initials(name: String): String {
-    val words = name.split(" ").filter { it.isNotEmpty() }
-    val first = words.firstOrNull()?.firstOrNull() ?: return ""
-    if (words.size > 1) return "$first${words.last().first()}".uppercase()
-    return first.toString().uppercase()
-  }
 }
 
-class Author(val name: String) {
-  val initials = Fixtures.initials(name)
-  val color = Fixtures.avatarColor(name)
-}
+class Author(val name: String)
 
-class FeedPost(index: Int) {
+class FeedPost(val index: Int) {
   val id = "post-$index"
   private val name = FixtureStrings.characterNames[index % FixtureStrings.characterNames.size]
   val author = Author(name)
   val handle = "@" + name.lowercase().replace(" ", "")
   val text = FixtureStrings.sampleTexts[index % FixtureStrings.sampleTexts.size]
-  val time = (index % 24).let { if (it == 0) "now" else "${it}h" }
+  val hoursAgo = index % 24
   val images = List(if (index % 10 == 0) 3 + index % 2 else 1) { Fixtures.imageUrl(index + it, 800) }
 }
 
-class ChatMessage(index: Int) {
+class ChatMessage(val index: Int) {
   val id = "msg-$index"
   val isOwn = index % 3 != 0
   val author = Author(if (isOwn) "Me" else FixtureStrings.avatarNames[index % FixtureStrings.avatarNames.size])

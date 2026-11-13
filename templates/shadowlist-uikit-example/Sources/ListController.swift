@@ -1,4 +1,5 @@
 import ShadowListKit
+import ShadowListUtils
 import UIKit
 
 /*
@@ -13,25 +14,47 @@ enum RowChange {
 }
 
 /*
- * One list API over the engines being compared. Screens hand it rows and it shows them with
- * ShadowListKitListView, UITableView, or for a grid UICollectionView.
+ * One list API over the engines being compared. With the sl engine it shows the screen's
+ * ShadowListUtils template list. With the others the screen hands it the library's rows and it
+ * shows them with ShadowListKitListView, UITableView, or for a grid UICollectionView.
  */
 final class ListController: NSObject {
   let engine: Engine
   let columns: Int
-  let cache = LayoutCache()
-  private(set) var rows: [Row] = []
+  let cache = ShadowListUtilsLayoutCache()
 
-  var onStartReached: (() -> Void)?
-  var onEndReached: (() -> Void)?
+  /*
+   * The template list, or nil with an engine that hosts the rows itself.
+   */
+  let template: ShadowListUtilsList?
+
+  private var hostedRows: [ShadowListUtilsRow] = []
+
+  var rows: [ShadowListUtilsRow] { template?.rows ?? hostedRows }
+
+  var onStartReached: (() -> Void)? {
+    didSet { template?.onStartReached = onStartReached }
+  }
+
+  var onEndReached: (() -> Void)? {
+    didSet { template?.onEndReached = onEndReached }
+  }
+
+  /*
+   * Set by the cost scenario while it times updates. Prefetch work would compete with them.
+   */
+  var prefetchPaused = false
 
   private var backend: ListBackend!
 
-  init(engine: Engine, columns: Int = 1, inverted: Bool = false) {
+  init(engine: Engine, template: ShadowListUtilsList? = nil, columns: Int = 1, inverted: Bool = false) {
     self.engine = engine
     self.columns = columns
+    self.template = engine == .shadowlist ? template : nil
     super.init()
-    if engine.isShadowList {
+    if let template = self.template {
+      backend = TemplateBackend(list: template)
+    } else if engine.isShadowList {
       backend = ShadowListBackend(controller: self, inverted: inverted)
     } else if columns > 1 {
       backend = CollectionBackend(controller: self)
@@ -57,7 +80,8 @@ final class ListController: NSObject {
   }
 
   /*
-   * Called after a dragged row was dropped and rows already holds the new order.
+   * Called after a dragged row was dropped and rows already holds the new order. A template list
+   * reports the move through its own onMoveItem.
    */
   var onMove: ((Int, Int) -> Void)?
 
@@ -70,8 +94,8 @@ final class ListController: NSObject {
   }
 
   func moveRow(from: Int, to: Int) {
-    let row = rows.remove(at: from)
-    rows.insert(row, at: to)
+    let row = hostedRows.remove(at: from)
+    hostedRows.insert(row, at: to)
     onMove?(from, to)
   }
 
@@ -85,20 +109,25 @@ final class ListController: NSObject {
    */
   private(set) var lastUpdateSeconds: CFTimeInterval = 0
 
-  func setRows(_ rows: [Row], change: RowChange) {
-    self.rows = rows
-    if !engine.selfSizing {
+  /*
+   * Show the rows with an engine that hosts them. The template list takes its items from the
+   * screen instead, inside update.
+   */
+  func setRows(_ rows: [ShadowListUtilsRow], change: RowChange) {
+    hostedRows = rows
+    if !engine.selfSizing, !prefetchPaused {
       cache.prefetch(rows, width: rowWidth, around: 0)
     }
-    let start = CACurrentMediaTime()
-    backend.rowsChanged(change)
-    lastUpdateSeconds = CACurrentMediaTime() - start
+    update { backend.rowsChanged(change) }
   }
 
-  func reloadRow(at index: Int, _ row: Row) {
-    rows[index] = row
-    cache.invalidate(row.key)
-    backend.reloadRow(at: index)
+  /*
+   * Run a data update and keep how long it took.
+   */
+  func update(_ work: () -> Void) {
+    let start = CACurrentMediaTime()
+    work()
+    lastUpdateSeconds = CACurrentMediaTime() - start
   }
 
   func scrollToItem(at index: Int, animated: Bool) {
@@ -112,7 +141,7 @@ final class ListController: NSObject {
   /*
    * The layout a cell shows, or nil when the engine sizes rows from their views.
    */
-  func cachedLayout(_ row: Row, width: CGFloat) -> RowLayout? {
+  func cachedLayout(_ row: ShadowListUtilsRow, width: CGFloat) -> ShadowListUtilsRowLayout? {
     engine.selfSizing ? nil : cache.layout(row, width: width)
   }
 }
@@ -124,37 +153,67 @@ protocol ListBackend: AnyObject {
   var header: UIView? { get set }
   var footer: UIView? { get set }
   func rowsChanged(_ change: RowChange)
-  func reloadRow(at index: Int)
   func stickyIndicesChanged()
   func scrollToItem(at index: Int, animated: Bool)
   func scrollToEnd(animated: Bool)
 }
 
-// MARK: - ShadowListKitListView
+// MARK: - ShadowListUtils template
 
-final class ShadowListCell: ShadowListKitListCell {
-  private(set) var rowView: RowView?
+/*
+ * The screen's template list. It holds its own items and rows, and the controller only passes
+ * the header, the footer and the scroll commands on.
+ */
+final class TemplateBackend: NSObject, ListBackend {
+  private let list: ShadowListUtilsList
 
-  func show(_ row: Row, layout: RowLayout?) {
-    if rowView == nil || type(of: rowView!) != row.viewClass {
-      rowView?.removeFromSuperview()
-      let view = row.viewClass.init(frame: bounds)
-      addSubview(view)
-      rowView = view
-    }
-    rowView!.configure(row, layout: layout)
+  init(list: ShadowListUtilsList) {
+    self.list = list
+    super.init()
+    list.alwaysBounceVertical = true
+    list.estimatedItemSize = 120
   }
 
-  override func sizeThatFits(_ size: CGSize) -> CGSize {
-    rowView?.sizeThatFits(size) ?? .zero
+  var scrollView: UIScrollView { list }
+
+  var reorderEnabled: Bool {
+    get { list.reorderEnabled }
+    set { list.reorderEnabled = newValue }
   }
 
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    rowView?.frame = bounds
+  var snapToItem: Bool {
+    get { list.snapToItem }
+    set { list.snapToItem = newValue }
+  }
+
+  var header: UIView? {
+    get { list.headerView }
+    set { list.headerView = newValue }
+  }
+
+  var footer: UIView? {
+    get { list.footerView }
+    set { list.footerView = newValue }
+  }
+
+  func rowsChanged(_ change: RowChange) {}
+
+  func stickyIndicesChanged() {}
+
+  func scrollToItem(at index: Int, animated: Bool) {
+    list.scrollToItem(at: index, viewPosition: 0, animated: animated)
+  }
+
+  func scrollToEnd(animated: Bool) {
+    list.scrollToEnd(animated: animated)
   }
 }
 
+// MARK: - ShadowListKitListView
+
+/*
+ * A plain kit list with the library's rows, the way an app uses the rows without a template.
+ */
 final class ShadowListBackend: NSObject, ListBackend, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
   private unowned let controller: ListController
   private let list = ShadowListKitListView()
@@ -163,10 +222,11 @@ final class ShadowListBackend: NSObject, ListBackend, ShadowListKitListViewDataS
   init(controller: ListController, inverted: Bool) {
     self.controller = controller
     super.init()
-    list.backgroundColor = Theme.background
+    list.backgroundColor = AppTheme.colors.background
     list.isInverted = inverted
     list.numberOfColumns = controller.columns
     list.alwaysBounceVertical = true
+    list.allowsSelection = false
     list.dataSource = self
     list.delegate = self
     list.estimatedItemSize = 120
@@ -210,10 +270,6 @@ final class ShadowListBackend: NSObject, ListBackend, ShadowListKitListViewDataS
     }
   }
 
-  func reloadRow(at index: Int) {
-    list.reloadItems(at: IndexSet(integer: index))
-  }
-
   func stickyIndicesChanged() {
     list.stickyIndices = IndexSet(controller.stickyIndices)
   }
@@ -236,14 +292,13 @@ final class ShadowListBackend: NSObject, ListBackend, ShadowListKitListViewDataS
 
   func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
     let row = controller.rows[index]
-    let identifier = row.reuseIdentifier
-    if !registered.contains(identifier) {
-      listView.register(ShadowListCell.self, forCellReuseIdentifier: identifier)
-      registered.insert(identifier)
+    let identifier = NSStringFromClass(row.viewClass)
+    if registered.insert(identifier).inserted {
+      listView.register(row.viewClass, forCellReuseIdentifier: identifier)
     }
-    let cell = listView.dequeueReusableCell(withIdentifier: identifier) as! ShadowListCell
+    let cell = listView.dequeueReusableCell(withIdentifier: identifier)
     let width = controller.columns > 1 ? controller.rowWidth : listView.bounds.width
-    cell.show(row, layout: controller.cachedLayout(row, width: width))
+    (cell as? ShadowListUtilsRowView)?.configure(row, layout: controller.cachedLayout(row, width: width))
     return cell
   }
 
@@ -271,62 +326,74 @@ final class ShadowListBackend: NSObject, ListBackend, ShadowListKitListViewDataS
   }
 }
 
+/*
+ * Puts one of the library's row views into the content view of a table or collection cell. A
+ * row view is a plain view when it has no reuse identifier.
+ */
+final class RowHost {
+  private(set) var rowView: ShadowListUtilsRowView?
+
+  func show(_ row: ShadowListUtilsRow, layout: ShadowListUtilsRowLayout?, in contentView: UIView) {
+    if rowView == nil || rowView.map({ type(of: $0) != row.viewClass }) == true {
+      rowView?.removeFromSuperview()
+      let view = row.viewClass.init(reuseIdentifier: nil)
+      view.frame = contentView.bounds
+      contentView.addSubview(view)
+      rowView = view
+    }
+    rowView?.configure(row, layout: layout)
+  }
+
+  func sizeThatFits(width: CGFloat) -> CGSize {
+    rowView?.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)) ?? .zero
+  }
+}
+
 // MARK: - UITableView
 
 final class TableCell: UITableViewCell {
-  private(set) var rowView: RowView?
+  private let host = RowHost()
 
   override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
     super.init(style: style, reuseIdentifier: reuseIdentifier)
     selectionStyle = .none
-    backgroundColor = Theme.background
+    backgroundColor = AppTheme.colors.background
   }
 
   required init?(coder: NSCoder) { fatalError() }
 
-  func show(_ row: Row, layout: RowLayout?) {
-    if rowView == nil || type(of: rowView!) != row.viewClass {
-      rowView?.removeFromSuperview()
-      let view = row.viewClass.init(frame: contentView.bounds)
-      contentView.addSubview(view)
-      rowView = view
-    }
-    rowView!.configure(row, layout: layout)
+  func show(_ row: ShadowListUtilsRow, layout: ShadowListUtilsRowLayout?) {
+    host.show(row, layout: layout, in: contentView)
   }
 
   override func systemLayoutSizeFitting(
     _ targetSize: CGSize, withHorizontalFittingPriority horizontal: UILayoutPriority, verticalFittingPriority vertical: UILayoutPriority
   ) -> CGSize {
-    rowView?.sizeThatFits(CGSize(width: targetSize.width, height: .greatestFiniteMagnitude)) ?? .zero
+    host.sizeThatFits(width: targetSize.width)
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    rowView?.frame = contentView.bounds
+    host.rowView?.frame = contentView.bounds
   }
 }
 
 final class TableHeader: UITableViewHeaderFooterView {
-  private(set) var rowView: RowView?
+  private let host = RowHost()
 
-  func show(_ row: Row, layout: RowLayout?) {
-    if rowView == nil {
-      let view = row.viewClass.init(frame: contentView.bounds)
-      contentView.addSubview(view)
-      rowView = view
-    }
-    rowView!.configure(row, layout: layout)
+  func show(_ row: ShadowListUtilsRow, layout: ShadowListUtilsRowLayout?) {
+    host.show(row, layout: layout, in: contentView)
   }
 
   override func systemLayoutSizeFitting(
     _ targetSize: CGSize, withHorizontalFittingPriority horizontal: UILayoutPriority, verticalFittingPriority vertical: UILayoutPriority
   ) -> CGSize {
-    rowView?.sizeThatFits(CGSize(width: targetSize.width, height: .greatestFiniteMagnitude)) ?? .zero
+    host.sizeThatFits(width: targetSize.width)
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    rowView?.frame = contentView.bounds
+    host.rowView?.frame = contentView.bounds
   }
 }
 
@@ -347,7 +414,7 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
     self.controller = controller
     self.inverted = inverted
     super.init()
-    table.backgroundColor = Theme.background
+    table.backgroundColor = AppTheme.colors.background
     table.separatorStyle = .none
     table.dataSource = self
     table.delegate = self
@@ -419,17 +486,24 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
     targetContentOffset.pointee.y = min(best, maxOffset) - inset
   }
 
+  /*
+   * A table takes its header and footer at the size they have. The library's views report
+   * theirs through sizeThatFits.
+   */
   var header: UIView? {
     get { table.tableHeaderView }
-    set { table.tableHeaderView = newValue }
+    set { table.tableHeaderView = newValue.map(sized) }
   }
 
   var footer: UIView? {
     get { table.tableFooterView }
-    set {
-      newValue?.frame.size.width = table.bounds.width
-      table.tableFooterView = newValue
-    }
+    set { table.tableFooterView = newValue.map(sized) }
+  }
+
+  private func sized(_ view: UIView) -> UIView {
+    let width = table.bounds.width > 0 ? table.bounds.width : UIScreen.main.bounds.width
+    view.frame.size = view.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+    return view
   }
 
   private func rebuildSections() {
@@ -515,12 +589,6 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
     endReachedArmed = true
   }
 
-  func reloadRow(at index: Int) {
-    if let path = indexPath(index), path.row != NSNotFound {
-      table.reloadRows(at: [path], with: .none)
-    }
-  }
-
   private func lastIndexPath() -> IndexPath? {
     guard let section = sections.lastIndex(where: { !$0.rows.isEmpty }) else { return nil }
     return IndexPath(row: sections[section].rows.count - 1, section: section)
@@ -551,10 +619,9 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let row = controller.rows[rowIndex(indexPath)]
-    let identifier = row.reuseIdentifier
-    if !registered.contains(identifier) {
+    let identifier = NSStringFromClass(row.viewClass)
+    if registered.insert(identifier).inserted {
       tableView.register(TableCell.self, forCellReuseIdentifier: identifier)
-      registered.insert(identifier)
     }
     let cell = tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath) as! TableCell
     cell.show(row, layout: controller.cachedLayout(row, width: tableView.bounds.width))
@@ -662,20 +729,15 @@ final class ColumnsLayout: UICollectionViewLayout {
 }
 
 final class GridCell: UICollectionViewCell {
-  private(set) var rowView: RowView?
+  private let host = RowHost()
 
-  func show(_ row: Row, layout: RowLayout?) {
-    if rowView == nil {
-      let view = row.viewClass.init(frame: contentView.bounds)
-      contentView.addSubview(view)
-      rowView = view
-    }
-    rowView!.configure(row, layout: layout)
+  func show(_ row: ShadowListUtilsRow, layout: ShadowListUtilsRowLayout?) {
+    host.show(row, layout: layout, in: contentView)
   }
 
   override func layoutSubviews() {
     super.layoutSubviews()
-    rowView?.frame = contentView.bounds
+    host.rowView?.frame = contentView.bounds
   }
 }
 
@@ -690,7 +752,7 @@ final class CollectionBackend: NSObject, ListBackend, UICollectionViewDataSource
     collection = UICollectionView(frame: .zero, collectionViewLayout: layout)
     super.init()
     layout.controller = controller
-    collection.backgroundColor = Theme.background
+    collection.backgroundColor = AppTheme.colors.background
     collection.dataSource = self
     collection.delegate = self
     collection.register(GridCell.self, forCellWithReuseIdentifier: "cell")
@@ -707,6 +769,8 @@ final class CollectionBackend: NSObject, ListBackend, UICollectionViewDataSource
     didSet {
       oldValue?.removeFromSuperview()
       if let footer {
+        let width = collection.bounds.width > 0 ? collection.bounds.width : UIScreen.main.bounds.width
+        footer.frame.size = footer.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
         collection.addSubview(footer)
         layout.footerHeight = footer.frame.height
       }
@@ -724,10 +788,6 @@ final class CollectionBackend: NSObject, ListBackend, UICollectionViewDataSource
       collection.reloadData()
     }
     endReachedArmed = true
-  }
-
-  func reloadRow(at index: Int) {
-    collection.reloadItems(at: [IndexPath(item: index, section: 0)])
   }
 
   func stickyIndicesChanged() {}

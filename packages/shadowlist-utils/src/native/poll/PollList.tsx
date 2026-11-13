@@ -9,6 +9,7 @@ import { ListHeader } from '../primitives/ListHeader';
 import { PollFooter } from './PollFooter';
 import { PollRow } from './PollRow';
 import { defaultPollLabels, type PollLabels } from './labels';
+import { getPollTally } from './pollTally';
 import type { PollData, PollOption } from './types';
 
 type RenderPollOption = NonNullable<ShadowListProps<PollOption>['renderItem']>;
@@ -39,17 +40,10 @@ export const PollList = forwardRef<ShadowListCommands, PollListProps>(
     const { question, options, selectedId } = poll;
     const mergedLabels = useLabels(defaultPollLabels, labels);
 
-    const { totalVotes, leadingId } = useMemo(() => {
-      let total = 0;
-      let leader: PollOption | undefined;
-      for (const option of options) {
-        total += option.votes;
-        if (leader === undefined || option.votes > leader.votes) {
-          leader = option;
-        }
-      }
-      return { totalVotes: total, leadingId: leader?.id };
-    }, [options]);
+    const { totalVotes, leadingId } = useMemo(
+      () => getPollTally(options),
+      [options]
+    );
 
     // Rows re-render only when the totals, selection, labels or onVote change.
     const renderOption = useCallback<RenderPollOption>(

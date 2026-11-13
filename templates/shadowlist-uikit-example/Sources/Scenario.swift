@@ -1,4 +1,5 @@
 import ShadowListKit
+import ShadowListUtils
 import UIKit
 
 /*
@@ -22,7 +23,7 @@ enum Scenario {
     }
     if name == "cost" {
       // The background layout prefetch finishes first. It would compete with the timed updates.
-      after(2) { list.cache.whenIdle { measureUpdateCost(screen) } }
+      after(4) { measureUpdateCost(screen) }
       return
     }
     after(1.5) {
@@ -77,7 +78,8 @@ enum Scenario {
 
   /*
    * Main thread time of one data update plus the layout it causes: prepends then appends
-   * while resting mid list, with the layout prefetch paused. Reports medians in milliseconds.
+   * while resting mid list. The engines that host rows pause their layout prefetch. A template
+   * list prefetches as it always does. Reports medians in milliseconds.
    * prependMs and appendMs count the list's work, the update call plus a synchronous layout.
    * The *TotalMs fields add the screen building its rows, which is the same for every engine.
    * -SLCostRuns sets the updates of each kind, default 15.
@@ -96,10 +98,10 @@ enum Scenario {
       let end = CACurrentMediaTime()
       return ((list.lastUpdateSeconds + end - layoutStart) * 1000, (end - start) * 1000)
     }
-    list.cache.prefetchPaused = true
+    list.prefetchPaused = true
     let prepends = (0..<runs).map { _ in timed { screen.prependRowsNow() } }
     let appends = (0..<runs).map { _ in timed { screen.appendRowsNow() } }
-    list.cache.prefetchPaused = false
+    list.prefetchPaused = false
     func median(_ values: [Double]) -> Double { values.sorted()[values.count / 2] }
     let result: [String: Any] = [
       "scenario": "cost", "engine": screen.engine.rawValue, "screen": String(describing: type(of: screen)),
@@ -116,20 +118,16 @@ enum Scenario {
 
   /*
    * Remove the second visible row, which slides the next one up, and add a new row after that
-   * one, all through reloadData.
+   * one, in one change of the feed's items.
    * Logs the new row's alpha and a survivor's slide while the animation runs, then whether it
    * settled and how far the first visible row moved.
    */
   private static func checkAnimation(_ screen: ListScreen, _ kitList: ShadowListKitListView) {
-    let list = screen.list!
     kitList.animatesChanges = true
     let first = kitList.visibleRange.location
     let topBefore = kitList.cellForItem(at: first).map { $0.frame.minY - kitList.contentOffset.y } ?? -1
     let survivorBefore = kitList.cellForItem(at: first + 2).map { $0.center.y - kitList.contentOffset.y } ?? -1
-    var rows = list.rows
-    rows.remove(at: first + 1)
-    rows.insert(FeedRow(post: FeedPost(index: 900_000)), at: first + 2)
-    list.setRows(rows, change: .update)
+    (screen as? FeedScreen)?.animateChange(first: first)
     kitList.layoutIfNeeded()
     after(0.06) {
       let inserted = kitList.cellForItem(at: first + 2)
@@ -184,7 +182,7 @@ enum Scenario {
     let visible = scroll.convert(scroll.bounds.inset(by: scroll.adjustedContentInset), to: nil)
     func walk(_ view: UIView, depth: Int) {
       for child in view.subviews where !child.isHidden {
-        if let rowView = child as? RowView, let row = rowView.row {
+        if let rowView = child as? ShadowListUtilsRowView, let row = rowView.row {
           let frame = rowView.convert(rowView.bounds, to: nil)
           if frame.intersects(visible) {
             rows[row.key] = frame.minY

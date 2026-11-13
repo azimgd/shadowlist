@@ -19,18 +19,32 @@ function sameItems<ItemT>(
  * its key and goes into the destination column before the item keyed destinationKey, at the
  * end for an empty key, or at destinationIndex when that key is no longer there. The item
  * never shows in two columns or in none. Columns the move leaves alone keep their identity,
- * and the board itself comes back unchanged when nothing moved or the destination column is
- * not on it.
+ * and the board itself comes back unchanged when nothing moved, when the destination column
+ * is not on it, or when the key is no longer there and destinationIndex is below 0, which is
+ * no drop spot. planBoardMove in the core's host/DragBoard.hpp is the same rule, and
+ * vectors.test holds them equal.
  */
 export function moveBoardItem<ItemT>(
   columns: ReadonlyArray<BoardColumn<ItemT>>,
   move: BoardMoveInfo<ItemT>,
   keyExtractor: (item: ItemT) => string = defaultBoardKeyExtractor
 ): ReadonlyArray<BoardColumn<ItemT>> {
-  if (!columns.some((column) => column.key === move.destinationColumnKey)) {
+  const destination = columns.find(
+    (column) => column.key === move.destinationColumnKey
+  );
+  if (destination === undefined) {
     return columns;
   }
   const key = keyExtractor(move.item);
+  const keyIsGone =
+    move.destinationKey !== '' &&
+    !destination.items.some((item) => {
+      const itemKey = keyExtractor(item);
+      return itemKey !== key && itemKey === move.destinationKey;
+    });
+  if (keyIsGone && !(move.destinationIndex >= 0)) {
+    return columns;
+  }
   let changed = false;
   const next = columns.map((column) => {
     const items = column.items.filter((item) => keyExtractor(item) !== key);

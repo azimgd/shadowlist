@@ -1,0 +1,332 @@
+[
+  {
+    "name": "names group by their first letter in upper case",
+    "input": {
+      "names": [
+        "bob",
+        "Ada",
+        "alan",
+        "Bea"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "A",
+          "names": [
+            "Ada",
+            "alan"
+          ]
+        },
+        {
+          "title": "B",
+          "names": [
+            "bob",
+            "Bea"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "sections sort by title and not by who came first",
+    "input": {
+      "names": [
+        "Zed",
+        "Mia",
+        "Abe"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "A",
+          "names": [
+            "Abe"
+          ]
+        },
+        {
+          "title": "M",
+          "names": [
+            "Mia"
+          ]
+        },
+        {
+          "title": "Z",
+          "names": [
+            "Zed"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "contacts keep their order inside a section",
+    "input": {
+      "names": [
+        "bob",
+        "Bea",
+        "bill",
+        "Ada",
+        "anna",
+        "Al"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "A",
+          "names": [
+            "Ada",
+            "anna",
+            "Al"
+          ]
+        },
+        {
+          "title": "B",
+          "names": [
+            "bob",
+            "Bea",
+            "bill"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "white space before a name is skipped",
+    "input": {
+      "names": [
+        "  Bea",
+        " \tcy",
+        "Ada "
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "A",
+          "names": [
+            "Ada "
+          ]
+        },
+        {
+          "title": "B",
+          "names": [
+            "  Bea"
+          ]
+        },
+        {
+          "title": "C",
+          "names": [
+            " \tcy"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "a name that starts with a digit goes to the other section",
+    "input": {
+      "names": [
+        "42",
+        "7 of 9",
+        "Ada"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "A",
+          "names": [
+            "Ada"
+          ]
+        },
+        {
+          "title": "#",
+          "names": [
+            "42",
+            "7 of 9"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "punctuation and symbols go to the other section",
+    "input": {
+      "names": [
+        "_x",
+        "#1",
+        "@home",
+        "(Bob)",
+        "Zed"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "Z",
+          "names": [
+            "Zed"
+          ]
+        },
+        {
+          "title": "#",
+          "names": [
+            "_x",
+            "#1",
+            "@home",
+            "(Bob)"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "an empty or blank name goes to the other section",
+    "input": {
+      "names": [
+        "",
+        "   ",
+        "Ada"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "A",
+          "names": [
+            "Ada"
+          ]
+        },
+        {
+          "title": "#",
+          "names": [
+            "",
+            "   "
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "the other section goes last",
+    "input": {
+      "names": [
+        "42",
+        "Zed",
+        "_x",
+        "Ada"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "A",
+          "names": [
+            "Ada"
+          ]
+        },
+        {
+          "title": "Z",
+          "names": [
+            "Zed"
+          ]
+        },
+        {
+          "title": "#",
+          "names": [
+            "42",
+            "_x"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "the characters around the letters in ASCII are no letters",
+    "input": {
+      "names": [
+        "[x",
+        "`x",
+        "{x",
+        "@x",
+        "Ax",
+        "zx"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "A",
+          "names": [
+            "Ax"
+          ]
+        },
+        {
+          "title": "Z",
+          "names": [
+            "zx"
+          ]
+        },
+        {
+          "title": "#",
+          "names": [
+            "[x",
+            "`x",
+            "{x",
+            "@x"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "only the other section",
+    "input": {
+      "names": [
+        "1",
+        "2"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "#",
+          "names": [
+            "1",
+            "2"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "one contact",
+    "input": {
+      "names": [
+        "Solo"
+      ]
+    },
+    "output": {
+      "sections": [
+        {
+          "title": "S",
+          "names": [
+            "Solo"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "no contacts",
+    "input": {
+      "names": []
+    },
+    "output": {
+      "sections": []
+    }
+  }
+]

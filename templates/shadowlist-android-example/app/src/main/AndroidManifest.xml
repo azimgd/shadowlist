@@ -5,6 +5,7 @@
   <application
     android:label="ShadowListKit"
     android:hardwareAccelerated="true"
+    android:supportsRtl="true"
     android:theme="@android:style/Theme.Material.Light.NoActionBar">
     <!-- Lets simpleperf and the bench profile a release build. -->
     <profileable android:shell="true" />

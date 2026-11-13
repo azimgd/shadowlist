@@ -13,12 +13,10 @@ import {
   AssistantReplyMessage,
   type AssistantReplyMessageProps,
 } from './AssistantReplyMessage';
-import {
-  AssistantUserMessage,
-  getUserMessageSizeSpec,
-} from './AssistantUserMessage';
+import { AssistantUserMessage } from './AssistantUserMessage';
 import { ASSISTANT_END_MARKER_HEIGHT } from './endMarker';
 import type { AssistantMessage } from './types';
+import { getUserMessageSizeSpec } from './userMessageSizeSpec';
 import type { AssistantStreamStore } from './stream';
 import { AssistantRowStateContext, type AssistantRowState } from './rowState';
 

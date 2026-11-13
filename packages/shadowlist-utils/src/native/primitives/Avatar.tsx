@@ -9,7 +9,11 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { createStyles, useTheme } from '../theme';
-import { getAvatarColor, getInitials } from './avatarAppearance';
+import {
+  getAvatarColor,
+  getInitials,
+  getInitialsFontSize,
+} from './avatarAppearance';
 
 export interface AvatarProps {
   name: string;
@@ -41,7 +45,7 @@ export const Avatar = memo(
         importantForAccessibility="no-hide-descendants"
       >
         <Text
-          style={[styles.initials, { fontSize: Math.floor(size * 0.43) }]}
+          style={[styles.initials, { fontSize: getInitialsFontSize(size) }]}
           allowFontScaling={false}
           numberOfLines={1}
         >

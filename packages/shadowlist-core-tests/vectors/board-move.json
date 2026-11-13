@@ -1,0 +1,1062 @@
+[
+  {
+    "name": "into another column before the keyed item",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "b",
+      "destinationColumn": 1,
+      "destinationKey": "e",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 1,
+        "destinationColumn": 1,
+        "destinationIndex": 1
+      },
+      "columns": [
+        [
+          "a",
+          "c"
+        ],
+        [
+          "d",
+          "b",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "to the end for an empty key",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "a",
+      "destinationColumn": 2,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 0,
+        "destinationColumn": 2,
+        "destinationIndex": 0
+      },
+      "columns": [
+        [
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        [
+          "a"
+        ]
+      ]
+    }
+  },
+  {
+    "name": "to the end of a column with cards",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "a",
+      "destinationColumn": 1,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 0,
+        "destinationColumn": 1,
+        "destinationIndex": 2
+      },
+      "columns": [
+        [
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e",
+          "a"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "within its column before a later item",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "a",
+      "destinationColumn": 0,
+      "destinationKey": "c",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 0,
+        "destinationColumn": 0,
+        "destinationIndex": 1
+      },
+      "columns": [
+        [
+          "b",
+          "a",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "within its column to the end",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "a",
+      "destinationColumn": 0,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 0,
+        "destinationColumn": 0,
+        "destinationIndex": 2
+      },
+      "columns": [
+        [
+          "b",
+          "c",
+          "a"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "within its column before an earlier item",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "c",
+      "destinationColumn": 0,
+      "destinationKey": "a",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 2,
+        "destinationColumn": 0,
+        "destinationIndex": 0
+      },
+      "columns": [
+        [
+          "c",
+          "a",
+          "b"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "before the item that already follows it changes nothing",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "a",
+      "destinationColumn": 0,
+      "destinationKey": "b",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": null,
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "the last item to the end changes nothing",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "c",
+      "destinationColumn": 0,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": null,
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a missing key falls back to the index",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "b",
+      "destinationColumn": 1,
+      "destinationKey": "gone",
+      "destinationIndex": 1
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 1,
+        "destinationColumn": 1,
+        "destinationIndex": 1
+      },
+      "columns": [
+        [
+          "a",
+          "c"
+        ],
+        [
+          "d",
+          "b",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a missing key with an index past the end",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "b",
+      "destinationColumn": 1,
+      "destinationKey": "gone",
+      "destinationIndex": 99
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 1,
+        "destinationColumn": 1,
+        "destinationIndex": 2
+      },
+      "columns": [
+        [
+          "a",
+          "c"
+        ],
+        [
+          "d",
+          "e",
+          "b"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a missing key with an index of zero",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "b",
+      "destinationColumn": 1,
+      "destinationKey": "gone",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 1,
+        "destinationColumn": 1,
+        "destinationIndex": 0
+      },
+      "columns": [
+        [
+          "a",
+          "c"
+        ],
+        [
+          "b",
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a missing key back to its own place changes nothing",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "b",
+      "destinationColumn": 0,
+      "destinationKey": "gone",
+      "destinationIndex": 1
+    },
+    "output": {
+      "plan": null,
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a key that is the card itself falls back to the index",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "b",
+      "destinationColumn": 0,
+      "destinationKey": "b",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 1,
+        "destinationColumn": 0,
+        "destinationIndex": 0
+      },
+      "columns": [
+        [
+          "b",
+          "a",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a destination column off the board changes nothing",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "a",
+      "destinationColumn": 3,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": null,
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a card that is on no column yet is added",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "new",
+      "destinationColumn": 1,
+      "destinationKey": "e",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": -1,
+        "sourceIndex": -1,
+        "destinationColumn": 1,
+        "destinationIndex": 1
+      },
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "new",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a card that is on no column yet goes to the end",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "new",
+      "destinationColumn": 2,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": -1,
+        "sourceIndex": -1,
+        "destinationColumn": 2,
+        "destinationIndex": 0
+      },
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        [
+          "new"
+        ]
+      ]
+    }
+  },
+  {
+    "name": "a card in two columns leaves both",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "d",
+          "a"
+        ],
+        [
+          "a"
+        ]
+      ],
+      "itemKey": "a",
+      "destinationColumn": 1,
+      "destinationKey": "d",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 0,
+        "destinationColumn": 1,
+        "destinationIndex": 0
+      },
+      "columns": [
+        [
+          "b"
+        ],
+        [
+          "a",
+          "d"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a card in two columns already in place leaves the other",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "a",
+          "d"
+        ]
+      ],
+      "itemKey": "a",
+      "destinationColumn": 0,
+      "destinationKey": "b",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 0,
+        "destinationColumn": 0,
+        "destinationIndex": 0
+      },
+      "columns": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "d"
+        ]
+      ]
+    }
+  },
+  {
+    "name": "a card twice in one column",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "a"
+        ],
+        []
+      ],
+      "itemKey": "a",
+      "destinationColumn": 0,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 0,
+        "destinationColumn": 0,
+        "destinationIndex": 1
+      },
+      "columns": [
+        [
+          "b",
+          "a"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a board of one empty column",
+    "input": {
+      "columns": [
+        []
+      ],
+      "itemKey": "a",
+      "destinationColumn": 0,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": -1,
+        "sourceIndex": -1,
+        "destinationColumn": 0,
+        "destinationIndex": 0
+      },
+      "columns": [
+        [
+          "a"
+        ]
+      ]
+    }
+  },
+  {
+    "name": "a board without columns",
+    "input": {
+      "columns": [],
+      "itemKey": "a",
+      "destinationColumn": 0,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": null,
+      "columns": []
+    }
+  },
+  {
+    "name": "into the only place of a single card column",
+    "input": {
+      "columns": [
+        [
+          "d"
+        ]
+      ],
+      "itemKey": "d",
+      "destinationColumn": 0,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": null,
+      "columns": [
+        [
+          "d"
+        ]
+      ]
+    }
+  },
+  {
+    "name": "the only card to another column",
+    "input": {
+      "columns": [
+        [
+          "d"
+        ],
+        []
+      ],
+      "itemKey": "d",
+      "destinationColumn": 1,
+      "destinationKey": "",
+      "destinationIndex": 0
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 0,
+        "destinationColumn": 1,
+        "destinationIndex": 0
+      },
+      "columns": [
+        [],
+        [
+          "d"
+        ]
+      ]
+    }
+  },
+  {
+    "name": "a missing key without an index changes nothing",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "b",
+      "destinationColumn": 1,
+      "destinationKey": "gone",
+      "destinationIndex": -1
+    },
+    "output": {
+      "plan": null,
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a missing key without an index adds no card",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "new",
+      "destinationColumn": 1,
+      "destinationKey": "gone",
+      "destinationIndex": -1
+    },
+    "output": {
+      "plan": null,
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a missing key without an index leaves a card in two columns",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "d",
+          "a"
+        ]
+      ],
+      "itemKey": "a",
+      "destinationColumn": 1,
+      "destinationKey": "gone",
+      "destinationIndex": -1
+    },
+    "output": {
+      "plan": null,
+      "columns": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "d",
+          "a"
+        ]
+      ]
+    }
+  },
+  {
+    "name": "an empty key without an index is the end",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "a",
+      "destinationColumn": 1,
+      "destinationKey": "",
+      "destinationIndex": -1
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 0,
+        "destinationColumn": 1,
+        "destinationIndex": 2
+      },
+      "columns": [
+        [
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e",
+          "a"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a key that is there wins over a missing index",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "b",
+      "destinationColumn": 1,
+      "destinationKey": "e",
+      "destinationIndex": -1
+    },
+    "output": {
+      "plan": {
+        "sourceColumn": 0,
+        "sourceIndex": 1,
+        "destinationColumn": 1,
+        "destinationIndex": 1
+      },
+      "columns": [
+        [
+          "a",
+          "c"
+        ],
+        [
+          "d",
+          "b",
+          "e"
+        ],
+        []
+      ]
+    }
+  },
+  {
+    "name": "a key that is the card itself without an index changes nothing",
+    "input": {
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ],
+      "itemKey": "b",
+      "destinationColumn": 0,
+      "destinationKey": "b",
+      "destinationIndex": -1
+    },
+    "output": {
+      "plan": null,
+      "columns": [
+        [
+          "a",
+          "b",
+          "c"
+        ],
+        [
+          "d",
+          "e"
+        ],
+        []
+      ]
+    }
+  }
+]

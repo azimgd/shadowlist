@@ -52,12 +52,26 @@ function requiredLines() {
   const macMinimum = capture('Package.swift', /\.macOS\(\.v(\d+)\)/);
   const podIosMinimum = capture('ShadowListKit.podspec', /:ios => "(\d+)\.0"/);
   const podMacMinimum = capture('ShadowListKit.podspec', /:osx => "(\d+)\.0"/);
+  const utilsPodIosMinimum = capture(
+    'ShadowListUtils.podspec',
+    /:ios => "(\d+)\.0"/
+  );
   const androidMinimum = capture(kitBuild, /minSdk = (\d+)/);
   const javaMinimum = capture(
     kitBuild,
     /sourceCompatibility = JavaVersion.VERSION_(\d+)/
   );
   const mavenVersion = capture(kitProperties, /^VERSION_NAME=(.+)$/m);
+  const utilsBuild =
+    'packages/shadowlist-android-utils/ShadowListUtils/build.gradle.kts';
+  const utilsProperties =
+    'packages/shadowlist-android-utils/ShadowListUtils/gradle.properties';
+  const utilsAndroidMinimum = capture(utilsBuild, /minSdk = (\d+)/);
+  const utilsJavaMinimum = capture(
+    utilsBuild,
+    /sourceCompatibility = JavaVersion.VERSION_(\d+)/
+  );
+  const utilsMavenVersion = capture(utilsProperties, /^VERSION_NAME=(.+)$/m);
   const peers = (file) =>
     ['react', 'react-native'].map((name) => ({
       file,
@@ -117,6 +131,40 @@ function requiredLines() {
       text: mavenVersion && `io.github.azimgd:shadowlist-kit:${mavenVersion}`,
       what: `Maven install version (${kitProperties})`,
     },
+    {
+      file: 'packages/shadowlist-uikit-utils/README.md',
+      text: iosMinimum && `| iOS | ${iosMinimum} or newer |`,
+      what: 'iOS requirement (Package.swift)',
+    },
+    {
+      file: 'packages/shadowlist-uikit-utils/README.md',
+      text: `from: "${fabric.version}"`,
+      what: 'SwiftPM install version',
+    },
+    {
+      file: 'packages/shadowlist-uikit-utils/README.md',
+      text: utilsPodIosMinimum && `| iOS | ${utilsPodIosMinimum} or newer |`,
+      what: 'iOS requirement (ShadowListUtils.podspec)',
+    },
+    {
+      file: 'packages/shadowlist-android-utils/README.md',
+      text:
+        utilsAndroidMinimum &&
+        `| Android | API ${utilsAndroidMinimum} or newer |`,
+      what: `Android requirement (${utilsBuild})`,
+    },
+    {
+      file: 'packages/shadowlist-android-utils/README.md',
+      text: utilsJavaMinimum && `| Java | ${utilsJavaMinimum} or newer |`,
+      what: `Java requirement (${utilsBuild})`,
+    },
+    {
+      file: 'packages/shadowlist-android-utils/README.md',
+      text:
+        utilsMavenVersion &&
+        `io.github.azimgd:shadowlist-utils:${utilsMavenVersion}`,
+      what: `Maven install version (${utilsProperties})`,
+    },
   ];
 }
 
@@ -129,7 +177,12 @@ const files = execFileSync(
   { cwd: root, encoding: 'utf8' }
 )
   .split('\0')
-  .filter((file) => /(^|\/)readme\.md$/i.test(file) && !SKIPPED.has(file));
+  .filter(
+    (file) =>
+      /(^|\/)readme\.md$/i.test(file) &&
+      !SKIPPED.has(file) &&
+      existsSync(path.resolve(root, file))
+  );
 const errors = [];
 const FENCE = /^```[^\n]*\n[\s\S]*?^```\s*$/gm;
 const withoutCode = (source) => source.replace(FENCE, '');

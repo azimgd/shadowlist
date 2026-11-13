@@ -10,6 +10,7 @@ import {
 import { useLabels } from '../labels';
 import { createStyles, useTheme } from '../theme';
 import { defaultPollLabels, type PollLabels } from './labels';
+import { getPollPercent } from './pollTally';
 import type { PollOption } from './types';
 
 export interface PollRowProps {
@@ -35,8 +36,7 @@ export const PollRow = memo(
     const theme = useTheme();
     const styles = useStyles();
     const l = useLabels(defaultPollLabels, labels);
-    const percent =
-      totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0;
+    const percent = getPollPercent(option.votes, totalVotes);
     const Icon = option.icon;
     return (
       <Pressable

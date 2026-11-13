@@ -3,74 +3,58 @@ import UIKit
 /*
  * The example data, item for item the same as the React Native example's fixtures. Every
  * value is a pure function of the item's generation index, except the feed's time, which is
- * random there and (index % 24) hours here.
+ * random there and (index % 24) hours ago here.
  */
 enum Fixtures {
-  static func imageURL(_ index: Int, width: Int) -> URL {
+  static func imageUrl(_ index: Int, width: Int) -> String {
     let clean = FixtureStrings.images[index % FixtureStrings.images.count].replacingOccurrences(of: "https://", with: "")
-    return URL(string: "https://images.weserv.nl/?url=\(clean)&q=60&w=\(width)")!
-  }
-
-  static func avatarColor(_ name: String) -> UIColor {
-    var hash: Int64 = 0
-    for unit in name.utf16 {
-      hash = (hash * 31 + Int64(unit)) % 2_147_483_647
-    }
-    return Theme.avatarPalette[Int(hash % Int64(Theme.avatarPalette.count))]
-  }
-
-  static func initials(_ name: String) -> String {
-    let words = name.split(separator: " ")
-    guard let first = words.first?.first else { return "" }
-    if words.count > 1, let last = words.last?.first {
-      return "\(first)\(last)".uppercased()
-    }
-    return String(first).uppercased()
+    return "https://images.weserv.nl/?url=\(clean)&q=60&w=\(width)"
   }
 }
 
 struct Author {
   let name: String
-  let initials: String
-  let color: UIColor
 
   init(_ name: String) {
     self.name = name
-    self.initials = Fixtures.initials(name)
-    self.color = Fixtures.avatarColor(name)
   }
 }
 
 struct FeedPost {
+  let index: Int
   let id: String
   let author: Author
   let handle: String
   let text: String
-  let time: String
-  let images: [URL]
+  let hoursAgo: Int
+  let images: [String]
 
   init(index: Int) {
+    self.index = index
     let name = FixtureStrings.characterNames[index % FixtureStrings.characterNames.count]
     let imageCount = index % 10 == 0 ? 3 + index % 2 : 1
     id = "post-\(index)"
     author = Author(name)
     handle = "@" + name.lowercased().replacingOccurrences(of: " ", with: "")
     text = FixtureStrings.sampleTexts[index % FixtureStrings.sampleTexts.count]
-    let hours = index % 24
-    time = hours == 0 ? "now" : "\(hours)h"
-    images = (0..<imageCount).map { Fixtures.imageURL(index + $0, width: 800) }
+    hoursAgo = index % 24
+    images = (0..<imageCount).map { Fixtures.imageUrl(index + $0, width: 800) }
   }
 }
 
 struct ChatMessage {
+  /*
+   * The generation index, or nil for a message the reader sent.
+   */
+  let index: Int?
   let id: String
   let author: Author
   let isOwn: Bool
   let text: String?
-  let images: [URL]
-  var caption: String?
+  let images: [String]
 
   init(id: String, author: Author, isOwn: Bool, text: String) {
+    self.index = nil
     self.id = id
     self.author = author
     self.isOwn = isOwn
@@ -79,13 +63,14 @@ struct ChatMessage {
   }
 
   init(index: Int) {
+    self.index = index
     id = "msg-\(index)"
     isOwn = index % 3 != 0
     author = Author(isOwn ? "Me" : FixtureStrings.avatarNames[index % FixtureStrings.avatarNames.count])
     if index > 0 && index % 10 == 0 {
-      images = (0..<4).map { Fixtures.imageURL(index + $0, width: 400) }
+      images = (0..<4).map { Fixtures.imageUrl(index + $0, width: 400) }
     } else if index > 0 && index % 5 == 0 {
-      images = [Fixtures.imageURL(index, width: 800)]
+      images = [Fixtures.imageUrl(index, width: 800)]
     } else {
       images = []
     }
@@ -113,7 +98,7 @@ struct Photo {
 
   let id: String
   let title: String
-  let url: URL
+  let url: String
   /*
    * Height over width of the image.
    */
@@ -122,7 +107,7 @@ struct Photo {
   init(index: Int) {
     id = "photo-\(index)"
     title = FixtureStrings.imageTitles[index % FixtureStrings.imageTitles.count]
-    url = Fixtures.imageURL(index, width: 400)
+    url = Fixtures.imageUrl(index, width: 400)
     let height = (400 * Photo.designHeights[index % Photo.designHeights.count] / 122).rounded()
     aspect = height / 400
   }

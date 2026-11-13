@@ -1,0 +1,101 @@
+[
+  {
+    "name": "the default avatar",
+    "input": {
+      "size": 40
+    },
+    "output": {
+      "fontSize": 17
+    }
+  },
+  {
+    "name": "a small avatar",
+    "input": {
+      "size": 24
+    },
+    "output": {
+      "fontSize": 10
+    }
+  },
+  {
+    "name": "a large avatar",
+    "input": {
+      "size": 96
+    },
+    "output": {
+      "fontSize": 41
+    }
+  },
+  {
+    "name": "a size whose share is a whole number",
+    "input": {
+      "size": 100
+    },
+    "output": {
+      "fontSize": 43
+    }
+  },
+  {
+    "name": "a size with a fraction",
+    "input": {
+      "size": 37.5
+    },
+    "output": {
+      "fontSize": 16
+    }
+  },
+  {
+    "name": "a size just under a whole font size",
+    "input": {
+      "size": 39.5
+    },
+    "output": {
+      "fontSize": 16
+    }
+  },
+  {
+    "name": "a size of one",
+    "input": {
+      "size": 1
+    },
+    "output": {
+      "fontSize": 0
+    }
+  },
+  {
+    "name": "a size of two",
+    "input": {
+      "size": 2
+    },
+    "output": {
+      "fontSize": 0
+    }
+  },
+  {
+    "name": "a size of three",
+    "input": {
+      "size": 3
+    },
+    "output": {
+      "fontSize": 1
+    }
+  },
+  {
+    "name": "no size",
+    "input": {
+      "size": 0
+    },
+    "output": {
+      "fontSize": 0
+    }
+  },
+  {
+    "name": "a very large avatar",
+    "input": {
+      "size": 4096
+    },
+    "output": {
+      "fontSize": 1761
+    }
+  }
+]

@@ -147,12 +147,16 @@ jobs:
           path: |
             ~/.gradle/wrapper
             ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-kit-${{ hashFiles('packages/shadowlist-android/gradle/wrapper/gradle-wrapper.properties', 'packages/shadowlist-android/**/*.gradle.kts') }}
+          key: ${{ runner.os }}-gradle-kit-${{ hashFiles('packages/shadowlist-android/gradle/wrapper/gradle-wrapper.properties', 'packages/shadowlist-android/**/*.gradle.kts', 'packages/shadowlist-android-utils/gradle/wrapper/gradle-wrapper.properties', 'packages/shadowlist-android-utils/**/*.gradle.kts') }}
           restore-keys: |
             ${{ runner.os }}-gradle-kit-
 
       - name: Build ShadowListKit
         run: ./gradlew --no-daemon --console=plain :ShadowListKit:assembleRelease
+
+      - name: Build ShadowListUtils
+        working-directory: packages/shadowlist-android-utils
+        run: ./gradlew --no-daemon --console=plain :ShadowListUtils:assembleRelease
 
   build-ios-kit:
     runs-on: macos-15
@@ -168,6 +172,12 @@ jobs:
       - name: Build ShadowListKit with SwiftPM
         run: >-
           xcodebuild -scheme ShadowListKit
+          -destination 'generic/platform=iOS'
+          CODE_SIGNING_ALLOWED=NO build
+
+      - name: Build ShadowListUtils with SwiftPM
+        run: >-
+          xcodebuild -scheme ShadowListUtils
           -destination 'generic/platform=iOS'
           CODE_SIGNING_ALLOWED=NO build
 

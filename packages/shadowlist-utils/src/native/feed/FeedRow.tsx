@@ -17,6 +17,7 @@ import { RedactedText } from '../primitives/RedactedText';
 import { useLargeText } from '../hooks/useLargeText';
 import { createStyles, useTheme } from '../theme';
 import { defaultFeedLabels, type FeedLabels } from './labels';
+import { SINGLE_IMAGE_HEIGHT, getSingleImageFrame } from './singleImageFrame';
 import type { FeedImage, FeedItem } from './types';
 
 export interface FeedRowProps {
@@ -28,23 +29,6 @@ export interface FeedRowProps {
   style?: StyleProp<ViewStyle>;
   avatarStyle?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
-}
-
-const SINGLE_IMAGE_HEIGHT = 200;
-const MIN_ASPECT_RATIO = 3 / 4;
-const MAX_ASPECT_RATIO = 16 / 9;
-
-function getSingleImageFrame(image: FeedImage): ViewStyle {
-  if (image.width && image.height) {
-    const ratio = image.width / image.height;
-    return {
-      aspectRatio: Math.min(
-        MAX_ASPECT_RATIO,
-        Math.max(MIN_ASPECT_RATIO, ratio)
-      ),
-    };
-  }
-  return { height: SINGLE_IMAGE_HEIGHT };
 }
 
 export const FeedRow = memo(
