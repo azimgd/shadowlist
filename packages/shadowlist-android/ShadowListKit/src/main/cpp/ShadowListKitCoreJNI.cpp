@@ -640,6 +640,11 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeIndexOfKey)(JNIEnv* env, jclass,
 /*
  * Leading edge and extent of every sticky row, two values each. Returns false when out is too short.
  */
+JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeStickyLeading)(
+  JNIEnv*, jclass, jlong handle, jint row, jdouble offset, jdouble extent) {
+  return peerOf(handle)->driver.stickyLeading(indexFromJint(row), offset, extent);
+}
+
 JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeCopyStickyFrames)(JNIEnv* env, jclass, jlong handle, jdoubleArray out) {
   std::vector<double> frames;
   peerOf(handle)->driver.stickyFrames(frames);

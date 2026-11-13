@@ -929,13 +929,17 @@ std::size_t ListDriver::activeStickyIndex(double offset) const {
 }
 
 double ListDriver::stickyLeading(std::size_t active, double offset) const {
+  return stickyLeading(active, offset, active < getRowCount() ? getExtentAt(active) : 0.0);
+}
+
+double ListDriver::stickyLeading(std::size_t active, double offset, double extent) const {
   if (active >= getRowCount()) {
     return offset;
   }
   std::size_t index = active;
   auto next = std::upper_bound(sticky_.begin(), sticky_.end(), index);
   bool hasNext = next != sticky_.end() && *next < getRowCount();
-  return pinnedSectionLeading(getLeadingAt(index), getExtentAt(index), offset, hasNext, hasNext ? getLeadingAt(*next) : 0.0);
+  return pinnedSectionLeading(getLeadingAt(index), extent, offset, hasNext, hasNext ? getLeadingAt(*next) : 0.0);
 }
 
 void ListDriver::stickyFrames(std::vector<double>& out) const {

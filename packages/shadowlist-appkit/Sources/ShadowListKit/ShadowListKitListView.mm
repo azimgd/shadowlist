@@ -691,6 +691,18 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   [self invalidateFrame];
 }
 
+- (NSView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))renderStickyHeaderOverlay
+{
+  return _renderStickyHeaderOverlay;
+}
+
+- (void)setRenderStickyHeaderOverlay:(NSView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))render
+{
+  [self clearStickyHeaderOverlay];
+  _renderStickyHeaderOverlay = [render copy];
+  [self invalidateFrame];
+}
+
 - (ShadowListKitViewabilityConfig *)viewabilityConfig { return _viewabilityConfig; }
 - (void)setViewabilityConfig:(ShadowListKitViewabilityConfig *)viewabilityConfig
 {

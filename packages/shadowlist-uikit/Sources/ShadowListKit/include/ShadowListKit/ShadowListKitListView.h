@@ -69,6 +69,9 @@ NS_ASSUME_NONNULL_BEGIN
  *   Off by default.
  * - stickyIndices: items that stick to the top of the viewport once scrolled past.
  *   stickySectionHeaders does the same for every section header.
+ * - renderStickyHeaderOverlay: an optional custom view for the active sticky row, receiving its
+ *   public key, item index and section. A header has NSNotFound as item index; a plain item has
+ *   NSNotFound as section. An anonymous empty section has a nil key. Nil restores the normal row.
  * - headerView, footerView: views before the first item and after the last. Their size along
  *   the scroll axis comes from sizeThatFits:. Call setNeedsLayout on the list after one changes
  *   size.
@@ -173,6 +176,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL animatesChanges;
 @property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
 @property (nonatomic) BOOL stickySectionHeaders;
+@property (nonatomic, copy, nullable) UIView * _Nullable (^renderStickyHeaderOverlay)(NSString * _Nullable key, NSInteger index, NSInteger section);
 @property (nonatomic, strong, nullable) UIView *headerView;
 @property (nonatomic, strong, nullable) UIView *footerView;
 @property (nonatomic) BOOL stickyHeader;

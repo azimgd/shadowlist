@@ -5,6 +5,8 @@ import android.os.Parcelable
 import android.util.Log
 import android.util.SparseArray
 import android.view.View
+import android.widget.Button
+import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.shadowlist.kit.ShadowListKitAnchorState
@@ -41,6 +43,19 @@ class SectionsScreen(context: Context) : Screen, ShadowListKitListView.DataSourc
     list.separatorColor = view.context.listTheme.colors.separator
     list.estimatedItemSizePx = 64.dpf
     list.stickySectionHeaders = true
+    list.renderStickyHeaderOverlay = { _, _, section ->
+      sections.getOrNull(section)?.let { data ->
+        Button(view.context).apply {
+          text = "${data.title} · ${data.items.size} travellers · Next section"
+          contentDescription = text
+          gravity = Gravity.START or Gravity.CENTER_VERTICAL
+          setPadding(16.dp, 12.dp, 16.dp, 12.dp)
+          setOnClickListener {
+            if (sections.isNotEmpty()) list.scrollToSection((section + 1) % sections.size, animated = true)
+          }
+        }
+      }
+    }
     list.showsSeparators = true
     list.separatorInsetStartPx = 68.dp
     list.registerCell("contact") { ContactCell(it) }

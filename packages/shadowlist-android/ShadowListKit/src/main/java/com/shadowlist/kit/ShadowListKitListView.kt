@@ -342,6 +342,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
 
   /*
+   * The active sticky row's custom view, by public key/item index/section. A header uses -1 for
+   * the item, a plain item uses -1 for the section, and an anonymous empty section has a null key.
+   * Null restores the original row. Data updates refresh it; width-only layouts keep its identity.
+   */
+  var renderStickyHeaderOverlay: ((key: String?, index: Int, section: Int) -> View?)? = null
+    set(value) {
+      stickyPinning.clearOverlay()
+      field = value
+      invalidateFrame()
+    }
+
+  /*
    * Every section header sticks to the top of the viewport once scrolled past.
    */
   var stickySectionHeaders = false
@@ -727,6 +739,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   override fun onDetachedFromWindow() {
     super.onDetachedFromWindow()
+    stickyPinning.clearOverlay()
     ++viewabilityGeneration
     removeCallbacks(viewabilityTick)
     viewabilityTickPosted = false
@@ -992,6 +1005,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   internal fun recycleCell(cell: ShadowListKitListCell) {
+    stickyPinning.recyclingCell(cell)
     // A cell only measured was never displayed.
     val index = if (cell.mountGeneration != 0L) cell.index else ShadowListKitListCell.NO_INDEX
     cell.mountGeneration = 0L
@@ -1117,6 +1131,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * its row is there. The state already dropped deleted rows from the selection.
    */
   internal fun structureChanged() {
+    stickyPinning.invalidateOverlay()
     ++structureVersion
     // An open row closes. One swiped all the way stays out while its delete runs.
     swipe.cell?.let { if (!swipe.isSwipedOut(it)) swipe.close(false) }
@@ -1138,7 +1153,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * Section shl ShadowListKitCore.ROW_KIND_BITS or a ROW_* kind, or -1, from the places copied
    * with the sections.
    */
-  private fun placeOfRow(row: Int): Int {
+  internal fun placeOfRow(row: Int): Int {
     val places = data.rowPlaces ?: return if (row in keys.indices) ShadowListKitCore.ROW_ITEM else -1
     return if (row in places.indices) places[row] else -1
   }
@@ -1328,7 +1343,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     previousOffset = current
   }
 
-  private fun templateSize(view: View?, cross: Int): Int {
+  internal fun templateSize(view: View?, cross: Int): Int {
     if (view == null || cross <= 0) return 0
     val crossSpec = MeasureSpec.makeMeasureSpec(cross, MeasureSpec.EXACTLY)
     val alongSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
@@ -1385,7 +1400,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private fun isUnderPinnedTemplate(contentX: Float, contentY: Float): Boolean {
     fun covers(view: View?): Boolean = view != null && contentX >= view.left && contentX < view.right &&
       contentY >= view.top && contentY < view.bottom
-    return ((stickyHeader || autoHideHeader) && covers(headerView)) || ((stickyFooter || autoHideFooter) && covers(footerView))
+    return covers(stickyPinning.overlayView) || ((stickyHeader || autoHideHeader) && covers(headerView)) || ((stickyFooter || autoHideFooter) && covers(footerView))
   }
 
   private fun placeTemplate(view: View, start: Double, size: Int) {
@@ -1963,7 +1978,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     liftedCount = 0
     if (stickyHeader || autoHideHeader) lift(headerView)
     if (stickyFooter || autoHideFooter) lift(footerView)
-    lift(stickyPinning.stickyCell)
+    lift(stickyPinning.overlayView ?: stickyPinning.stickyCell)
     lift(drag.heldCell)
     lifted.copyInto(liftedSorted, 0, 0, liftedCount)
     liftedSorted.sort(0, liftedCount)

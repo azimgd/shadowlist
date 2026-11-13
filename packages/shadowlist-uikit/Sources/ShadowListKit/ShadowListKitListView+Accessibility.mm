@@ -75,6 +75,9 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
   if (empty) {
     return empty;
   }
+  if (_stickyHeaderOverlay && _driver.indexOfKey(_stickyHeaderOverlayKey) == (std::size_t)row) {
+    return _stickyHeaderOverlay;
+  }
   ShadowListKitListCell *cell = [self mountedCellAtIndex:(std::size_t)row];
   if (cell && !cell.hidden && [self isRowOnScreen:(std::size_t)row]) {
     return cell;
@@ -126,13 +129,19 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
     [self layoutIfNeeded];
   }
   ShadowListKitListCell *cell = [self mountedCellAtIndex:row];
-  if (cell) {
-    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, cell);
+  UIView *target = _stickyHeaderOverlay && _driver.indexOfKey(_stickyHeaderOverlayKey) == row ? _stickyHeaderOverlay : cell;
+  if (target) {
+    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, target);
   }
 }
 
 - (NSInteger)indexOfAccessibilityElement:(id)element
 {
+  UIView *overlayView = [element isKindOfClass:[UIView class]] ? element : nil;
+  if (_stickyHeaderOverlay && (overlayView == _stickyHeaderOverlay || [overlayView isDescendantOfView:_stickyHeaderOverlay])) {
+    std::size_t row = _driver.indexOfKey(_stickyHeaderOverlayKey);
+    return row == UNDEFINED_INDEX ? NSNotFound : (NSInteger)row + (_headerView ? 1 : 0);
+  }
   if ([element isKindOfClass:[ShadowListKitRowAccessibilityElement class]]) {
     std::size_t row = _driver.indexOfKey(ShadowListKitStdString(((ShadowListKitRowAccessibilityElement *)element).key));
     return row == UNDEFINED_INDEX ? NSNotFound : (NSInteger)row + (_headerView ? 1 : 0);

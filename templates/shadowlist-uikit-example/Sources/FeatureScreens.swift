@@ -23,6 +23,21 @@ final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, S
     list.backgroundColor = AppTheme.colors.background
     list.estimatedItemSize = 64
     list.stickySectionHeaders = true
+    list.renderStickyHeaderOverlay = { [weak self] _, _, section in
+      guard let self, self.sections.indices.contains(section) else { return nil }
+      let header = UIButton(type: .system)
+      header.backgroundColor = AppTheme.colors.background
+      header.contentHorizontalAlignment = .leading
+      header.contentEdgeInsets = UIEdgeInsets(top: 12, left: 16, bottom: 12, right: 16)
+      let title = "\(self.sections[section].title) · \(self.sections[section].items.count) travellers · Next section"
+      header.setTitle(title, for: .normal)
+      header.accessibilityLabel = title
+      header.addAction(UIAction { [weak self] _ in
+        guard let self, !self.sections.isEmpty else { return }
+        self.list.scrollToSection((section + 1) % self.sections.count, animated: true)
+      }, for: .touchUpInside)
+      return header
+    }
     list.showsSeparators = true
     list.separatorInsetStart = AppTheme.theme.rowInset
     list.register(AutoContactCell.self, forCellReuseIdentifier: "contact")

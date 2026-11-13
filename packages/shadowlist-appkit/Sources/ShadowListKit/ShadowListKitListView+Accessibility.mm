@@ -24,6 +24,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 @interface ShadowListKitListView (AccessibilityRows)
 - (std::size_t)accessibilityRowOfKey:(NSString *)key;
 - (nullable ShadowListKitListCell *)accessibilityCellOfRow:(std::size_t)row;
+- (nullable NSView *)accessibilityContentOfRow:(std::size_t)row;
 - (NSRect)accessibilityFrameOfRow:(std::size_t)row;
 - (BOOL)isAccessibilityRowSelected:(std::size_t)row;
 - (void)setAccessibilityRow:(std::size_t)row selected:(BOOL)selected;
@@ -80,8 +81,8 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 - (NSArray *)accessibilityChildren
 {
   std::size_t row = [self row];
-  ShadowListKitListCell *cell = row == UNDEFINED_INDEX ? nil : [_list accessibilityCellOfRow:row];
-  return cell ? NSAccessibilityUnignoredChildren(@[cell]) : @[];
+  NSView *content = row == UNDEFINED_INDEX ? nil : [_list accessibilityContentOfRow:row];
+  return content ? NSAccessibilityUnignoredChildren(@[content]) : @[];
 }
 
 - (BOOL)isAccessibilitySelected
@@ -212,6 +213,10 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 {
   std::optional<MountedRange> visible = _accessibilityHidden ? std::nullopt : _driver.getVisibleRange();
   NSMutableArray *rows = [NSMutableArray array];
+  std::size_t overlay = _stickyHeaderOverlay ? _driver.indexOfKey(_stickyHeaderOverlayKey) : UNDEFINED_INDEX;
+  if (!_accessibilityHidden && overlay != UNDEFINED_INDEX && (!visible || overlay < visible->low || overlay > visible->high)) {
+    [rows addObject:[self accessibilityElementForRow:overlay]];
+  }
   for (std::size_t row = visible ? visible->low : 0; visible && row <= visible->high && row < _driver.getKeyCount(); ++row) {
     [rows addObject:[self accessibilityElementForRow:row]];
   }
@@ -296,6 +301,9 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
       return [button accessibilityHitTest:point] ?: button;
     }
   }
+  if (_stickyHeaderOverlay && !_stickyHeaderOverlay.hidden && NSPointInRect(content, _stickyHeaderOverlay.frame)) {
+    return [_stickyHeaderOverlay accessibilityHitTest:point] ?: _stickyHeaderOverlay;
+  }
   ShadowListKitListCell *cell = nil;
   NSView *templates[] = {_headerView, _footerView, [self shownEmptyView]};
   for (NSView *view : templates) {
@@ -358,6 +366,12 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   return cell && !cell.hidden && cell.mountGeneration != 0 ? cell : nil;
 }
 
+- (NSView *)accessibilityContentOfRow:(std::size_t)row
+{
+  if (_stickyHeaderOverlay && _driver.indexOfKey(_stickyHeaderOverlayKey) == row) return _stickyHeaderOverlay;
+  return [self accessibilityCellOfRow:row];
+}
+
 - (id)accessibilityParentOfCell:(ShadowListKitListCell *)cell
 {
   if (cell.row == NSNotFound || [self accessibilityCellOfRow:(std::size_t)cell.row] != cell) {
@@ -373,9 +387,9 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 - (NSRect)accessibilityFrameOfRow:(std::size_t)row
 {
   [self catchUpViews];
-  ShadowListKitListCell *cell = [self accessibilityCellOfRow:row];
-  if (cell) {
-    return NSAccessibilityFrameInView(_contentView, cell.frame);
+  NSView *content = [self accessibilityContentOfRow:row];
+  if (content) {
+    return NSAccessibilityFrameInView(_contentView, content.frame);
   }
   if (row >= _driver.getRowCount()) {
     return NSZeroRect;

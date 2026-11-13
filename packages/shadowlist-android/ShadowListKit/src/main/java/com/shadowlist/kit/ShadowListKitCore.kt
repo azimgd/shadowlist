@@ -295,6 +295,7 @@ internal class ShadowListKitCore(
     @JvmStatic private external fun nativeRowRect(handle: Long, index: Int, out: DoubleArray): Boolean
     @JvmStatic private external fun nativeVisibleRange(handle: Long): Long
     @JvmStatic private external fun nativeIndexOfKey(handle: Long, key: String): Int
+    @JvmStatic private external fun nativeStickyLeading(handle: Long, row: Int, offset: Double, extent: Double): Double
     @JvmStatic private external fun nativeCopyStickyFrames(handle: Long, out: DoubleArray): Boolean
     @JvmStatic private external fun nativeScrollToRow(handle: Long, row: Int, viewPosition: Double)
     @JvmStatic private external fun nativeScrollToStart(handle: Long)
@@ -527,6 +528,8 @@ internal class ShadowListKitCore(
   fun visibleRange(): Long = nativeVisibleRange(handle)
 
   fun indexOfKey(key: String): Int = nativeIndexOfKey(handle, key)
+  fun stickyLeading(row: Int, offset: Double, extent: Double): Double = nativeStickyLeading(handle, row, offset, extent)
+
   fun copyStickyFrames(out: DoubleArray): Boolean = nativeCopyStickyFrames(handle, out)
   fun scrollToRow(row: Int, viewPosition: Double) = nativeScrollToRow(handle, row, viewPosition)
   fun scrollToStart() = nativeScrollToStart(handle)

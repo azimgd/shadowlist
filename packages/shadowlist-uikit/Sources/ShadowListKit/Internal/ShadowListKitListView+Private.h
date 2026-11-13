@@ -114,7 +114,9 @@ struct ShadowListKitPassGeometry {
  * _showsEmpty, the core's word that the list has no rows, and _emptySize is its size along the
  * axis.
  * _stickyIndices and _stickySectionHeaders pick the rows that pin, and _stickyCell is the cell
- * pinned now. _nonAnchorKeys are the keys of the items the core never holds the content by.
+ * pinned now. A custom sticky header keeps the original cell hidden and records its visibility
+ * for restoration. Its data revision refreshes the factory without replacing it on width changes.
+ * _nonAnchorKeys are the keys of the items the core never holds the content by.
  * _changes animates data changes and _itemAnimator runs its animations.
  * _pendingAnchor is a saved position waiting for its key. contentOffsetAt: is the content offset
  * of an offset along the axis. invalidateFrame runs the core on the next layout pass.
@@ -223,6 +225,14 @@ struct ShadowListKitPassGeometry {
   NSIndexSet *_stickyIndices;
   BOOL _stickySectionHeaders;
   ShadowListKitListCell *_stickyCell;
+  ShadowListKitView * _Nullable (^_renderStickyHeaderOverlay)(NSString * _Nullable, NSInteger, NSInteger);
+  ShadowListKitView *_stickyHeaderOverlay;
+  ShadowListKitListCell *_stickyHeaderOverlayCell;
+  BOOL _stickyHeaderOverlayCellHidden;
+  std::string _stickyHeaderOverlayKey;
+  NSUInteger _stickyHeaderOverlayRevision;
+  NSUInteger _stickyHeaderOverlayRenderedRevision;
+
   NSSet<NSString *> *_nonAnchorKeys;
   NSSet<NSString *> *_persistentKeys;
   ShadowListKitItemSizeSpec * _Nullable (^_getItemSizeSpec)(NSInteger);
@@ -403,6 +413,10 @@ struct ShadowListKitPassGeometry {
 
 - (void)layoutPass;
 - (void)layoutSticky;
+- (void)clearStickyHeaderOverlay;
+- (void)invalidateStickyHeaderOverlay;
+- (BOOL)layoutStickyHeaderOverlay:(std::size_t)active cell:(nullable ShadowListKitListCell *)cell;
+
 - (void)unpinCell:(ShadowListKitListCell *)cell;
 - (BOOL)readGeometry;
 - (void)trackUserScroll;

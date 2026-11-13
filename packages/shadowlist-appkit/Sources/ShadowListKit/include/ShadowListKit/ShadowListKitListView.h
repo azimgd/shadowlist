@@ -255,6 +255,7 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
 @property (nonatomic) BOOL animatesChanges;
 @property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
 @property (nonatomic) BOOL stickySectionHeaders;
+@property (nonatomic, copy, nullable) NSView * _Nullable (^renderStickyHeaderOverlay)(NSString * _Nullable key, NSInteger index, NSInteger section);
 @property (nonatomic, strong, nullable) NSView *headerView;
 @property (nonatomic, strong, nullable) NSView *footerView;
 @property (nonatomic) BOOL stickyHeader;

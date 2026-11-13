@@ -128,7 +128,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 {
   [super didMoveToWindow];
   if (self.window) { _viewabilityAttached = YES; [self updateViewability]; }
-  else [self detachViewability];
+  else { [self detachViewability]; [self clearStickyHeaderOverlay]; }
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection
@@ -515,6 +515,18 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 {
   _measureLookaheadRows = measureLookaheadRows;
   _driver.setMeasureLookaheadRows(measureLookaheadRows);
+  [self invalidateFrame];
+}
+
+- (UIView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))renderStickyHeaderOverlay
+{
+  return _renderStickyHeaderOverlay;
+}
+
+- (void)setRenderStickyHeaderOverlay:(UIView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))render
+{
+  [self clearStickyHeaderOverlay];
+  _renderStickyHeaderOverlay = [render copy];
   [self invalidateFrame];
 }
 

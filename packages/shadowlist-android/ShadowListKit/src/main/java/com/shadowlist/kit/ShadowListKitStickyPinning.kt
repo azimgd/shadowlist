@@ -1,5 +1,7 @@
 package com.shadowlist.kit
 
+import android.view.View
+import android.view.ViewGroup
 import kotlin.math.max
 import kotlin.math.min
 
@@ -11,6 +13,78 @@ import kotlin.math.min
 internal class ShadowListKitStickyPinning(private val list: ShadowListKitListView) {
   var stickyCell: ShadowListKitListCell? = null
     private set
+
+  var overlayView: View? = null
+    private set
+  private var overlayCell: ShadowListKitListCell? = null
+  private var overlayCellVisibility = View.VISIBLE
+  private var overlayCellAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+  private var overlayKey: String? = null
+  private var overlayRevision = 0L
+  private var renderedOverlayRevision = -1L
+
+  fun invalidateOverlay() { ++overlayRevision }
+
+  fun clearOverlay() {
+    ++overlayRevision
+    if (overlayView == null && overlayCell == null && overlayKey == null) return
+    overlayView?.let { (it.parent as? ViewGroup)?.removeView(it) }
+    overlayView = null
+    overlayCell?.let { it.visibility = overlayCellVisibility; it.importantForAccessibility = overlayCellAccessibility }
+    overlayCell = null
+    overlayKey = null
+    list.contentStale = true
+  }
+
+  fun recyclingCell(cell: ShadowListKitListCell) {
+    if (cell === overlayCell) clearOverlay()
+  }
+
+  private fun layoutOverlay(active: Int, cell: ShadowListKitListCell?): Boolean {
+    val factory = list.renderStickyHeaderOverlay
+    if (factory == null || cell == null || active !in list.keys.indices) {
+      clearOverlay()
+      return false
+    }
+    val key = list.keys[active]
+    if (overlayKey != key || renderedOverlayRevision != overlayRevision) {
+      clearOverlay()
+      val revision = overlayRevision
+      val place = list.placeOfRow(active)
+      val index = list.itemForRow(active)
+      val section = if (list.isSectioned && place >= 0) place shr ShadowListKitCore.ROW_KIND_BITS else -1
+      val source = list.dataSource
+      val publicKey = if (index >= 0) source?.keyForItem(list, index) else {
+        val sections = source as? ShadowListKitListView.Sections
+        sections?.keyForSection(list, section) ?: if (sections != null && sections.numberOfItemsInSection(list, section) > 0) {
+          source?.keyForItem(list, list.firstItemIndexInSection(section))
+        } else null
+      }
+      val view = factory(publicKey, index, section)
+      if (revision != overlayRevision || factory !== list.renderStickyHeaderOverlay) return false
+      overlayKey = key
+      renderedOverlayRevision = revision
+      overlayView = view
+      if (view != null) {
+        overlayCell = cell
+        overlayCellVisibility = cell.visibility
+        overlayCellAccessibility = cell.importantForAccessibility
+        cell.visibility = View.INVISIBLE
+        cell.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        (view.parent as? ViewGroup)?.removeView(view)
+        list.addView(view)
+        list.contentStale = true
+      }
+    }
+    val view = overlayView ?: return false
+    val core = list.liveCore ?: return false
+    val extent = list.templateSize(view, list.windowCross)
+    val leading = core.stickyLeading(active, list.exactOffset, extent.toDouble())
+    val cross = list.windowCross.toDouble()
+    if (list.horizontal) list.placeView(view, leading, 0.0, extent.toDouble(), cross)
+    else list.placeView(view, 0.0, leading, cross, extent.toDouble())
+    return true
+  }
 
   /*
    * The sticky rows: the sticky items' rows and the section headers, sorted.
@@ -97,6 +171,7 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
    */
   fun layoutSticky() {
     if (stickyRows.isEmpty()) {
+      clearOverlay()
       stickyCell?.let { unpinCell(it) }
       stickyCell = null
       return
@@ -108,7 +183,8 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
     val previous = stickyCell
     if (previous != null && previous !== cell) unpinCell(previous)
     stickyCell = cell
-    if (cell == null) return
+    if (layoutOverlay(active, cell)) return
+    if (cell == null || cell.row != active) return
     val pinned = pinnedSectionLeading(position, list.exactOffset)
     val extent = stickyFrames[position * 2 + 1]
     val cross = list.windowCross.toDouble()

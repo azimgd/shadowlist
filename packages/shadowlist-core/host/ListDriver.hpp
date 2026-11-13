@@ -428,8 +428,10 @@ public:
 
   /*
    * Where the pinned header's leading edge goes for an offset, pushed up by the next header.
+   * The explicit extent is the measured custom overlay size; otherwise the row's extent is used.
    */
   double stickyLeading(std::size_t active, double offset) const;
+  double stickyLeading(std::size_t active, double offset, double extent) const;
 
   /*
    * Leading edge and extent of every sticky row, two values each, for a host that pins

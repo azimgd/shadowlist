@@ -66,6 +66,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 - (void)recycleCell:(ShadowListKitListCell *)cell
 {
+  if (cell == _stickyHeaderOverlayCell) [self clearStickyHeaderOverlay];
   // A cell only measured was never displayed.
   NSInteger index = cell.mountGeneration != 0 ? cell.index : NSNotFound;
   cell.mountGeneration = 0;
@@ -470,7 +471,8 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 - (BOOL)isUnderPinnedTemplate:(CGPoint)point
 {
-  return ((_stickyHeader || _autoHideHeader) && _headerView && CGRectContainsPoint(_headerView.frame, point)) ||
+  return (_stickyHeaderOverlay && CGRectContainsPoint(_stickyHeaderOverlay.frame, point)) ||
+    ((_stickyHeader || _autoHideHeader) && _headerView && CGRectContainsPoint(_headerView.frame, point)) ||
     ((_stickyFooter || _autoHideFooter) && _footerView && CGRectContainsPoint(_footerView.frame, point));
 }
 
@@ -639,6 +641,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 - (void)layoutSticky
 {
   if (!_driver.hasSticky()) {
+    [self clearStickyHeaderOverlay];
     if (_stickyCell) {
       [self unpinCell:_stickyCell];
       _stickyCell = nil;
@@ -656,7 +659,8 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     [self unpinCell:_stickyCell];
   }
   _stickyCell = cell;
-  if (!cell) {
+  if ([self layoutStickyHeaderOverlay:active cell:cell]) return;
+  if (!cell || active >= _driver.getRowCount() || cell.row != (NSInteger)active) {
     return;
   }
   RowRect rect = _driver.getRowRect(active);
@@ -673,6 +677,102 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     cell.layer.zPosition = 1;
     [CATransaction commit];
   }
+}
+
+/*
+ * The original row remains mounted for identity and measurement. Hiding its view gives the
+ * custom header one visual and accessibility representation; removing it restores that view.
+ */
+- (void)clearStickyHeaderOverlay
+{
+#if TARGET_OS_OSX
+  [_stickyHeaderOverlay setAccessibilityParent:nil];
+#endif
+  [_stickyHeaderOverlay removeFromSuperview];
+  _stickyHeaderOverlay = nil;
+  if (_stickyHeaderOverlayCell) {
+#if TARGET_OS_OSX
+    [_stickyHeaderOverlayCell catchUpView];
+#endif
+    _stickyHeaderOverlayCell.hidden = _stickyHeaderOverlayCellHidden;
+  }
+  _stickyHeaderOverlayCell = nil;
+  _stickyHeaderOverlayKey.clear();
+  ++_stickyHeaderOverlayRevision;
+}
+
+- (void)invalidateStickyHeaderOverlay
+{
+  ++_stickyHeaderOverlayRevision;
+}
+
+- (BOOL)layoutStickyHeaderOverlay:(std::size_t)active cell:(ShadowListKitListCell *)cell
+{
+  if (!_renderStickyHeaderOverlay || !cell || active >= _driver.getKeyCount()) {
+    [self clearStickyHeaderOverlay];
+    return NO;
+  }
+  std::string key = _driver.getKeyAt(active);
+  if (_stickyHeaderOverlayKey != key || _stickyHeaderOverlayRenderedRevision != _stickyHeaderOverlayRevision) {
+    [self clearStickyHeaderOverlay];
+    NSUInteger revision = _stickyHeaderOverlayRevision;
+    RowPlace place = _sections.placeOfRow(active);
+    NSInteger index = place.item == UNDEFINED_INDEX ? NSNotFound : (NSInteger)place.item;
+    NSInteger section = _sections.isSectioned() ? (NSInteger)place.section : NSNotFound;
+    NSString *publicKey = nil;
+    if (index != NSNotFound) {
+      publicKey = [_dataSource listView:self keyForItemAtIndex:index];
+    } else if (section != NSNotFound) {
+      if ([_dataSource respondsToSelector:@selector(listView:keyForSection:)]) {
+        publicKey = [_dataSource listView:self keyForSection:section];
+      }
+      if (!publicKey && _sections.itemCountInSection(place.section) > 0) {
+        publicKey = [_dataSource listView:self keyForItemAtIndex:(NSInteger)_sections.firstItemInSection(place.section)];
+      }
+    }
+    ShadowListKitView * _Nullable (^render)(NSString * _Nullable, NSInteger, NSInteger) = [_renderStickyHeaderOverlay copy];
+    ShadowListKitView *view = render(publicKey, index, section);
+    // A factory can synchronously replace the data or itself. Its old view never lands.
+    if (revision != _stickyHeaderOverlayRevision || !_renderStickyHeaderOverlay) return NO;
+    _stickyHeaderOverlayKey = key;
+    _stickyHeaderOverlayRenderedRevision = revision;
+    _stickyHeaderOverlay = view;
+    if (view) {
+      _stickyHeaderOverlayCell = cell;
+#if TARGET_OS_OSX
+      [cell catchUpView];
+#endif
+      _stickyHeaderOverlayCellHidden = cell.hidden;
+      cell.hidden = YES;
+      [[self cellContainer] addSubview:view];
+#if TARGET_OS_OSX
+      [view setAccessibilityParent:(id)[self accessibilityElementForRow:active]];
+#endif
+    }
+  }
+  ShadowListKitView *view = _stickyHeaderOverlay;
+  if (!view) return NO;
+  CGSize constraint = _horizontal ? CGSizeMake(CGFLOAT_MAX, _windowCross) : CGSizeMake(_windowCross, CGFLOAT_MAX);
+#if TARGET_OS_OSX
+  CGSize fits = view.fittingSize;
+  if ([view respondsToSelector:@selector(sizeThatFits:)]) fits = [(id)view sizeThatFits:constraint];
+  if (!view.wantsLayer) view.wantsLayer = YES;
+#else
+  CGSize fits = [view sizeThatFits:constraint];
+#endif
+  CGFloat extent = _horizontal ? fits.width : fits.height;
+  if (!(extent > 0)) extent = _horizontal ? view.frame.size.width : view.frame.size.height;
+  double leading = _driver.stickyLeading(active, [self offset], extent);
+  CGRect frame = _horizontal ? [self displayRect:leading y:0 width:extent height:_windowCross]
+                            : [self displayRect:0 y:leading width:_windowCross height:extent];
+  ShadowListKitPlace(view, frame);
+  if (view.layer.zPosition != 2) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    view.layer.zPosition = 2;
+    [CATransaction commit];
+  }
+  return YES;
 }
 
 - (void)unpinCell:(ShadowListKitListCell *)cell

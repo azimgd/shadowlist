@@ -368,6 +368,11 @@ final class SectionsScreen: NSView, ListScreen, ShadowListKitListViewDataSource,
     super.init(frame: .zero)
     list.estimatedItemSize = 64
     list.stickySectionHeaders = true
+    list.renderStickyHeaderOverlay = { [weak self] _, _, section in
+      guard let self, self.sections.indices.contains(section) else { return nil }
+      let data = self.sections[section]
+      return BannerView("\(data.letter) · \(data.contacts.count) travellers")
+    }
     list.showsSeparators = true
     list.separatorInsetStart = 68
     list.headerView = banner
