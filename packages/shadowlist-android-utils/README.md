@@ -377,8 +377,8 @@ Custom or explicitly cleared PollList footers remain application-owned.
 
 The native `Components` example route uses all six views: suggestions update the screen's selected
 prompt, disclosures expand, Finish changes a running tool to done and increments the displayed vote
-total, and the scroll button returns to the first component. Form, Grouped and other controls are
-separate implementation milestones; these additions do not imply complete visual/API parity.
+total, and the scroll button returns to the first component. The composition and controlled-field
+examples below use the same route; these additions do not imply complete visual/API parity.
 
 ### Form and Grouped composition
 
@@ -403,7 +403,7 @@ val form = ShadowListUtilsFormCard(context, listOf(save))
 val section = ShadowListUtilsGroupedSection(context, "Account", listOf(value))
 ```
 
-Form fields, Grouped.Row/Actions and the remaining Controls are separate parity milestones.
+Grouped.Row/Actions and the remaining Controls are separate parity milestones.
 
 ### Controlled form and text fields
 
@@ -436,3 +436,33 @@ All four share ChatInput's native editing owner: programmatic values are silent,
 request `onChange`, and app-controlled replacements wait until native composition finishes.
 The new wrappers do not add an uncontrolled mode or a secure-entry prop. Components owns the
 controlled Route, Budget, Search and Notes values.
+
+### Action controls
+
+`ShadowListUtilsPillButton(context, label)` exposes `variant` (`PRIMARY`, `TINTED`, `PLAIN`, or
+`DESTRUCTIVE`), `disabled` (false by default), and `onPress`. It is 40dp high with a minimum width
+of 72dp. `ShadowListUtilsDashedButton(context, label)` supplies an add action with `disabled` and
+`onPress`; its wrapped label grows with native large text.
+
+`ShadowListUtilsIconButton(context, icon, accessibilityLabel)` is a 40dp round action with
+`onPress`. The caller's child keeps its accessibility/interaction flags and may own a nested
+button action. Standard native touch delegation expands the outer action by 4dp without widening
+its layout or accessibility bounds. Expanded hits go to the outer native control, not the nested
+child. Delegates coexist with siblings and an existing parent delegate and are removed on detach.
+Set decorative flags on the glyph you provide when it is purely visual.
+`ShadowListUtilsIndexBadge(context, index)` displays the integer unchanged in a 22dp tinted square.
+
+These three RN action callbacks are required. Native property-based wiring allows an initially
+unwired instance, disabled until its callback is set; this is a native initialization extension,
+not an RN optional callback. Disabled Pill/Dashed controls retain their styling at 0.4 opacity.
+
+`theme.pressFeedback` defaults to `HIGHLIGHT`. `RIPPLE` uses Android's standard RippleDrawable in
+`colors.fill` for PillButton and IconButton; UIKit falls back to highlight. DashedButton and
+FormButton retain their existing highlight behavior. One shared helper uses the native pressed
+state; no separate gesture or animation state machine is introduced.
+
+Components now uses matching light-theme data: Continue disables itself, Add route increments the
+badge and re-enables Continue, and More routes reports its application callback. The standalone
+scroll button is centered at its intended 36dp size.
+
+Android expanded hit targets preserve existing parent delegates and each control’s native accessibility bounds. On API 29 and newer, delegate metadata refers to the mounted control; an opaque existing parent delegate retains its own metadata. Earlier API levels keep native touch delegation without the newer metadata/hover APIs.

@@ -30,6 +30,16 @@ data class ShadowListUtilsTextStyle(
 ) {
   fun with(fontWeight: ShadowListUtilsFontWeight): ShadowListUtilsTextStyle = copy(fontWeight = fontWeight)
 
+  /* Apply native widget metrics on its UI thread; the widget measures and paints the same text. */
+  internal fun applyTo(view: android.widget.TextView, @androidx.annotation.ColorInt color: Int, weight: Int = fontWeight.weight) {
+    view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, fontSize)
+    view.typeface = typeface(weight)
+    view.letterSpacing = if (fontSize > 0f) letterSpacing / fontSize else 0f
+    val height = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, lineHeight, view.resources.displayMetrics)
+    androidx.core.widget.TextViewCompat.setLineHeight(view, ceil(height).toInt())
+    view.setTextColor(color)
+  }
+
   /*
    * The text typeset at a width in pixels for a ShadowListKitTextView. maxLines 0 means no
    * limit. Every line is the style's line height tall. Thread safe, row layouts call it off the

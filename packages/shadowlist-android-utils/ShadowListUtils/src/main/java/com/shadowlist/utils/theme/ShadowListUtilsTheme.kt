@@ -59,6 +59,7 @@ data class ShadowListUtilsTheme(
   val grouped: ShadowListUtilsThemeGrouped = ShadowListUtilsThemeGrouped(),
   val rowInset: Float = 68f,
   val tapTarget: Float = 44f,
+  val pressFeedback: ShadowListUtilsThemePressFeedback = ShadowListUtilsThemePressFeedback.HIGHLIGHT,
 ) {
   companion object {
     val LIGHT = ShadowListUtilsTheme(colors = ShadowListUtilsThemeColors.LIGHT)

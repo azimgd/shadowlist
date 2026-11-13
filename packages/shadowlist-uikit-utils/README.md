@@ -388,8 +388,8 @@ Custom or explicitly cleared PollList footers remain application-owned.
 
 The native `Components` example route uses all six views: suggestions update the screen's selected
 prompt, disclosures expand, Finish changes a running tool to done and increments the displayed vote
-total, and the scroll button returns to the first component. Form, Grouped and other controls are
-separate implementation milestones; these additions do not imply complete visual/API parity.
+total, and the scroll button returns to the first component. The composition and controlled-field
+examples below use the same route; these additions do not imply complete visual/API parity.
 
 ### Form and Grouped composition
 
@@ -414,7 +414,7 @@ let form = ShadowListUtilsFormCard(children: [save])
 let section = ShadowListUtilsGroupedSection(title: "Account", children: [value])
 ```
 
-Form fields, Grouped.Row/Actions and the remaining Controls are separate parity milestones.
+Grouped.Row/Actions and the remaining Controls are separate parity milestones.
 
 ### Controlled form and text fields
 
@@ -444,3 +444,30 @@ All four use the same native editing owner as ChatInput. Setting a controlled va
 user edits request `onChange`, and application values wait until native marked-text composition
 finishes. These wrappers add no uncontrolled mode, secure-entry prop or independent streaming
 state. The Components example owns controlled Route, Budget, Search and Notes values.
+
+### Action controls
+
+`ShadowListUtilsPillButton(label:)` uses `variant` (`primary`, `tinted`, `plain`, or `destructive`),
+`disabled` (false by default), and `onPress`. Its layout stays 40 points high with a minimum width
+of 72. `ShadowListUtilsDashedButton(label:)` provides a full-width add action with `disabled` and
+`onPress`; it grows for wrapped large text instead of clipping the label.
+
+`ShadowListUtilsIconButton(icon:accessibilityLabel:)` is a 40-point round action with `onPress`.
+The caller's native child keeps its interaction/accessibility flags and can own a nested action.
+The outer control owns taps in its four-point expanded hit area; its layout and accessibility
+bounds remain 40 points. Set decorative flags on the glyph you supply when it is purely visual.
+`ShadowListUtilsIndexBadge(index:)` displays an integer unchanged in a 22-point tinted square.
+
+The RN contracts require action callbacks for PillButton, DashedButton, and IconButton. Native
+property-based wiring permits an initially unwired instance, disabled until its callback is set;
+that initialization extension does not make the RN callback optional. Disabled Pill/Dashed
+controls retain their styling at 0.4 opacity and cannot invoke their action.
+
+The existing theme now has `pressFeedback`, defaulting to `highlight`. A requested `ripple` uses
+the same highlight fallback on UIKit as RN does. PillButton and IconButton read this token;
+DashedButton and FormButton retain their own highlight behavior. The shared feedback helper
+uses native pressed state, without a second animation or gesture engine.
+
+Components uses matching light-theme data on both platforms: Continue disables itself, Add route
+increments the badge and re-enables Continue, and More routes reports its application callback.
+The standalone scroll button is centered at its intended 36-point size.

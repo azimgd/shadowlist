@@ -73,7 +73,7 @@ public struct ShadowListUtilsTextStyle: Hashable {
     scaled ? ShadowListUtilsPlatform.ceilToPixel(lineHeight * ShadowListUtilsPlatform.textScale) : lineHeight
   }
 
-  private var weight: UIFont.Weight {
+  var weight: UIFont.Weight {
     switch fontWeight {
     case .regular: return .regular
     case .semibold: return .semibold

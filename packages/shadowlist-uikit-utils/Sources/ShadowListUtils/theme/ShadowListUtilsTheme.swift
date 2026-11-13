@@ -66,6 +66,7 @@ public struct ShadowListUtilsTheme: Hashable {
   public var grouped: ShadowListUtilsThemeGrouped
   public var rowInset: CGFloat
   public var tapTarget: CGFloat
+  public var pressFeedback: ShadowListUtilsThemePressFeedback = .highlight
 
   public init(
     colors: ShadowListUtilsThemeColors,

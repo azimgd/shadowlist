@@ -18,11 +18,10 @@ class ShadowListUtilsFormButton(context: Context, label: String, val theme: Shad
     background = android.graphics.drawable.GradientDrawable().apply { setColor(theme.colors.groupedCell); cornerRadius = theme.grouped.radius.pxf }; isEnabled = false
     setOnClickListener { onPress?.invoke() }; applyStyle()
   }
-  override fun setPressed(pressed: Boolean) { super.setPressed(pressed); alpha = if (pressed) 0.55f else 1f }
+  override fun setPressed(pressed: Boolean) { super.setPressed(pressed); alpha = ShadowListUtilsPressFeedback.alpha(pressed) }
   private fun applyStyle() {
     text = label; contentDescription = label
-    setTextColor(if (destructive) theme.colors.red else theme.colors.accent)
-    textSize = theme.typography.body.fontSize
+    theme.typography.body.applyTo(this, if (destructive) theme.colors.red else theme.colors.accent)
     maxLines = if (resources.configuration.fontScale >= 1.3f) 2 else 1
   }
 }

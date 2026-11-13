@@ -10,7 +10,7 @@ import com.shadowlist.utils.*
 
 /* Real public-component consumer. Callbacks change application state, never library models. */
 class ComponentsScreen(private val context: Context) : Screen {
-  private val theme = ShadowListUtilsTheme.system(context)
+  private val theme = ShadowListUtilsTheme.LIGHT
   private val scroll = ScrollView(context)
   private val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; setPadding(16.dp, 0, 16.dp, 24.dp) }
   private val status = TextView(context).apply { text = "Choose a suggestion"; setTextColor(theme.colors.label) }
@@ -71,10 +71,29 @@ class ComponentsScreen(private val context: Context) : Screen {
       multiline = true
       onChange = { value = it }
     })
-    append(ShadowListUtilsAssistantScrollButton(context, theme).apply {
+    val rippleTheme = theme.copy(pressFeedback = ShadowListUtilsThemePressFeedback.RIPPLE)
+    val badge = ShadowListUtilsIndexBadge(context, 1, theme)
+    val proceed = ShadowListUtilsPillButton(context, "Continue", rippleTheme)
+    proceed.onPress = { proceed.disabled = true; status.text = "Route ready; add another route to continue again" }
+    val add = ShadowListUtilsDashedButton(context, "Add route", theme).apply {
+      onPress = { badge.index += 1; proceed.disabled = false; status.text = "Added route ${badge.index}" }
+    }
+    val glyph = TextView(context).apply { text = "⋯"; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO; textSize = 22f; includeFontPadding = false; setTextColor(theme.colors.accent) }
+    val more = ShadowListUtilsIconButton(context, glyph, "More routes", rippleTheme).apply {
+      onPress = { status.text = "More routes requested" }
+    }
+    val buttons = LinearLayout(context).apply {
+      orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
+      addView(badge, LinearLayout.LayoutParams(22.dp, 22.dp))
+      addView(proceed, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 40.dp).apply { marginStart = 12.dp })
+      addView(more, LinearLayout.LayoutParams(40.dp, 40.dp).apply { marginStart = 12.dp })
+    }
+    append(buttons); append(add)
+    val latest = ShadowListUtilsAssistantScrollButton(context, theme).apply {
       visible = true
       onPress = { scroll.smoothScrollTo(0, 0); status.text = "Returned to the first component" }
-    })
+    }
+    content.addView(latest, LinearLayout.LayoutParams(36.dp, 36.dp).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL; bottomMargin = 16.dp })
   }
   private fun append(child: View) {
     content.addView(child, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = 16.dp })
