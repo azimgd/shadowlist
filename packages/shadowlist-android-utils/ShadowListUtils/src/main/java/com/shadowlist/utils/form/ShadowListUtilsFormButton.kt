@@ -12,6 +12,7 @@ class ShadowListUtilsFormButton(context: Context, label: String, val theme: Shad
   var destructive = false
     set(value) { field = value; applyStyle() }
   init {
+    stateListAnimator = null; elevation = 0f; translationZ = 0f
     isAllCaps = false; gravity = Gravity.CENTER
     minHeight = (theme.tapTarget + 6f).px; minimumHeight = (theme.tapTarget + 6f).px
     setPadding(theme.grouped.rowInset.px, 8f.px, theme.grouped.rowInset.px, 8f.px)
