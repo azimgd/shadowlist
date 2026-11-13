@@ -392,8 +392,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
 
   /*
-   * Keys of items the list never holds the visible content in place by, like a typing indicator
-   * or an item that streams in. The nearest other item holds it instead.
+   * Keep these keys mounted at their ordinary content positions, even outside the viewport.
+   */
+  var persistentKeys: Set<String> = emptySet()
+    set(value) {
+      field = value.toSet()
+      coreOrNull?.setPersistentKeys(field.toList())
+      ++structureVersion
+      invalidateFrame()
+    }
+
+  /*
+   * Keys the list never holds visible content by, like a typing indicator or a streaming item.
    */
   var nonAnchorKeys: Set<String> = emptySet()
     set(value) {
@@ -788,6 +798,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     applySettings(created)
     if (stickyPinning.stickyRows.isNotEmpty()) created.setStickyIndices(stickyPinning.stickyRows)
     if (nonAnchorKeys.isNotEmpty()) created.setNonAnchorKeys(nonAnchorKeys.toList())
+    if (persistentKeys.isNotEmpty()) created.setPersistentKeys(persistentKeys.toList())
     created.setSections(data.itemCount, data.sectionCounts, data.sectionFlags)
     if (keys.isNotEmpty()) state.seedCore(created)
     measuredLow = -1
@@ -1608,6 +1619,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       }
     }
     if (sticky in keys.indices) mountRow(sticky, generation)
+    for (index in core.persistentIndices()) mountRow(index, generation)
     // The held row stays mounted wherever the finger takes it.
     val held = drag.heldIndex
     if (held in keys.indices) mountRow(held, generation)

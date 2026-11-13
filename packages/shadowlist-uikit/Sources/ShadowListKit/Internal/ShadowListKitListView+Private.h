@@ -224,6 +224,7 @@ struct ShadowListKitPassGeometry {
   BOOL _stickySectionHeaders;
   ShadowListKitListCell *_stickyCell;
   NSSet<NSString *> *_nonAnchorKeys;
+  NSSet<NSString *> *_persistentKeys;
 
   BOOL _animatesChanges;
   ShadowListKitChangeAnimator *_changes;
@@ -406,6 +407,7 @@ struct ShadowListKitPassGeometry {
 - (nullable ShadowListKitView *)shownEmptyView;
 - (BOOL)isUnderPinnedTemplate:(CGPoint)point;
 - (void)sendNonAnchorKeys;
+- (void)sendPersistentKeys;
 
 @end
 

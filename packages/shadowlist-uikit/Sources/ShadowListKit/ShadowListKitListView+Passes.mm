@@ -470,6 +470,18 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     ((_stickyFooter || _autoHideFooter) && _footerView && CGRectContainsPoint(_footerView.frame, point));
 }
 
+- (void)sendPersistentKeys
+{
+  std::vector<std::string> keys;
+  keys.reserve(_persistentKeys.count);
+  for (NSString *key in _persistentKeys) {
+    keys.emplace_back(key.UTF8String ?: "");
+  }
+  _driver.setPersistentKeys(std::move(keys));
+  ++_structureVersion;
+  [self invalidateFrame];
+}
+
 - (void)sendNonAnchorKeys
 {
   std::vector<std::string> keys;
@@ -607,6 +619,9 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   }
   if (plan.sticky != UNDEFINED_INDEX) {
     [self mountRow:plan.sticky generation:generation];
+  }
+  for (std::size_t index : _driver.getPersistentIndices()) {
+    [self mountRow:index generation:generation];
   }
   // The held row stays mounted wherever the finger or the mouse takes it.
   std::size_t held = _driver.getHeldIndex();

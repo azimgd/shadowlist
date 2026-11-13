@@ -258,6 +258,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
 @property (nonatomic) BOOL autoHideFooter;
 @property (nonatomic, strong, nullable) NSView *emptyView;
 @property (nonatomic, copy, nullable) NSSet<NSString *> *nonAnchorKeys;
+/* Keep these keys mounted at their content positions, without pinning them to the viewport. */
+@property (nonatomic, copy, nullable) NSSet<NSString *> *persistentKeys;
 @property (nonatomic, readonly, getter=isAtEnd) BOOL atEnd;
 
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;

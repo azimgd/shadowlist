@@ -267,6 +267,8 @@ internal class ShadowListKitCore(
       snapToItem: Boolean, snapAlignment: Int)
     @JvmStatic private external fun nativeSetStickyIndices(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeSetNonAnchorKeys(handle: Long, packed: CharArray, ends: IntArray)
+    @JvmStatic private external fun nativeSetPersistentKeys(handle: Long, packed: CharArray, ends: IntArray)
+    @JvmStatic private external fun nativePersistentIndices(handle: Long): IntArray
     @JvmStatic private external fun nativeStickyLayout(handle: Long, io: DoubleArray)
     @JvmStatic private external fun nativeMarkRemeasure(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeResetKeepingPosition(handle: Long)
@@ -542,6 +544,16 @@ internal class ShadowListKitCore(
    * Section shl ROW_KIND_BITS or a ROW_* kind, or -1 past the end.
    */
   fun placeOfRow(row: Int): Int = nativePlaceOfRow(handle, row)
+
+  /*
+   * Retained keys resolve through the shared driver, sorted and without duplicates.
+   */
+  fun setPersistentKeys(keys: List<String>) {
+    val ends = packer.pack(keys)
+    nativeSetPersistentKeys(handle, packer.chars, ends)
+  }
+
+  fun persistentIndices(): IntArray = nativePersistentIndices(handle)
 
   /*
    * The driver's persistent header/footer pinning state, from the inputs in STICKY_*.

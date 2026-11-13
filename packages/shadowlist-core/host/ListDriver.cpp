@@ -75,6 +75,24 @@ void ListDriver::setNonAnchorKeys(std::vector<std::string> keys) {
   nonAnchorKeysChanged_ = true;
 }
 
+void ListDriver::setPersistentKeys(std::vector<std::string> keys) {
+  persistentKeys_ = std::move(keys);
+}
+
+std::vector<std::size_t> ListDriver::getPersistentIndices() const {
+  std::vector<std::size_t> indices;
+  indices.reserve(persistentKeys_.size());
+  for (const std::string& key : persistentKeys_) {
+    std::size_t index = indexOfKey(key);
+    if (index != UNDEFINED_INDEX && index < getRowCount()) {
+      indices.push_back(index);
+    }
+  }
+  std::sort(indices.begin(), indices.end());
+  indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+  return indices;
+}
+
 void ListDriver::setKeys(std::vector<std::string> keys) {
   keys_ = std::move(keys);
   recordEdit({});
@@ -480,10 +498,15 @@ bool ListDriver::measureRange(double offset, const PassInput& input) {
   if (aimed == sticky) {
     aimed = UNDEFINED_INDEX;
   }
-  if (!input.prefetch || !prefetchRows_) {
-    return measureSpan(measured->low, measured->high, sticky, aimed);
-  }
   bool changed = false;
+  for (std::size_t index : getPersistentIndices()) {
+    if (index < measured->low || index > measured->high) {
+      changed = measureSpan(index, index, UNDEFINED_INDEX, UNDEFINED_INDEX) || changed;
+    }
+  }
+  if (!input.prefetch || !prefetchRows_) {
+    return measureSpan(measured->low, measured->high, sticky, aimed) || changed;
+  }
   auto plan = [&] {
     return planMount(offset, input.windowAlong, input.mountPad, input.leadingInset, input.trailingInset);
   };

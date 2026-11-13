@@ -278,6 +278,13 @@ public:
    */
   void setNonAnchorKeys(std::vector<std::string> keys);
 
+  /*
+   * Rows kept mounted at their ordinary content positions, even outside the measured range.
+   * Keys absent from the current data retain their intent for a later key update.
+   */
+  void setPersistentKeys(std::vector<std::string> keys);
+  std::vector<std::size_t> getPersistentIndices() const;
+
   void setKeys(std::vector<std::string> keys);
 
   /*
@@ -540,6 +547,7 @@ private:
   std::vector<std::string> keys_;
   std::vector<std::size_t> sticky_;
   std::vector<std::string> nonAnchorKeys_;
+  std::vector<std::string> persistentKeys_;
 
   /*
    * Whether the core has yet to take nonAnchorKeys_.

@@ -361,6 +361,13 @@ prefetching, measurement and separators. Each compiles once in
 each kit, and what differs sits behind `TARGET_OS_OSX`. The other categories are the UIKit kit's (`+Selection`,
 `+Accessibility`, `+Drag`, `+Actions`) on AppKit, plus `+Scrolling` for the engine and the scrollers.
 
+## Retained items
+
+`persistentKeys` keeps matching items mounted at their ordinary content positions, outside the viewport too.
+It does not pin them and does not make them part of `visibleRange`. The shared driver measures retained rows,
+and their cells follow stable keys through moves and payload updates. Missing keys keep their retention intent
+for later insertion. Remove a key from `persistentKeys` to let the normal mount range recycle its cell.
+
 ## Tests
 
 ```sh

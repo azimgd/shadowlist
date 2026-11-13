@@ -902,6 +902,60 @@ class ShadowListKitHostTest {
     assertEquals(top, requireNotNull(list.cellForItem(50)).top - list.scrollY)
   }
 
+  @Test
+  fun persistent_keys_retain_offscreen_cells_through_payloads_moves_and_key_updates() = onMain {
+    val keys = MutableList(200) { "persistent-$it" }
+    val list = ShadowListKitListView(context)
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    list.dataSource = object : ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+      override fun numberOfItems(listView: ShadowListKitListView) = keys.size
+      override fun keyForItem(listView: ShadowListKitListView, index: Int) = keys[index]
+      override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int) = 100
+      override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell = listView.dequeueReusableCell("row")
+      override fun reconfigureCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int, payload: Any?): Boolean {
+        cell.contentDescription = payload as? String
+        return true
+      }
+    }
+    list.persistentKeys = setOf("persistent-150", "later")
+    list.reloadData()
+    layOut(list)
+    val cell = requireNotNull(list.cellForItem(150))
+    assertFalse(150 in requireNotNull(list.visibleRange))
+    keys.add(155, keys.removeAt(150))
+    list.reloadData()
+    assertTrue(list.cellForItem(155) === cell)
+    list.reloadItems(intArrayOf(155), "changed")
+    assertTrue(list.cellForItem(155) === cell)
+    assertEquals("changed", cell.contentDescription)
+    keys.removeAt(155)
+    list.reloadData()
+    assertNull(list.cellForItem(155))
+    assertTrue("persistent-150" in list.persistentKeys)
+    keys.add(170, "persistent-150")
+    list.reloadData()
+    assertTrue(list.cellForItem(170) != null)
+    list.persistentKeys = emptySet()
+    layOut(list)
+    assertNull(list.cellForItem(170))
+  }
+
+  @Test
+  fun persistent_cells_remeasure_after_width_and_orientation_changes() = onMain {
+    val list = ShadowListKitListView(context)
+    list.persistentKeys = setOf("row150")
+    makeSizedList(SizedRows(200, 100.0), list)
+    assertEquals(WIDTH, requireNotNull(list.cellForItem(150)).width)
+    list.measure(MeasureSpec.makeMeasureSpec(800, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(HEIGHT, MeasureSpec.EXACTLY))
+    list.layout(0, 0, 800, HEIGHT)
+    assertEquals(800, requireNotNull(list.cellForItem(150)).width)
+    list.horizontal = true
+    layOut(list)
+    val cell = requireNotNull(list.cellForItem(150))
+    assertEquals(100, cell.width)
+    assertEquals(HEIGHT, cell.height)
+  }
+
   // region Header, footer and empty view
 
   @Test

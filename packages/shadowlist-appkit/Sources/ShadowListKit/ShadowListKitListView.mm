@@ -664,6 +664,17 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   return _nonAnchorKeys;
 }
 
+- (NSSet<NSString *> *)persistentKeys
+{
+  return _persistentKeys;
+}
+
+- (void)setPersistentKeys:(NSSet<NSString *> *)persistentKeys
+{
+  _persistentKeys = [persistentKeys copy];
+  [self sendPersistentKeys];
+}
+
 - (void)setNonAnchorKeys:(NSSet<NSString *> *)nonAnchorKeys
 {
   _nonAnchorKeys = [nonAnchorKeys copy];

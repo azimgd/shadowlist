@@ -392,6 +392,19 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetStickyIndices)(JNIEnv* env, j
   peerOf(handle)->driver.setStickyIndices(readIndices(env, indices));
 }
 
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetPersistentKeys)(
+  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends) {
+  peerOf(handle)->driver.setPersistentKeys(readPackedKeys(env, packed, ends));
+}
+
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativePersistentIndices)(JNIEnv* env, jclass, jlong handle) {
+  const auto indices = peerOf(handle)->driver.getPersistentIndices();
+  std::vector<jint> values(indices.begin(), indices.end());
+  jintArray result = env->NewIntArray(static_cast<jsize>(values.size()));
+  if (!values.empty()) env->SetIntArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
+  return result;
+}
+
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetNonAnchorKeys)(
   JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends) {
   peerOf(handle)->driver.setNonAnchorKeys(readPackedKeys(env, packed, ends));

@@ -1522,3 +1522,42 @@ TEST(list_driver_auto_hide_keeps_user_intent_across_corrections_and_flag_changes
   input.accumulate = false;
   CHECK_EQ(other.stickyTranslations(input).header, 315.0);
 }
+
+TEST(list_driver_persistent_keys_resolve_current_indices_and_measure_off_range_rows) {
+  Host host(200);
+  host.driver.setPersistentKeys({"k199", "missing", "k199", "k150"});
+  host.layout();
+  auto indices = host.driver.getPersistentIndices();
+  CHECK_EQ(indices.size(), 2u);
+  CHECK_EQ(indices[0], 150u);
+  CHECK_EQ(indices[1], 199u);
+  CHECK_EQ(host.driver.getExtentAt(199), rowHeight(199));
+  auto measured = host.driver.getMeasuredRange();
+  CHECK(measured.has_value());
+  CHECK(measured->high < 150);
+  std::size_t measures = host.measures;
+  host.layout();
+  CHECK_EQ(host.measures, measures);
+  host.driver.markRemeasure({199});
+  host.layout();
+  CHECK_EQ(host.measures, measures + 1);
+}
+
+TEST(list_driver_persistent_key_intent_survives_delete_reinsert_and_key_moves) {
+  Host host(200);
+  host.driver.setPersistentKeys({"k199", "k201"});
+  host.layout();
+  host.driver.setKeys(keysFrom(0, 199));
+  host.layout();
+  CHECK(host.driver.getPersistentIndices().empty());
+  auto keys = keysFrom(0, 202);
+  std::swap(keys[199], keys[1]);
+  host.driver.setKeys(keys);
+  host.layout();
+  auto indices = host.driver.getPersistentIndices();
+  CHECK_EQ(indices.size(), 2u);
+  CHECK_EQ(indices[0], 1u);
+  CHECK_EQ(indices[1], 201u);
+  host.driver.setPersistentKeys({});
+  CHECK(host.driver.getPersistentIndices().empty());
+}

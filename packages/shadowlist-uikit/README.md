@@ -102,3 +102,9 @@ These combinations do nothing:
 - `sectionIndexTitlesForListView:` in a horizontal list.
 - `refreshEnabled` in a horizontal list. `UIRefreshControl` only pulls vertically.
 - `followAppends` without `inverted`.
+## Retained items
+
+`persistentKeys` keeps matching items mounted at their ordinary content positions, outside the viewport too.
+It does not pin them and does not make them part of `visibleRange`. The shared driver measures retained rows,
+and their cells follow stable keys through moves and payload updates. Missing keys keep their retention intent
+for later insertion. Remove a key from `persistentKeys` to let the normal mount range recycle its cell.

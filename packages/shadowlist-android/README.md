@@ -148,6 +148,13 @@ set(SHADOWLIST_KIT_COMPILE_DEFINITIONS "azimgd=host_kit_azimgd")
 add_subdirectory(vendor/shadowlistkit/cpp shadowlistkit)
 ```
 
+## Retained items
+
+`persistentKeys` keeps matching items mounted at their ordinary content positions, outside the viewport too.
+It does not pin them and does not make them part of `visibleRange`. The shared driver measures retained rows,
+and their cells follow stable keys through moves and payload updates. Missing keys keep their retention intent
+for later insertion. Remove a key from `persistentKeys` to let the normal mount range recycle its cell.
+
 ## Tests
 
 `./gradlew :ShadowListKit:connectedDebugAndroidTest` runs the kit's tests on a connected device or

@@ -176,6 +176,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL autoHideFooter;
 @property (nonatomic, strong, nullable) UIView *emptyView;
 @property (nonatomic, copy, nullable) NSSet<NSString *> *nonAnchorKeys;
+/* Keep these keys mounted at their content positions, without pinning them to the viewport. */
+@property (nonatomic, copy, nullable) NSSet<NSString *> *persistentKeys;
 @property (nonatomic, readonly, getter=isAtEnd) BOOL atEnd;
 
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
