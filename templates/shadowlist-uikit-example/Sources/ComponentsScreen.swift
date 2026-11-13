@@ -46,6 +46,24 @@ final class ComponentsScreen: UIViewController {
     latest.onPress = { [weak self] in self?.scroll.setContentOffset(.zero, animated: true); self?.status.text = "Returned to the first component" }
     stack.addArrangedSubview(latest)
     latest.heightAnchor.constraint(equalToConstant: 36).isActive = true
+    let accountValue = ShadowListUtilsFormValue(text: "3 saved routes", theme: AppTheme.theme)
+    let save = ShadowListUtilsFormButton(label: "Save route", theme: AppTheme.theme)
+    save.onPress = { [weak self, weak accountValue] in
+      accountValue?.text = "4 saved routes"
+      self?.status.text = "Route saved through Form.Button"
+    }
+    let delete = ShadowListUtilsFormButton(label: "Remove saved route", theme: AppTheme.theme)
+    delete.destructive = true
+    delete.onPress = { [weak self, weak accountValue] in
+      accountValue?.text = "3 saved routes"
+      self?.status.text = "Saved route removed"
+    }
+    stack.addArrangedSubview(ShadowListUtilsGroupedCaption(title: "Saved routes", theme: AppTheme.theme))
+    stack.addArrangedSubview(ShadowListUtilsFormCard(children: [save, delete], theme: AppTheme.theme))
+    let separator = ShadowListUtilsGroupedSeparator(theme: AppTheme.theme)
+    let grouped = ShadowListUtilsGroupedCard(children: [accountValue, separator], theme: AppTheme.theme)
+    stack.addArrangedSubview(grouped)
+    stack.addArrangedSubview(ShadowListUtilsGroupedSection(title: "Travel account", children: [ShadowListUtilsFormValue(text: "Lisbon · Tuesday", theme: AppTheme.theme)], theme: AppTheme.theme))
   }
 
   override func viewDidLayoutSubviews() {

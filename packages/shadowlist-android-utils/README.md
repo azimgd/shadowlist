@@ -379,3 +379,28 @@ The native `Components` example route uses all six views: suggestions update the
 prompt, disclosures expand, Finish changes a running tool to done and increments the displayed vote
 total, and the scroll button returns to the first component. Form, Grouped and other controls are
 separate implementation milestones; these additions do not imply complete visual/API parity.
+
+### Form and Grouped composition
+
+`ShadowListUtilsFormCard(context, children)` inserts an inset hairline between native child views.
+`ShadowListUtilsFormValue(context, text)` retains the supplied value and displays an em dash when
+empty; `accessibilityLabel` overrides the displayed value. `ShadowListUtilsFormButton(context, label)`
+provides a centered `onPress` action and `destructive` styling. The application owns the
+resulting state. An unwired native button is disabled.
+
+`ShadowListUtilsGroupedCard(context, children)` applies themed inset and rounded card styling without
+inserting separators. Compose `ShadowListUtilsGroupedSeparator(context, inset)` explicitly.
+`ShadowListUtilsGroupedCaption(context, title)` uses theme caption casing and heading accessibility.
+`ShadowListUtilsGroupedSection(context, title, children)` composes a caption and card; null or an empty
+title hides the caption. Supplying the same child views retains their identity and order.
+The Components route demonstrates Save/Remove callbacks updating a read-only account value.
+
+```kotlin
+val value = ShadowListUtilsFormValue(context, "3 saved routes")
+val save = ShadowListUtilsFormButton(context, "Save route")
+save.onPress = { value.text = "4 saved routes" }
+val form = ShadowListUtilsFormCard(context, listOf(save))
+val section = ShadowListUtilsGroupedSection(context, "Account", listOf(value))
+```
+
+Form fields, Grouped.Row/Actions and the remaining Controls are separate parity milestones.

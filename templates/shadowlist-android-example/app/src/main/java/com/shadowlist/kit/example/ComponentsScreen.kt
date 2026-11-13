@@ -35,6 +35,18 @@ class ComponentsScreen(private val context: Context) : Screen {
         status.text = "Search complete; vote total ${footer.totalVotes.toInt()}"
       }
     })
+    val accountValue = ShadowListUtilsFormValue(context, "3 saved routes", theme)
+    val save = ShadowListUtilsFormButton(context, "Save route", theme).apply {
+      onPress = { accountValue.text = "4 saved routes"; status.text = "Route saved through Form.Button" }
+    }
+    val delete = ShadowListUtilsFormButton(context, "Remove saved route", theme).apply {
+      destructive = true
+      onPress = { accountValue.text = "3 saved routes"; status.text = "Saved route removed" }
+    }
+    append(ShadowListUtilsGroupedCaption(context, "Saved routes", theme))
+    append(ShadowListUtilsFormCard(context, listOf(save, delete), theme))
+    append(ShadowListUtilsGroupedCard(context, listOf(accountValue, ShadowListUtilsGroupedSeparator(context, theme = theme)), theme))
+    append(ShadowListUtilsGroupedSection(context, "Travel account", listOf(ShadowListUtilsFormValue(context, "Lisbon · Tuesday", theme)), theme))
     append(ShadowListUtilsAssistantScrollButton(context, theme).apply {
       visible = true
       onPress = { scroll.smoothScrollTo(0, 0); status.text = "Returned to the first component" }

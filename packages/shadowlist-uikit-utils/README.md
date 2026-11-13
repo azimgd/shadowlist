@@ -390,3 +390,28 @@ The native `Components` example route uses all six views: suggestions update the
 prompt, disclosures expand, Finish changes a running tool to done and increments the displayed vote
 total, and the scroll button returns to the first component. Form, Grouped and other controls are
 separate implementation milestones; these additions do not imply complete visual/API parity.
+
+### Form and Grouped composition
+
+`ShadowListUtilsFormCard(children:)` inserts an inset hairline between native child views.
+`ShadowListUtilsFormValue(text:)` keeps the supplied value and displays an em dash when empty;
+its optional `accessibilityLabel` overrides the displayed value. `ShadowListUtilsFormButton(label:)`
+provides a centered action, `onPress`, and `destructive` styling. The application owns the
+resulting state. An unwired native button is disabled.
+
+`ShadowListUtilsGroupedCard(children:)` applies the theme's inset and rounded card styling without
+inserting separators. Compose `ShadowListUtilsGroupedSeparator(inset:)` explicitly between rows.
+`ShadowListUtilsGroupedCaption(title:)` uses the theme's caption casing and heading accessibility.
+`ShadowListUtilsGroupedSection(title:children:)` composes a caption and card; nil or an empty title
+hides the caption. Child view identity is retained when the same children are supplied again.
+The Components route demonstrates Save/Remove callbacks updating a read-only account value.
+
+```swift
+let value = ShadowListUtilsFormValue(text: "3 saved routes")
+let save = ShadowListUtilsFormButton(label: "Save route")
+save.onPress = { value.text = "4 saved routes" }
+let form = ShadowListUtilsFormCard(children: [save])
+let section = ShadowListUtilsGroupedSection(title: "Account", children: [value])
+```
+
+Form fields, Grouped.Row/Actions and the remaining Controls are separate parity milestones.
