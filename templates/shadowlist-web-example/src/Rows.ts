@@ -2,6 +2,7 @@ import { ShadowListKitListCell } from 'shadowlist-wasm';
 
 import {
   avatarColor,
+  feedTime,
   initials,
   type ChatMessage,
   type FeedPost,
@@ -38,7 +39,7 @@ export class FeedCell extends ShadowListKitListCell {
     this.avatar.textContent = initials(post.name);
     this.avatar.style.background = avatarColor(post.name);
     this.name.textContent = post.name;
-    this.meta.textContent = `${post.handle} · ${post.time}`;
+    this.meta.textContent = `${post.handle} · ${feedTime(post.createdAtMs)}`;
     this.text.textContent = post.text;
   }
 }

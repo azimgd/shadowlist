@@ -1,3 +1,4 @@
+import { loadShadowListUtils } from 'shadowlist-wasm/utils';
 import { loadShadowListKit } from 'shadowlist-wasm';
 
 import { SCREENS } from './Screens.js';
@@ -18,9 +19,16 @@ function buildNavigation(nav: HTMLElement): void {
   }
 }
 
-await loadShadowListKit();
-buildNavigation(document.getElementById('routes')!);
 const screen = SCREENS[Settings.route] ?? SCREENS.Feed!;
+await loadShadowListKit();
+if (
+  screen === SCREENS.Feed ||
+  screen === SCREENS.Poll ||
+  screen === SCREENS.Sticky
+) {
+  await loadShadowListUtils();
+}
+buildNavigation(document.getElementById('routes')!);
 const list = screen(document.getElementById('screen')!);
 // The page exposes the list for driving it from the console or a test.
 Object.assign(window, { list });

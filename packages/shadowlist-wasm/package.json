@@ -11,7 +11,12 @@
       "default": "./dist/index.js"
     },
     "./shadowlistkit.wasm": "./dist/shadowlistkit.wasm",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "default": "./dist/utils/index.js"
+    },
+    "./shadowlistutils.wasm": "./dist/shadowlistutils.wasm"
   },
   "files": [
     "dist",

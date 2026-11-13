@@ -1,5 +1,6 @@
 import AppKit
 import ShadowListKit
+import ShadowListUtilsCore
 
 /*
  * A feed post, a pure function of its generation index like the UIKit example's.
@@ -152,8 +153,7 @@ final class FeedCell: ShadowListKitListCell {
 
   static func color(of name: String) -> NSColor {
     let palette: [NSColor] = [.systemBlue, .systemPink, .systemOrange, .systemTeal, .systemPurple, .systemGreen]
-    let hash = name.unicodeScalars.reduce(0) { ($0 * 31 + Int($1.value)) % 2_147_483_647 }
-    return palette[hash % palette.count]
+    return palette[ShadowListUtilsCore.avatarColorIndex(forName: name, paletteSize: palette.count)]
   }
 }
 
@@ -254,7 +254,13 @@ struct Contact {
     subtitle = "(\(100 + index % 900)) \(200 + index % 800)-\(1000 + index % 9000)"
   }
 
-  var initials: String { name.split(separator: " ").compactMap(\.first).map(String.init).joined() }
+  init(key: String, name: String, subtitle: String = "") {
+    self.key = key
+    self.name = name
+    self.subtitle = subtitle
+  }
+
+  var initials: String { ShadowListUtilsCore.avatarInitials(forName: name).uppercased() }
 }
 
 /*

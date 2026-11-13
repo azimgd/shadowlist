@@ -2,8 +2,10 @@ import createShadowListKitModule, {
   type ShadowListKitModule,
 } from './shadowlistkit.mjs';
 
+import { ShadowListWasmLoader } from './ShadowListWasmLoader.js';
+
 let wasmModule: ShadowListKitModule | null = null;
-let loading: Promise<void> | null = null;
+const loader = new ShadowListWasmLoader(createShadowListKitModule, install);
 
 /*
  * The core's constants the kit reads, at ShadowListKitCore.CONSTANT_* slots, read once on load.
@@ -47,31 +49,6 @@ export interface ShadowListKitLoadOptions {
 }
 
 /*
- * The Emscripten options for a load: source as the module's bytes or the compiled module, else
- * locateFile, else shadowlistkit.wasm next to shadowlistkit.mjs. instantiateWasm has no way to
- * fail the load. A compiled module that does not instantiate calls fail instead.
- */
-function moduleOptions(
-  options: ShadowListKitLoadOptions | undefined,
-  fail: (reason: unknown) => void
-): Parameters<typeof createShadowListKitModule>[0] {
-  const source = options?.source;
-  if (source instanceof WebAssembly.Module) {
-    return {
-      instantiateWasm: (imports, done) => {
-        WebAssembly.instantiate(source, imports).then(
-          (instance) => done(instance, source),
-          fail
-        );
-        return {};
-      },
-    };
-  }
-  if (source !== undefined) return { wasmBinary: source };
-  return { locateFile: options?.locateFile };
-}
-
-/*
  * Wire a loaded module to the cores and read the core's constants.
  */
 function install(loaded: ShadowListKitModule) {
@@ -95,21 +72,7 @@ function install(loaded: ShadowListKitModule) {
 export function loadShadowListKit(
   options?: ShadowListKitLoadOptions
 ): Promise<void> {
-  if (loading) return loading;
-  // A failed load is forgotten. The next call tries again.
-  const attempt = new Promise<ShadowListKitModule>((resolve, reject) => {
-    createShadowListKitModule(moduleOptions(options, reject)).then(
-      resolve,
-      reject
-    );
-  })
-    .then(install)
-    .catch((error: unknown) => {
-      if (loading === attempt) loading = null;
-      throw error;
-    });
-  loading = attempt;
-  return attempt;
+  return loader.load(options);
 }
 
 export function isShadowListKitLoaded(): boolean {

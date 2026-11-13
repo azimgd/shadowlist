@@ -7,7 +7,8 @@
     <script type="importmap">
       {
         "imports": {
-          "shadowlist-wasm": "../../packages/shadowlist-wasm/dist/index.js"
+          "shadowlist-wasm": "../../packages/shadowlist-wasm/dist/index.js",
+          "shadowlist-wasm/utils": "../../packages/shadowlist-wasm/dist/utils/index.js"
         }
       }
     </script>
@@ -112,6 +113,17 @@
         padding: 24px 16px;
         background: var(--surface);
         font-weight: 600;
+      }
+
+      .poll-cell button {
+        width: 100%;
+        padding: 18px;
+        text-align: start;
+      }
+
+      .poll-cell button[aria-pressed='true'] {
+        color: var(--accent);
+        font-weight: bold;
       }
 
       .feed-cell {

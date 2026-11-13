@@ -1,5 +1,6 @@
 import AppKit
 import ShadowListKit
+import ShadowListUtilsCore
 
 /*
  * A screen with one list the scenarios read and change.
@@ -390,11 +391,30 @@ final class SectionsScreen: NSView, ListScreen, ShadowListKitListViewDataSource,
   }
 
   func group(_ contacts: [Contact]) {
-    let sorted = contacts.sorted { $0.name < $1.name }
-    sections = Dictionary(grouping: sorted) { String($0.name.prefix(1)) }
+    let otherTitle = ShadowListUtilsCore.sectionOtherTitle()
+    let sorted = contacts.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    sections = Dictionary(grouping: sorted) { Self.sectionTitle($0.name) }
       .map { (letter: $0.key, contacts: $0.value) }
-      .sorted { $0.letter < $1.letter }
+      .sorted { first, second in
+        if first.letter == otherTitle || second.letter == otherTitle {
+          return second.letter == otherTitle && first.letter != otherTitle
+        }
+        return first.letter.localizedStandardCompare(second.letter) == .orderedAscending
+      }
     total.text = "\(contacts.count) travellers"
+  }
+
+  /*
+   * The shared core classifies the first code point. AppKit finishes the reader's Unicode
+   * grapheme and locale policy, as the UIKit contacts template does, and keeps # last.
+   */
+  static func sectionTitle(_ name: String) -> String {
+    let otherTitle = ShadowListUtilsCore.sectionOtherTitle()
+    let initial = ShadowListUtilsCore.sectionInitial(forName: name)
+    guard initial != otherTitle, let scalar = initial.unicodeScalars.first else { return otherTitle }
+    let first = name.first { $0.unicodeScalars.first.map { String($0).uppercased() == String(scalar).uppercased() } ?? false }
+    guard let first, first.isLetter else { return scalar.isASCII ? initial : otherTitle }
+    return String(first).uppercased()
   }
 
   var allContacts: [Contact] { sections.flatMap(\.contacts) }

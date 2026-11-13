@@ -12,7 +12,10 @@
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "paths": {
-      "shadowlist-wasm": ["../../packages/shadowlist-wasm/src/index.ts"]
+      "shadowlist-wasm": ["../../packages/shadowlist-wasm/src/index.ts"],
+      "shadowlist-wasm/utils": [
+        "../../packages/shadowlist-wasm/src/utils/index.ts"
+      ]
     }
   },
   "include": ["src"],

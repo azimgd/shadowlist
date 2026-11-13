@@ -20,6 +20,7 @@ import ShadowListKit
  *            and its outline, and their end when the menu closes
  *   reorder  a press dragged short of the slop and past it, the drop spot as the mouse moves, a
  *            drop, the edge scroll on the display link with the row under the mouse, and Escape
+ *   utils    -SLRoute Sections: shared avatar initials/colors and Unicode contact sections
  *   sections -SLRoute Sections: the section queries, self-sized rows, the header view, a
  *            scroll to a section, its header pinned and pushed by the next one, overscroll past
  *            the start, separators and a regroup that keeps the visible rows still
@@ -56,6 +57,10 @@ enum Scenario {
     guard let name = Settings.scenario else { return }
     if name == "driven", let driven = screen as? DrivenScreen {
       after(1.5) { checkDriven(driven) }
+      return
+    }
+    if name == "utils", let sections = screen as? SectionsScreen {
+      after(1.5) { checkUtils(sections) }
       return
     }
     if name == "wheel" {
@@ -570,6 +575,35 @@ enum Scenario {
     else { return }
     list.scrollWheel(with: wheel)
     list.layoutSubtreeIfNeeded()
+  }
+
+  /*
+   * The example's shared avatar policy and its Unicode sections through measured AppKit rows.
+   */
+  private static func checkUtils(_ screen: SectionsScreen) {
+    let contacts = [
+      Contact(key: "accent", name: "  e\u{301}mile Zola"),
+      Contact(key: "cjk", name: "李 小龍"),
+      Contact(key: "emoji", name: "🦊 Fox"),
+      Contact(key: "blank", name: "   "),
+      Contact(key: "ascii", name: "ada lovelace"),
+      Contact(key: "many", name: "Ada Byron Lovelace"),
+    ]
+    screen.group(contacts)
+    screen.list.reloadData()
+    screen.list.layoutSubtreeIfNeeded()
+    let titles = screen.sections.map(\.letter)
+    let expectedTitles = ["A", "E\u{301}", "李"].sorted { $0.localizedStandardCompare($1) == .orderedAscending } + ["#"]
+    let checks = [
+      "unicodeSections": titles == expectedTitles,
+      "nonlettersLast": Set(screen.sections.last?.contacts.map(\.key) ?? []) == Set(["blank", "emoji"]),
+      "firstLastInitials": contacts.last?.initials == "AL",
+      "unicodeInitials": contacts[1].initials == "李小" && contacts[2].initials == "🦊F",
+      "sharedAvatarColor": FeedCell.color(of: "🦊 Fox") == .systemPink,
+      "measuredRows": screen.list.rectForItem(at: 0).height > 0,
+    ]
+    precondition(checks.values.allSatisfy { $0 }, "Shared utility scenario failed: \(checks)")
+    finish(["scenario": "utils", "checks": checks, "titles": titles], shoot: screen)
   }
 
   /*

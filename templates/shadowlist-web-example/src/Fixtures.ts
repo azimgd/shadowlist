@@ -1,4 +1,10 @@
 import {
+  avatarColorIndex,
+  avatarInitials,
+  relativeTime,
+} from 'shadowlist-wasm/utils';
+
+import {
   AVATAR_COLORS,
   AVATAR_NAMES,
   CHARACTER_NAMES,
@@ -11,20 +17,32 @@ import {
  * Every value is a pure function of the item's generation index.
  */
 export function avatarColor(name: string): string {
-  let hash = 0;
-  for (let at = 0; at < name.length; ++at) {
-    hash = (hash * 31 + name.charCodeAt(at)) % 2_147_483_647;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length]!;
+  return AVATAR_COLORS[avatarColorIndex(name, AVATAR_COLORS.length)]!;
 }
 
 export function initials(name: string): string {
-  const words = name.split(' ').filter((word) => word.length > 0);
-  const first = words[0]?.[0];
-  if (!first) return '';
-  if (words.length > 1)
-    return `${first}${words[words.length - 1]![0]}`.toUpperCase();
-  return first.toUpperCase();
+  return avatarInitials(name).toLocaleUpperCase();
+}
+
+/*
+ * A fixed fixture clock keeps each generation index deterministic across route changes.
+ */
+export const FEED_NOW_MS = 1_762_905_600_000;
+
+export function feedTime(createdAtMs: number): string {
+  const time = relativeTime(createdAtMs, FEED_NOW_MS);
+  switch (time.unit) {
+    case 'now':
+      return 'now';
+    case 'minutes':
+      return `${time.count}m`;
+    case 'hours':
+      return `${time.count}h`;
+    case 'days':
+      return `${time.count}d`;
+    case 'date':
+      return new Date(createdAtMs).toLocaleDateString();
+  }
 }
 
 export class FeedPost {
@@ -32,7 +50,7 @@ export class FeedPost {
   readonly name: string;
   readonly handle: string;
   readonly text: string;
-  readonly time: string;
+  readonly createdAtMs: number;
 
   constructor(index: number) {
     this.id = `post-${index}`;
@@ -40,7 +58,7 @@ export class FeedPost {
     this.handle = '@' + this.name.toLowerCase().replaceAll(' ', '');
     this.text = SAMPLE_TEXTS[index % SAMPLE_TEXTS.length]!;
     const hours = index % 24;
-    this.time = hours === 0 ? 'now' : `${hours}h`;
+    this.createdAtMs = FEED_NOW_MS - hours * 3_600_000;
   }
 }
 

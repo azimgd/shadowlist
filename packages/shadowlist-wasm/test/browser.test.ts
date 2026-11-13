@@ -11,6 +11,17 @@ import { extname, join, normalize } from 'node:path';
 import { after, before, test } from 'node:test';
 
 const ROOT = new URL('..', import.meta.url).pathname;
+const EXAMPLE = new URL(
+  '../../../templates/shadowlist-web-example/dist/',
+  import.meta.url
+).pathname;
+
+const WEB_EXAMPLE = new URL(
+  '../../../templates/shadowlist-web-example/',
+  import.meta.url
+).pathname;
+let serverPort = 0;
+let browserPort = 0;
 
 const CHROME_CANDIDATES = [
   process.env.CHROME_PATH ?? '',
@@ -65,7 +76,11 @@ class Page {
     });
   }
 
-  static async open(debugPort: number, url: string): Promise<Page> {
+  static async open(
+    debugPort: number,
+    url: string,
+    ready = 'window.fixtureReady === true'
+  ): Promise<Page> {
     const response = await fetch(
       `http://127.0.0.1:${debugPort}/json/new?about:blank`,
       { method: 'PUT' }
@@ -87,7 +102,7 @@ class Page {
     });
     await opened.send('Page.navigate', { url });
     for (let attempt = 0; attempt < 200; ++attempt) {
-      if (await opened.evaluate('window.fixtureReady === true')) return opened;
+      if (await opened.evaluate(ready)) return opened;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     throw new Error(`fixture did not load: ${opened.errors.join('\n')}`);
@@ -128,10 +143,23 @@ class Page {
 
 function serve(): Promise<number> {
   server = createServer((request, response) => {
-    const path = normalize(
-      join(ROOT, decodeURIComponent(new URL(request.url!, 'http://x').pathname))
+    const pathname = decodeURIComponent(
+      new URL(request.url!, 'http://x').pathname
     );
-    if (!path.startsWith(ROOT) || !existsSync(path)) {
+    const example = pathname.startsWith('/example/');
+    const web = pathname.startsWith('/web/');
+    const packageAsset = pathname.startsWith('/packages/shadowlist-wasm/');
+    const root = web ? WEB_EXAMPLE : example ? EXAMPLE : ROOT;
+    let relative = web
+      ? pathname.slice('/web/'.length)
+      : example
+        ? pathname.slice('/example/'.length)
+        : packageAsset
+          ? pathname.slice('/packages/shadowlist-wasm/'.length)
+          : pathname;
+    if (web && relative === '') relative = 'index.html';
+    const path = normalize(join(root, relative));
+    if (!path.startsWith(root) || !existsSync(path)) {
       response.writeHead(404).end();
       return;
     }
@@ -174,6 +202,8 @@ function launchChrome(): Promise<number> {
 before(async () => {
   if (!CHROME) return;
   const [port, debugPort] = await Promise.all([serve(), launchChrome()]);
+  serverPort = port;
+  browserPort = debugPort;
   page = await Page.open(
     debugPort,
     `http://127.0.0.1:${port}/test/fixture.html`
@@ -181,17 +211,22 @@ before(async () => {
 });
 
 after(async () => {
-  page?.close();
   chrome?.removeAllListeners('exit');
   // Chrome writes its profile until it exits. Remove the profile after that.
   if (chrome && chrome.exitCode === null) {
     const exited = new Promise((resolve) => chrome!.once('exit', resolve));
-    chrome.kill();
+    // DevTools closes Chrome after its profile is flushed, including the extra example tabs.
+    page?.send('Browser.close').catch(() => {});
     await Promise.race([
       exited,
       new Promise((resolve) => setTimeout(resolve, 5000).unref()),
     ]);
+    if (chrome.exitCode === null) {
+      chrome.kill();
+      await exited;
+    }
   }
+  page?.close();
   server?.close();
   if (profile) {
     rmSync(profile, {
@@ -850,3 +885,103 @@ browserTest('a non anchor item never holds the visible items', async (tab) => {
     assert.notEqual(moved[nonAnchor ? 0 : 1], 0, `nonAnchor ${nonAnchor}`);
   }
 });
+
+browserTest(
+  'actual web Feed and controlled Poll use the optional utility binary',
+  async (tab) => {
+    const result = await tab.evaluate<{
+      initials: string;
+      time: string;
+      before: string;
+      after: string;
+      switched: string;
+      reset: string;
+      selected: string[];
+      independent: boolean;
+    }>(`(async () => {
+    const kit = await import('../dist/ShadowListKitCore.js');
+    const utils = await import('../dist/utils/index.js');
+    const independent = kit.isShadowListKitLoaded() && !utils.isShadowListUtilsLoaded() && !performance.getEntriesByType('resource').some(entry => entry.name.endsWith('shadowlistutils.wasm'));
+    await utils.loadShadowListUtils();
+    const { feedScreen, pollScreen } = await import('/example/Screens.js');
+    const { FeedPost, feedTime } = await import('/example/Fixtures.js');
+    const feedBody = document.createElement('div');
+    document.body.replaceChildren(feedBody);
+    const feed = feedScreen(feedBody);
+    await frames(4);
+    const initials = feedBody.querySelector('.avatar')?.textContent;
+    const time = feedTime(new FeedPost(3).createdAtMs);
+    feed.remove();
+    const body = document.createElement('div');
+    document.body.replaceChildren(body);
+    const poll = pollScreen(body);
+    await frames(4);
+    const summary = () => body.querySelector('.banner').textContent;
+    const option = (index) => poll.cellForItem(index).view.querySelector('button');
+    const before = summary();
+    option(1).click();
+    await frames(4);
+    const after = summary();
+    const selected = [0, 1, 2].map(option).filter(button => button.getAttribute('aria-pressed') === 'true').map(button => button.textContent);
+    option(2).click();
+    await frames(4);
+    const switched = summary();
+    body.querySelector('.toolbar button').click();
+    await frames(4);
+    const reset = summary();
+    return { initials, time, before, after, switched, reset, selected, independent };
+  })()`);
+    assert.equal(result.independent, true);
+    assert.ok(result.initials?.length > 0);
+    assert.equal(result.time, '3h');
+    assert.match(result.before, /16 votes$/);
+    assert.match(result.after, /17 votes$/);
+    assert.match(result.switched, /17 votes$/);
+    assert.match(result.reset, /0 votes$/);
+    assert.deepEqual(result.selected, ['Coast · 35% · 6 votes']);
+    assert.deepEqual(tab.errors, []);
+  }
+);
+
+browserTest(
+  'actual web routes load utilities only for their helper consumers',
+  async () => {
+    for (const route of [
+      'Chat',
+      'Masonry',
+      'Horizontal',
+      'Feed',
+      'Poll',
+      'Sticky',
+    ]) {
+      const tab = await Page.open(
+        browserPort,
+        `http://127.0.0.1:${serverPort}/web/?SLRoute=${route}&SLCount=20`,
+        'Boolean(window.list)'
+      );
+      try {
+        const result = await tab.evaluate<{
+          loaded: boolean;
+          mounted: number;
+          errors: string[];
+        }>(`(async () => {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return {
+          loaded: performance.getEntriesByType('resource').some(entry => entry.name.endsWith('shadowlistutils.wasm')),
+          mounted: window.list.visibleCells.length,
+        };
+      })()`);
+        assert.equal(
+          result.loaded,
+          ['Feed', 'Poll', 'Sticky'].includes(route),
+          route
+        );
+        assert.ok(result.mounted > 0, `${route} mounted its actual cells`);
+        assert.deepEqual(tab.errors, [], route);
+      } finally {
+        await tab.send('Page.navigate', { url: 'about:blank' });
+        tab.close();
+      }
+    }
+  }
+);

@@ -31,6 +31,23 @@ targets:
         HEADER_SEARCH_PATHS: ['$(SRCROOT)/../../packages']
         CLANG_ENABLE_OBJC_ARC: YES
         GENERATE_INFOPLIST_FILE: YES
+  ShadowListUtilsCore:
+    type: framework.static
+    platform: macOS
+    sources:
+      - path: ../../packages/shadowlist-uikit-utils/Sources/ShadowListUtilsCore/include/ShadowListUtilsCore
+        headerVisibility: public
+      - path: ../../packages/shadowlist-uikit-utils/Sources/ShadowListUtilsCore
+        includes: ['*.mm']
+      - path: ../../packages/shadowlist-core/utils
+        includes: ['*.cpp']
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: shadowlist.utils.core.appkit
+        DEFINES_MODULE: YES
+        HEADER_SEARCH_PATHS: ['$(SRCROOT)/../../packages']
+        CLANG_ENABLE_OBJC_ARC: YES
+        GENERATE_INFOPLIST_FILE: YES
   ShadowListKitAppKitExample:
     type: application
     platform: macOS
@@ -38,6 +55,7 @@ targets:
       - path: Sources
     dependencies:
       - target: ShadowListKit
+      - target: ShadowListUtilsCore
     info:
       path: Sources/Info.plist
       properties:

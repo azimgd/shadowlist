@@ -1,8 +1,11 @@
+import { pollTally } from 'shadowlist-wasm/utils';
 import {
   ShadowListKitListView,
   type ShadowListKitListViewDataSource,
 } from 'shadowlist-wasm';
 
+import { PollCell } from './PollCell.js';
+import type { PollData } from './PollData.js';
 import { ChatMessage, FeedPost, Tile } from './Fixtures.js';
 import { SECTION_TITLES } from './FixtureStrings.js';
 import { ChatCell, FeedCell, HeaderCell, TileCell } from './Rows.js';
@@ -242,8 +245,75 @@ export const stickyScreen: Screen = (body) => {
   return list;
 };
 
+/*
+ * A controlled poll: pressing an option updates the application's model, then reconfigures
+ * the rows. The tally and displayed whole percentages use the same helpers as native polls.
+ */
+export const pollScreen: Screen = (body) => {
+  const { list, toolbar } = makeList(body);
+  let poll: PollData = {
+    question: 'Where should the next journey go?',
+    options: [
+      { key: 'mountains', label: 'Mountains', votes: 8 },
+      { key: 'coast', label: 'Coast', votes: 5 },
+      { key: 'city', label: 'City', votes: 3 },
+    ],
+  };
+  const summary = document.createElement('div');
+  summary.className = 'banner';
+  list.headerView = summary;
+  const update = () => {
+    const tally = pollTally(poll.options.map((option) => option.votes));
+    summary.textContent = `${poll.question} · ${tally.totalVotes} votes`;
+    list.applyChanges();
+  };
+  list.registerCell(PollCell.IDENTIFIER, () => new PollCell());
+  list.dataSource = {
+    numberOfItems: () => poll.options.length,
+    keyForItem: (_, index) => poll.options[index]!.key,
+    contentVersionForItem: (_, index) =>
+      `${poll.options[index]!.votes}:${poll.selectedKey ?? ''}`,
+    cellForItem: (view, index) => {
+      const cell = view.dequeueReusableCell<PollCell>(PollCell.IDENTIFIER);
+      cell.onPressItem = (option) => {
+        if (poll.selectedKey === option.key) return;
+        const previousKey = poll.selectedKey;
+        poll = {
+          ...poll,
+          selectedKey: option.key,
+          options: poll.options.map((item) => ({
+            ...item,
+            votes:
+              item.votes +
+              Number(item.key === option.key) -
+              Number(item.key === previousKey),
+          })),
+        };
+        update();
+      };
+      cell.configure(
+        poll.options[index]!,
+        pollTally(poll.options.map((option) => option.votes)).totalVotes,
+        poll.selectedKey
+      );
+      return cell;
+    },
+  };
+  toolbarButton(toolbar, 'Reset votes', () => {
+    poll = {
+      ...poll,
+      selectedKey: undefined,
+      options: poll.options.map((option) => ({ ...option, votes: 0 })),
+    };
+    update();
+  });
+  update();
+  return list;
+};
+
 export const SCREENS: Record<string, Screen> = {
   Feed: feedScreen,
+  Poll: pollScreen,
   Chat: chatScreen,
   Masonry: masonryScreen,
   Horizontal: horizontalScreen,
