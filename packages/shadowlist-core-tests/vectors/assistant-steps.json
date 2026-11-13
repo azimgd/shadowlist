@@ -1,0 +1,307 @@
+[
+  {
+    "name": "trim keeps the original cursor",
+    "function": "stepsOf",
+    "input": {
+      "content": " \t Hello \u00a0",
+      "positions": []
+    },
+    "output": [
+      {
+        "kind": "text",
+        "text": "Hello",
+        "at": 0
+      }
+    ]
+  },
+  {
+    "name": "a missing position goes before the reply",
+    "function": "stepsOf",
+    "input": {
+      "content": "Reply",
+      "positions": [
+        null
+      ]
+    },
+    "output": [
+      {
+        "kind": "calls",
+        "callIndices": [
+          0
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "Reply",
+        "at": 0
+      }
+    ]
+  },
+  {
+    "name": "equal positions preserve call order",
+    "function": "stepsOf",
+    "input": {
+      "content": "ABCD",
+      "positions": [
+        2,
+        2
+      ]
+    },
+    "output": [
+      {
+        "kind": "text",
+        "text": "AB",
+        "at": 0
+      },
+      {
+        "kind": "calls",
+        "callIndices": [
+          0,
+          1
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "CD",
+        "at": 2
+      }
+    ]
+  },
+  {
+    "name": "calls sort by position not insertion order",
+    "function": "stepsOf",
+    "input": {
+      "content": "abcdefg",
+      "positions": [
+        6,
+        1,
+        3
+      ]
+    },
+    "output": [
+      {
+        "kind": "text",
+        "text": "a",
+        "at": 0
+      },
+      {
+        "kind": "calls",
+        "callIndices": [
+          1
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "bc",
+        "at": 1
+      },
+      {
+        "kind": "calls",
+        "callIndices": [
+          2
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "def",
+        "at": 3
+      },
+      {
+        "kind": "calls",
+        "callIndices": [
+          0
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "g",
+        "at": 6
+      }
+    ]
+  },
+  {
+    "name": "blank text keeps consecutive calls together",
+    "function": "stepsOf",
+    "input": {
+      "content": "a \n b",
+      "positions": [
+        1,
+        4
+      ]
+    },
+    "output": [
+      {
+        "kind": "text",
+        "text": "a",
+        "at": 0
+      },
+      {
+        "kind": "calls",
+        "callIndices": [
+          0,
+          1
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "b",
+        "at": 4
+      }
+    ]
+  },
+  {
+    "name": "negative positions precede text and positive positions cap",
+    "function": "stepsOf",
+    "input": {
+      "content": "done",
+      "positions": [
+        99,
+        -4,
+        0
+      ]
+    },
+    "output": [
+      {
+        "kind": "calls",
+        "callIndices": [
+          1,
+          2
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "done",
+        "at": 0
+      },
+      {
+        "kind": "calls",
+        "callIndices": [
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "name": "pretrim cursor is not the first visible character",
+    "function": "stepsOf",
+    "input": {
+      "content": "  \u2708\ufe0f crew",
+      "positions": [
+        4
+      ]
+    },
+    "output": [
+      {
+        "kind": "text",
+        "text": "\u2708\ufe0f",
+        "at": 0
+      },
+      {
+        "kind": "calls",
+        "callIndices": [
+          0
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "crew",
+        "at": 4
+      }
+    ]
+  },
+  {
+    "name": "a split surrogate crosses the native boundary as replacement",
+    "function": "stepsOf",
+    "input": {
+      "content": "A\ud83d\ude00B",
+      "positions": [
+        2
+      ]
+    },
+    "output": [
+      {
+        "kind": "text",
+        "text": "A\ufffd",
+        "at": 0
+      },
+      {
+        "kind": "calls",
+        "callIndices": [
+          0
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "\ufffdB",
+        "at": 2
+      }
+    ]
+  },
+  {
+    "name": "a whole astral character keeps its two utf16 units",
+    "function": "stepsOf",
+    "input": {
+      "content": "\ud83d\ude00B",
+      "positions": [
+        2
+      ]
+    },
+    "output": [
+      {
+        "kind": "text",
+        "text": "\ud83d\ude00",
+        "at": 0
+      },
+      {
+        "kind": "calls",
+        "callIndices": [
+          0
+        ]
+      },
+      {
+        "kind": "text",
+        "text": "B",
+        "at": 2
+      }
+    ]
+  },
+  {
+    "name": "an empty transcript still groups its calls",
+    "function": "stepsOf",
+    "input": {
+      "content": "",
+      "positions": [
+        null,
+        0,
+        2,
+        -1
+      ]
+    },
+    "output": [
+      {
+        "kind": "calls",
+        "callIndices": [
+          3,
+          0,
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "name": "js trim whitespace is shared",
+    "function": "stepsOf",
+    "input": {
+      "content": "\ufeff \u3000Hello\u2029 world",
+      "positions": []
+    },
+    "output": [
+      {
+        "kind": "text",
+        "text": "Hello\u2029 world",
+        "at": 0
+      }
+    ]
+  }
+]

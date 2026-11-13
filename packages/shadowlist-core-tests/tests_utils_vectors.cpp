@@ -12,6 +12,7 @@
 #include <shadowlist-core/host/DragBoard.hpp>
 #include <shadowlist-core/host/MountedRange.hpp>
 #include <shadowlist-core/host/RowSizeSpec.hpp>
+#include <shadowlist-core/utils/AssistantStep.hpp>
 #include <shadowlist-core/utils/Avatar.hpp>
 #include <shadowlist-core/utils/BoardColumnLayout.hpp>
 #include <shadowlist-core/utils/ChatLayout.hpp>
@@ -465,6 +466,30 @@ TEST(every_vector_file_has_a_replay) {
   for (const std::string& file : vectorFilesInFolder()) {
     if (replayedVectorFiles().count(file) == 0) {
       fail("vectors/" + file + " has no VECTOR_TEST");
+    }
+  }
+}
+
+VECTOR_TEST(assistant_steps_vectors_replay, "assistant-steps.json") {
+  const Json& input = vector["input"];
+  std::vector<std::int64_t> positions;
+  for (const Json& position : input["positions"].items) {
+    positions.push_back(position.isNull() ? 0 : static_cast<std::int64_t>(position.number));
+  }
+  const auto steps = stepsOf(input["content"].text, positions);
+  const Json& output = vector["output"];
+  CHECK_EQ(steps.size(), output.size());
+  for (std::size_t index = 0; index < steps.size(); ++index) {
+    const Json& expected = output[index];
+    if (const auto* text = std::get_if<AssistantTextStep>(&steps[index])) {
+      CHECK_EQ(expected["kind"].text, std::string("text"));
+      CHECK_EQ(text->text, expected["text"].text);
+      CHECK_EQ(text->at, expected["at"].asIndex());
+    } else {
+      const auto& calls = std::get<AssistantCallsStep>(steps[index]).callIndices;
+      CHECK_EQ(expected["kind"].text, std::string("calls"));
+      CHECK_EQ(calls.size(), expected["callIndices"].size());
+      for (std::size_t call = 0; call < calls.size(); ++call) CHECK_EQ(calls[call], expected["callIndices"][call].asIndex());
     }
   }
 }

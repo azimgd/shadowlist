@@ -331,3 +331,24 @@ bounded height. `labels` customizes column summaries and empty-column messages. 
 Board routes. The board container hosts a horizontal kit list with column snapping and drag-driven sideways edge
 scrolling. Its column views stay mounted while their inner lists virtualize rows. Cross-list accessibility actions
 append to the named destination and use the same application-controlled move callback.
+
+
+## Assistant
+
+`ShadowListUtilsAssistantList` renders application-owned `items` and live `turns` keyed by message key.
+Use `setItems` and `setTurns` for animated updates. Saved reply variants, selection, feedback and terminal status
+stay in the application model; action callbacks request changes. A live turn overrides the selected saved variant.
+The `.endMarker` message remains a one-dp row excluded from anchoring. The list defaults to inverted layout,
+following appends and dismissing the keyboard on drag. `rowForItem` replaces a default transcript row.
+
+`ShadowListUtilsAssistantReplyMessage` renders shared Markdown parser output, interleaved tool calls, thinking,
+sources and follow-ups. Copy, share, regenerate, retry, variant selection, feedback, follow-up and link callbacks
+are available on the list and standalone reply. Thinking and tool disclosure stays keyed to the message across
+streaming updates. Row layouts capture immutable model and presentation snapshots before background measurement.
+
+`ShadowListUtilsAssistantComposer` reuses the multiline chat input. `value` and `onChangeText` support controlled
+drafts; otherwise it owns the draft. `onSend` receives trimmed text and application-owned attachments and requests
+a cleared draft. `maxLength` defaults to 4000 UTF-16 units. Streaming leaves draft editing enabled and presents Stop
+unless `sendWhileStreaming` permits sending the current draft. Attachment removal, model choice, thinking and edit
+cancellation are controlled callbacks. `setDraft`, `getDraft`, `clearDraft` and `focus` support application workflows.
+The Assistant example route demonstrates send, incremental live turns, finish, failure, retry, stop and editing.

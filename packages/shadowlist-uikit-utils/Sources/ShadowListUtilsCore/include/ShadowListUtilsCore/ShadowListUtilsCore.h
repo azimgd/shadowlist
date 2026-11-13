@@ -2,6 +2,8 @@
 
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
+#import "ShadowListUtilsMarkdownBlock.h"
+#import "ShadowListUtilsAssistantStep.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -12,6 +14,9 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT const CGFloat SHADOWLIST_UTILS_CHAT_BUBBLE_PADDING_HORIZONTAL;
 FOUNDATION_EXPORT const CGFloat SHADOWLIST_UTILS_CHAT_BUBBLE_WIDTH_FRACTION;
 FOUNDATION_EXPORT const CGFloat SHADOWLIST_UTILS_FEED_SINGLE_IMAGE_HEIGHT;
+FOUNDATION_EXPORT const CGFloat SHADOWLIST_UTILS_ASSISTANT_USER_BUBBLE_WIDTH_FRACTION;
+FOUNDATION_EXPORT const CGFloat SHADOWLIST_UTILS_ASSISTANT_USER_BUBBLE_PADDING_HORIZONTAL;
+FOUNDATION_EXPORT const CGFloat SHADOWLIST_UTILS_ASSISTANT_USER_BUBBLE_PADDING_VERTICAL;
 
 /*
  * The bucket a moment falls in. The order matches the core's RelativeTimeUnit.
@@ -142,9 +147,20 @@ NS_SWIFT_SENDABLE
 + (NSString *)sectionOtherTitle;
 + (ShadowListUtilsPollTally)pollTallyForVotes:(NSArray<NSNumber *> *)votes;
 + (NSInteger)pollPercentForVotes:(double)votes totalVotes:(double)totalVotes;
-
 + (ShadowListUtilsBoardColumnLayout)boardColumnLayoutForWidth:(CGFloat)boardWidth columnWidth:(CGFloat)columnWidth sidePadding:(CGFloat)sidePadding;
 + (CGFloat)boardColumnHeightForHeights:(NSArray<NSNumber *> *)heights minimum:(CGFloat)minimum maximum:(CGFloat)maximum;
+
+/*
+ * The existing shared Markdown grammar and link policy. Parser results are typed copies.
+ */
++ (BOOL)assistantUserMessageSizeSpec:(ShadowListUtilsChatSizeSpec *)spec
+                           hasText:(BOOL)hasText
+                    hasAttachments:(BOOL)hasAttachments
+                           metrics:(ShadowListUtilsChatMetrics)metrics;
++ (NSArray<ShadowListUtilsAssistantStep *> *)stepsOf:(NSString *)content positions:(NSArray<NSNumber *> *)positions NS_SWIFT_NAME(stepsOf(_:positions:));
++ (NSArray<ShadowListUtilsMarkdownBlock *> *)parseMarkdown:(NSString *)source;
++ (BOOL)isSafeUrl:(NSString *)url;
++ (NSString *)trim:(NSString *)text;
 
 @end
 

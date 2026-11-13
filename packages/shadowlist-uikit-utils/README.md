@@ -295,7 +295,7 @@ this folder runs the library's tests on a simulator. They replay the vector file
 
 [shadowlist-uikit-example](../../templates/shadowlist-uikit-example) has a screen per template. Open one with
 `-SLRoute` and a route: `Feed`, `Masonry`, `Chat`, `Contacts`, `SectionList`, `Reorder`, `ReorderGrid`, `Snap`,
-`Nested`, `Inbox`, `Activity` or `Poll`. `-SLStates 1` adds placeholder posts to Feed and captions and sending and failed messages to
+`Nested`, `Inbox`, `Activity`, `Poll`, `Tree`, `Board` or `Assistant`. `-SLStates 1` adds placeholder posts to Feed and captions and sending and failed messages to
 Chat, `-SLSelectDemo 1` opens Inbox editing with two rows selected, and `-SLImages 0` loads no image.
 
 
@@ -334,3 +334,32 @@ the named destination and use the same application-controlled move callback.
 
 The UIKit example also runs a proper-app regression with `-SLRoute Board -SLScenario board-edge -SLBenchExit 1`.
 It checks animated edge-scroll release reaches exactly the shared snap target and retains the source cell and column.
+
+
+## Assistant
+
+`ShadowListUtilsAssistantList` renders application-owned `items` and live `turns` keyed by message key.
+Use `setItems` and `setTurns` for animated updates. Saved reply variants, selection, feedback and terminal status
+stay in the application model; action callbacks request changes. A live turn overrides the selected saved variant.
+The `.endMarker` message remains a one-point row excluded from anchoring. The list defaults to inverted layout,
+following appends and dismissing the keyboard on drag. `rowForItem` replaces a default transcript row.
+
+`ShadowListUtilsAssistantReplyMessage` renders shared Markdown parser output, interleaved tool calls, thinking,
+sources and follow-ups. Copy, share, regenerate, retry, variant selection, feedback, follow-up and link callbacks
+are available on the list and standalone reply. Thinking and tool disclosure stays keyed to the message across
+streaming updates. Row layouts capture immutable model and presentation snapshots before background measurement.
+The native bridges call the shared C++ Markdown grammar, URL policy and `stepsOf` text/tool ordering; positions
+remain UTF-16 indices. Custom link callbacks receive the original URL; the default opener filters unsafe URLs.
+
+`ShadowListUtilsAssistantComposer` reuses the multiline chat input. `value` and `onChangeText` support controlled
+drafts; otherwise it owns the draft. `onSend` receives trimmed text and application-owned attachments and requests
+a cleared draft. `maxLength` defaults to 4000 UTF-16 units. Streaming leaves draft editing enabled and presents Stop
+unless `sendWhileStreaming` permits sending the current draft. Attachment removal, model choice, thinking and edit
+cancellation are controlled callbacks. `setDraft`, `getDraft`, `clearDraft` and `focus` support application workflows.
+Unlike the required React Native `onSend` prop, the native callback can be wired after initialization: until then,
+Send stays disabled and the draft is preserved. The Assistant example demonstrates incremental live turns, failure,
+retry, stop, regeneration, version selection, feedback, attachments and editing without a library-owned stream store.
+
+The exported native views include Assistant list, composer, user message, reply message, Markdown, action button
+and attachment chip. Thinking, tool cards, sources, follow-ups and variant controls are integrated in replies;
+separate React Native component exports and exact visual parity remain separate work.

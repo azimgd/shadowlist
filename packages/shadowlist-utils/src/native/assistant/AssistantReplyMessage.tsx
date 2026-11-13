@@ -20,6 +20,7 @@ import {
 } from '../icons';
 import { defaultAssistantLabels, type AssistantLabels } from './labels';
 import { openUrl } from './openUrl';
+import { stepsOf } from './stepsOf';
 import { AssistantActionButton } from './AssistantActionButton';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { AssistantTypingIndicator } from './AssistantTypingIndicator';
@@ -28,12 +29,7 @@ import { AssistantSourceChip } from './AssistantSourceChip';
 import { AssistantToolCallCard } from './AssistantToolCallCard';
 import { useStreamingTurn, type AssistantStreamStore } from './stream';
 import { AssistantBusy, AssistantLatest } from './rowState';
-import type {
-  AssistantToolCall,
-  AssistantFeedback,
-  AssistantReply,
-  AssistantTurn,
-} from './types';
+import type { AssistantFeedback, AssistantReply, AssistantTurn } from './types';
 
 export interface AssistantReplyMessageProps {
   message: AssistantReply;
@@ -59,45 +55,6 @@ export interface AssistantReplyMessageProps {
 const COPIED_RESET_MS = 1500;
 
 const MISSING_TURN: AssistantTurn = { status: 'done', content: '' };
-
-type Step =
-  | { kind: 'text'; text: string; at: number }
-  | { kind: 'calls'; calls: AssistantToolCall[] };
-
-/*
- * Splits the reply text where each tool call was made and puts the calls between the pieces.
- * A call with no saved position, from an older transcript, goes first. Blank pieces are
- * dropped, since the card already leaves a gap.
- *
- * Calls made back to back, with no text between them, are one step: they draw as one grouped
- * card with a row per call, the way iOS lists a run of related rows in an inset group, rather
- * than as a stack of separate cards.
- */
-function stepsOf(content: string, calls: readonly AssistantToolCall[]): Step[] {
-  const steps: Step[] = [];
-  let cursor = 0;
-  const pushText = (end: number) => {
-    const text = content.slice(cursor, end);
-    if (text.trim() !== '')
-      steps.push({ kind: 'text', text: text.trim(), at: cursor });
-    cursor = end;
-  };
-  const ordered = calls
-    .map((call, index) => ({
-      call,
-      index,
-      at: Math.min(call.at ?? 0, content.length),
-    }))
-    .sort((a, b) => a.at - b.at || a.index - b.index);
-  for (const { call, at } of ordered) {
-    if (at > cursor) pushText(at);
-    const last = steps[steps.length - 1];
-    if (last !== undefined && last.kind === 'calls') last.calls.push(call);
-    else steps.push({ kind: 'calls', calls: [call] });
-  }
-  pushText(content.length);
-  return steps;
-}
 
 export const AssistantReplyMessage = memo(
   ({

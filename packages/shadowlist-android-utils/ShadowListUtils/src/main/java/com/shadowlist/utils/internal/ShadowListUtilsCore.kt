@@ -76,6 +76,9 @@ internal object ShadowListUtilsCore {
   private const val CONSTANT_CHAT_BUBBLE_PADDING_HORIZONTAL = 0
   private const val CONSTANT_CHAT_BUBBLE_WIDTH_FRACTION = 1
   private const val CONSTANT_FEED_SINGLE_IMAGE_HEIGHT = 2
+  private const val CONSTANT_ASSISTANT_USER_BUBBLE_WIDTH_FRACTION = 3
+  private const val CONSTANT_ASSISTANT_USER_BUBBLE_PADDING_HORIZONTAL = 4
+  private const val CONSTANT_ASSISTANT_USER_BUBBLE_PADDING_VERTICAL = 5
 
   /*
    * Slots of pollTally's output, the same as PollOutSlot in the JNI.
@@ -162,6 +165,25 @@ internal object ShadowListUtilsCore {
   fun boardColumnLayout(boardWidth: Double, columnWidth: Double, sidePadding: Double, out: DoubleArray) = nativeBoardColumnLayout(boardWidth, columnWidth, sidePadding, out)
   fun boardColumnHeight(heights: DoubleArray, minimum: Double, maximum: Double): Double = nativeBoardColumnHeight(heights, minimum, maximum)
 
+  val ASSISTANT_USER_BUBBLE_WIDTH_FRACTION: Float get() = constants[CONSTANT_ASSISTANT_USER_BUBBLE_WIDTH_FRACTION].toFloat()
+  val ASSISTANT_USER_BUBBLE_PADDING_HORIZONTAL_DP: Float get() = constants[CONSTANT_ASSISTANT_USER_BUBBLE_PADDING_HORIZONTAL].toFloat()
+  val ASSISTANT_USER_BUBBLE_PADDING_VERTICAL_DP: Float get() = constants[CONSTANT_ASSISTANT_USER_BUBBLE_PADDING_VERTICAL].toFloat()
+
+  fun assistantUserMessageSizeSpec(hasText: Boolean, hasAttachments: Boolean, metrics: DoubleArray, out: DoubleArray): Boolean =
+    nativeAssistantUserMessageSizeSpec(hasText, hasAttachments, metrics, out)
+  @JvmStatic private external fun nativeAssistantUserMessageSizeSpec(hasText: Boolean, hasAttachments: Boolean, metrics: DoubleArray, out: DoubleArray): Boolean
+
+  fun stepsOf(content: String, positions: LongArray): Array<ShadowListUtilsAssistantStep> = nativeStepsOf(content, positions)
+  @JvmStatic private external fun nativeStepsOf(content: String, positions: LongArray): Array<ShadowListUtilsAssistantStep>
+
+  fun trim(text: String): String = nativeTrim(text)
+  @JvmStatic private external fun nativeTrim(text: String): String
+
+  fun parseMarkdown(source: String): Array<ShadowListUtilsMarkdownBlock> = nativeParseMarkdown(source)
+  fun isSafeUrl(url: String): Boolean = nativeIsSafeUrl(url)
+
+  @JvmStatic private external fun nativeParseMarkdown(source: String): Array<ShadowListUtilsMarkdownBlock>
+  @JvmStatic private external fun nativeIsSafeUrl(url: String): Boolean
   @JvmStatic private external fun nativeBoardColumnLayout(boardWidth: Double, columnWidth: Double, sidePadding: Double, out: DoubleArray)
   @JvmStatic private external fun nativeBoardColumnHeight(heights: DoubleArray, minimum: Double, maximum: Double): Double
   @JvmStatic private external fun nativePollTally(votes: DoubleArray, out: DoubleArray)

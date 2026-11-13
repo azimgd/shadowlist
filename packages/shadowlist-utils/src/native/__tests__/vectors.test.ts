@@ -17,6 +17,7 @@ import {
   type MarkdownParse,
 } from '../assistant/markdown';
 import { isSafeUrl } from '../assistant/isSafeUrl';
+import { stepsOf } from '../assistant/stepsOf';
 import { getUserMessageSizeSpec } from '../assistant/userMessageSizeSpec';
 import { boardColumnHeight } from '../board/boardHeights';
 import { boardColumnLayout } from '../board/boardWidths';
@@ -380,6 +381,35 @@ describe('vectors', () => {
         rowInset: theme.rowInset,
         tapTarget: theme.tapTarget,
       };
+    });
+  });
+
+  it('assistant-steps.json', () => {
+    replayVectors('assistant-steps.json', ({ input }) => {
+      const { content, positions } = input as {
+        content: string;
+        positions: (number | null)[];
+      };
+      const calls = positions.map((at, index) => ({
+        id: String(index),
+        name: '',
+        input: '',
+        status: 'running' as const,
+        ...(at === null ? {} : { at }),
+      }));
+      return stepsOf(content, calls).map((step) =>
+        step.kind === 'calls'
+          ? {
+              kind: 'calls',
+              callIndices: step.calls.map((call) => Number(call.id)),
+            }
+          : // A lone UTF-16 surrogate crosses a native UTF-8 boundary as U+FFFD.
+            {
+              kind: 'text',
+              text: Buffer.from(step.text, 'utf8').toString('utf8'),
+              at: step.at,
+            }
+      );
     });
   });
 

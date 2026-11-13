@@ -4,6 +4,21 @@ import XCTest
 
 @MainActor
 final class ChatInputTests: XCTestCase {
+  func testAnOverLimitPasteKeepsTheFittingPrefixWithoutSplittingACharacter() {
+    let composer = ShadowListUtilsChatInput(defaultValue: "Hi")
+    composer.maxLength = 5
+    var requested: String?
+    composer.onChangeText = { requested = $0 }
+    XCTAssertFalse(composer.textView(composer.input, shouldChangeTextIn: NSRange(location: 2, length: 0), replacementText: "😀AB"))
+    XCTAssertEqual(composer.input.text, "Hi😀A")
+    XCTAssertEqual(requested, "Hi😀A")
+    XCTAssertEqual(composer.input.selectedRange.location, 5)
+    composer.input.text = ""
+    composer.maxLength = 1
+    XCTAssertFalse(composer.textView(composer.input, shouldChangeTextIn: NSRange(location: 0, length: 0), replacementText: "e\u{301}"))
+    XCTAssertEqual(composer.input.text, "")
+  }
+
   func testAnUncontrolledDraftTrimsSendsAndClearsWithoutChangingTheCallback() {
     let composer = ShadowListUtilsChatInput(defaultValue: "  Hello crew ")
     var sent: [String] = []

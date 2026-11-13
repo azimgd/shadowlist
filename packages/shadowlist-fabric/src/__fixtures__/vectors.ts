@@ -25,6 +25,7 @@ const VECTORS_DIR = join(__dirname, '../../../shadowlist-core-tests/vectors');
 const VECTOR_FILES = {
   'shadowlist': ['mounted-range.json'],
   'shadowlist-utils': [
+    'assistant-steps.json',
     'avatar-initials.json',
     'avatar.json',
     'board-layout.json',

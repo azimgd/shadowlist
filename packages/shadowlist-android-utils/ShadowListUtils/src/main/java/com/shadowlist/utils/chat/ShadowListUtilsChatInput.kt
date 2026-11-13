@@ -98,7 +98,7 @@ class ShadowListUtilsChatInput(
     input.hint = labels.placeholder
     input.contentDescription = labels.placeholder
     send.contentDescription = labels.send
-    send.isEnabled = !disabled && input.text.toString().trim().isNotEmpty()
+    send.isEnabled = !disabled && ShadowListUtilsCore.trim(input.text.toString()).isNotEmpty()
     send.setTextColor(if (send.isEnabled) theme.colors.onAccent else theme.colors.secondaryLabel)
     send.background = GradientDrawable().apply {
       shape = GradientDrawable.OVAL
@@ -107,7 +107,7 @@ class ShadowListUtilsChatInput(
   }
 
   internal fun sendText() {
-    val text = input.text.toString().trim()
+    val text = ShadowListUtilsCore.trim(input.text.toString())
     if (disabled || text.isEmpty()) return
     val controlled = value != null
     onSend?.invoke(text)

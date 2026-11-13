@@ -10,12 +10,14 @@
 #include <string>
 #include <vector>
 
+#include <shadowlist-core/utils/AssistantStep.hpp>
 #include <shadowlist-core/utils/Avatar.hpp>
 #include <shadowlist-core/utils/BoardColumnLayout.hpp>
 #include <shadowlist-core/utils/ChatLayout.hpp>
 #include <shadowlist-core/utils/ContactSection.hpp>
 #include <shadowlist-core/utils/FeedImageFrame.hpp>
 #include <shadowlist-core/utils/PollTally.hpp>
+#include <shadowlist-core/utils/MarkdownDocument.hpp>
 #include <shadowlist-core/utils/RelativeTime.hpp>
 #include <shadowlist-core/utils/Text.hpp>
 
@@ -30,6 +32,9 @@ enum ConstantSlot {
   CONSTANT_CHAT_BUBBLE_PADDING_HORIZONTAL = 0,
   CONSTANT_CHAT_BUBBLE_WIDTH_FRACTION,
   CONSTANT_FEED_SINGLE_IMAGE_HEIGHT,
+  CONSTANT_ASSISTANT_USER_BUBBLE_WIDTH_FRACTION,
+  CONSTANT_ASSISTANT_USER_BUBBLE_PADDING_HORIZONTAL,
+  CONSTANT_ASSISTANT_USER_BUBBLE_PADDING_VERTICAL,
   CONSTANT_SLOTS,
 };
 
@@ -158,6 +163,9 @@ JNIEXPORT jdoubleArray JNICALL SHADOWLIST_UTILS_JNI(nativeConstants)(JNIEnv* env
   values[CONSTANT_CHAT_BUBBLE_PADDING_HORIZONTAL] = sl::CHAT_BUBBLE_PADDING_HORIZONTAL;
   values[CONSTANT_CHAT_BUBBLE_WIDTH_FRACTION] = sl::CHAT_BUBBLE_WIDTH_FRACTION;
   values[CONSTANT_FEED_SINGLE_IMAGE_HEIGHT] = sl::FEED_SINGLE_IMAGE_HEIGHT;
+  values[CONSTANT_ASSISTANT_USER_BUBBLE_WIDTH_FRACTION] = sl::ASSISTANT_USER_BUBBLE_WIDTH_FRACTION;
+  values[CONSTANT_ASSISTANT_USER_BUBBLE_PADDING_HORIZONTAL] = sl::ASSISTANT_USER_BUBBLE_PADDING_HORIZONTAL;
+  values[CONSTANT_ASSISTANT_USER_BUBBLE_PADDING_VERTICAL] = sl::ASSISTANT_USER_BUBBLE_PADDING_VERTICAL;
   jdoubleArray result = env->NewDoubleArray(CONSTANT_SLOTS);
   if (result != nullptr) {
     env->SetDoubleArrayRegion(result, 0, CONSTANT_SLOTS, values);
@@ -303,5 +311,122 @@ JNIEXPORT jdouble JNICALL SHADOWLIST_UTILS_JNI(nativeBoardColumnHeight)(
   return sl::boardColumnHeight(values, minimum, maximum);
 }
 
+/*
+ * Copy the shared AST without parsing or interpreting Markdown in a platform language.
+ */
+JNIEXPORT jobjectArray JNICALL SHADOWLIST_UTILS_JNI(nativeParseMarkdown)(JNIEnv* env, jclass, jstring source) {
+  auto blocks = sl::parseMarkdown(readString(env, source));
+  jclass blockClass = env->FindClass("com/shadowlist/utils/ShadowListUtilsMarkdownBlock");
+  jclass inlineClass = env->FindClass("com/shadowlist/utils/ShadowListUtilsMarkdownInline");
+  jclass runClass = env->FindClass("[Lcom/shadowlist/utils/ShadowListUtilsMarkdownInline;");
+  jmethodID inlineInit = env->GetMethodID(inlineClass, "<init>", "(ILjava/lang/String;Ljava/lang/String;)V");
+  jmethodID blockInit = env->GetMethodID(blockClass, "<init>",
+    "(ILjava/lang/String;Ljava/lang/String;[[Lcom/shadowlist/utils/ShadowListUtilsMarkdownInline;[IIZDLjava/lang/String;Ljava/lang/String;Z)V");
+  jobjectArray result = env->NewObjectArray(static_cast<jsize>(blocks.size()), blockClass, nullptr);
+  for (std::size_t index = 0; index < blocks.size(); ++index) {
+    env->PushLocalFrame(32);
+    const auto& block = blocks[index];
+    jobjectArray runs = env->NewObjectArray(static_cast<jsize>(block.runs.size()), runClass, nullptr);
+    for (std::size_t rowIndex = 0; rowIndex < block.runs.size(); ++rowIndex) {
+      const auto& row = block.runs[rowIndex];
+      jobjectArray inlines = env->NewObjectArray(static_cast<jsize>(row.size()), inlineClass, nullptr);
+      for (std::size_t runIndex = 0; runIndex < row.size(); ++runIndex) {
+        const auto& run = row[runIndex];
+        jstring text = makeString(env, run.text);
+        jstring href = run.hasHref ? makeString(env, run.href) : nullptr;
+        jobject copy = env->NewObject(inlineClass, inlineInit, static_cast<jint>(run.style), text, href);
+        env->SetObjectArrayElement(inlines, static_cast<jsize>(runIndex), copy);
+        env->DeleteLocalRef(copy);
+        env->DeleteLocalRef(text);
+        if (href) env->DeleteLocalRef(href);
+      }
+      env->SetObjectArrayElement(runs, static_cast<jsize>(rowIndex), inlines);
+      env->DeleteLocalRef(inlines);
+    }
+    std::vector<jint> counts(block.rowCellCounts.begin(), block.rowCellCounts.end());
+    jintArray rowCounts = env->NewIntArray(static_cast<jsize>(counts.size()));
+    if (!counts.empty()) env->SetIntArrayRegion(rowCounts, 0, static_cast<jsize>(counts.size()), counts.data());
+    jobject copy = env->NewObject(blockClass, blockInit, static_cast<jint>(block.type), makeString(env, block.key),
+      makeString(env, block.raw), runs, rowCounts, static_cast<jint>(block.level), static_cast<jboolean>(block.ordered),
+      block.start, makeString(env, block.language), makeString(env, block.code), static_cast<jboolean>(block.closed));
+    env->SetObjectArrayElement(result, static_cast<jsize>(index), copy);
+    env->PopLocalFrame(nullptr);
+  }
+  return result;
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_UTILS_JNI(nativeIsSafeUrl)(JNIEnv* env, jclass, jstring url) {
+  return sl::isSafeUrl(readString(env, url));
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_UTILS_JNI(nativeAssistantUserMessageSizeSpec)(
+  JNIEnv* env,
+  jclass,
+  jboolean hasText,
+  jboolean hasAttachments,
+  jdoubleArray metrics,
+  jdoubleArray out) {
+  if (metrics == nullptr || out == nullptr || env->GetArrayLength(metrics) < CHAT_METRIC_SLOTS ||
+    env->GetArrayLength(out) < CHAT_OUT_SLOTS) {
+    return JNI_FALSE;
+  }
+  jdouble in[CHAT_METRIC_SLOTS];
+  env->GetDoubleArrayRegion(metrics, 0, CHAT_METRIC_SLOTS, in);
+
+  sl::ChatBubbleMetrics bubble;
+  bubble.spacingXxs = in[CHAT_METRIC_SPACING_XXS];
+  bubble.spacingXs = in[CHAT_METRIC_SPACING_XS];
+  bubble.spacingSm = in[CHAT_METRIC_SPACING_SM];
+  bubble.spacingMd = in[CHAT_METRIC_SPACING_MD];
+  bubble.spacingLg = in[CHAT_METRIC_SPACING_LG];
+  bubble.bodyFontSize = in[CHAT_METRIC_BODY_FONT_SIZE];
+  bubble.bodyLineHeight = in[CHAT_METRIC_BODY_LINE_HEIGHT];
+  bubble.bodyLetterSpacing = in[CHAT_METRIC_BODY_LETTER_SPACING];
+  bubble.captionLineHeight = in[CHAT_METRIC_CAPTION_LINE_HEIGHT];
+
+  sl::RowSizeSpec spec;
+  if (!sl::assistantUserMessageSizeSpec(hasText, hasAttachments, bubble, spec)) {
+    return JNI_FALSE;
+  }
+  jdouble values[CHAT_OUT_SLOTS];
+  values[CHAT_OUT_INSET_WIDTH] = spec.insetWidth;
+  values[CHAT_OUT_INSET_HEIGHT] = spec.insetHeight;
+  values[CHAT_OUT_WIDTH_FRACTION] = spec.widthFraction;
+  env->SetDoubleArrayRegion(out, 0, CHAT_OUT_SLOTS, values);
+  return JNI_TRUE;
+}
+
+JNIEXPORT jobjectArray JNICALL SHADOWLIST_UTILS_JNI(nativeStepsOf)(JNIEnv* env, jclass, jstring content, jlongArray positions) {
+  std::vector<jlong> input(static_cast<std::size_t>(env->GetArrayLength(positions)));
+  if (!input.empty()) env->GetLongArrayRegion(positions, 0, static_cast<jsize>(input.size()), input.data());
+  const auto steps = sl::stepsOf(readString(env, content), std::vector<std::int64_t>(input.begin(), input.end()));
+  jclass stepClass = env->FindClass("com/shadowlist/utils/ShadowListUtilsAssistantStep");
+  jclass textClass = env->FindClass("com/shadowlist/utils/ShadowListUtilsAssistantStep$Text");
+  jclass callsClass = env->FindClass("com/shadowlist/utils/ShadowListUtilsAssistantStep$Calls");
+  jmethodID textInit = env->GetMethodID(textClass, "<init>", "(Ljava/lang/String;I)V");
+  jmethodID callsInit = env->GetMethodID(callsClass, "<init>", "([I)V");
+  jobjectArray result = env->NewObjectArray(static_cast<jsize>(steps.size()), stepClass, nullptr);
+  for (std::size_t index = 0; index < steps.size(); ++index) {
+    env->PushLocalFrame(8);
+    jobject copy;
+    if (const auto* text = std::get_if<sl::AssistantTextStep>(&steps[index])) {
+      copy = env->NewObject(textClass, textInit, makeString(env, text->text), static_cast<jint>(text->at));
+    } else {
+      const auto& indices = std::get<sl::AssistantCallsStep>(steps[index]).callIndices;
+      std::vector<jint> values(indices.begin(), indices.end());
+      jintArray array = env->NewIntArray(static_cast<jsize>(values.size()));
+      if (!values.empty()) env->SetIntArrayRegion(array, 0, static_cast<jsize>(values.size()), values.data());
+      copy = env->NewObject(callsClass, callsInit, array);
+    }
+    env->SetObjectArrayElement(result, static_cast<jsize>(index), copy);
+    env->PopLocalFrame(nullptr);
+  }
+  return result;
+}
+
+JNIEXPORT jstring JNICALL SHADOWLIST_UTILS_JNI(nativeTrim)(JNIEnv* env, jclass, jstring text) {
+  const auto input = readString(env, text);
+  return makeString(env, std::string(sl::trim(input)));
+}
 
 }

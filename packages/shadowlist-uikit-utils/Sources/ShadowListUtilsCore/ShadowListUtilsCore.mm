@@ -7,6 +7,8 @@
 #include <shadowlist-core/utils/ContactSection.hpp>
 #include <shadowlist-core/utils/FeedImageFrame.hpp>
 #include <shadowlist-core/utils/PollTally.hpp>
+#include <shadowlist-core/utils/MarkdownDocument.hpp>
+#include <shadowlist-core/utils/Text.hpp>
 #include <shadowlist-core/utils/RelativeTime.hpp>
 #include <shadowlist-core/utils/Text.hpp>
 
@@ -18,6 +20,9 @@ using namespace azimgd::shadowlist;
 const CGFloat SHADOWLIST_UTILS_CHAT_BUBBLE_PADDING_HORIZONTAL = CHAT_BUBBLE_PADDING_HORIZONTAL;
 const CGFloat SHADOWLIST_UTILS_CHAT_BUBBLE_WIDTH_FRACTION = CHAT_BUBBLE_WIDTH_FRACTION;
 const CGFloat SHADOWLIST_UTILS_FEED_SINGLE_IMAGE_HEIGHT = FEED_SINGLE_IMAGE_HEIGHT;
+const CGFloat SHADOWLIST_UTILS_ASSISTANT_USER_BUBBLE_WIDTH_FRACTION = ASSISTANT_USER_BUBBLE_WIDTH_FRACTION;
+const CGFloat SHADOWLIST_UTILS_ASSISTANT_USER_BUBBLE_PADDING_HORIZONTAL = ASSISTANT_USER_BUBBLE_PADDING_HORIZONTAL;
+const CGFloat SHADOWLIST_UTILS_ASSISTANT_USER_BUBBLE_PADDING_VERTICAL = ASSISTANT_USER_BUBBLE_PADDING_VERTICAL;
 
 /*
  * An NSString as standard UTF-8, read unit by unit: a surrogate pair is one code point, and
@@ -206,6 +211,55 @@ static NSString *makeString(const std::string& text)
   values.reserve(heights.count);
   for (NSNumber *height in heights) values.push_back(height.doubleValue);
   return boardColumnHeight(values, minimum, maximum);
+}
+
++ (BOOL)assistantUserMessageSizeSpec:(ShadowListUtilsChatSizeSpec *)spec
+                           hasText:(BOOL)hasText
+                    hasAttachments:(BOOL)hasAttachments
+                           metrics:(ShadowListUtilsChatMetrics)metrics
+{
+  ChatBubbleMetrics coreMetrics;
+  coreMetrics.spacingXxs = metrics.spacingXxs;
+  coreMetrics.spacingXs = metrics.spacingXs;
+  coreMetrics.spacingSm = metrics.spacingSm;
+  coreMetrics.spacingMd = metrics.spacingMd;
+  coreMetrics.spacingLg = metrics.spacingLg;
+  coreMetrics.bodyFontSize = metrics.bodyFontSize;
+  coreMetrics.bodyLineHeight = metrics.bodyLineHeight;
+  coreMetrics.bodyLetterSpacing = metrics.bodyLetterSpacing;
+  coreMetrics.captionLineHeight = metrics.captionLineHeight;
+
+  RowSizeSpec coreSpec;
+  if (!assistantUserMessageSizeSpec(hasText, hasAttachments, coreMetrics, coreSpec)) {
+    return NO;
+  }
+  spec->insetWidth = (CGFloat)coreSpec.insetWidth;
+  spec->insetHeight = (CGFloat)coreSpec.insetHeight;
+  spec->widthFraction = (CGFloat)coreSpec.widthFraction;
+  return YES;
+}
+
++ (NSArray<ShadowListUtilsAssistantStep *> *)stepsOf:(NSString *)content positions:(NSArray<NSNumber *> *)positions
+{
+  return ShadowListUtilsStepsOf(content, positions);
+}
+
++ (NSArray<ShadowListUtilsMarkdownBlock *> *)parseMarkdown:(NSString *)source
+{
+  return ShadowListUtilsParseMarkdown(source);
+}
+
++ (BOOL)isSafeUrl:(NSString *)url
+{
+  NSData *utf8 = [url dataUsingEncoding:NSUTF8StringEncoding];
+  return isSafeUrl(std::string_view(static_cast<const char *>(utf8.bytes), utf8.length));
+}
+
++ (NSString *)trim:(NSString *)text
+{
+  NSData *utf8 = [text dataUsingEncoding:NSUTF8StringEncoding];
+  const auto result = trim(std::string_view(static_cast<const char *>(utf8.bytes), utf8.length));
+  return [[NSString alloc] initWithBytes:result.data() length:result.size() encoding:NSUTF8StringEncoding];
 }
 
 @end

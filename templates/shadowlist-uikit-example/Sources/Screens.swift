@@ -656,6 +656,7 @@ struct ExampleRoute {
     ExampleRoute(route: "ReorderGrid", title: "Sky Wishlist", summary: "Touch and hold a card, then drag it across the grid") { ReorderGridScreen() },
     ExampleRoute(route: "Snap", title: "Destinations", summary: "Cards that snap into place") { SnapScreen() },
     ExampleRoute(route: "Sections", title: "Sections", summary: "Section headers, footers, an index and self-sizing cells") { SectionsScreen() },
+    ExampleRoute(route: "Assistant", title: "Assistant", summary: "A controlled transcript, live replies and composer actions") { AssistantScreen() },
     ExampleRoute(route: "Activity", title: "Activity", summary: "Unread activity and pull to refresh") { ActivityScreen() },
     ExampleRoute(route: "Board", title: "Travel board", summary: "Move cards within and between columns") { BoardScreen() },
     ExampleRoute(route: "Tree", title: "Files", summary: "Expand folders and open files") { TreeScreen() },
