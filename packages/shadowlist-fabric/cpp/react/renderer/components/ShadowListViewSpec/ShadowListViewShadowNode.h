@@ -157,6 +157,9 @@ public:
   void setGeometryCache(std::shared_ptr<ShadowListViewGeometryCache> geometryCache);
 
   const std::shared_ptr<azimgd::shadowlist::Container>& getContainerManager() const { return containerManager_; }
+
+  /* Called under the core lock, after Yoga has supplied the currently requested rows. */
+  bool hasPendingCommand() const;
   const std::shared_ptr<ShadowListViewGeometryCache>& getGeometryCache() const { return geometryCache_; }
 
 private:

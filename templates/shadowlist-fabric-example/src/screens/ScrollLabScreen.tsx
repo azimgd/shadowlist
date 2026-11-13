@@ -73,6 +73,7 @@ function describeScroll(name: string, event: ScrollEvent): string {
 export const ScrollLabScreen = () => {
   const styles = useStyles();
   const listRef = useRef<ShadowListCommands>(null);
+  const momentumEndCount = useRef(0);
 
   const [columns, setColumns] = useState<Columns>('1');
   const [padding, setPadding] = useState<Padding>('none');
@@ -286,14 +287,18 @@ export const ScrollLabScreen = () => {
     <View style={styles.container}>
       {DEBUG ? (
         <View style={styles.status} testID="lab-status">
-          <Text style={styles.statusText}>{`scroll ${scrollLine}`}</Text>
           <Text
+            numberOfLines={1}
+            style={styles.statusText}
+          >{`scroll ${scrollLine}`}</Text>
+          <Text
+            numberOfLines={1}
             style={styles.statusText}
           >{`phase ${phaseLine} size ${sizeLine}`}</Text>
-          <Text style={styles.statusText}>
+          <Text numberOfLines={1} style={styles.statusText}>
             {`viewable ${viewableLine} covered ${coveredLine}`}
           </Text>
-          <Text style={styles.statusText}>
+          <Text numberOfLines={1} style={styles.statusText}>
             {`command ${commandLine} pressed ${pressedLine}`}
           </Text>
         </View>
@@ -328,9 +333,12 @@ export const ScrollLabScreen = () => {
         onMomentumScrollBegin={(event) =>
           setPhaseLine(describeScroll('glide', event))
         }
-        onMomentumScrollEnd={(event) =>
-          setPhaseLine(describeScroll('rest', event))
-        }
+        onMomentumScrollEnd={(event) => {
+          momentumEndCount.current += 1;
+          setPhaseLine(
+            `${describeScroll('rest', event)} end=${momentumEndCount.current}`
+          );
+        }}
         onContentSizeChange={(width, height) =>
           setSizeLine(`${width.toFixed(0)}x${height.toFixed(0)}`)
         }

@@ -344,3 +344,25 @@ TEST(size_spec_queue_remeasures_after_the_layout_pass_took_the_new_width) {
   queue.run(core, source, WINDOW_WIDTH / 2, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(20));
 }
+
+TEST(late_mounted_measurements_invalidate_the_offset_band_until_the_next_frame) {
+  Container core;
+  auto keys = keysFor(80);
+  layOut(core, keys.size(), 100.0, 1500.0);
+  Virtualizer::update(core, inputFor(keys, 1500.0));
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
+
+  std::vector<std::uint64_t> firstMeasured;
+  applyMeasuredRows(core, {{5, WINDOW_WIDTH, 117.0, 5}}, false, firstMeasured);
+  CHECK(core.state.measuredRangeStale);
+  CHECK(core.computeOffsetBand().isEmpty());
+
+  Virtualizer::update(core, inputFor(keys, core.getOffset()));
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
+  firstMeasured.clear();
+  applyMeasuredRows(core, {{5, WINDOW_WIDTH, 117.0, 5}}, false, firstMeasured);
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
+}

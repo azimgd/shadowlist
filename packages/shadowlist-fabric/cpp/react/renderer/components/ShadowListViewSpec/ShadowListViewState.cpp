@@ -116,6 +116,8 @@ ShadowListViewState::ShadowListViewState(const ShadowListViewState& previousStat
       contentHeight_ = value.asDouble();
     } else if (key == "contentWidth") {
       contentWidth_ = value.asDouble();
+    } else if (key == "commandPending") {
+      commandPending_ = value.asBool();
     } else if (key == "offsetEnabled") {
       offsetEnabled_ = value.asBool();
     } else if (key == "userScrolled") {
@@ -163,6 +165,7 @@ folly::dynamic ShadowListViewState::getDynamic() const {
   result["startReachedEnabled"] = startReachedEnabled_;
   result["endReachedEnabled"] = endReachedEnabled_;
   result["offsetEnabled"] = offsetEnabled_;
+  result["commandPending"] = commandPending_;
   result["userScrolled"] = userScrolled_;
   result["scrollPhase"] = scrollPhase_;
   result["dragEventSequence"] = dragEventSequence_;
@@ -223,6 +226,7 @@ MapBuffer ShadowListViewState::getMapBuffer() const {
   builder.putBool(ShadowListStateKey::USER_SCROLLED, userScrolled_);
   builder.putDouble(ShadowListStateKey::SCROLL_PHASE, scrollPhase_);
   builder.putDouble(ShadowListStateKey::COMMAND_SEQUENCE, scrollIndexSequence_);
+  builder.putBool(ShadowListStateKey::COMMAND_PENDING, commandPending_);
   std::pair<std::uint64_t, std::uint64_t> versions{0, 0};
   if (liveScroll_) {
     ShadowListLiveScroll::registerHandle(liveScroll_);

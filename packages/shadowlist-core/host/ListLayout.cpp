@@ -56,6 +56,8 @@ bool SizeBatch::commit(Container& core) {
   bool changed = lowestChangedIndex_ != UNDEFINED_INDEX;
   if (changed) {
     Virtualizer::commitRowSizes(core, lowestChangedIndex_);
+    // Placed rows changed after the frame selected its range. Select it again next frame.
+    core.state.measuredRangeStale = true;
   }
   Virtualizer::recomputeContentSize(core);
   lowestChangedIndex_ = UNDEFINED_INDEX;

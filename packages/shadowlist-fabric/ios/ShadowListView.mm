@@ -633,7 +633,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _inStateUpdate = NO;
 
   // The landing command mounted and wrote its exact offset. The animation ends here.
-  if (_landCommandSequence > 0 && nextStateData.mountedScroll().commandSequence >= _landCommandSequence) {
+  if (_landCommandSequence > 0 && nextStateData.mountedScroll().commandSequence >= _landCommandSequence &&
+      !nextStateData.commandPending_) {
     _landCommandSequence = 0;
     [self emitMomentumEndAfterLand];
   }

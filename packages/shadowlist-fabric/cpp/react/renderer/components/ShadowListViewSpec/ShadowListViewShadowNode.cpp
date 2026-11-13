@@ -1,6 +1,7 @@
 #include "ShadowListViewShadowNode.h"
 
 #include "ShadowListOffsetBand.h"
+#include "ShadowListMountDriver.h"
 
 #include <folly/dynamic.h>
 #include <react/renderer/core/ComponentDescriptor.h>
@@ -335,6 +336,21 @@ void ShadowListViewShadowNode::placeTemplates(
   placeTemplate(slots.sectionHeaderSlot, templates.sectionHeader);
 }
 
+bool ShadowListViewShadowNode::hasPendingCommand() const {
+  const auto& core = *containerManager_;
+  if (core.hasPendingCommand() || core.state.measuredRangeStale) return true;
+  const auto& state = getStateData();
+  if (state.mountDriver_ && state.mountDriver_->isPending()) return true;
+  const auto& props = getConcreteProps();
+  if (props.mountedLow >= 0 && props.mountedHigh >= props.mountedLow) {
+    const auto high = static_cast<std::size_t>(props.mountedHigh);
+    for (auto index = static_cast<std::size_t>(props.mountedLow); index <= high && index < core.getRowCount(); ++index) {
+      if (!core.getRowAtIndex(index).measured) return true;
+    }
+  }
+  return false;
+}
+
 void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container& core, double headerSize, double footerSize) {
   auto& geometry = *geometryCache_;
   auto& concealed = geometry.concealedRows;
@@ -378,8 +394,10 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
 
   // A new animated command's estimate, see ShadowListViewGeometryCache::animationSequence.
   bool animationChanged = currentStateData.animationTargetSequence_ != geometry.animationSequence;
+  bool commandPending = hasPendingCommand();
+  bool commandPendingChanged = currentStateData.commandPending_ != commandPending;
 
-  if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged || bandChanged || animationChanged) {
+  if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged || bandChanged || animationChanged || commandPendingChanged) {
     auto nextStateData = currentStateData;
     auto scrollState = nextStateData.scrollState();
     if (azimgd::shadowlist::publishStateUpdate(scrollState, stateUpdate)) {
@@ -400,6 +418,7 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
     nextStateData.concealGeneration_ = concealGeneration;
     nextStateData.offsetBandLow_ = offsetBand.low;
     nextStateData.offsetBandHigh_ = offsetBand.high;
+    nextStateData.commandPending_ = commandPending;
     nextStateData.animationTargetSequence_ = geometry.animationSequence;
     nextStateData.animationTargetOffset_ = geometry.animationOffset;
     setStateData(std::move(nextStateData));

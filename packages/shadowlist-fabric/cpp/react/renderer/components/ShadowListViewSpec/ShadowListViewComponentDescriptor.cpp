@@ -316,7 +316,8 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
      * new one. Otherwise the host would keep sending every frame, or skip frames it needs.
      */
     bool bandStale = !shadowListOffsetBandPublished(shadowlistViewStateData, shadowListOffsetBand(shadowlistViewShadowNode));
-    if (containerManager->state.offsetCorrected || geometryStale || rowsConcealed || bandStale) {
+    bool commandPendingChanged = shadowlistViewStateData.commandPending_ != shadowlistViewShadowNode.hasPendingCommand();
+    if (containerManager->state.offsetCorrected || geometryStale || rowsConcealed || bandStale || commandPendingChanged) {
       shadowlistViewShadowNode.dirtyLayout();
     }
     /*

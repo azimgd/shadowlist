@@ -81,6 +81,12 @@ public:
    */
   bool tick();
 
+  /* Sent ranges and paced steps still waiting for the renderer, excluding viewability timers. */
+  bool isPending() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return mount_.isPending() || mount_.hasStep();
+  }
+
   /*
    * The sticky and snap lists of the state the Android view mounted last, set when it reads the
    * state's MapBuffer. The view copies them through ShadowListGeometry instead of reading the

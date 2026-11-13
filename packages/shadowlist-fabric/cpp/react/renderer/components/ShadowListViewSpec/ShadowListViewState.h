@@ -121,6 +121,7 @@ constexpr MapBuffer::Key ANIMATION_SEQUENCE = 18;
 constexpr MapBuffer::Key ANIMATION_OFFSET = 19;
 constexpr MapBuffer::Key MOUNT_HANDLE = 20;
 constexpr MapBuffer::Key COMMIT_REVISION = 21;
+constexpr MapBuffer::Key COMMAND_PENDING = 22;
 }
 
 /*
@@ -454,6 +455,9 @@ public:
    */
   double scrollIndexViewOffset_{0.0};
   bool scrollIndexAnimated_{false};
+
+  /* Core work and the currently requested mounted band still settling a command. */
+  bool commandPending_{false};
 
   /*
    * Where the core estimates the newest animated command lands along the scroll axis, and its

@@ -290,6 +290,10 @@ final class ShadowListScrollSync {
     return nativeLand(handle(), offsetX, offsetY, mOut);
   }
 
+  double getCommandSequence() {
+    return mOut[OUT_COMMAND_SEQUENCE];
+  }
+
   boolean isLanding() {
     return mHandle != 0 && nativeIsLanding(mHandle);
   }
