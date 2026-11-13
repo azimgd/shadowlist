@@ -286,6 +286,9 @@ struct ShadowListKitPassGeometry {
   CGFloat _swipeOffset;
 
   NSMapTable<NSString *, ShadowListKitRowAccessibilityElement *> *_rowElements;
+#if !TARGET_OS_OSX
+  UIAccessibilityCustomRotor *_sectionHeaderRotor;
+#endif
 
 #if TARGET_OS_OSX
   NSView *_contentView;
@@ -558,7 +561,8 @@ struct ShadowListKitPassGeometry {
  * and points accessibility at it. selectionChangedForAccessibility and
  * rowsChangedForAccessibility hear a data change that dropped selected rows or changed the
  * rows. The Mac posts one selection change for all made in a turn and a new row count, and
- * drops the elements of deleted rows. iOS adds VoiceOver page scrolls.
+ * drops the elements of deleted rows. iOS adds VoiceOver page scrolls and a system Heading
+ * rotor over the current sections. Its cached rotor reads keys when queried, not a row snapshot.
  * On the Mac, accessibilityElementForRow: is the element of a row, mounted or not, made on first
  * use. accessibilityParentOfCell: is the element of a mounted cell's row, or nil for a cell that
  * is not mounted.
@@ -571,6 +575,8 @@ struct ShadowListKitPassGeometry {
 #if TARGET_OS_OSX
 - (ShadowListKitRowAccessibilityElement *)accessibilityElementForRow:(std::size_t)row;
 - (nullable id)accessibilityParentOfCell:(ShadowListKitListCell *)cell;
+#else
+- (nullable UIView *)scrollAccessibilityRowForKey:(NSString *)key;
 #endif
 
 @end
