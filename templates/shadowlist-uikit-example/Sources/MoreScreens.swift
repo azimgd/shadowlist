@@ -45,6 +45,11 @@ final class ReorderGridScreen: ListScreen {
   override func viewDidLoad() {
     super.viewDidLoad()
     title = "Sky Wishlist"
+    let featuredKey = tiles.first?.key
+    wishlist.getItemSpan = { [weak self] index in
+      guard let self, self.wishlist.items.indices.contains(index) else { return 1 }
+      return self.wishlist.items[index].key == featuredKey ? self.wishlist.numberOfColumns : 1
+    }
     wishlist.onMoveItem = { [weak self] _, _, items in
       self?.tiles = items
       UIImpactFeedbackGenerator(style: .medium).impactOccurred()

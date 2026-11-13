@@ -52,6 +52,9 @@ private:
   std::size_t lowestChangedIndex_ = UNDEFINED_INDEX;
 };
 
+/* A grid takes its cross size from canonical tracks and its along size from measurement. */
+Size measuredRowSize(const Container& core, const MeasuredRow& row, bool horizontal);
+
 /*
  * Give the core every mounted row's size, then reflow once from the lowest changed row.
  * In a multi column list the column sets the cross size. Only the scroll axis size is
@@ -65,13 +68,15 @@ void applyMeasuredRows(
 
 /*
  * Where the core places a row. Offsets already include the header. A multi column list also
- * sets the width.
+ * sets the cross size.
  */
 struct RowFrame {
   double x = 0.0;
   double y = 0.0;
   double width = 0.0;
   bool setsWidth = false;
+  double height = 0.0;
+  bool setsHeight = false;
 };
 
 RowFrame rowFrame(const Container& core, std::size_t index, bool horizontal);

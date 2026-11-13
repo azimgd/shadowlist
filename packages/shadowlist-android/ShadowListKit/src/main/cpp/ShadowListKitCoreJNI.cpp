@@ -431,6 +431,15 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetPersistentKeys)(
   peerOf(handle)->driver.setPersistentKeys(readPackedKeys(env, packed, ends));
 }
 
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetRowSpans)(
+  JNIEnv* env, jclass, jlong handle, jintArray input) {
+  auto values = readInts(env, input);
+  std::vector<std::size_t> spans;
+  spans.reserve(values.size());
+  for (jint value : values) spans.push_back(value > 0 ? static_cast<std::size_t>(value) : 1);
+  peerOf(handle)->driver.setRowSpans(std::move(spans));
+}
+
 JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativePersistentIndices)(JNIEnv* env, jclass, jlong handle) {
   const auto indices = peerOf(handle)->driver.getPersistentIndices();
   std::vector<jint> values(indices.begin(), indices.end());

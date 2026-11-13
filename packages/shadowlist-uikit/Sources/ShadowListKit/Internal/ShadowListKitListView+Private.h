@@ -237,6 +237,11 @@ struct ShadowListKitPassGeometry {
   NSSet<NSString *> *_persistentKeys;
   ShadowListKitItemSizeSpec * _Nullable (^_getItemSizeSpec)(NSInteger);
   NSUInteger _measureLookaheadRows;
+  NSInteger (^_getItemSpan)(NSInteger);
+  NSUInteger _rowSpansRevision;
+  NSUInteger _rowSpansSentRevision;
+  NSUInteger _rowSpansStructureVersion;
+  NSInteger _rowSpansColumns;
   ShadowListKitViewabilityConfig *_viewabilityConfig;
   NSArray<ShadowListKitViewabilityConfigCallbackPair *> *_viewabilityConfigCallbackPairs;
   void (^_onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *);
@@ -425,6 +430,7 @@ struct ShadowListKitPassGeometry {
 - (void)trackUserScroll;
 - (void)updateStickyOffset:(double)offset byUser:(BOOL)byUser;
 - (void)runPasses;
+- (BOOL)sendRowSpans;
 - (void)resetKeepingPosition;
 - (ShadowListKitListCell *)makeCellAtRow:(NSInteger)row;
 - (CGRect)displayRect:(double)x y:(double)y width:(double)width height:(double)height;

@@ -279,6 +279,9 @@ public:
   void setStickyIndices(std::vector<std::size_t> sticky);
   bool hasSticky() const { return !sticky_.empty(); }
 
+  /* Requested spans in source order, including section edges. Empty preserves the plain grid. */
+  void setRowSpans(std::vector<std::size_t> spans);
+
   /*
    * Keys of rows the core never holds the visible content by, like a typing indicator or a row
    * that streams in. The nearest other row holds it instead.
@@ -393,6 +396,7 @@ public:
   std::optional<MountedRange> getVisibleRange() const;
 
   RowRect getRowRect(std::size_t index) const;
+  bool hasRowSpans() const { return core_->state.hasRowSpans; }
   double getLeadingAt(std::size_t index) const;
   double getExtentAt(std::size_t index) const;
   double getFooterStart(double footerSize) const;
@@ -568,6 +572,8 @@ private:
   ListSettings settings_;
   std::vector<std::string> keys_;
   std::vector<std::size_t> sticky_;
+  std::vector<std::size_t> rowSpans_;
+  bool rowSpansChanged_ = false;
   std::vector<std::string> nonAnchorKeys_;
   std::vector<std::string> persistentKeys_;
   GetItemSizeSpec getItemSizeSpec_;

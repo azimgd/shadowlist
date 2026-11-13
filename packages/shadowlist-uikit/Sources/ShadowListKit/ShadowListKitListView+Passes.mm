@@ -232,6 +232,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
  */
 - (void)runPasses
 {
+  if (![self sendRowSpans]) return;
   ListSettings settings = [self listSettings];
   if (!_hasSentSettings || settings != _sentSettings) {
     _driver.setSettings(settings);
@@ -492,6 +493,34 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     }, ShadowListKitMeasureItemSizeSpec);
   }
   [self invalidateFrame];
+}
+
+- (BOOL)sendRowSpans
+{
+  if (_rowSpansColumns == self.numberOfColumns && _rowSpansSentRevision == _rowSpansRevision &&
+      _rowSpansStructureVersion == _structureVersion) return YES;
+  auto provider = _getItemSpan;
+  NSUInteger revision = _rowSpansRevision;
+  NSUInteger structure = _structureVersion;
+  NSInteger columns = self.numberOfColumns;
+  std::vector<std::size_t> spans;
+  if (provider || (_sections.isSectioned() && columns > 1)) {
+    spans.reserve(_driver.getKeyCount());
+    for (std::size_t row = 0; row < _driver.getKeyCount(); ++row) {
+      std::size_t item = _sections.itemForRow(row);
+      NSInteger requested = item == UNDEFINED_INDEX ? columns : (provider ? provider((NSInteger)item) : 1);
+      if (revision != _rowSpansRevision || structure != _structureVersion || columns != self.numberOfColumns) {
+        [self invalidateFrame];
+        return NO;
+      }
+      spans.push_back(requested > 0 ? static_cast<std::size_t>(requested) : 1);
+    }
+  }
+  _driver.setRowSpans(std::move(spans));
+  _rowSpansColumns = columns;
+  _rowSpansSentRevision = revision;
+  _rowSpansStructureVersion = structure;
+  return YES;
 }
 
 - (void)sendPersistentKeys

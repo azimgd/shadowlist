@@ -26,13 +26,22 @@ export type MountedRangeChangeEvent = {
 
 /*
  * The pinned section header, the visible rows and, for each viewability config that changed,
- * the keys that became viewable or stopped. Codegen only takes an inline object type for an
- * array of objects.
+ * the keys that became viewable or stopped. Mixed-span padding also requests keyed logical
+ * columns, stamped with the span version and column count actually applied by the core.
+ * Columns do not depend on row heights or physical layout direction.
+ * Codegen only takes an inline object type for an array of objects.
  */
 export type ViewabilityChangeEvent = {
   activeStickyIndex: CodegenTypes.Int32;
   visibleLow: CodegenTypes.Int32;
   visibleHigh: CodegenTypes.Int32;
+  rowColumns?: {
+    key: string;
+    index: CodegenTypes.Int32;
+    column: CodegenTypes.Int32;
+  }[];
+  rowSpansVersion?: CodegenTypes.Double;
+  numberOfColumns?: CodegenTypes.Int32;
   changes: {
     config: CodegenTypes.Int32;
     addedKeys: string[];
@@ -185,6 +194,8 @@ interface NativeProps extends ViewProps {
   dragListLabel?: CodegenTypes.WithDefault<string, ''>;
   stickyIndices: ReadonlyArray<CodegenTypes.Int32>;
   numberOfColumns: CodegenTypes.Int32;
+  rowSpans: ReadonlyArray<CodegenTypes.Int32>;
+  rowSpansVersion: CodegenTypes.Double;
   overscan: CodegenTypes.Double;
   scrollIndex: CodegenTypes.Int32;
   refreshEnabled: boolean;
@@ -210,6 +221,8 @@ interface NativeProps extends ViewProps {
   >;
   nestedScrollEnabled?: CodegenTypes.WithDefault<boolean, false>;
   progressViewOffset?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  columnPaddings: ReadonlyArray<CodegenTypes.Double>;
+  rowColumnsEventEnabled?: CodegenTypes.WithDefault<boolean, false>;
   viewableEventEnabled?: CodegenTypes.WithDefault<boolean, false>;
   viewableTimings?: ReadonlyArray<CodegenTypes.Double>;
   viewabilityInteracted?: CodegenTypes.WithDefault<boolean, false>;

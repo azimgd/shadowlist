@@ -86,6 +86,7 @@ function SectionListInner<ItemT, SectionT = object>(
     ItemSeparatorComponent,
     SectionSeparatorComponent,
     getItemSizeSpec,
+    getItemSpan,
     nonAnchorKeys,
     persistentKeys,
     style,
@@ -183,6 +184,17 @@ function SectionListInner<ItemT, SectionT = object>(
           }
         : undefined,
     [getItemSizeSpec]
+  );
+
+  const getRowSpan = useCallback(
+    (row: FlatRow<ItemT, SectionT>) => {
+      if (row.type !== 'item') return rest.numberOfColumns ?? 1;
+      const section = sectionsRef.current[row.sectionIndex];
+      return getItemSpan && section
+        ? getItemSpan(row.item as ItemT, row.itemIndex as number, section)
+        : 1;
+    },
+    [getItemSpan, rest.numberOfColumns]
   );
 
   const previousNonAnchorRef = useRef<string[] | undefined>(undefined);
@@ -423,6 +435,9 @@ function SectionListInner<ItemT, SectionT = object>(
       ItemSeparatorComponent={RowSeparator}
       renderStickyHeaderOverlay={renderStickyHeaderOverlay}
       getItemSizeSpec={getRowSizeSpec}
+      getItemSpan={
+        getItemSpan || (rest.numberOfColumns ?? 1) > 1 ? getRowSpan : undefined
+      }
       nonAnchorKeys={rowNonAnchorKeys}
       persistentKeys={rowPersistentKeys}
     />

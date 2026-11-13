@@ -81,6 +81,20 @@ inline bool followsBottom(const Container& container) {
  */
 inline Size tailExtent(const Container& container) {
   const std::vector<Row>& rows = container.revision.rows;
+  if (container.state.hasRowSpans) {
+    if (container.state.spanLayoutRowCount == rows.size()) {
+      double end = container.state.spanLayout.getContentEnd();
+      double cross = container.state.maxCrossAxisExtent;
+      return container.horizontal ? Size{end, cross} : Size{cross, end};
+    }
+    // Removing the tail can leave the summary of the old suffix. Read actual remaining rows.
+    Size extent{0.0, 0.0};
+    for (const Row& row : rows) {
+      extent.width = std::max(extent.width, row.offsetX + row.width);
+      extent.height = std::max(extent.height, row.offsetY + row.height);
+    }
+    return extent;
+  }
   std::size_t scanColumns = container.numberOfColumns > 0 ? container.numberOfColumns : 1;
   std::size_t scanFrom = rows.size() > scanColumns ? rows.size() - scanColumns : 0;
   Size extent{0.0, 0.0};
@@ -104,6 +118,14 @@ inline bool hasTrustedEnd(const Container& container) {
   Size extent = tailExtent(container);
   double contentEnd = container.horizontal ? extent.width : extent.height;
   double windowStart = contentEnd + container.footerSize - container.getWindowSize();
+  if (container.state.hasRowSpans) {
+    for (std::size_t index = 0; index < rows.size(); ++index) {
+      double end = container.horizontal ? rows[index].offsetX + rows[index].width
+                                        : rows[index].offsetY + rows[index].height;
+      if (end > windowStart && !container.hasTrustedSize(index)) return false;
+    }
+    return !rows.empty();
+  }
   std::size_t tracksPast = 0;
   for (std::size_t nextRowIndex = rows.size(); nextRowIndex-- > 0 && tracksPast < columns;) {
     const Row& nextRow = rows[nextRowIndex];

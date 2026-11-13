@@ -73,7 +73,7 @@ has full signatures and defaults.
 | Scroll events | `listViewDidScroll:`, `listViewWillBeginDragging:`, `listViewDidEndDragging:willDecelerate:`, `listViewDidEndDecelerating:`, `listViewDidEndScrollingAnimation:` | The same calls as the AppKit list's. The delegate inherits `UIScrollViewDelegate` because the list is a `UIScrollView`, and its calls arrive too. |
 | Cells | `registerClass:forCellReuseIdentifier:`, `dequeueReusableCellWithIdentifier:` | `prepareForReuse` runs before a cell is handed out again. |
 | Cell states | `highlighted`, `selected`, `editing` | Override the `set...:animated:` setters to show them. |
-| Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `renderStickyHeaderOverlay`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Call `setNeedsLayout` on the list after `headerView` or `footerView` changes size. |
+| Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `getItemSpan`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `renderStickyHeaderOverlay`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Call `setNeedsLayout` on the list after `headerView` or `footerView` changes size. |
 | Header, footer and empty view | `stickyHeader`, `stickyFooter`, `autoHideHeader`, `autoHideFooter`, `emptyView` | `stickyHeader` pins `headerView` to the start of the viewport and `stickyFooter` pins `footerView` to its end, over the items. The footer's place pushes a pinned header off, and a pinned footer stays under the header's place. `autoHideHeader` and `autoHideFooter` slide their pinned views away on user scrolling and reveal them on reversal or near their content boundary; commands and anchor corrections retain the current hidden amount. All four flags default to false. `emptyView` shows right after the header while the list has no items and no section header or footer rows, at its own size, measured like the header's. |
 | End of an inverted list | `atEnd`, delegate `listView:didChangeAtEnd:` | Whether an inverted list is at its end. It leaves the end when the reader scrolls away from it or a scroll command lands away from it, and is back when either brings it there. Items appended while it rests there do not leave it. Always `YES` for a list that is not inverted. |
 | Anchors | `nonAnchorKeys` | Keys of items the list never holds the visible content in place by, like a typing indicator or an item that streams in. The nearest other item holds it instead. |
@@ -93,8 +93,14 @@ has full signatures and defaults.
 | Text | `ShadowListKitTextLayout` (`size`, `lineCount`, `rectForLineAtIndex:`), `ShadowListKitTextView` | Text typeset off the main thread with a `UIFont`. `rectForLineAtIndex:` is the part of a line its text takes. The view draws the lines it is given. |
 | Testing | `shadowListKit_swipeItemAtIndex:distance:velocity:`, `shadowListKit_beginDragAtPoint:`, `shadowListKit_moveDragToPoint:`, `shadowListKit_endDrag` | From [ShadowListKitListView+Testing.h](Sources/ShadowListKit/include/ShadowListKit/ShadowListKitListView+Testing.h). They drive a swipe and a drag without touches. |
 
-Masonry is round robin by row: row `r`, counting section header and footer rows, goes in column
-`r % numberOfColumns`, and each column stacks its own rows. Full width rows in a grid are not supported.
+Plain grids keep round-robin placement when every item spans one column. `getItemSpan` returns
+an integer span for the current public item index, on the main thread; sectioned lists use their
+existing global item indices. It is read for the entire source after a data/provider/column change,
+including offscreen items. Values are clamped to `1...numberOfColumns`; returning `numberOfColumns`
+makes an item full width. Spans occupy contiguous columns, wrapping before an item that would not
+fit. Real section header and footer rows span all columns without invoking the item callback.
+Zero-height edges align the tracks without adding space; absent edges create no row or barrier.
+Reload data when an index-dependent provider's inputs change.
 
 These combinations do nothing:
 

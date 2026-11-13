@@ -133,7 +133,7 @@ has full signatures and defaults. Rows marked Mac only have no UIKit counterpart
 | Scroll events | `listViewDidScroll:`, `listViewWillBeginDragging:`, `listViewDidEndDragging:willDecelerate:`, `listViewDidEndDecelerating:`, `listViewDidEndScrollingAnimation:` | The same calls as the UIKit list's, on the list's own delegate. They follow `contentOffset` and `scrollPhase`. |
 | Cells | `registerClass:forCellReuseIdentifier:`, `dequeueReusableCellWithIdentifier:` | `prepareForReuse` runs before a cell is handed out again. |
 | Cell states | `highlighted`, `selected`, `editing`, `hovered`, `emphasized`, `menuTarget` | Override the `set...:animated:` setters to show them. `hovered`, `emphasized` and `menuTarget` are Mac only. |
-| Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `renderStickyHeaderOverlay`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Set `needsLayout` on the list after `headerView` or `footerView` changes size. |
+| Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `getItemSpan`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `renderStickyHeaderOverlay`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Set `needsLayout` on the list after `headerView` or `footerView` changes size. |
 | Header, footer and empty view | `stickyHeader`, `stickyFooter`, `autoHideHeader`, `autoHideFooter`, `emptyView` | `stickyHeader` pins `headerView` to the start of the viewport and `stickyFooter` pins `footerView` to its end, over the items. The footer's place pushes a pinned header off, and a pinned footer stays under the header's place. `autoHideHeader` and `autoHideFooter` slide their pinned views away on user scrolling and reveal them on reversal or near their content boundary; commands and anchor corrections retain the current hidden amount. All four flags default to false. `emptyView` shows right after the header while the list has no items and no section header or footer rows, at its own size, measured like the header's. |
 | End of an inverted list | `atEnd`, delegate `listView:didChangeAtEnd:` | Whether an inverted list is at its end. It leaves the end when the reader scrolls away from it or a scroll command lands away from it, and is back when either brings it there. Items appended while it rests there do not leave it. Always `YES` for a list that is not inverted. |
 | Anchors | `nonAnchorKeys` | Keys of items the list never holds the visible content in place by, like a typing indicator or an item that streams in. The nearest other item holds it instead. |
@@ -156,8 +156,14 @@ has full signatures and defaults. Rows marked Mac only have no UIKit counterpart
 | Scrollers delegate | `scrollerView:didScrollToOffset:`, `scrollerViewDidScrollForAccessibility:`, `scrollerViewWillBeginDragging:`, `scrollerViewDidEndDragging:` | Mac only. The first is required. The host moves its content to the offset. |
 | Text | `ShadowListKitTextLayout` (`size`, `lineCount`, `rectForLineAtIndex:`), `ShadowListKitTextView` | Text typeset off the main thread with an `NSFont` and shown as a bitmap at the window's backing scale, the same CoreText code as the UIKit kit. `rectForLineAtIndex:` is the part of a line its text takes. |
 
-Masonry is round robin by row: row `r`, counting section header and footer rows, goes in column
-`r % numberOfColumns`, and each column stacks its own rows. Full width rows in a grid are not supported.
+Plain grids keep round-robin placement when every item spans one column. `getItemSpan` returns
+an integer span for the current public item index, on the main thread; sectioned lists use their
+existing global item indices. It is read for the entire source after a data/provider/column change,
+including offscreen items. Values are clamped to `1...numberOfColumns`; returning `numberOfColumns`
+makes an item full width. Spans occupy contiguous columns, wrapping before an item that would not
+fit. Real section header and footer rows span all columns without invoking the item callback.
+Zero-height edges align the tracks without adding space; absent edges create no row or barrier.
+Reload data when an index-dependent provider's inputs change.
 
 These combinations do nothing:
 
@@ -233,7 +239,8 @@ The list selects the way `NSTableView` does while `allowsSelection` is set, the 
   `allowsMultipleSelection` selects from the anchor, the last item clicked. A click on no item deselects all.
 - A double-click, Return and Space call the delegate's `listView:didActivateItemAtIndex:`.
 - The list takes the first responder on a click. The arrow keys move the selection, across the axis between a
-  grid's columns. Shift extends it, Command-arrows go to the ends and Option-Page keys move a page. Home, End and
+  grid's columns. Mixed-span grids choose the nearest item whose frame lies in that direction,
+  preferring overlapping tracks; full-width rows do not use a modulo index jump. Shift extends it, Command-arrows go to the ends and Option-Page keys move a page. Home, End and
   the page keys scroll without selecting. Command-A selects all and Escape deselects. The selected item scrolls
   into view at the nearest edge.
 - Typed characters within a second of each other build a prefix matched against the delegate's

@@ -5,10 +5,12 @@
 
 #include <folly/dynamic.h>
 #include <react/renderer/core/ComponentDescriptor.h>
+#include <react/renderer/core/LayoutConstraints.h>
 #include <react/renderer/core/PropsParserContext.h>
 #include <react/renderer/core/RawProps.h>
 
 #include <algorithm>
+#include <cmath>
 #include <mutex>
 #include <vector>
 
@@ -60,6 +62,16 @@ void ShadowListViewShadowNode::setContainerManager(std::shared_ptr<azimgd::shado
 
 void ShadowListViewShadowNode::setGeometryCache(std::shared_ptr<ShadowListViewGeometryCache> geometryCache) {
   geometryCache_ = geometryCache;
+}
+
+std::vector<std::string> ShadowListViewShadowNode::getMountedRowKeys() const {
+  std::vector<std::string> keys;
+  keys.reserve(getChildren().size());
+  for (const auto& child : getChildren()) {
+    const auto* props = dynamic_cast<const ShadowListCellViewProps*>(child->getProps().get());
+    if (props && !props->rowKey.empty()) keys.push_back(props->rowKey);
+  }
+  return keys;
 }
 
 bool ShadowListViewShadowNode::ownsLayoutableChild(const YogaLayoutableShadowNode& child) const {
@@ -121,7 +133,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   if (!containerManager_ || !geometryCache_) {
     return;
   }
-  std::lock_guard<std::recursive_mutex> lock(containerManager_->coreMutex);
+  std::unique_lock<std::recursive_mutex> coreLock(containerManager_->coreMutex);
   auto& core = *containerManager_;
 
   // The commit that held raw pointers to these children is long done. Let them go.
@@ -136,15 +148,25 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    */
   bool horizontal = getConcreteProps().horizontal;
   LayoutSlots slots;
-  measureChildren(core, horizontal, slots);
+  if (!measureChildren(core, horizontal, slots, layoutContext, coreLock)) {
+    core.state.measuredRangeStale = true;
+    dirtyLayout();
+    return;
+  }
   placeRows(core, slots.mountedRows, horizontal, layoutContext);
   placeTemplates(core, slots, horizontal, layoutContext);
   publishLayoutState(core, slots.headerSize, slots.footerSize);
+  if (getConcreteProps().rowColumnsEventEnabled && geometryCache_->keysProps == getProps()) {
+    const auto& mountDriver = getStateData().mountDriver_;
+    if (mountDriver) mountDriver->reportRowColumns(core, getMountedRowKeys(), geometryCache_->rowSpansVersion);
+  }
 
   firstMeasuredTags_.clear();
 }
 
-void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& core, bool horizontal, LayoutSlots& slots) {
+bool ShadowListViewShadowNode::measureChildren(
+  azimgd::shadowlist::Container& core, bool horizontal, LayoutSlots& slots,
+  LayoutContext& layoutContext, std::unique_lock<std::recursive_mutex>& coreLock) {
   slots.mountedRows.reserve(getChildren().size());
   std::vector<azimgd::shadowlist::MeasuredRow> measuredRows;
   measuredRows.reserve(getChildren().size());
@@ -162,9 +184,7 @@ void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& co
       const auto cellViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(child.get());
       if (cellViewNode != nullptr && rowIndex < core.getRowCount()) {
         slots.mountedRows.push_back({childIndex, rowIndex, cellViewNode});
-        const auto& measuredSize = cellViewNode->getLayoutMetrics().frame.size;
-        measuredRows.push_back({rowIndex, measuredSize.width, measuredSize.height,
-          static_cast<std::uint64_t>(cellViewNode->getTag())});
+
       }
       continue;
     }
@@ -199,11 +219,124 @@ void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& co
    */
   azimgd::shadowlist::applyLayoutInputs(
     core, slots.headerSize + slots.emptySize, slots.footerSize, windowFrameSize.width, windowFrameSize.height);
+  struct Measurement {
+    std::size_t mountedIndex;
+    std::shared_ptr<const ShadowNode> previous;
+    std::shared_ptr<YogaLayoutableShadowNode> next;
+    std::vector<const LayoutableShadowNode*> affectedNodes;
+  };
+  std::vector<Measurement> measurements;
+  std::vector<azimgd::shadowlist::Row> rows;
+  for (std::size_t mountedIndex = 0; mountedIndex < slots.mountedRows.size(); ++mountedIndex) {
+    const auto& mounted = slots.mountedRows[mountedIndex];
+    const auto& row = core.getRowAtIndex(mounted.rowIndex);
+    const auto cross = horizontal ? row.height : row.width;
+    const auto measured = mounted.node->getLayoutMetrics().frame.size;
+    const auto measuredCross = horizontal ? measured.height : measured.width;
+    const auto scale = layoutContext.pointScaleFactor;
+    const auto roundedCross = scale > 0 ? std::round(cross * scale) / scale : cross;
+    const auto previous = getChildren()[mounted.childIndex];
+    const auto previousProps = previous->getProps();
+    const auto* props = dynamic_cast<const ShadowListCellViewProps*>(previousProps.get());
+    const auto& paddings = geometryCache_->columnPaddings;
+    const auto leadingEdge = horizontal ? yoga::Edge::Top : yoga::Edge::Left;
+    const auto trailingEdge = horizontal ? yoga::Edge::Bottom : yoga::Edge::Right;
+    const bool hasPadding = row.column < core.numberOfColumns && row.columnSpan <= core.numberOfColumns - row.column &&
+      paddings.size() == core.numberOfColumns * 2;
+    const double leading = hasPadding ? paddings[row.column * 2] : 0;
+    const double trailing = hasPadding ? paddings[(row.column + row.columnSpan - 1) * 2 + 1] : 0;
+    const bool paddingChanged = hasPadding && props &&
+      (props->yogaStyle.padding(leadingEdge) != yoga::Style::Length::points(static_cast<float>(leading)) ||
+       props->yogaStyle.padding(trailingEdge) != yoga::Style::Length::points(static_cast<float>(trailing)));
+    // placeRows writes canonical sizes; Yoga may instead publish their pixel-rounded values.
+    const bool crossChanged = measuredCross != static_cast<Float>(cross) &&
+      measuredCross != static_cast<Float>(roundedCross);
+    const auto contextContainer = paddingChanged ? previous->getContextContainer() : nullptr;
+    if (core.numberOfColumns > 1 && cross > 0 && (crossChanged || (paddingChanged && contextContainer))) {
+      if (rows.empty()) {
+        rows.reserve(slots.mountedRows.size());
+        for (const auto& current : slots.mountedRows) rows.push_back(core.getRowAtIndex(current.rowIndex));
+      }
+      const auto& snapshot = rows[mountedIndex];
+      const auto sourceProps = geometryCache_->keysProps;
+      const auto numberOfColumns = core.numberOfColumns;
+      const auto windowCross = horizontal ? core.revision.windowHeight : core.revision.windowWidth;
+      const auto geometryVersion = core.state.geometryVersion;
+      const auto rowSpansVersion = geometryCache_->rowSpansVersion;
+      const auto columnPaddings = geometryCache_->columnPaddings;
+      // Yoga can call platform or custom-component measurement. Never hold the core lock there.
+      coreLock.unlock();
+      auto nextProps = previousProps;
+      if (paddingChanged && contextContainer) {
+        PropsParserContext context{previous->getSurfaceId(), *contextContainer};
+        auto padding = folly::dynamic::object(horizontal ? "paddingTop" : "paddingLeft", leading)
+          (horizontal ? "paddingBottom" : "paddingRight", trailing);
+        nextProps = previous->getComponentDescriptor().cloneProps(context, previousProps, RawProps(std::move(padding)));
+      }
+      auto next = std::static_pointer_cast<YogaLayoutableShadowNode>(previous->clone({
+        .props = nextProps, .runtimeShadowNodeReference = false}));
+      LayoutConstraints constraints;
+      constraints.layoutDirection = getLayoutMetrics().layoutDirection;
+      if (horizontal) {
+        constraints.minimumSize.height = constraints.maximumSize.height = static_cast<Float>(cross);
+      } else {
+        constraints.minimumSize.width = constraints.maximumSize.width = static_cast<Float>(cross);
+      }
+      auto measurementContext = layoutContext;
+      std::vector<const LayoutableShadowNode*> affectedNodes;
+      measurementContext.affectedNodes = layoutContext.affectedNodes ? &affectedNodes : nullptr;
+      next->layoutTree(measurementContext, constraints);
+      coreLock.lock();
+      // Another clone may have applied new source or constraints while Yoga measured this one.
+      if (sourceProps != geometryCache_->keysProps || numberOfColumns != core.numberOfColumns ||
+          geometryVersion != core.state.geometryVersion ||
+          rowSpansVersion != geometryCache_->rowSpansVersion ||
+          columnPaddings != geometryCache_->columnPaddings || core.horizontal != horizontal ||
+          core.indexOfKey(snapshot.key) != mounted.rowIndex) {
+        return false;
+      }
+      const auto& current = core.getRowAtIndex(mounted.rowIndex);
+      if (current.width != snapshot.width || current.height != snapshot.height ||
+          current.column != snapshot.column || current.columnSpan != snapshot.columnSpan ||
+          windowCross != (horizontal ? core.revision.windowHeight : core.revision.windowWidth)) {
+        return false;
+      }
+      measurements.push_back({mountedIndex, previous, std::move(next), std::move(affectedNodes)});
+    }
+  }
+  // Unlocked work can also allow an unchanged child to receive a newer measured size.
+  for (std::size_t position = 0; position < rows.size(); ++position) {
+    const auto& row = rows[position];
+    const auto index = core.indexOfKey(row.key);
+    if (index != slots.mountedRows[position].rowIndex) return false;
+    const auto& current = core.getRowAtIndex(index);
+    if (current.width != row.width || current.height != row.height ||
+        current.column != row.column || current.columnSpan != row.columnSpan) return false;
+  }
+  // Keep the tree and its raw layout-event pointers untouched until every measurement is accepted.
+  for (auto& measurement : measurements) {
+    if (layoutContext.affectedNodes) {
+      layoutContext.affectedNodes->insert(layoutContext.affectedNodes->end(),
+        measurement.affectedNodes.begin(), measurement.affectedNodes.end());
+    }
+    auto& mounted = slots.mountedRows[measurement.mountedIndex];
+    replacedChildren_.push_back(measurement.previous);
+    suppressRowSizeFeedback_ = true;
+    replaceChild(*measurement.previous, measurement.next, mounted.childIndex);
+    suppressRowSizeFeedback_ = false;
+    mounted.node = measurement.next.get();
+  }
+  for (const auto& mounted : slots.mountedRows) {
+    const auto& size = mounted.node->getLayoutMetrics().frame.size;
+    measuredRows.push_back({mounted.rowIndex, size.width, size.height,
+      static_cast<std::uint64_t>(mounted.node->getTag())});
+  }
   std::vector<std::uint64_t> firstMeasured;
   azimgd::shadowlist::applyMeasuredRows(core, measuredRows, horizontal, firstMeasured);
   for (auto tag : firstMeasured) {
     firstMeasuredTags_.push_back(static_cast<Tag>(tag));
   }
+  return true;
 }
 
 void ShadowListViewShadowNode::placeRows(
@@ -289,6 +422,9 @@ void ShadowListViewShadowNode::placeRows(
     layoutMetrics.frame.origin.y = frame.y;
     if (frame.setsWidth) {
       layoutMetrics.frame.size.width = frame.width;
+    }
+    if (frame.setsHeight) {
+      layoutMetrics.frame.size.height = frame.height;
     }
 
     if (layoutMetrics == previousLayoutMetrics && nextProps == nullptr) {
@@ -476,7 +612,9 @@ void ShadowListViewShadowNode::replaceChild(
         azimgd::shadowlist::Virtualizer::updateRowAtIndex(
           *containerManager_,
           rowIndex,
-          {.width = cellViewNodeSize.width, .height = cellViewNodeSize.height});
+          azimgd::shadowlist::measuredRowSize(*containerManager_,
+            {rowIndex, cellViewNodeSize.width, cellViewNodeSize.height, static_cast<std::uint64_t>(nextChildShadowNode->getTag())},
+            containerManager_->horizontal));
 
         if (firstMeasurement) {
           firstMeasuredTags_.push_back(nextChildShadowNode->getTag());

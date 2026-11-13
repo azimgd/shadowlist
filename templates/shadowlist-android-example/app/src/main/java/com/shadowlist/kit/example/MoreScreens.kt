@@ -134,6 +134,8 @@ class ReorderGridScreen(context: Context) : Screen {
   override fun load() {
     list.onMoveItem = { from, to, _ -> Log.i("SLEXAMPLE", "moved $from to $to") }
     list.items = List(60) { Items.tile(it) }
+    val featuredKey = list.items.firstOrNull()?.key
+    list.getItemSpan = { index -> if (list.items.getOrNull(index)?.key == featuredKey) list.numberOfColumns else 1 }
     AutoDrag.runIfRequested(list, 3) { list.items.take(9).map { it.label ?: it.key } }
   }
 }

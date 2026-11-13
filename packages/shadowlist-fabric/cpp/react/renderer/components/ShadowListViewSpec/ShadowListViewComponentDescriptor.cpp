@@ -71,6 +71,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   std::lock_guard<std::recursive_mutex> coreLock(containerManager->coreMutex);
 
   const auto& mountDriver = shadowlistViewStateData.mountDriver_;
+  if (mountDriver) mountDriver->setContainerManager(shadowlistViewShadowNode.getContainerManager());
   applyEventCallbacks(shadowlistViewShadowNode, shadowlistViewProps, containerManager, mountDriver);
 
   const auto& callbacksCache = shadowlistViewShadowNode.getGeometryCache();
@@ -239,6 +240,23 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   input.horizontal = shadowlistViewProps.horizontal;
   input.numberOfColumns =
     shadowlistViewProps.numberOfColumns > 0 ? static_cast<std::size_t>(shadowlistViewProps.numberOfColumns) : 1;
+  input.rowSpansUnchanged = geometryCache &&
+    geometryCache->rowSpansVersion == shadowlistViewProps.rowSpansVersion;
+  if (geometryCache) {
+    if (!input.rowSpansUnchanged) {
+      auto& spans = geometryCache->rowSpans;
+      spans.clear();
+      spans.reserve(shadowlistViewProps.rowSpans.size());
+      for (auto span : shadowlistViewProps.rowSpans) spans.push_back(span > 0 ? static_cast<std::size_t>(span) : 1);
+      geometryCache->rowSpansVersion = shadowlistViewProps.rowSpansVersion;
+    }
+    input.rowSpansRef = &geometryCache->rowSpans;
+  } else {
+    for (auto span : shadowlistViewProps.rowSpans) input.rowSpans.push_back(span > 0 ? static_cast<std::size_t>(span) : 1);
+  }
+  if (geometryCache) {
+    geometryCache->columnPaddings.assign(shadowlistViewProps.columnPaddings.begin(), shadowlistViewProps.columnPaddings.end());
+  }
   input.overscan = shadowlistViewProps.overscan;
   input.startReachedThreshold = shadowlistViewProps.startReachedThreshold;
   input.endReachedThreshold = shadowlistViewProps.endReachedThreshold;
@@ -286,6 +304,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
 
   // If the core throws, skip the frame instead of failing the commit. The next frame recovers.
   try {
+    bool hadSpans = containerManager->state.hasRowSpans;
     azimgd::shadowlist::Virtualizer::update(*containerManager, input);
     if (mountDriver) {
       mountDriver->endCommit(*containerManager, shadowlistViewProps, rowKeys, input.getStickyIndexList());
@@ -317,7 +336,8 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
      */
     bool bandStale = !shadowListOffsetBandPublished(shadowlistViewStateData, shadowListOffsetBand(shadowlistViewShadowNode));
     bool commandPendingChanged = shadowlistViewStateData.commandPending_ != shadowlistViewShadowNode.hasPendingCommand();
-    if (containerManager->state.offsetCorrected || geometryStale || rowsConcealed || bandStale || commandPendingChanged) {
+    bool spanGeometryChanged = (hadSpans || containerManager->state.hasRowSpans) && !sameProps;
+    if (containerManager->state.offsetCorrected || geometryStale || rowsConcealed || bandStale || commandPendingChanged || spanGeometryChanged) {
       shadowlistViewShadowNode.dirtyLayout();
     }
     /*

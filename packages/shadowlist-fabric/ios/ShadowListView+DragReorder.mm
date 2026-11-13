@@ -3,10 +3,13 @@
 #import "ShadowListCellView.h"
 
 #import "ShadowListViewComponentDescriptor.h"
+#include "ShadowListMountDriver.h"
 #import <react/renderer/components/ShadowListViewSpec/RCTComponentViewHelpers.h>
 
 #import <QuartzCore/QuartzCore.h>
 #include <TargetConditionals.h>
+#include <algorithm>
+#include <mutex>
 
 using namespace facebook::react;
 
@@ -473,7 +476,29 @@ void SLDragSelectionFeedback(void)
     }
     rows.push_back([self dragRowForView:subview index:rowIndex]);
   }
-  _drag.updateInsertion(rows);
+  auto driver = _state ? _state->getData().mountDriver_ : nullptr;
+  auto core = driver ? driver->getContainerManager() : nullptr;
+  BOOL available = NO;
+  if (core) {
+    std::lock_guard<std::recursive_mutex> lock(core->coreMutex);
+    available = _drag.isForeign() || _drag.getOriginKey().empty() ||
+      core->indexOfKey(_drag.getOriginKey()) != azimgd::shadowlist::UNDEFINED_INDEX;
+    if (available) {
+      rows.erase(std::remove_if(rows.begin(), rows.end(), [&](azimgd::shadowlist::DragRow& row) {
+        row.index = core->indexOfKey(row.key);
+        return row.index == azimgd::shadowlist::UNDEFINED_INDEX;
+      }), rows.end());
+      std::sort(rows.begin(), rows.end(), [](const azimgd::shadowlist::DragRow& a, const azimgd::shadowlist::DragRow& b) {
+        return a.index < b.index;
+      });
+      _drag.updateInsertion(rows);
+      _drag.updateSpanOffsets(*core, rows);
+    }
+  }
+  if (!available) {
+    [self cancelDrag];
+    return;
+  }
   [self noteDragInsertionForFeedback];
   [self applyDragShuffle];
 }

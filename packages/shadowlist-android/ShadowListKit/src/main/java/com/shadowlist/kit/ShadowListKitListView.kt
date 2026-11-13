@@ -236,8 +236,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { field = value; sendSettings() }
 
   /*
-   * Columns of a grid. Row r, counting section header and footer rows, goes into column
-   * r % numberOfColumns and each column stacks its own rows. Full width rows are not supported.
+   * Columns of a grid. Plain span-one rows keep round-robin placement. getItemSpan chooses
+   * contiguous item spans; actual section header/footer rows span every column.
    */
   var numberOfColumns = 1
     set(value) { field = max(1, value); sendSettings() }
@@ -426,6 +426,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
       coreOrNull?.setMeasureLookaheadRows(field)
       invalidateFrame()
     }
+
+  /* Main-thread public item indices, global across sections; section edges do not call it. */
+  var getItemSpan: ((index: Int) -> Int)? = null
+    set(value) {
+      field = value
+      ++rowSpansRevision
+      invalidateFrame()
+    }
+  private var rowSpansRevision = 0
+  private var rowSpansSentRevision = -1
+  private var rowSpansStructureVersion = -1
+  private var rowSpansColumns = 0
 
   /* Keep these keys mounted at ordinary content positions, even outside the viewport. */
   var persistentKeys: Set<String> = emptySet()
@@ -1418,11 +1430,36 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
   }
 
+  private fun sendRowSpans(active: ShadowListKitCore): Boolean {
+    if (rowSpansColumns == numberOfColumns && rowSpansSentRevision == rowSpansRevision &&
+      rowSpansStructureVersion == structureVersion) return true
+    val provider = getItemSpan
+    val revision = rowSpansRevision
+    val structure = structureVersion
+    val columns = numberOfColumns
+    val spans = if (provider == null && (data.rowItems == null || columns <= 1)) IntArray(0) else IntArray(keys.size)
+    for (row in spans.indices) {
+      val item = itemForRow(row)
+      spans[row] = if (item < 0) columns else (provider?.invoke(item) ?: 1).coerceAtLeast(1)
+      if (revision != rowSpansRevision || structure != structureVersion || columns != numberOfColumns ||
+        active !== coreOrNull) {
+        invalidateFrame()
+        return false
+      }
+    }
+    active.setRowSpans(spans)
+    rowSpansColumns = columns
+    rowSpansSentRevision = revision
+    rowSpansStructureVersion = structure
+    return true
+  }
+
   /*
    * Run the core until the measured range has sizes and any correction landed. Everything happens
    * before the frame is drawn. The reader never sees an estimate or a correction.
    */
   private fun runPasses() {
+    if (!sendRowSpans(core)) return
     val pass = core.pass
     pass[ShadowListKitCore.PASS_OFFSET] = exactOffset
     pass[ShadowListKitCore.PASS_WINDOW_ALONG] = windowAlong.toDouble()

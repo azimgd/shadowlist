@@ -18,6 +18,8 @@ final class ShadowListMountTicker implements Choreographer.FrameCallback {
   private long mHandle = 0;
   private boolean mPosted = false;
 
+  long getHandle() { return mHandle; }
+
   void setHandle(long handle) {
     if (handle != mHandle) {
       stop();

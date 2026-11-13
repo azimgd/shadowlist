@@ -70,6 +70,12 @@ void ListDriver::setStickyIndices(std::vector<std::size_t> sticky) {
   sticky_ = std::move(sticky);
 }
 
+void ListDriver::setRowSpans(std::vector<std::size_t> spans) {
+  if (rowSpans_ == spans) return;
+  rowSpans_ = std::move(spans);
+  rowSpansChanged_ = true;
+}
+
 void ListDriver::setNonAnchorKeys(std::vector<std::string> keys) {
   nonAnchorKeys_ = std::move(keys);
   nonAnchorKeysChanged_ = true;
@@ -384,6 +390,8 @@ FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, boo
   frame.followAppends = settings_.followAppends;
   frame.horizontal = settings_.horizontal;
   frame.numberOfColumns = settings_.numberOfColumns;
+  frame.rowSpansRef = &rowSpans_;
+  frame.rowSpansUnchanged = !rowSpansChanged_;
   frame.overscan = settings_.overscan;
   frame.startReachedThreshold = settings_.startReachedThreshold;
   frame.endReachedThreshold = settings_.endReachedThreshold;
@@ -447,6 +455,7 @@ double ListDriver::runCore(const PassInput& input, double offset, bool userScrol
     dropHint_ = DropHint{};
     keysChanged_ = false;
     nonAnchorKeysChanged_ = false;
+    rowSpansChanged_ = false;
     pendingEdit_ = KeyEdit{};
     editsSinceUpdate_ = 0;
     bool predicted = false;
@@ -1126,6 +1135,7 @@ void ListDriver::dragUpdateInsertion(const std::vector<std::size_t>& mounted) {
   std::sort(rows.begin(), rows.end(), [](const DragRow& a, const DragRow& b) { return a.index < b.index; });
   const std::vector<Row>& placed = core_->revision.rows;
   drag_.updateInsertion(rows, [&placed](const DragRow& row) -> const std::string& { return placed[row.index].key; });
+  drag_.updateSpanOffsets(*core_, rows);
 }
 
 }

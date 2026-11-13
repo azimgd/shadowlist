@@ -357,6 +357,22 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
+  @ReactProp(name = "rowSpans")
+  public void setRowSpans(ShadowListView view, @Nullable ReadableArray rowSpans) {}
+
+  @Override
+  @ReactProp(name = "rowSpansVersion")
+  public void setRowSpansVersion(ShadowListView view, double rowSpansVersion) {}
+
+  @Override
+  @ReactProp(name = "rowColumnsEventEnabled")
+  public void setRowColumnsEventEnabled(ShadowListView view, boolean enabled) {}
+
+  @Override
+  @ReactProp(name = "columnPaddings")
+  public void setColumnPaddings(ShadowListView view, @Nullable ReadableArray columnPaddings) {}
+
+  @Override
   @ReactProp(name = "viewableEventEnabled")
   public void setViewableEventEnabled(ShadowListView view, boolean viewableEventEnabled) {
     // The component descriptor reads this to decide whether to watch which rows are viewable.

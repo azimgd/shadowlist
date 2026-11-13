@@ -88,6 +88,11 @@ struct ShadowListViewGeometryCache {
   std::shared_ptr<const Props> stickyIndicesProps;
   std::vector<std::size_t> stickyIndices;
 
+  /* Canonical span input and physical padding pairs from the props the core last adopted. */
+  double rowSpansVersion = -1.0;
+  std::vector<std::size_t> rowSpans;
+  std::vector<double> columnPaddings;
+
   /*
    * Row size specs measured a few rows per commit, keyed by where they came from: the store's
    * specs of a version, or the props whose rowSizeSpecs JSON they were parsed from. Null without
@@ -158,6 +163,8 @@ public:
 
   const std::shared_ptr<azimgd::shadowlist::Container>& getContainerManager() const { return containerManager_; }
 
+  std::vector<std::string> getMountedRowKeys() const;
+
   /* Called under the core lock, after Yoga has supplied the currently requested rows. */
   bool hasPendingCommand() const;
   const std::shared_ptr<ShadowListViewGeometryCache>& getGeometryCache() const { return geometryCache_; }
@@ -208,7 +215,9 @@ private:
    * Sorts the children into slots, then writes the header, footer and window sizes and every
    * mounted row's size into the core.
    */
-  void measureChildren(azimgd::shadowlist::Container& core, bool horizontal, LayoutSlots& slots);
+  bool measureChildren(
+    azimgd::shadowlist::Container& core, bool horizontal, LayoutSlots& slots,
+    LayoutContext& layoutContext, std::unique_lock<std::recursive_mutex>& coreLock);
 
   /*
    * Moves each mounted row to the core's frame, hiding or showing unsettled rows.

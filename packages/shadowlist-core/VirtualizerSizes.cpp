@@ -331,6 +331,8 @@ void Virtualizer::updateRowAtIndex(Container& container, std::size_t index, Size
 #endif
   if (applyRowSize(container, index, size)) {
     commitRowSizes(container, index);
+    // The placed geometry changed after the frame selected its range.
+    container.state.measuredRangeStale = true;
     SHADOWLIST_LOG("  replaceChild size: index=%zu %.1f->%.1f total=%.1f corrected=%d anchor=%s",
       index, tracePreviousSize, container.horizontal ? size.width : size.height, tracePreviousTotal,
       container.state.offsetCorrected ? 1 : 0, container.state.anchor.key.c_str());

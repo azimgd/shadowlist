@@ -101,6 +101,8 @@ public class ShadowListView extends FrameLayout {
    */
   private final ShadowListMountTicker mMountTicker = new ShadowListMountTicker();
 
+  long getMountHandle() { return mMountTicker.getHandle(); }
+
   /*
    * Live reports, which frames commit, the echo of core corrections and scroll commands.
    * See ShadowListScrollSync.
@@ -1632,6 +1634,11 @@ public class ShadowListView extends FrameLayout {
 
   private void dispatchScrollEvent(
     String eventName, double offsetX, double offsetY, double velocityX, double velocityY) {
+    if (DEBUG_LOG && ShadowListScrollEvent.MOMENTUM_END.equals(eventName)) {
+      slLog("java.event " + eventName + ": time=" + android.os.SystemClock.uptimeMillis()
+        + " seq=" + mSync.getCommandSequence() + " offset=(" + offsetX + "," + offsetY
+        + ") physical=(" + liveOffsetX() + "," + liveOffsetY() + ")");
+    }
     ReactContext reactContext = (ReactContext) getContext();
     EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, getId());
     if (dispatcher == null) {

@@ -199,6 +199,14 @@ void ShadowListMountDriver::endCommit(
         tracker.recordInteraction(now);
       }
     }
+    if (!props.rowColumnsEventEnabled && rowSpansVersion_ >= 0) {
+      rowColumns_.clear();
+      rowSpansVersion_ = -1.0;
+      outgoing.rowColumns = rowColumns_;
+      outgoing.rowSpansVersion = props.rowSpansVersion;
+      outgoing.numberOfColumns = core.numberOfColumns;
+      outgoing.viewability = true;
+    }
     takeViewabilityReports(now, outgoing);
 
     /*
@@ -250,6 +258,34 @@ bool ShadowListMountDriver::tick() {
   }
   dispatch(outgoing);
   return keepTicking;
+}
+
+void ShadowListMountDriver::reportRowColumns(
+  const sl::Container& core, const std::vector<std::string>& mountedKeys, double rowSpansVersion) {
+  Outgoing outgoing;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<RowColumn> columns;
+    columns.reserve(mountedKeys.size());
+    for (const auto& key : mountedKeys) {
+      auto index = core.indexOfKey(key);
+      if (index < core.getRowCount()) columns.push_back({key, index, core.getRowAtIndex(index).column});
+    }
+    if (columns == rowColumns_ && rowSpansVersion == rowSpansVersion_ && core.numberOfColumns == numberOfColumns_) return;
+    rowColumns_ = std::move(columns);
+    rowSpansVersion_ = rowSpansVersion;
+    numberOfColumns_ = core.numberOfColumns;
+    SHADOWLIST_LOG("rowColumns: mounted=%zu rowSpansVersion=%.0f numberOfColumns=%zu", rowColumns_.size(), rowSpansVersion_, numberOfColumns_);
+    outgoing.emitter = emitter_;
+    outgoing.rowColumns = rowColumns_;
+    outgoing.rowSpansVersion = rowSpansVersion_;
+    outgoing.numberOfColumns = numberOfColumns_;
+    outgoing.activeStickyIndex = activeStickyIndex_;
+    outgoing.visibleLow = visibleLow_;
+    outgoing.visibleHigh = visibleHigh_;
+    outgoing.viewability = true;
+  }
+  dispatch(outgoing);
 }
 
 void ShadowListMountDriver::takeViewabilityReports(double now, Outgoing& outgoing) {
@@ -305,7 +341,9 @@ void ShadowListMountDriver::dispatch(Outgoing& outgoing) {
     emitter->dispatchEvent(
       "viewabilityChange",
       [activeStickyIndex = outgoing.activeStickyIndex, visibleLow = outgoing.visibleLow,
-       visibleHigh = outgoing.visibleHigh, reports = std::move(outgoing.reports)](jsi::Runtime& runtime) {
+       visibleHigh = outgoing.visibleHigh, reports = std::move(outgoing.reports),
+       rowColumns = std::move(outgoing.rowColumns), rowSpansVersion = outgoing.rowSpansVersion,
+       numberOfColumns = outgoing.numberOfColumns](jsi::Runtime& runtime) {
         auto payload = jsi::Object(runtime);
         payload.setProperty(runtime, "activeStickyIndex", indexToInt(activeStickyIndex));
         payload.setProperty(runtime, "visibleLow", indexToInt(visibleLow));
@@ -320,6 +358,20 @@ void ShadowListMountDriver::dispatch(Outgoing& outgoing) {
           changes.setValueAtIndex(runtime, position, change);
         }
         payload.setProperty(runtime, "changes", changes);
+        if (rowColumns) {
+          auto columns = jsi::Array(runtime, rowColumns->size());
+          for (std::size_t position = 0; position < rowColumns->size(); ++position) {
+            const auto& row = (*rowColumns)[position];
+            auto entry = jsi::Object(runtime);
+            entry.setProperty(runtime, "key", jsi::String::createFromUtf8(runtime, row.key));
+            entry.setProperty(runtime, "index", indexToInt(row.index));
+            entry.setProperty(runtime, "column", indexToInt(row.column));
+            columns.setValueAtIndex(runtime, position, entry);
+          }
+          payload.setProperty(runtime, "rowColumns", columns);
+          payload.setProperty(runtime, "rowSpansVersion", rowSpansVersion);
+          payload.setProperty(runtime, "numberOfColumns", static_cast<int>(numberOfColumns));
+        }
         return payload;
       },
       RawEvent::Category::Continuous);

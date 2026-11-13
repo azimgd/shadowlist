@@ -56,6 +56,7 @@ function TreeListInner<ItemT>(
     onExpandedChange,
     indentWidth = 16,
     getItemSizeSpec,
+    getItemSpan,
     ItemSeparatorComponent,
     ...rest
   }: TreeListProps<ItemT>,
@@ -207,6 +208,15 @@ function TreeListInner<ItemT>(
     [getItemSizeSpec]
   );
 
+  const getRowSpan = useMemo(
+    () =>
+      getItemSpan
+        ? (row: TreeFlatRow<ItemT>, index: number) =>
+            getItemSpan(row.item, index, row.depth)
+        : undefined,
+    [getItemSpan]
+  );
+
   return (
     <ShadowListBase
       {...forwardedListProps(rest, 'TreeList')}
@@ -216,6 +226,7 @@ function TreeListInner<ItemT>(
       ItemSeparatorComponent={rowSeparator as never}
       renderItem={renderRow}
       getItemSizeSpec={getRowSizeSpec}
+      getItemSpan={getRowSpan}
     />
   );
 }

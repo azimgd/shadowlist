@@ -27,6 +27,13 @@ public:
   double offsetY = 0.0;
 
   /*
+   * Resolved logical track and column span. Both follow the row across keyed edits;
+   * a span source is reapplied by index after reconciliation, before sizing and placement.
+   */
+  std::size_t column = 0;
+  std::size_t columnSpan = 1;
+
+  /*
    * Set once the row has an estimated size.
    */
   bool estimated = false;

@@ -4,6 +4,8 @@
 #include <shadowlist-core/Row.hpp>
 #include <shadowlist-core/Operation.hpp>
 #include <shadowlist-core/Revision.hpp>
+#include <shadowlist-core/TrackLayout.hpp>
+#include <shadowlist-core/TrackRanges.hpp>
 
 #include <cstdint>
 #include <functional>
@@ -320,6 +322,19 @@ struct ContainerState {
   double previousLayoutWindowHeight = -1.0;
   std::size_t previousLayoutNumberOfColumns = 0;
   bool previousLayoutHorizontal = false;
+
+  /*
+   * Mixed spans use a reusable per-track summary. Plain lists keep the original round-robin
+   * path, without allocating these vectors. The count permits append to keep the summary;
+   * other edits seed it from the unchanged placed prefix, never a per-row history matrix.
+   */
+  bool hasRowSpans = false;
+  bool hasRowSpanSource = false;
+  std::uint64_t rowSpansVersion = 0;
+  std::uint64_t previousLayoutRowSpansVersion = 0;
+  TrackLayout spanLayout;
+  TrackRanges spanRanges;
+  std::size_t spanLayoutRowCount = UNDEFINED_INDEX;
 
   /*
    * Set when rows moved outside a frame, like a header change in the host's layout pass. The

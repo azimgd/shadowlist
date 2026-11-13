@@ -36,12 +36,13 @@ const ROWS: LabRow[] = Array.from({ length: ROW_COUNT }, (_, index) => ({
 const FILLER =
   'Rows have different heights so scroll commands land through estimated sizes.';
 
-type Columns = '1' | '2';
+type Columns = '1' | '2' | '3';
 type Padding = 'none' | 'padded';
 
 const COLUMN_OPTIONS = [
   { id: '1' as const, label: 'List' },
   { id: '2' as const, label: 'Grid' },
+  { id: '3' as const, label: 'Spans' },
 ];
 const PADDING_OPTIONS = [
   { id: 'none' as const, label: 'No Padding' },
@@ -236,6 +237,12 @@ export const ScrollLabScreen = () => {
     []
   );
 
+  const getItemSpan = useCallback(
+    (_: LabRow, index: number) =>
+      index % 17 === 0 ? 3 : index % marked === 0 ? 2 : 1,
+    [marked]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: LabRow }) => (
       <Pressable
@@ -245,16 +252,29 @@ export const ScrollLabScreen = () => {
           item.index % marked === 0 && styles.marked,
           pressed && styles.pressed,
         ]}
+        onLayout={
+          DEBUG && [40, 120, 300].includes(item.index)
+            ? (event) => {
+                const { width, height } = event.nativeEvent.layout;
+                console.log(
+                  `[SLJ] lab row=${item.index} width=${width} height=${height}`
+                );
+              }
+            : undefined
+        }
         accessibilityRole="button"
         accessibilityLabel={`Row ${item.index}`}
       >
         <Text style={styles.rowTitle}>{`Row ${item.index}`}</Text>
-        <Text style={styles.rowText} numberOfLines={item.lines}>
+        <Text
+          style={styles.rowText}
+          numberOfLines={columns === '3' ? undefined : item.lines}
+        >
           {Array.from({ length: item.lines }, () => FILLER).join(' ')}
         </Text>
       </Pressable>
     ),
-    [styles, marked]
+    [styles, marked, columns]
   );
 
   const header = (
@@ -311,7 +331,8 @@ export const ScrollLabScreen = () => {
         renderItem={renderItem}
         extraData={marked}
         numberOfColumns={Number(columns)}
-        columnWrapperStyle={columns === '2' ? COLUMN_WRAPPER : undefined}
+        columnWrapperStyle={columns !== '1' ? COLUMN_WRAPPER : undefined}
+        getItemSpan={columns === '3' ? getItemSpan : undefined}
         contentContainerStyle={
           padding === 'padded' ? PADDED_CONTENT : undefined
         }

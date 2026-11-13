@@ -64,6 +64,16 @@ bool SizeBatch::commit(Container& core) {
   return changed;
 }
 
+Size measuredRowSize(const Container& core, const MeasuredRow& row, bool horizontal) {
+  Size size{row.width, row.height};
+  if (core.numberOfColumns > 1) {
+    const Row& placed = core.getRowAtIndex(row.index);
+    if (horizontal) size.height = placed.height;
+    else size.width = placed.width;
+  }
+  return size;
+}
+
 void applyMeasuredRows(
   Container& core,
   const std::vector<MeasuredRow>& rows,
@@ -72,14 +82,7 @@ void applyMeasuredRows(
   SizeBatch batch;
   for (const MeasuredRow& row : rows) {
     const Row& placed = core.getRowAtIndex(row.index);
-    Size size{row.width, row.height};
-    if (core.numberOfColumns > 1) {
-      if (horizontal) {
-        size.height = placed.height;
-      } else {
-        size.width = placed.width;
-      }
-    }
+    Size size = measuredRowSize(core, row, horizontal);
     if (!placed.measured) {
       firstMeasured.push_back(row.id);
     }
@@ -96,6 +99,8 @@ RowFrame rowFrame(const Container& core, std::size_t index, bool horizontal) {
     frame.y = row.offsetY;
     frame.width = row.width;
     frame.setsWidth = true;
+    frame.height = row.height;
+    frame.setsHeight = horizontal && core.state.hasRowSpans;
   } else if (horizontal) {
     frame.x = row.offsetX;
   } else {

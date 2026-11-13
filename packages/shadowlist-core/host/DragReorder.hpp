@@ -1,12 +1,15 @@
 #pragma once
 
 #include <shadowlist-core/Constants.hpp>
+#include <shadowlist-core/TrackLayout.hpp>
 
 #include <cstddef>
 #include <string>
 #include <vector>
 
 namespace azimgd::shadowlist {
+
+class Container;
 
 /*
  * Drag event types a host writes into the list state when a row is picked up or dropped.
@@ -449,6 +452,9 @@ public:
    */
   void updateInsertion(const std::vector<DragRow>& rows);
 
+  /* Reflow a mixed-span preview from the canonical source, borrowed only during this call. */
+  void updateSpanOffsets(const Container& core, const std::vector<DragRow>& rows);
+
   /*
    * The same with the key of the drop spot's row read through keyOf, which takes its DragRow.
    * A host that looks keys up by index leaves DragRow::key empty.
@@ -563,6 +569,7 @@ private:
    */
   std::size_t offsetsBase_ = 0;
   std::vector<DragOffset> offsets_;
+  TrackLayout spanLayout_;
 };
 
 }

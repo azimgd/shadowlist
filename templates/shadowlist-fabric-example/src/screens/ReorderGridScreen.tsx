@@ -20,6 +20,7 @@ export const ReorderGridScreen = () => {
   const wishlist = useWishlistQuery();
   const { mutate: saveOrder } = useReorderWishlist();
   const [mixedSizes, setMixedSizes] = useState(false);
+  const [mixedSpans, setMixedSpans] = useState(false);
   const [lastMove, setLastMove] = useState('');
 
   useHeaderMenu([
@@ -36,8 +37,19 @@ export const ReorderGridScreen = () => {
         checked: mixedSizes,
         onPress: () => setMixedSizes(true),
       },
+      {
+        label: 'Mixed Spans',
+        symbol: 'rectangle.grid.1x2',
+        checked: mixedSpans,
+        onPress: () => setMixedSpans((enabled) => !enabled),
+      },
     ],
   ]);
+
+  const getItemSpan = useCallback(
+    (item: ReorderTileItem) => (item.label === '1' ? 2 : 1),
+    []
+  );
 
   const handleMoveItem = useCallback(
     ({
@@ -87,6 +99,9 @@ export const ReorderGridScreen = () => {
         data={wishlist.data}
         style={styles.list}
         numberOfColumns={3}
+        getItemSpan={mixedSpans ? getItemSpan : undefined}
+        columnWrapperStyle={mixedSpans ? styles.columnWrapper : undefined}
+        contentContainerStyle={mixedSpans ? styles.content : undefined}
         tileAspectRatio={mixedSizes ? undefined : 1}
         onMoveItem={handleMoveItem}
         ListHeaderComponent={header}
@@ -105,6 +120,8 @@ const useStyles = createStyles(({ colors }) =>
       flex: 1,
       backgroundColor: colors.background,
     },
+    columnWrapper: { columnGap: 12 },
+    content: { paddingHorizontal: 16 },
     status: {
       paddingTop: 0,
     },

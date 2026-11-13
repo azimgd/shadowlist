@@ -83,8 +83,10 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
  * - followAppends: with inverted, items appended or growing while the reader rests at the end
  *   scroll into view, like an assistant reply. Off by default, which keeps the visible items in
  *   place.
- * - numberOfColumns: columns of a grid. Row r, counting section header and footer rows, goes
- *   into column r % numberOfColumns and each column stacks its own rows.
+ * - numberOfColumns: columns of a grid. Plain span-one rows keep round-robin placement.
+ * - getItemSpan: contiguous columns occupied by an item, clamped to 1...numberOfColumns. The
+ *   main-thread callback uses the existing public item index (global across sections). Real
+ *   section edges span every column without invoking it; a zero-height edge adds no spacing.
  * - estimatedItemSize: size along the scroll axis assumed for items not measured yet.
  * - overscan: how far past the viewport items are measured, in viewport sizes. Default 1.
  * - mountOverscan: how far past the viewport cells are mounted, in viewport sizes. Default 0.5.
@@ -200,7 +202,7 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
  *
  * Sections: see the data source. sectionForItemAtIndex:, firstItemIndexInSection:,
  * rectForHeaderInSection:, rectForFooterInSection: and scrollToSection:animated: work in
- * sections. A grid places section header rows in a column slot like any item. The built-in
+ * sections. Grid section headers and footers span every column. The built-in
  * title cells show a header in the headline font over the window background and a footer in
  * the small system font, both in the secondary label color, and follow the list's appearance.
  *
@@ -241,6 +243,7 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
 @property (nonatomic) CGFloat estimatedItemSize;
 @property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec * _Nullable (^getItemSizeSpec)(NSInteger index);
 @property (nonatomic) NSUInteger measureLookaheadRows;
+@property (nonatomic, copy, nullable) NSInteger (^getItemSpan)(NSInteger index);
 @property (nonatomic, copy, nullable) ShadowListKitViewabilityConfig *viewabilityConfig;
 @property (nonatomic, copy, nullable) NSArray<ShadowListKitViewabilityConfigCallbackPair *> *viewabilityConfigCallbackPairs;
 @property (nonatomic, copy, nullable) void (^onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *info);

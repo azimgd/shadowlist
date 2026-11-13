@@ -774,6 +774,23 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
  */
 - (void)moveVertically:(BOOL)vertical by:(NSInteger)direction extending:(BOOL)extending
 {
+  std::size_t lead = [self leadIndex];
+  if (_driver.hasRowSpans() && lead != UNDEFINED_INDEX) {
+    auto candidates = neighborRows(lead, direction < 0 ? -1 : 1, (bool)vertical, _driver.getRowCount(),
+      [self](std::size_t index) { return self->_driver.getRowRect(index); });
+    NSUInteger structure = _structureVersion;
+    NSUInteger spans = _rowSpansRevision;
+    NSInteger columns = self.numberOfColumns;
+    for (std::size_t row : candidates) {
+      BOOL select = [self shouldSelectRow:row];
+      if (structure != _structureVersion || spans != _rowSpansRevision || columns != self.numberOfColumns) return;
+      if (select) {
+        [self moveToRow:row extending:extending];
+        return;
+      }
+    }
+    return;
+  }
   if (vertical != _horizontal) {
     [self moveByRows:direction * self.numberOfColumns extending:extending];
   } else if (self.numberOfColumns > 1) {

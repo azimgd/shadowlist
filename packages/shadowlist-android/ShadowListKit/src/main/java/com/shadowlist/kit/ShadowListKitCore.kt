@@ -278,6 +278,7 @@ internal class ShadowListKitCore(
     @JvmStatic private external fun nativeSetStickyIndices(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeSetNonAnchorKeys(handle: Long, packed: CharArray, ends: IntArray)
     @JvmStatic private external fun nativeSetPersistentKeys(handle: Long, packed: CharArray, ends: IntArray)
+    @JvmStatic private external fun nativeSetRowSpans(handle: Long, spans: IntArray)
     @JvmStatic private external fun nativePersistentIndices(handle: Long): IntArray
     @JvmStatic private external fun nativeStickyLayout(handle: Long, io: DoubleArray)
     @JvmStatic private external fun nativeSetViewabilityConfigs(handle: Long, slots: DoubleArray, now: Double): IntArray
@@ -609,6 +610,7 @@ internal class ShadowListKitCore(
   }
 
   fun persistentIndices(): IntArray = nativePersistentIndices(handle)
+  fun setRowSpans(spans: IntArray) = nativeSetRowSpans(handle, spans)
 
   /*
    * The driver's persistent header/footer pinning state, from the inputs in STICKY_*.

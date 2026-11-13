@@ -366,3 +366,29 @@ TEST(late_mounted_measurements_invalidate_the_offset_band_until_the_next_frame) 
   CHECK(!core.state.measuredRangeStale);
   CHECK(!core.computeOffsetBand().isEmpty());
 }
+
+TEST(direct_row_replacement_invalidates_the_range_through_a_following_noop_size_batch) {
+  Container core;
+  auto keys = keysFor(80);
+  layOut(core, keys.size(), 100.0, 1500.0);
+  Virtualizer::update(core, inputFor(keys, 1500.0));
+  CHECK(!core.state.measuredRangeStale);
+
+  // Yoga can publish a replacement before the list collects the same mounted measurements.
+  Virtualizer::updateRowAtIndex(core, 5, {WINDOW_WIDTH, 117.0});
+  CHECK(core.state.measuredRangeStale);
+  CHECK(core.computeOffsetBand().isEmpty());
+  std::vector<std::uint64_t> firstMeasured;
+  applyMeasuredRows(core, {{5, WINDOW_WIDTH, 117.0, 5}}, false, firstMeasured);
+  CHECK(core.state.measuredRangeStale);
+
+  Virtualizer::update(core, inputFor(keys, core.getOffset()));
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
+  Virtualizer::updateRowAtIndex(core, 5, {WINDOW_WIDTH, 117.0});
+  CHECK(!core.state.measuredRangeStale);
+  firstMeasured.clear();
+  applyMeasuredRows(core, {{5, WINDOW_WIDTH, 117.0, 5}}, false, firstMeasured);
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
+}

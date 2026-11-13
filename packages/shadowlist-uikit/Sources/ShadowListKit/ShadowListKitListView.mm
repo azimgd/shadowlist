@@ -510,6 +510,14 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   [self sendSizeSpecSource];
 }
 
+- (NSInteger (^)(NSInteger))getItemSpan { return _getItemSpan; }
+- (void)setGetItemSpan:(NSInteger (^)(NSInteger))getItemSpan
+{
+  _getItemSpan = [getItemSpan copy];
+  ++_rowSpansRevision;
+  [self invalidateFrame];
+}
+
 - (NSUInteger)measureLookaheadRows { return _measureLookaheadRows; }
 - (void)setMeasureLookaheadRows:(NSUInteger)measureLookaheadRows
 {

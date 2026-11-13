@@ -60,6 +60,7 @@ import {
 } from './virtualizer';
 import { useListStore, type ListStore } from './virtualizer/nativeStore';
 import { usePlainSource, type RowSource } from './virtualizer/rowSource';
+import { useRowSpans } from './virtualizer/useRowSpans';
 import {
   SeparatorStore,
   separatorComponentOf,
@@ -165,6 +166,7 @@ function ShadowListBaseInner<ItemT>(
     mountOverscanRowsLeading:
       mountOverscanRowsLeadingProp = SHADOWLIST_OVERSCAN_LEADING,
     getItemSizeSpec,
+    getItemSpan,
     measureLookaheadRows = 48,
     persistentKeys,
     nonAnchorKeys,
@@ -331,6 +333,12 @@ function ShadowListBaseInner<ItemT>(
     horizontal,
   });
   const rowCount = source.count;
+  const { rowSpans, rowSpansVersion } = useRowSpans(
+    source,
+    getItemSpan,
+    numberOfColumns,
+    extraData
+  );
 
   /*
    * Shared with every row. A row that skipped a move still answers a late index read.
@@ -403,6 +411,7 @@ function ShadowListBaseInner<ItemT>(
 
   const {
     activeStickyIndex,
+    getRowColumn,
     viewableRules,
     viewableTimings,
     viewabilityInteracted,
@@ -412,6 +421,8 @@ function ShadowListBaseInner<ItemT>(
   } = useViewability({
     source,
     pairs: viewabilityPairs,
+    rowSpansVersion,
+    numberOfColumns,
   });
 
   /*
@@ -621,29 +632,78 @@ function ShadowListBaseInner<ItemT>(
     ]
   );
 
-  const cellDimensionStyle = useMemo<StyleProp<ViewStyle>>(() => {
-    if (horizontal) {
-      if (autoHeight) return null;
-      return numberOfColumns > 1
-        ? { height: `${100 / numberOfColumns}%` }
-        : styles.cellHorizontal;
-    } else {
-      return numberOfColumns > 1
-        ? { width: `${100 / numberOfColumns}%` }
-        : styles.cellVertical;
-    }
-  }, [horizontal, numberOfColumns, autoHeight]);
+  const hasMixedSpans = useMemo(
+    () => rowSpans.some((span) => span > 1),
+    [rowSpans]
+  );
+  const rowColumnsEventEnabled = hasMixedSpans && columnPaddings !== null;
 
-  /*
-   * One row style per column. Columns differ only when they carry padding.
-   */
-  const cellColumnStyles = useMemo<StyleProp<ViewStyle>[]>(() => {
-    const base: StyleProp<ViewStyle>[] = itemStyle
-      ? [styles.cell, cellDimensionStyle, itemStyle]
-      : [styles.cell, cellDimensionStyle];
-    if (!columnPaddings) return [base];
-    return columnPaddings.map((paddingStyle) => [...base, paddingStyle]);
-  }, [cellDimensionStyle, itemStyle, columnPaddings]);
+  const nativeColumnPaddings = useMemo(
+    () =>
+      rowColumnsEventEnabled
+        ? columnPaddings!.flatMap((paddingStyle) =>
+            horizontal
+              ? [
+                  paddingStyle.paddingTop as number,
+                  paddingStyle.paddingBottom as number,
+                ]
+              : [
+                  paddingStyle.paddingLeft as number,
+                  paddingStyle.paddingRight as number,
+                ]
+          )
+        : [],
+    [rowColumnsEventEnabled, columnPaddings, horizontal]
+  );
+
+  /* Core resolves the starting column. Styles only join its covered edge paddings. */
+  const cellColumnStyles = useMemo<StyleProp<ViewStyle>[][]>(() => {
+    const result: StyleProp<ViewStyle>[][] = [];
+    const spans = hasMixedSpans ? new Set([1, ...rowSpans]) : [1];
+    for (const span of spans) {
+      const dimension: StyleProp<ViewStyle> = horizontal
+        ? autoHeight
+          ? null
+          : numberOfColumns > 1
+            ? { height: `${(100 * span) / numberOfColumns}%` }
+            : styles.cellHorizontal
+        : numberOfColumns > 1
+          ? { width: `${(100 * span) / numberOfColumns}%` }
+          : styles.cellVertical;
+      const base: StyleProp<ViewStyle>[] = itemStyle
+        ? [styles.cell, dimension, itemStyle]
+        : [styles.cell, dimension];
+      if (!columnPaddings) {
+        result[span - 1] = [base];
+        continue;
+      }
+      result[span - 1] = columnPaddings.map((leading, column) => {
+        const trailing =
+          columnPaddings[Math.min(column + span - 1, numberOfColumns - 1)]!;
+        return [
+          ...base,
+          horizontal
+            ? {
+                paddingTop: leading.paddingTop,
+                paddingBottom: trailing.paddingBottom,
+              }
+            : {
+                paddingLeft: leading.paddingLeft,
+                paddingRight: trailing.paddingRight,
+              },
+        ];
+      });
+    }
+    return result;
+  }, [
+    hasMixedSpans,
+    rowSpans,
+    horizontal,
+    autoHeight,
+    numberOfColumns,
+    itemStyle,
+    columnPaddings,
+  ]);
 
   /*
    * Precomputed sizes for rows near the screen. Native knows their real heights before
@@ -804,7 +864,6 @@ function ShadowListBaseInner<ItemT>(
 
   const viewableEventEnabled =
     viewabilityPairs.length > 0 || stickyEnabled || keySelectionEnabled;
-  const columns = cellColumnStyles.length;
 
   return (
     <ShadowListView
@@ -832,7 +891,9 @@ function ShadowListBaseInner<ItemT>(
       mountOverscanRows={mountOverscanRows}
       mountOverscanRowsLeading={mountOverscanRowsAhead}
       onViewabilityChange={
-        viewableEventEnabled ? handleViewabilityChange : undefined
+        viewableEventEnabled || rowColumnsEventEnabled
+          ? handleViewabilityChange
+          : undefined
       }
       prefetchRows={nativePrefetchRows}
       onPrefetchChange={handlePrefetchChange}
@@ -844,6 +905,8 @@ function ShadowListBaseInner<ItemT>(
       scrollEventEnabled={onScroll != null}
       scrollEventThrottle={scrollEventThrottle}
       viewableEventEnabled={viewableEventEnabled}
+      rowColumnsEventEnabled={rowColumnsEventEnabled}
+      columnPaddings={nativeColumnPaddings}
       viewableRules={viewableRules}
       viewableTimings={viewableTimings}
       viewabilityInteracted={viewabilityInteracted}
@@ -864,6 +927,8 @@ function ShadowListBaseInner<ItemT>(
       autoHideFooter={autoHideFooter}
       stickyIndices={stickyRows as number[]}
       numberOfColumns={numberOfColumns}
+      rowSpans={rowSpans}
+      rowSpansVersion={rowSpansVersion}
       overscan={overscan}
       scrollIndex={scrollIndex}
       refreshEnabled={!!onRefresh}
@@ -925,6 +990,12 @@ function ShadowListBaseInner<ItemT>(
 
           const rowKey = source.keyAt(index)!;
           const last = index >= rowCount - 1;
+          const span = rowSpans[index] ?? 1;
+          const column = hasMixedSpans
+            ? (getRowColumn(rowKey, index) ?? 0)
+            : index % numberOfColumns;
+          const columnStyles =
+            cellColumnStyles[span - 1] ?? cellColumnStyles[0]!;
 
           return (
             <CellRenderer
@@ -933,7 +1004,7 @@ function ShadowListBaseInner<ItemT>(
               index={index}
               rowIndex={rowIndex}
               rowKey={rowKey}
-              style={cellColumnStyles[columns > 1 ? index % columns : 0]}
+              style={columnStyles[columnStyles.length > 1 ? column : 0]}
               renderItem={renderItemWithExtraData}
               separator={last ? null : separator}
               Separator={last ? null : SeparatorComponent}

@@ -9,13 +9,16 @@
 
 #include <jni.h>
 
+#include <algorithm>
 #include <cstddef>
+#include <mutex>
 #include <string>
 #include <vector>
 
 #include <shadowlist-core/host/DragReorder.hpp>
 
 #include "ShadowListJavaStrings.h"
+#include "ShadowListMountDriver.h"
 
 namespace {
 
@@ -178,10 +181,11 @@ JNIEXPORT void JNICALL SL_DRAG_JNI(nativePlaceRow)(
  * Find the drop spot among count mounted rows, given by their indices and keys and ROW_SLOTS
  * values each in frames, and work out every row's shift for nativeOffsetFor.
  */
-JNIEXPORT void JNICALL SL_DRAG_JNI(nativeUpdateInsertion)(
+JNIEXPORT jboolean JNICALL SL_DRAG_JNI(nativeUpdateInsertion)(
   JNIEnv* env,
   jclass,
   jlong handle,
+  jlong mountHandle,
   jintArray indicesArray,
   jobjectArray keysArray,
   jdoubleArray framesArray,
@@ -216,7 +220,22 @@ JNIEXPORT void JNICALL SL_DRAG_JNI(nativeUpdateInsertion)(
       target.crossExtent = frame[ROW_CROSS_EXTENT];
     }
   }
-  peer->drag.updateInsertion(peer->rows);
+  auto driver = facebook::react::ShadowListMountDriver::find(mountHandle);
+  auto core = driver ? driver->getContainerManager() : nullptr;
+  if (!core) return JNI_FALSE;
+  // All Java reads are finished. Only shared geometry runs under the core lock.
+  std::lock_guard<std::recursive_mutex> lock(core->coreMutex);
+  if (!peer->drag.isForeign() && !peer->drag.getOriginKey().empty() &&
+      core->indexOfKey(peer->drag.getOriginKey()) == sl::UNDEFINED_INDEX) return JNI_FALSE;
+  auto& rows = peer->rows;
+  rows.erase(std::remove_if(rows.begin(), rows.end(), [&](sl::DragRow& row) {
+    row.index = core->indexOfKey(row.key);
+    return row.index == sl::UNDEFINED_INDEX;
+  }), rows.end());
+  std::sort(rows.begin(), rows.end(), [](const sl::DragRow& a, const sl::DragRow& b) { return a.index < b.index; });
+  peer->drag.updateInsertion(rows);
+  peer->drag.updateSpanOffsets(*core, rows);
+  return JNI_TRUE;
 }
 
 JNIEXPORT void JNICALL SL_DRAG_JNI(nativeOffsetFor)(JNIEnv* env, jclass, jlong handle, jint index, jdoubleArray out) {

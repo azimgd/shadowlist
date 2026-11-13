@@ -467,8 +467,9 @@ OffsetBand Container::computeOffsetBand() const {
   double overscanSize = windowSize * overscan;
   std::size_t columnCount = numberOfColumns > 0 ? numberOfColumns : 1;
   std::size_t reach = 2 * columnCount + 2;
-  std::size_t fromIndex = measuredLow > reach ? measuredLow - reach : 0;
-  std::size_t toIndex = std::min(rowCount - 1, measuredHigh + reach);
+  // Mixed spans can leave a track unused far outside the nearby row indices.
+  std::size_t fromIndex = state.hasRowSpans ? 0 : (measuredLow > reach ? measuredLow - reach : 0);
+  std::size_t toIndex = state.hasRowSpans ? rowCount - 1 : std::min(rowCount - 1, measuredHigh + reach);
   for (std::size_t index = fromIndex; index <= toIndex; ++index) {
     const Row& row = rows[index];
     double rowStart = horizontal ? row.offsetX : row.offsetY;

@@ -149,8 +149,8 @@ final class ShadowListDrag {
   /*
    * Find the drop spot among the other mounted rows and work out their shifts.
    */
-  void updateInsertion(int[] indices, String[] keys, double[] frames, int count) {
-    nativeUpdateInsertion(handle(), indices, keys, frames, count);
+  boolean updateInsertion(long mountHandle, int[] indices, String[] keys, double[] frames, int count) {
+    return nativeUpdateInsertion(handle(), mountHandle, indices, keys, frames, count);
   }
 
   /*
@@ -258,7 +258,7 @@ final class ShadowListDrag {
   private static native void nativePlaceRow(
     long handle, double touchAlong, double touchCross, double leading, double extent, double crossLeading,
     double crossExtent, double contentSize, double crossContentSize, double[] out);
-  private static native void nativeUpdateInsertion(long handle, int[] indices, String[] keys, double[] frames, int count);
+  private static native boolean nativeUpdateInsertion(long handle, long mountHandle, int[] indices, String[] keys, double[] frames, int count);
   private static native void nativeOffsetFor(long handle, int index, double[] out);
   private static native void nativeSetHeldAway(long handle, boolean away);
   private static native boolean nativeIsHeldAway(long handle);

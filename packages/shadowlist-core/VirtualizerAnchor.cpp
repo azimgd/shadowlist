@@ -427,7 +427,8 @@ std::vector<Anchor> Virtualizer::captureFallbackAnchors(
   double viewportEnd = inputOffset + container.getWindowSize();
   std::size_t columns = container.numberOfColumns > 0 ? container.numberOfColumns : 1;
   std::size_t tracksPast = 0;
-  for (std::size_t index = anchorIndex + 1; index < rows.size() && tracksPast < columns; ++index) {
+  for (std::size_t index = anchorIndex + 1;
+       index < rows.size() && (container.state.hasRowSpans || tracksPast < columns); ++index) {
     double rowOffset = container.getRowOffset(index);
     if (rowOffset >= viewportEnd) {
       ++tracksPast;

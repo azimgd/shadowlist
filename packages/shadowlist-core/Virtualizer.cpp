@@ -144,6 +144,7 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   reconcileFrameKeys(
     container, input, inputKeys, inputOffset, restingAtBottom, hadRowsBefore, anchorKey, anchorIndex, anchorDelta);
 
+  applyRowSpans(container, input);
   measureFrame(container, input, previousHeaderSize, hadRowsBefore, anchorKey, anchorIndex, anchorDelta);
 
   // The commit token is just the running operation's id. No operation means no token.
@@ -157,6 +158,62 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   }
 
   container.endRevision();
+}
+
+/*
+ * Span metadata belongs to the reconciled keyed rows. Capture the old anchor first, then
+ * invalidate only a row whose available cross size changed, preserving unrelated real sizes.
+ */
+void Virtualizer::applyRowSpans(Container& container, const FrameInput& input) {
+  const auto& spans = input.getRowSpanList();
+  auto& state = container.state;
+  state.hasRowSpanSource = !spans.empty();
+  bool hadSpans = state.hasRowSpans;
+  double cross = container.horizontal ? input.windowHeight : input.windowWidth;
+  double previousCross = container.horizontal ? state.previousLayoutWindowHeight : state.previousLayoutWindowWidth;
+  if (input.rowSpansUnchanged && !state.rowStructureDirty &&
+      container.numberOfColumns == state.previousLayoutNumberOfColumns && cross == previousCross &&
+      container.horizontal == state.previousLayoutHorizontal) return;
+  if (spans.empty() && !state.hasRowSpans) return;
+  std::size_t columns = std::max<std::size_t>(1, container.numberOfColumns);
+  bool any = false;
+  bool changed = false;
+  for (std::size_t index = 0; index < container.revision.rows.size(); ++index) {
+    Row& row = container.revision.rows[index];
+    std::size_t span = index < spans.size() ? std::clamp<std::size_t>(spans[index], 1, columns) : 1;
+    any = any || span > 1;
+    double width = cross * static_cast<double>(span) / static_cast<double>(columns);
+    double previousWidth = container.horizontal ? row.height : row.width;
+    bool crossChanged = previousWidth != width;
+    if (row.columnSpan == span && !crossChanged) continue;
+    changed = true;
+    row.columnSpan = span;
+    if (crossChanged) {
+      if (row.measured) {
+        --container.revision.measuredRealCount;
+        container.revision.measuredRealTotalWidth -= row.width;
+        container.revision.measuredRealTotalHeight -= row.height;
+      }
+      row.measured = false;
+      if (row.predicted) {
+        row.estimated = false;
+        state.previousFallbackWidth = -1.0;
+        state.previousFallbackHeight = -1.0;
+      }
+      row.predicted = false;
+      state.predictedSizes.erase(row.key);
+    }
+    container.markRowSizeDirty(index);
+    state.rowExtentChanged = true;
+    if (index < state.spanLayoutRowCount) state.spanLayoutRowCount = UNDEFINED_INDEX;
+  }
+  state.hasRowSpans = any;
+  if (hadSpans && !any) {
+    state.spanLayout = TrackLayout{};
+    state.spanRanges = TrackRanges{};
+    state.spanLayoutRowCount = UNDEFINED_INDEX;
+  }
+  if (changed) ++state.rowSpansVersion;
 }
 
 void Virtualizer::applyFrameInput(Container& container, const FrameInput& input) {
@@ -659,7 +716,15 @@ void Virtualizer::measure(Container& container, bool rangeFromOffset) {
   auto [fallbackWidth, fallbackHeight] = effectiveFallbackSize(container);
   bool fallbackChanged = fallbackWidth != container.state.previousFallbackWidth ||
     fallbackHeight != container.state.previousFallbackHeight;
-  if (container.state.rowStructureDirty || fallbackChanged) {
+  bool spanConfigChanged = container.state.hasRowSpanSource &&
+    (container.numberOfColumns != container.state.previousLayoutNumberOfColumns ||
+     container.horizontal != container.state.previousLayoutHorizontal ||
+     (container.horizontal
+       ? container.revision.windowHeight != container.state.previousLayoutWindowHeight
+       : container.revision.windowWidth != container.state.previousLayoutWindowWidth));
+  bool spansChanged = container.state.rowSpansVersion != container.state.previousLayoutRowSpansVersion;
+  bool spanSizesChanged = container.state.hasRowSpans && container.state.rowSizeDirtyFromIndex != UNDEFINED_INDEX;
+  if (container.state.rowStructureDirty || fallbackChanged || spansChanged || spanConfigChanged || spanSizesChanged) {
     layoutRows(container);
   }
 
@@ -675,6 +740,10 @@ void Virtualizer::measure(Container& container, bool rangeFromOffset) {
 }
 
 void Virtualizer::measureFirstRevision(Container& container) {
+  if (container.state.hasRowSpans) {
+    measureNextRevision(container);
+    return;
+  }
   std::size_t rowCount = container.revision.rows.size();
   double windowSize = container.getWindowSize();
   double effectiveColumns = container.numberOfColumns > 0 ? static_cast<double>(container.numberOfColumns) : 1.0;
@@ -753,7 +822,9 @@ void Virtualizer::measureNextRevision(Container& container) {
     return low;
   };
 
-  if (geometryOrdered && container.numberOfColumns <= 1) {
+  if (geometryOrdered && container.state.hasRowSpans) {
+    container.state.spanRanges.visit(lowerBound, upperBound, visit);
+  } else if (geometryOrdered && container.numberOfColumns <= 1) {
     for (std::size_t nextRowIndex = seekTrack(0, 1); nextRowIndex < rowCount; ++nextRowIndex) {
       if (rowOffsetAt(nextRowIndex) > upperBound) {
         break;
