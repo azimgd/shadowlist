@@ -77,6 +77,13 @@ internal object ShadowListUtilsCore {
   private const val CONSTANT_CHAT_BUBBLE_WIDTH_FRACTION = 1
   private const val CONSTANT_FEED_SINGLE_IMAGE_HEIGHT = 2
 
+  /*
+   * Slots of pollTally's output, the same as PollOutSlot in the JNI.
+   */
+  const val POLL_OUT_TOTAL_VOTES = 0
+  const val POLL_OUT_LEADING_INDEX = 1
+  const val POLL_OUT_SLOTS = 2
+
   private val constants: DoubleArray by lazy { nativeConstants() }
 
   /*
@@ -144,6 +151,11 @@ internal object ShadowListUtilsCore {
    */
   fun sectionInitial(name: String): String = nativeSectionInitial(name)
 
+  fun pollTally(votes: DoubleArray, out: DoubleArray) = nativePollTally(votes, out)
+  fun pollPercent(votes: Double, totalVotes: Double): Int = nativePollPercent(votes, totalVotes)
+
+  @JvmStatic private external fun nativePollTally(votes: DoubleArray, out: DoubleArray)
+  @JvmStatic private external fun nativePollPercent(votes: Double, totalVotes: Double): Int
   @JvmStatic private external fun nativeConstants(): DoubleArray
   @JvmStatic private external fun nativeSectionOtherTitle(): String
   @JvmStatic private external fun nativeSectionInitial(name: String): String

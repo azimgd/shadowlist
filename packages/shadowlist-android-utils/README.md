@@ -1,7 +1,7 @@
 # ShadowListUtils for Android
 
 ShadowListUtils is the templates package for ShadowListKit on Android: themed lists, rows and primitives for feeds,
-chats, inboxes, contacts, grids and more. It is written in Kotlin on ShadowListKit and the shared C++ core.
+chats, inboxes, activity, polls, contacts, grids and more. It is written in Kotlin on ShadowListKit and the shared C++ core.
 
 ## Install
 
@@ -73,7 +73,8 @@ right-to-left locale.
 `ShadowListUtilsCore` is the bridge to the shared C++ core. It is an implementation detail: it is not part of the
 documented API and can change in any release.
 
-Every template list has the same five members, with its own item type:
+Item-based template lists have these five members, with their own item type. Poll uses `poll` and `setPoll`
+instead of `items` and `setItems`:
 
 | API | Notes |
 | --- | --- |
@@ -238,6 +239,38 @@ There is no list for nested rows. Put them into a `ShadowListUtilsList` with `se
 | `ShadowListUtilsChatMessage(key, author, isOwn, text, images, createdAtMs, status)`, `ShadowListUtilsChatAuthor`, `ShadowListUtilsChatMessageStatus` | The status of the reader's own messages is `SENDING`, `SENT`, `DELIVERED`, `READ` or `FAILED`. A failed message adds a retry line. |
 | `ShadowListUtilsChatBubble(item, caption, showsAuthor, theme, labels)` | The row, with `ShadowListUtilsChatBubbleLayout` and `ShadowListUtilsChatBubbleView`. `showsAuthor` false drops the name and avatar of a message from someone else and keeps the avatar's place. |
 
+### Activity
+
+`ShadowListUtilsActivityList` shows `ShadowListUtilsActivityItem(key, actor, action, text, createdAtMs, read)`.
+The actor is `ShadowListUtilsActivityActor(name, avatarUrl, avatarColor)`. Times are milliseconds since 1970;
+`read` defaults to true. `formatTime` overrides the relative-time labels. A press requests an action and never
+changes read state automatically.
+
+```kotlin
+val list = ShadowListUtilsActivityList(context)
+list.items = activities
+list.onPressItem = { item -> markRead(item.key) }
+```
+
+### Poll
+
+`ShadowListUtilsPollList` takes one controlled `ShadowListUtilsPollData(question, options, selectedKey)`.
+Each `ShadowListUtilsPollOption(key, label, votes)` has stable identity and a Double vote count. Shared C++ helpers
+calculate totals, leading option and percentages. The app applies the vote and sets the new model; the list never
+changes votes or selection on its own. With no `onPressItem`, rows are noninteractive.
+
+```kotlin
+val list = ShadowListUtilsPollList(context)
+list.poll = poll
+list.onPressItem = { option -> submitVote(option.key) }
+// After the application updates its model:
+list.setPoll(updatedPoll, animated = true)
+```
+
+`labels` customizes option accessibility text and total-vote text. `rowForItem` supports custom rows, including icons.
+Custom `headerView` and `footerView`, including null, survive model and label updates. Activity and Poll rows expose
+matching layout/view types and follow large text and right-to-left layout like the other templates.
+
 ## Tests
 
 `./gradlew :ShadowListUtils:connectedDebugAndroidTest` runs the library's tests on a connected device or emulator.
@@ -247,5 +280,5 @@ They load the native libraries and replay the vector files of `packages/shadowli
 
 [shadowlist-android-example](../../templates/shadowlist-android-example) has a screen per template. Open one with
 `--es SLRoute` and a route: `Feed`, `Masonry`, `Chat`, `Contacts`, `SectionList`, `Reorder`, `ReorderGrid`, `Snap`,
-`Nested` or `Inbox`. `--es SLStates 1` adds placeholder posts to Feed and captions and sending and failed messages to
+`Nested`, `Inbox`, `Activity` or `Poll`. `--es SLStates 1` adds placeholder posts to Feed and captions and sending and failed messages to
 Chat, `--es SLSelectDemo 1` opens Inbox editing with two rows selected, and `--es SLImages 0` loads no image.

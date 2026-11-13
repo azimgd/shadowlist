@@ -7,7 +7,7 @@ Pod::Spec.new do |s|
   s.version      = package["version"]
   s.summary      = "Themed list templates for ShadowListKit."
   s.description  = "ShadowListUtils is the templates package for ShadowListKit on UIKit: a theme, rows, primitives and " \
-                   "the Masonry, Feed, Reorder, Snap, Nested, Contacts, Inbox and Chat lists."
+                   "the Masonry, Feed, Reorder, Snap, Nested, Contacts, Inbox, Chat, Activity and Poll lists."
   s.homepage     = "https://github.com/azimgd/shadowlist"
   s.license      = { :type => "MIT", :file => "LICENSE" }
   s.authors      = { "azimgd" => "me@azimgd.com" }

@@ -88,6 +88,14 @@ typedef struct {
 } ShadowListUtilsChatSizeSpec;
 
 /*
+ * A poll's total and leading option. NSNotFound means there are no options.
+ */
+typedef struct {
+  double totalVotes;
+  NSInteger leadingIndex;
+} ShadowListUtilsPollTally;
+
+/*
  * The template logic of the shadowlist core, in packages/shadowlist-core/utils. Every method
  * is stateless and safe to call from any thread. A string crosses as UTF-8, and half a
  * surrogate pair in it crosses as U+FFFD.
@@ -123,6 +131,8 @@ NS_SWIFT_SENDABLE
                     metrics:(ShadowListUtilsChatMetrics)metrics;
 + (NSString *)sectionInitialForName:(NSString *)name;
 + (NSString *)sectionOtherTitle;
++ (ShadowListUtilsPollTally)pollTallyForVotes:(NSArray<NSNumber *> *)votes;
++ (NSInteger)pollPercentForVotes:(double)votes totalVotes:(double)totalVotes;
 
 @end
 

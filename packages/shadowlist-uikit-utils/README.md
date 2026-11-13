@@ -1,7 +1,7 @@
 # ShadowListUtils for UIKit
 
 ShadowListUtils is the templates package for ShadowListKit on UIKit: themed lists, rows and primitives for feeds,
-chats, inboxes, contacts, grids and more. It is written in Swift on ShadowListKit and the shared C++ core.
+chats, inboxes, activity, polls, contacts, grids and more. It is written in Swift on ShadowListKit and the shared C++ core.
 
 ## Install
 
@@ -70,7 +70,8 @@ actions, by the view's layout direction.
 documented API and can change in any release. With Swift Package Manager it is an Objective-C++ module of its own,
 and with CocoaPods it is part of the ShadowListUtils module.
 
-Every template list has the same five members, with its own item type:
+Item-based template lists have these five members, with their own item type. Poll uses `poll` and `setPoll`
+instead of `items` and `setItems`:
 
 | API | Notes |
 | --- | --- |
@@ -237,6 +238,38 @@ There is no list for nested rows. Put them into a `ShadowListUtilsList` with `se
 | `ShadowListUtilsChatMessage(key:author:isOwn:text:images:createdAtMs:status:)`, `ShadowListUtilsChatAuthor`, `ShadowListUtilsChatMessageStatus` | The status of the reader's own messages is `sending`, `sent`, `delivered`, `read` or `failed`. A failed message adds a retry line. |
 | `ShadowListUtilsChatBubble(item:caption:showsAuthor:theme:labels:)` | The row, with `ShadowListUtilsChatBubbleLayout` and `ShadowListUtilsChatBubbleView`. `showsAuthor` false drops the name and avatar of a message from someone else and keeps the avatar's place. |
 
+### Activity
+
+`ShadowListUtilsActivityList` shows `ShadowListUtilsActivityItem(key:actor:action:text:createdAtMs:read:)`.
+The actor is `ShadowListUtilsActivityActor(name:avatarUrl:avatarColor:)`. Times are milliseconds since 1970;
+`read` defaults to true. `formatTime` overrides the relative-time labels. A press requests an action and never
+changes read state automatically.
+
+```swift
+let list = ShadowListUtilsActivityList()
+list.items = activities
+list.onPressItem = { item in markRead(item.key) }
+```
+
+### Poll
+
+`ShadowListUtilsPollList` takes one controlled `ShadowListUtilsPollData(question:options:selectedKey:)`.
+Each `ShadowListUtilsPollOption(key:label:votes:)` has stable identity and a Double vote count. Shared C++ helpers
+calculate totals, leading option and percentages. The app applies the vote and sets the new model; the list never
+changes votes or selection on its own. With no `onPressItem`, rows are noninteractive.
+
+```swift
+let list = ShadowListUtilsPollList()
+list.poll = poll
+list.onPressItem = { option in submitVote(option.key) }
+// After the application updates its model:
+list.setPoll(updatedPoll, animated: true)
+```
+
+`labels` customizes option accessibility text and total-vote text. `rowForItem` supports custom rows, including icons.
+Custom `headerView` and `footerView`, including nil, survive model and label updates. Activity and Poll rows expose
+matching layout/view types and follow large text and right-to-left layout like the other templates.
+
 ## Tests
 
 `xcodebuild test -scheme ShadowListUtilsTests-Package -destination 'platform=iOS Simulator,name=<simulator>'` in
@@ -247,5 +280,5 @@ this folder runs the library's tests on a simulator. They replay the vector file
 
 [shadowlist-uikit-example](../../templates/shadowlist-uikit-example) has a screen per template. Open one with
 `-SLRoute` and a route: `Feed`, `Masonry`, `Chat`, `Contacts`, `SectionList`, `Reorder`, `ReorderGrid`, `Snap`,
-`Nested` or `Inbox`. `-SLStates 1` adds placeholder posts to Feed and captions and sending and failed messages to
+`Nested`, `Inbox`, `Activity` or `Poll`. `-SLStates 1` adds placeholder posts to Feed and captions and sending and failed messages to
 Chat, `-SLSelectDemo 1` opens Inbox editing with two rows selected, and `-SLImages 0` loads no image.

@@ -737,6 +737,8 @@ struct ExampleRoute {
     ExampleRoute(route: "ReorderGrid", title: "Sky Wishlist", summary: "Touch and hold a card, then drag it across the grid") { ReorderGridScreen() },
     ExampleRoute(route: "Snap", title: "Destinations", summary: "Cards that snap into place") { SnapScreen() },
     ExampleRoute(route: "Sections", title: "Sections", summary: "Section headers, footers, an index and self-sizing cells") { SectionsScreen() },
+    ExampleRoute(route: "Activity", title: "Activity", summary: "Unread activity and pull to refresh") { ActivityScreen() },
+    ExampleRoute(route: "Poll", title: "Poll", summary: "Choose a destination and see the votes") { PollScreen() },
     ExampleRoute(route: "Inbox", title: "Inbox", summary: "Swipe actions, a menu on long press and selection") { InboxScreen() },
   ]
 }

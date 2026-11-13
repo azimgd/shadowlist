@@ -14,6 +14,7 @@
 #include <shadowlist-core/utils/ChatLayout.hpp>
 #include <shadowlist-core/utils/ContactSection.hpp>
 #include <shadowlist-core/utils/FeedImageFrame.hpp>
+#include <shadowlist-core/utils/PollTally.hpp>
 #include <shadowlist-core/utils/RelativeTime.hpp>
 #include <shadowlist-core/utils/Text.hpp>
 
@@ -260,6 +261,26 @@ JNIEXPORT jboolean JNICALL SHADOWLIST_UTILS_JNI(nativeChatMessageSizeSpec)(
   values[CHAT_OUT_WIDTH_FRACTION] = spec.widthFraction;
   env->SetDoubleArrayRegion(out, 0, CHAT_OUT_SLOTS, values);
   return JNI_TRUE;
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_UTILS_JNI(nativePollTally)(JNIEnv* env, jclass, jdoubleArray votes, jdoubleArray out) {
+  enum PollOutSlot { POLL_OUT_TOTAL_VOTES, POLL_OUT_LEADING_INDEX, POLL_OUT_SLOTS };
+  if (env->GetArrayLength(out) < POLL_OUT_SLOTS) {
+    return;
+  }
+  std::vector<double> counts(static_cast<std::size_t>(env->GetArrayLength(votes)));
+  if (!counts.empty()) {
+    env->GetDoubleArrayRegion(votes, 0, static_cast<jsize>(counts.size()), counts.data());
+  }
+  sl::PollTally tally = sl::pollTally(counts);
+  jdouble values[POLL_OUT_SLOTS];
+  values[POLL_OUT_TOTAL_VOTES] = tally.totalVotes;
+  values[POLL_OUT_LEADING_INDEX] = tally.leadingIndex == sl::UNDEFINED_INDEX ? -1.0 : static_cast<double>(tally.leadingIndex);
+  env->SetDoubleArrayRegion(out, 0, POLL_OUT_SLOTS, values);
+}
+
+JNIEXPORT jint JNICALL SHADOWLIST_UTILS_JNI(nativePollPercent)(JNIEnv*, jclass, jdouble votes, jdouble totalVotes) {
+  return static_cast<jint>(sl::pollPercent(votes, totalVotes));
 }
 
 }

@@ -5,6 +5,7 @@
 #include <shadowlist-core/utils/ChatLayout.hpp>
 #include <shadowlist-core/utils/ContactSection.hpp>
 #include <shadowlist-core/utils/FeedImageFrame.hpp>
+#include <shadowlist-core/utils/PollTally.hpp>
 #include <shadowlist-core/utils/RelativeTime.hpp>
 #include <shadowlist-core/utils/Text.hpp>
 
@@ -169,6 +170,25 @@ static NSString *makeString(const std::string& text)
 + (NSString *)sectionOtherTitle
 {
   return makeString(std::string(SECTION_OTHER_TITLE));
+}
+
+#pragma mark - Poll
+
++ (ShadowListUtilsPollTally)pollTallyForVotes:(NSArray<NSNumber *> *)votes
+{
+  std::vector<double> counts;
+  counts.reserve(votes.count);
+  for (NSNumber *vote in votes) {
+    counts.push_back(vote.doubleValue);
+  }
+  PollTally tally = pollTally(counts);
+  return (ShadowListUtilsPollTally){.totalVotes = tally.totalVotes,
+    .leadingIndex = tally.leadingIndex == UNDEFINED_INDEX ? NSNotFound : (NSInteger)tally.leadingIndex};
+}
+
++ (NSInteger)pollPercentForVotes:(double)votes totalVotes:(double)totalVotes
+{
+  return pollPercent(votes, totalVotes);
 }
 
 @end
