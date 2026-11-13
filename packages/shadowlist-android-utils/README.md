@@ -255,7 +255,7 @@ list.onPressItem = { item -> markRead(item.key) }
 ### Poll
 
 `ShadowListUtilsPollList` takes one controlled `ShadowListUtilsPollData(question, options, selectedKey)`.
-Each `ShadowListUtilsPollOption(key, label, votes)` has stable identity and a Double vote count. Shared C++ helpers
+Each `ShadowListUtilsPollOption(key, label, votes, icon)` has stable identity and a Double vote count. Shared C++ helpers
 calculate totals, leading option and percentages. The app applies the vote and sets the new model; the list never
 changes votes or selection on its own. With no `onPressItem`, rows are noninteractive.
 
@@ -267,9 +267,24 @@ list.onPressItem = { option -> submitVote(option.key) }
 list.setPoll(updatedPoll, animated = true)
 ```
 
-`labels` customizes option accessibility text and total-vote text. `rowForItem` supports custom rows, including icons.
+`labels` customizes option accessibility text and total-vote text. An optional native image `icon` replaces the first Unicode scalar of the option label in its chip;
+leading options use the accent color and selected options an accent border. `rowForItem` supports custom rows.
 Custom `headerView` and `footerView`, including null, survive model and label updates. Activity and Poll rows expose
 matching layout/view types and follow large text and right-to-left layout like the other templates.
+
+### Activity header and chat input
+
+`ShadowListUtilsActivityHeader` shows a title, optional subtitle and wrapping actions. Each
+`ShadowListUtilsActivityHeaderAction` has `label`, `onPress`, optional native image `icon` and optional
+`accessibilityLabel`. Set the view as the activity list's `headerView`; the example's Mark all read action updates
+application-owned items.
+
+`ShadowListUtilsChatInput` is the exported multiline composer used by the Chat example. Its initializer accepts
+`defaultValue` for an uncontrolled draft. A non-null `value` makes the application own the text;
+`onChangeText` requests edits. `onSend` receives trimmed text. Sending clears only an uncontrolled draft and ignores
+whitespace or `disabled` input. `maxLength` defaults to 500 UTF-16 units and never accepts half a surrogate pair.
+`labels.placeholder` and `labels.send` supply the visible/accessibility strings. The containing screen owns keyboard
+avoidance; UIKit's example places the input against its keyboard layout guide.
 
 ## Tests
 

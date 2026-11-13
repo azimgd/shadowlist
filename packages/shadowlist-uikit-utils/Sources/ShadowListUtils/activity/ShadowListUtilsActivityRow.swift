@@ -47,8 +47,14 @@ public struct ShadowListUtilsActivityRow: ShadowListUtilsRow {
     let time = typography.footnote.layout(self.time, width: bodyWidth / 3, maxLines: 1)
     let timeFrame = CGRect(CGPoint(x: width - spacing.lg - time.size.width, y: top), time)
     let titleWidth = max(1, bodyWidth - time.size.width - spacing.sm)
-    let title = typography.subhead.with(.semibold).layout(
-      "\(item.actor.name) \(item.action)", width: titleWidth, maxLines: ShadowListUtilsPlatform.isLargeText ? 0 : 1)
+    let titleText = NSMutableAttributedString(
+      string: "\(item.actor.name) \(item.action)", attributes: [.foregroundColor: theme.colors.secondaryLabel])
+    titleText.addAttributes([
+      .font: UIFont.systemFont(ofSize: typography.subhead.fontSize * ShadowListUtilsPlatform.textScale, weight: .semibold),
+      .foregroundColor: theme.colors.label,
+    ], range: NSRange(location: 0, length: (item.actor.name as NSString).length))
+    let title = typography.subhead.layout(
+      titleText, width: titleWidth, maxLines: ShadowListUtilsPlatform.isLargeText ? 0 : 1)
     let titleFrame = CGRect(CGPoint(x: bodyX, y: top), title)
     let text = item.text.flatMap { $0.isEmpty ? nil : typography.footnote.layout(
       $0, width: titleWidth, maxLines: ShadowListUtilsPlatform.isLargeText ? 4 : 2) }

@@ -12,6 +12,19 @@ class PollTest {
   private val theme = testTheme
   private val options = listOf(ShadowListUtilsPollOption("one", "Window seat", 1.0), ShadowListUtilsPollOption("two", "Aisle seat", 7.0))
 
+  @Test fun the_default_chip_uses_the_first_unicode_scalar_and_an_icon_changes_the_row_version() = onMain {
+    for ((text, expected) in listOf("Lisbon" to "L", "éclair" to "É", "e\u0301clair" to "E", "👩‍✈️ crew" to "👩")) {
+      val row = ShadowListUtilsPollRow(ShadowListUtilsPollOption("one", text, 1.0), 1.0, theme = theme)
+      val layout = row.layout(TEST_WIDTH_DP.px) as ShadowListUtilsPollRowLayout
+      assertEquals(expected, layout.initial.layout.text.toString())
+      assertEquals(44f.px, layout.selectionFrame.width())
+    }
+    val item = ShadowListUtilsPollOption("one", "Lisbon", 1.0)
+    val first = ShadowListUtilsPollRow(item, 1.0, theme = theme)
+    val second = ShadowListUtilsPollRow(item.copy(icon = android.graphics.drawable.ColorDrawable(0xFF000000.toInt())), 1.0, theme = theme)
+    assertTrue(first.contentVersion != second.contentVersion)
+  }
+
   @Test
   fun the_core_answers_every_shared_poll_vector() {
     for (entry in Vectors.cases("poll.json")) {

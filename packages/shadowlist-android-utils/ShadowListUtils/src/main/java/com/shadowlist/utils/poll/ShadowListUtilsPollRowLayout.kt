@@ -9,6 +9,7 @@ import com.shadowlist.kit.ShadowListKitTextLayout
 class ShadowListUtilsPollRowLayout internal constructor(
   widthPx: Int, heightPx: Int,
   val selectionFrame: Rect,
+  val initial: ShadowListKitTextLayout, val initialFrame: Rect,
   val label: ShadowListKitTextLayout, val labelFrame: Rect,
   val percent: ShadowListKitTextLayout, val percentFrame: Rect,
   val barFrame: Rect, val barFillFrame: Rect,

@@ -23,6 +23,28 @@ NS_ASSUME_NONNULL_BEGIN
 NS_SWIFT_SENDABLE
 @interface ShadowListKitTextLayout : NSObject
 
+/*
+ * The same fixed-line layout with per-run fonts, kern and colors. Unspecified attributes use
+ * font and kern; runs without a color use the draw call's color, as a plain string does.
+ */
+#if TARGET_OS_OSX
++ (instancetype)layoutWithAttributedString:(NSAttributedString *)string
+                                      font:(NSFont *)font
+                                lineHeight:(CGFloat)lineHeight
+                                      kern:(CGFloat)kern
+                                     width:(CGFloat)width
+                              maximumLines:(NSUInteger)maximumLines
+                                 alignment:(NSTextAlignment)alignment;
+#else
++ (instancetype)layoutWithAttributedString:(NSAttributedString *)string
+                                      font:(UIFont *)font
+                                lineHeight:(CGFloat)lineHeight
+                                      kern:(CGFloat)kern
+                                     width:(CGFloat)width
+                              maximumLines:(NSUInteger)maximumLines
+                                 alignment:(NSTextAlignment)alignment;
+#endif
+
 #if TARGET_OS_OSX
 + (instancetype)layoutWithString:(NSString *)string
                             font:(NSFont *)font
@@ -45,6 +67,7 @@ NS_SWIFT_SENDABLE
 @property (nonatomic, readonly) NSUInteger lineCount;
 
 - (CGRect)rectForLineAtIndex:(NSUInteger)index NS_SWIFT_NAME(rectForLine(at:));
+- (NSUInteger)characterIndexAtPoint:(CGPoint)point NS_SWIFT_NAME(characterIndex(at:));
 - (void)drawAtPoint:(CGPoint)point inContext:(CGContextRef)context color:(CGColorRef)color;
 
 @end

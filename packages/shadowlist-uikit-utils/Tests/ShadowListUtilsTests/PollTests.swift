@@ -10,6 +10,26 @@ final class PollTests: XCTestCase {
   private let options = [ShadowListUtilsPollOption(key: "one", label: "Window seat", votes: 1),
                          ShadowListUtilsPollOption(key: "two", label: "Aisle seat", votes: 7)]
 
+  func testTheDefaultChipUsesTheFirstUnicodeScalarAndAnIconChangesTheRowVersion() throws {
+    for (text, expected) in [("Lisbon", "L"), ("éclair", "É"), ("e\u{301}clair", "E"), ("👩‍✈️ crew", "👩")] {
+      let row = ShadowListUtilsPollRow(item: ShadowListUtilsPollOption(key: "one", label: text, votes: 1), totalVotes: 1, theme: theme)
+      let layout = try XCTUnwrap(row.layout(width: testWidth) as? ShadowListUtilsPollRowLayout)
+      let expectedLayout = theme.typography.headline.layout(expected, width: 44, maxLines: 1, scaled: true, alignment: .center)
+      func pixels(_ layout: ShadowListKitTextLayout) -> Data? {
+        UIGraphicsImageRenderer(size: CGSize(width: 44, height: 44)).image { context in
+          layout.draw(at: .zero, in: context.cgContext, color: UIColor.black.cgColor)
+        }.pngData()
+      }
+      XCTAssertEqual(pixels(layout.initial), pixels(expectedLayout), text)
+      XCTAssertEqual(layout.selectionFrame.width, 44)
+    }
+    let first = ShadowListUtilsPollRow(item: options[0], totalVotes: 8, theme: theme)
+    var item = options[0]
+    item.icon = UIImage(systemName: "airplane")
+    let second = ShadowListUtilsPollRow(item: item, totalVotes: 8, theme: theme)
+    XCTAssertNotEqual(first.contentVersion, second.contentVersion)
+  }
+
   func testTheCoreAnswersEverySharedPollVector() throws {
     for entry in try Vectors.cases("poll.json") {
       let input = try XCTUnwrap(entry["input"] as? [String: Any])

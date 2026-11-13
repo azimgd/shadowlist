@@ -44,7 +44,7 @@ data class ShadowListUtilsTextStyle(
    * the middle of widthPx, and weight is a font weight the public weights do not name.
    */
   internal fun layout(
-    text: String, widthPx: Int, maxLines: Int, scaled: Boolean, centered: Boolean = false, weight: Int? = null,
+    text: CharSequence, widthPx: Int, maxLines: Int, scaled: Boolean, centered: Boolean = false, weight: Int? = null,
   ): ShadowListKitTextLayout {
     val spanned = SpannableString(text)
     spanned.setSpan(LineHeight(scaledLineHeightPx(scaled)), 0, text.length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
@@ -125,7 +125,7 @@ data class ShadowListUtilsTextStyle(
      * The system font at a weight. Before API 28 a typeface has no numeric weight, and the
      * weights between regular and bold take the system's medium face.
      */
-    private fun typeface(weight: Int): Typeface = when {
+    internal fun typeface(weight: Int): Typeface = when {
       weight <= WEIGHT_REGULAR -> Typeface.DEFAULT
       weight >= WEIGHT_BOLD -> Typeface.DEFAULT_BOLD
       Build.VERSION.SDK_INT >= Build.VERSION_CODES.P -> Typeface.create(Typeface.DEFAULT, weight, false)

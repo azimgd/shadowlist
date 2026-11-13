@@ -214,7 +214,7 @@ final class ChatScreen: ListScreen {
   private var nextForward = 1
   private var nextPrepended = 1
   private var loadingEarlier = false
-  private let composer = ChatComposer()
+  private let composer = ShadowListUtilsChatInput(theme: AppTheme.theme)
 
   override var prependTitle: String { "Load Earlier Messages" }
   override var appendTitle: String { "Simulate Incoming Messages" }
@@ -345,87 +345,6 @@ final class ChatScreen: ListScreen {
     guard let index = messages.firstIndex(where: { $0.key == message.key }) else { return }
     messages[index].status = .sent
     show(.update)
-  }
-}
-
-final class ChatComposer: UIView, UITextViewDelegate {
-  var onSend: ((String) -> Void)?
-  private let box = UIView()
-  private let input = UITextView()
-  private let placeholder = UILabel()
-  private let send = UIButton(type: .system)
-  private var inputHeight: NSLayoutConstraint!
-
-  override init(frame: CGRect) {
-    super.init(frame: frame)
-    backgroundColor = AppTheme.colors.background
-    let border = UIView()
-    border.backgroundColor = AppTheme.colors.separator
-    box.layer.cornerRadius = 18
-    box.layer.borderWidth = ShadowListUtilsTheme.hairline
-    box.layer.borderColor = AppTheme.colors.separator.cgColor
-    input.font = AppTheme.typography.body.font
-    input.textColor = AppTheme.colors.label
-    input.backgroundColor = .clear
-    input.textContainerInset = .zero
-    input.textContainer.lineFragmentPadding = 0
-    input.delegate = self
-    placeholder.attributedText = AppTheme.typography.body.string("Message your crew", AppTheme.colors.secondaryLabel)
-    send.setImage(UIImage(systemName: "arrow.up", withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .bold)), for: .normal)
-    send.layer.cornerRadius = 16
-    send.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
-    for subview in [border, box, input, placeholder, send] {
-      subview.translatesAutoresizingMaskIntoConstraints = false
-      addSubview(subview)
-    }
-    inputHeight = input.heightAnchor.constraint(equalToConstant: 22)
-    NSLayoutConstraint.activate([
-      border.topAnchor.constraint(equalTo: topAnchor),
-      border.leadingAnchor.constraint(equalTo: leadingAnchor),
-      border.trailingAnchor.constraint(equalTo: trailingAnchor),
-      border.heightAnchor.constraint(equalToConstant: ShadowListUtilsTheme.hairline),
-      box.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-      box.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-      box.trailingAnchor.constraint(equalTo: send.leadingAnchor, constant: -8),
-      box.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -8),
-      input.topAnchor.constraint(equalTo: box.topAnchor, constant: 7),
-      input.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -7),
-      input.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 12),
-      input.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -12),
-      inputHeight,
-      placeholder.leadingAnchor.constraint(equalTo: input.leadingAnchor),
-      placeholder.centerYAnchor.constraint(equalTo: input.centerYAnchor),
-      send.widthAnchor.constraint(equalToConstant: 32),
-      send.heightAnchor.constraint(equalToConstant: 32),
-      send.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-      send.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -2),
-    ])
-    updateSend()
-  }
-
-  required init?(coder: NSCoder) { fatalError() }
-
-  func textViewDidChange(_ textView: UITextView) {
-    let height = min(106, max(22, ceil(textView.sizeThatFits(CGSize(width: textView.bounds.width, height: .greatestFiniteMagnitude)).height)))
-    inputHeight.constant = height
-    updateSend()
-  }
-
-  private func updateSend() {
-    let enabled = !input.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    placeholder.isHidden = !input.text.isEmpty
-    send.backgroundColor = enabled ? AppTheme.colors.accent : AppTheme.colors.fill
-    send.tintColor = enabled ? AppTheme.colors.onAccent : AppTheme.colors.secondaryLabel
-    send.isEnabled = enabled
-  }
-
-  @objc private func sendTapped() {
-    let text = input.text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty else { return }
-    input.text = ""
-    textViewDidChange(input)
-    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-    onSend?(text)
   }
 }
 

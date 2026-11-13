@@ -2,6 +2,8 @@ package com.shadowlist.kit.example
 
 import android.content.Context
 import android.view.View
+import com.shadowlist.utils.ShadowListUtilsActivityHeader
+import com.shadowlist.utils.ShadowListUtilsActivityHeaderAction
 import com.shadowlist.utils.ShadowListUtilsActivityActor
 import com.shadowlist.utils.ShadowListUtilsActivityItem
 import com.shadowlist.utils.ShadowListUtilsActivityList
@@ -16,6 +18,12 @@ class ActivityScreen(context: Context) : Screen {
   override val view: View get() = list
 
   override fun load() {
+    list.headerView = ShadowListUtilsActivityHeader(list.context, "Activity", "Your trip crew", listOf(
+      ShadowListUtilsActivityHeaderAction("Mark all read", {
+        items = items.map { it.copy(read = true) }
+        list.setItems(items, animated = true)
+      }),
+    ), list.context.listTheme)
     list.onPressItem = { item ->
       items = items.map { if (it.key == item.key) it.copy(read = true) else it }
       list.setItems(items, animated = true)

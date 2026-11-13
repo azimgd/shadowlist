@@ -12,6 +12,20 @@ final class ActivityTests: XCTestCase {
       createdAtMs: 0, read: read)
   }
 
+  func testTheActionUsesRegularMetricsWhileTheActorKeepsItsEmphasis() throws {
+    let item = ShadowListUtilsActivityItem(key: "one", actor: ShadowListUtilsActivityActor(name: "Mara"),
+      action: "followed a remarkably wonderful itinerary", createdAtMs: 0)
+    let row = ShadowListUtilsActivityRow(item: item, theme: theme, formatTime: { _ in "" })
+    let layout = try XCTUnwrap(row.layout(width: 2000) as? ShadowListUtilsActivityRowLayout)
+    let text = "\(item.actor.name) \(item.action)"
+    let regular = theme.typography.subhead.layout(text, width: 2000)
+    let semibold = theme.typography.subhead.with(.semibold).layout(text, width: 2000)
+    XCTAssertGreaterThan(layout.title.size.width, regular.size.width)
+    XCTAssertLessThan(layout.title.size.width, semibold.size.width)
+    let narrow = try XCTUnwrap(withTextSize(1.6) { row.layout(width: 230) } as? ShadowListUtilsActivityRowLayout)
+    XCTAssertGreaterThan(narrow.title.lineCount, 1)
+  }
+
   func testTheListShowsItsItemsAndSelectsOnlyWhenAsked() {
     let list = ShadowListUtilsActivityList(theme: theme)
     list.items = [item("one"), item("two")]

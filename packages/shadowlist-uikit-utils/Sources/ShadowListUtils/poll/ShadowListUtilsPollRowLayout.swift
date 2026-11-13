@@ -6,6 +6,8 @@ import UIKit
  */
 public final class ShadowListUtilsPollRowLayout: ShadowListUtilsRowLayout {
   public let selectionFrame: CGRect
+  public let initial: ShadowListKitTextLayout
+  public let initialFrame: CGRect
   public let label: ShadowListKitTextLayout
   public let labelFrame: CGRect
   public let percent: ShadowListKitTextLayout
@@ -14,10 +16,12 @@ public final class ShadowListUtilsPollRowLayout: ShadowListUtilsRowLayout {
   public let barFillFrame: CGRect
 
   init(
-    width: CGFloat, height: CGFloat, selectionFrame: CGRect, label: ShadowListKitTextLayout,
+    width: CGFloat, height: CGFloat, selectionFrame: CGRect, initial: ShadowListKitTextLayout, initialFrame: CGRect, label: ShadowListKitTextLayout,
     labelFrame: CGRect, percent: ShadowListKitTextLayout, percentFrame: CGRect, barFrame: CGRect, barFillFrame: CGRect
   ) {
     self.selectionFrame = selectionFrame
+    self.initial = initial
+    self.initialFrame = initialFrame
     self.label = label
     self.labelFrame = labelFrame
     self.percent = percent

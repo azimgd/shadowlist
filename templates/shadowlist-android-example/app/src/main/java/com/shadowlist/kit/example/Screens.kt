@@ -10,6 +10,8 @@ import android.widget.Button
 import android.widget.LinearLayout
 import com.shadowlist.kit.ShadowListKitListView
 import com.shadowlist.kit.bench.ShadowListKitBench
+import com.shadowlist.utils.ShadowListUtilsChatInput
+import com.shadowlist.utils.ShadowListUtilsChatAuthor
 import com.shadowlist.utils.ShadowListUtilsChatBubble
 import com.shadowlist.utils.ShadowListUtilsChatLabels
 import com.shadowlist.utils.ShadowListUtilsChatList
@@ -101,6 +103,15 @@ class FeedScreen(context: Context, engine: Engine) : ListScreen(context, engine,
 class ChatScreen(context: Context, engine: Engine) :
   ListScreen(context, engine, inverted = true, makeTemplate = { ShadowListUtilsChatList(context) }) {
   private val messages = ArrayList<ChatMessage>()
+  private val sent = ArrayList<ShadowListUtilsChatMessage>()
+  private val composer = ShadowListUtilsChatInput(context, theme = context.listTheme)
+  private val content = LinearLayout(context).apply {
+    orientation = LinearLayout.VERTICAL
+    addView(list.backend.view, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+    addView(composer, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+  }
+  override val view: View get() = content
+
   private val labels = ShadowListUtilsChatLabels()
 
   /*
@@ -113,6 +124,13 @@ class ChatScreen(context: Context, engine: Engine) :
   private fun caption(message: ShadowListUtilsChatMessage): String? = if (message.key in captioned) "Edited" else null
 
   override fun load() {
+    composer.onSend = { text ->
+      sent.add(ShadowListUtilsChatMessage(
+        key = "sent-${System.nanoTime()}", author = ShadowListUtilsChatAuthor("me", "Me"),
+        isOwn = true, text = text, createdAtMs = System.currentTimeMillis().toDouble(), status = ShadowListUtilsChatMessageStatus.SENT))
+      show(RowChange.Append(1))
+      list.backend.scrollToItem(items().lastIndex, true)
+    }
     (list.template as? ShadowListUtilsChatList)?.captionForItem = ::caption
     messages.addAll(generate(Settings.count, ::message))
     show(RowChange.Reset)
@@ -134,7 +152,7 @@ class ChatScreen(context: Context, engine: Engine) :
    * it failed.
    */
   private fun items(): List<ShadowListUtilsChatMessage> {
-    if (!Settings.states) return messages.map { Items.chat(it) }
+    if (!Settings.states) return messages.map { Items.chat(it) } + sent
     val own = messages.filter { it.isOwn }
     val sending = own.lastOrNull()
     val failed = own.getOrNull(own.size - 2)
@@ -146,7 +164,7 @@ class ChatScreen(context: Context, engine: Engine) :
         message.isOwn -> ShadowListUtilsChatMessageStatus.SENT
         else -> null
       })
-    }
+    } + sent
   }
 
   private fun show(change: RowChange) {

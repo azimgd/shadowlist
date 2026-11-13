@@ -1,6 +1,11 @@
 package com.shadowlist.utils
 
 import android.content.Context
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.style.ForegroundColorSpan
+import android.text.style.MetricAffectingSpan
 import android.graphics.Rect
 import kotlin.math.max
 
@@ -37,8 +42,17 @@ data class ShadowListUtilsActivityRow(
     val time = typography.footnote.layout(this.time, (bodyWidth / 3).coerceAtLeast(1), 1)
     val timeFrame = frameOf(widthPx - spacing.lg.px - time.width, top, time)
     val titleWidth = (bodyWidth - time.width - spacing.sm.px).coerceAtLeast(1)
-    val title = typography.subhead.with(ShadowListUtilsFontWeight.SEMIBOLD).layout(
-      "${item.actor.name} ${item.action}", titleWidth, if (ShadowListUtilsPlatform.isLargeText) 0 else 1)
+    val titleText = SpannableString("${item.actor.name} ${item.action}")
+    titleText.setSpan(ForegroundColorSpan(theme.colors.secondaryLabel), 0, titleText.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    titleText.setSpan(ForegroundColorSpan(theme.colors.label), 0, item.actor.name.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    titleText.setSpan(object : MetricAffectingSpan() {
+      override fun updateDrawState(paint: TextPaint) = updateMeasureState(paint)
+      override fun updateMeasureState(paint: TextPaint) {
+        paint.typeface = ShadowListUtilsTextStyle.typeface(ShadowListUtilsTextStyle.WEIGHT_SEMIBOLD)
+      }
+    }, 0, item.actor.name.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    val title = typography.subhead.layout(
+      titleText, titleWidth, if (ShadowListUtilsPlatform.isLargeText) 0 else 1, scaled = true)
     val titleFrame = frameOf(bodyX, top, title)
     val text = item.text?.takeIf { it.isNotEmpty() }?.let {
       typography.footnote.layout(it, titleWidth, if (ShadowListUtilsPlatform.isLargeText) 4 else 2)

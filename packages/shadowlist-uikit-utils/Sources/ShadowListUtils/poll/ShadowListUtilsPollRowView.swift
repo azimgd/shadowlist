@@ -6,7 +6,8 @@ import UIKit
  */
 public final class ShadowListUtilsPollRowView: ShadowListUtilsRowView {
   private let selection = UIView()
-  private let check = UIImageView(image: UIImage(systemName: "checkmark"))
+  private let icon = UIImageView()
+  private let initial = ShadowListKitTextView(frame: .zero)
   private let label = ShadowListKitTextView(frame: .zero)
   private let percent = ShadowListKitTextView(frame: .zero)
   private let bar = UIView()
@@ -15,8 +16,8 @@ public final class ShadowListUtilsPollRowView: ShadowListUtilsRowView {
   public required init(reuseIdentifier: String?) {
     super.init(reuseIdentifier: reuseIdentifier)
     isAccessibilityElement = true
-    check.contentMode = .scaleAspectFit
-    [selection, check, label, percent, bar, barFill].forEach(addSubview)
+    icon.contentMode = .scaleAspectFit
+    [selection, icon, initial, label, percent, bar, barFill].forEach(addSubview)
   }
 
   public override func fill(_ row: ShadowListUtilsRow) {
@@ -24,13 +25,15 @@ public final class ShadowListUtilsPollRowView: ShadowListUtilsRowView {
     let colors = row.theme.colors
     restingBackgroundColor = colors.background
     pressedBackgroundColor = row.interactive ? colors.fill : nil
-    selection.backgroundColor = row.isSelected ? colors.accent : .clear
-    selection.layer.borderColor = (row.isSelected ? colors.accent : colors.tertiaryLabel).cgColor
-    selection.layer.borderWidth = 1
-    check.tintColor = colors.onAccent
-    check.isHidden = !row.isSelected
+    selection.backgroundColor = row.isLeading ? colors.accentSoft : colors.elevated
+    selection.layer.borderColor = colors.accent.cgColor
+    selection.layer.borderWidth = row.isSelected ? 2 : 0
+    icon.image = row.item.icon?.withRenderingMode(.alwaysTemplate)
+    icon.tintColor = row.isLeading ? colors.accent : colors.label
+    icon.isHidden = row.item.icon == nil
+    initial.isHidden = row.item.icon != nil
     bar.backgroundColor = colors.fill
-    barFill.backgroundColor = row.isLeading ? colors.accent : colors.tertiaryLabel
+    barFill.backgroundColor = row.isLeading ? colors.accent : colors.secondaryLabel
     accessibilityLabel = row.accessibilityLabel
     accessibilityTraits = row.interactive ? .button : []
     if row.isSelected { accessibilityTraits.insert(.selected) }
@@ -40,7 +43,9 @@ public final class ShadowListUtilsPollRowView: ShadowListUtilsRowView {
     guard let row = row as? ShadowListUtilsPollRow, let layout = layout as? ShadowListUtilsPollRowLayout else { return }
     selection.frame = layout.selectionFrame
     selection.layer.cornerRadius = layout.selectionFrame.width / 2
-    check.frame = layout.selectionFrame.insetBy(dx: 5, dy: 5)
+    icon.frame = layout.selectionFrame.insetBy(dx: 11, dy: 11)
+    initial.show(layout.initial, row.isLeading ? row.theme.colors.accent : row.theme.colors.label)
+    initial.frame = layout.initialFrame
     label.show(layout.label, row.theme.colors.label)
     label.frame = layout.labelFrame
     percent.show(layout.percent, row.isLeading ? row.theme.colors.accent : row.theme.colors.secondaryLabel)

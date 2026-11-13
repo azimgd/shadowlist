@@ -54,6 +54,18 @@ public struct ShadowListUtilsTextStyle: Hashable {
   }
 
   /*
+   * Mixed text keeps the same measured line metrics as plain text. Explicit run fonts and
+   * colors survive drawing, for titles whose actor and action have different emphasis.
+   */
+  func layout(_ text: NSAttributedString, width: CGFloat, maxLines: Int = 0) -> ShadowListKitTextLayout {
+    let scale = ShadowListUtilsPlatform.textScale
+    return ShadowListKitTextLayout(
+      attributedString: text, font: UIFont.systemFont(ofSize: fontSize * scale, weight: weight),
+      lineHeight: scaledLineHeight(), kern: letterSpacing * scale, width: max(0, width),
+      maximumLines: UInt(max(0, maxLines)), alignment: .natural)
+  }
+
+  /*
    * The height of one line as text is laid out with it: the style's at the reader's text size,
    * rounded up to the pixel grid.
    */

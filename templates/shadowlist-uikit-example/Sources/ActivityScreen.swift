@@ -28,6 +28,14 @@ final class ActivityScreen: UIViewController {
       self.list.setItems(self.items, animated: true)
       self.list.isRefreshing = false
     }
+    list.headerView = ShadowListUtilsActivityHeader(
+      title: "Activity", subtitle: "Your trip crew", actions: [
+        ShadowListUtilsActivityHeaderAction(label: "Mark all read", onPress: { [weak self] in
+          guard let self else { return }
+          for index in self.items.indices { self.items[index].read = true }
+          self.list.setItems(self.items, animated: true)
+        }, icon: UIImage(systemName: "checkmark")),
+      ], theme: AppTheme.theme)
     view.addSubview(list)
     items = (0..<100).map(activity)
     list.items = items

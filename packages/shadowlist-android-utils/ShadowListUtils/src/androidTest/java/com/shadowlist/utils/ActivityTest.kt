@@ -13,6 +13,20 @@ class ActivityTest {
     key, ShadowListUtilsActivityActor("Ada Lovelace"), "commented on your itinerary",
     "A long activity preview that wraps over multiple lines on a phone.", 0.0, read)
 
+  @Test fun the_action_uses_regular_metrics_while_the_actor_keeps_its_emphasis() = onMain {
+    val item = ShadowListUtilsActivityItem("one", ShadowListUtilsActivityActor("Mara"),
+      "followed a remarkably wonderful itinerary", createdAtMs = 0.0)
+    val row = ShadowListUtilsActivityRow(item, theme = theme, formatTime = { "" })
+    val layout = row.layout(2000f.px) as ShadowListUtilsActivityRowLayout
+    val text = "${item.actor.name} ${item.action}"
+    val regular = theme.typography.subhead.layout(text, 2000f.px)
+    val semibold = theme.typography.subhead.with(ShadowListUtilsFontWeight.SEMIBOLD).layout(text, 2000f.px)
+    assertTrue(layout.title.width > regular.width)
+    assertTrue(layout.title.width < semibold.width)
+    val narrow = withTextSize(1.6f) { row.layout(230f.px) as ShadowListUtilsActivityRowLayout }
+    assertTrue(narrow.title.lineCount > 1)
+  }
+
   @Test
   fun the_list_shows_its_items_and_selects_only_when_asked() = onMain {
     val list = ShadowListUtilsActivityList(testContext, theme)
