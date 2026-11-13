@@ -253,7 +253,7 @@ object Routes {
    * Feature screens, which always run on ShadowListKitListView.
    */
   val features = listOf(
-    "Activity", "Poll", "Tree", "Board", "Assistant", "Contacts", "Reorder", "ReorderGrid", "Snap", "Nested", "Inbox", "Horizontal", "Changes", "Collapsing", "Sections")
+    "Activity", "Poll", "Tree", "Board", "Assistant", "Components", "Contacts", "Reorder", "ReorderGrid", "Snap", "Nested", "Inbox", "Horizontal", "Changes", "Collapsing", "Sections")
 
   fun make(name: String, context: Context, engine: Engine): Screen? = when (name) {
     "Feed" -> FeedScreen(context, engine)
@@ -267,6 +267,7 @@ object Routes {
     "Nested" -> NestedScreen(context)
     "Activity" -> ActivityScreen(context)
     "Assistant" -> AssistantScreen(context)
+    "Components" -> ComponentsScreen(context)
     "Board" -> BoardScreen(context)
     "Tree" -> TreeScreen(context)
     "Poll" -> PollScreen(context)

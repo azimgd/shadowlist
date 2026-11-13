@@ -88,7 +88,9 @@ class PollTest {
     list.poll = ShadowListUtilsPollData("A question", options, "two")
     host(list)
     assertEquals("A question", (list.headerView as ShadowListUtilsListHeader).title)
-    assertEquals("Total 8.0", (list.footerView as ShadowListUtilsListFooter).text)
+    val totalFooter = list.footerView as ShadowListUtilsPollFooter
+    val totalLabel = (0 until totalFooter.childCount).map(totalFooter::getChildAt).filterIsInstance<ShadowListUtilsListFooter>().single()
+    assertEquals("Total 8.0", totalLabel.text)
     assertEquals("Window seat has 13 percent", requireNotNull(list.rowView(0)).contentDescription)
     val info = AccessibilityNodeInfo.obtain()
     requireNotNull(list.rowView(1)).onInitializeAccessibilityNodeInfo(info)

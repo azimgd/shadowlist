@@ -53,9 +53,10 @@ public final class ShadowListUtilsAssistantReplyMessage: UIView {
   }
 
   enum Section {
+    case typing(frame: CGRect)
     case text(key: String, layout: ShadowListKitTextLayout, frame: CGRect, error: Bool)
-    case thinking(title: String, text: String, body: ShadowListKitTextLayout, frame: CGRect, expanded: Bool)
-    case tool(call: ShadowListUtilsAssistantToolCall, title: String, text: String, body: ShadowListKitTextLayout, frame: CGRect, expanded: Bool)
+    case thinking(title: String, text: String, body: ShadowListUtilsAssistantDisclosureTextLayout, frame: CGRect, expanded: Bool)
+    case tool(call: ShadowListUtilsAssistantToolCall, title: String, text: String, body: ShadowListUtilsAssistantDisclosureTextLayout, frame: CGRect, expanded: Bool)
     case markdown(key: String, text: String, streaming: Bool, frame: CGRect)
     case source(index: Int, source: ShadowListUtilsAssistantSource, frame: CGRect)
     case followUp(prompt: String, frame: CGRect)
@@ -93,21 +94,18 @@ public final class ShadowListUtilsAssistantReplyMessage: UIView {
     var sections: [Section] = []
     if let thinking = turn.thinking, !thinking.isEmpty {
       let active = streaming && (turn.thinkingMs ?? 0) == 0
-      let duration = ((turn.thinkingMs ?? 0) / 1000).rounded()
-      let seconds = !duration.isFinite || duration < 1 ? 1 : duration >= Double(Int.max) ? Int.max : Int(duration)
-      let title = active ? labels.thinking : labels.thoughtFor(seconds)
-      // String suffixes use UTF-16 here, matching the existing RN preview contract.
-      let units = Array(thinking.utf16.suffix(160))
-      let preview = thinkingExpanded ? thinking : String(decoding: units, as: UTF16.self)
-      let body = theme.typography.footnote.layout(preview, width: inner - spacing.md, maxLines: thinkingExpanded ? 0 : 1)
-      let height = 28 + spacing.xs + body.size.height + spacing.sm
+      let title = ShadowListUtilsAssistantThinking.title(thinkingMs: turn.thinkingMs ?? 0, active: active, labels: labels)
+      let layout = ShadowListUtilsAssistantThinking.layout(thinking: thinking, title: title, expanded: thinkingExpanded, width: inner, theme: theme)
+      let preview = layout.text
+      let body = layout.body
+      let height = layout.size.height
       sections.append(.thinking(title: title, text: preview, body: body, frame: direction.place(CGRect(x: x, y: y, width: inner, height: height)), expanded: thinkingExpanded))
       y += height + spacing.md
     }
     if streaming, turn.thinking?.isEmpty != false, turn.content.isEmpty, turn.toolCalls.isEmpty {
-      let text = theme.typography.footnote.layout(labels.typing, width: inner)
-      sections.append(.text(key: "typing", layout: text, frame: direction.place(CGRect(CGPoint(x: x, y: y), text)), error: false))
-      y += text.size.height + spacing.md
+      let height = 7 + 2 * spacing.sm
+      sections.append(.typing(frame: direction.place(CGRect(x: x, y: y, width: inner, height: height))))
+      y += height + spacing.md
     }
     let steps = ShadowListUtilsCore.stepsOf(turn.content, positions: turn.toolCalls.map { NSNumber(value: $0.at ?? 0) })
     for (index, step) in steps.enumerated() {
@@ -127,13 +125,12 @@ public final class ShadowListUtilsAssistantReplyMessage: UIView {
         for callIndex in calls.callIndices.map(\.intValue) where turn.toolCalls.indices.contains(callIndex) {
           let call = turn.toolCalls[callIndex]
           let expanded = expandedToolKeys.contains(call.key)
-          let output: String?
-          switch call.status { case let .done(value): output = value; case let .failed(value): output = value; default: output = nil }
           let status = labels.toolStatus(call.status)
           let title = "\(call.name), \(status)"
-          let bodyText = expanded ? "\(labels.toolInput)\n\(call.input)" + (output.map { "\n\n\(labels.toolOutput)\n\($0)" } ?? "") : ((output?.isEmpty == false ? output : nil) ?? status)
-          let body = theme.typography.footnote.layout(bodyText, width: inner - 2 * spacing.md, maxLines: expanded ? 0 : 1)
-          let height = 32 + body.size.height + 2 * spacing.sm
+          let layout = ShadowListUtilsAssistantToolCallCard.layout(call: call, title: title, status: status, labels: labels, expanded: expanded, width: inner, theme: theme)
+          let bodyText = layout.text
+          let body = layout.body
+          let height = layout.size.height
           sections.append(.tool(call: call, title: title, text: bodyText, body: body,
             frame: direction.place(CGRect(x: x, y: y, width: inner, height: height)), expanded: expanded))
           y += height + spacing.xs
@@ -204,6 +201,10 @@ public final class ShadowListUtilsAssistantReplyMessage: UIView {
     var usedMarkdown: Set<String> = []
     for section in layout.sections {
       switch section {
+      case let .typing(frame):
+        let view = ShadowListUtilsAssistantTypingIndicator(theme: theme)
+        view.labels = labels; view.frame = frame
+        addSection(view)
       case let .markdown(key, text, streaming, frame):
         let view = markdownViews[key] ?? ShadowListUtilsAssistantMarkdown(theme: theme)
         view.text = text
@@ -232,8 +233,9 @@ public final class ShadowListUtilsAssistantReplyMessage: UIView {
           if self.expandedToolKeys.contains(call.key) { self.expandedToolKeys.remove(call.key) } else { self.expandedToolKeys.insert(call.key) }
           self.changedLayout(); self.onLayoutChange?()
         }
+        (view as? ShadowListUtilsAssistantDisclosure)?.status = call.status
         view.backgroundColor = theme.colors.elevated
-        view.layer.cornerRadius = theme.radius.sm
+        view.layer.cornerRadius = theme.radius.md
         addSection(view)
       case let .source(index, source, frame):
         let button = textButton(source.title, frame: frame) { [weak self] in self?.open(source.url) }
@@ -274,17 +276,11 @@ public final class ShadowListUtilsAssistantReplyMessage: UIView {
   private var resolvedTurn: ShadowListUtilsAssistantTurn { Self.resolvedTurn(message: message, live: turn) }
 
   private func addSection(_ view: UIView) { sectionViews.append(view); addSubview(view) }
-  private func disclosure(title: String, text: String, body: ShadowListKitTextLayout, frame: CGRect, expanded: Bool, onPress: @escaping () -> Void) -> UIView {
-    let view = UIView(frame: frame)
-    let button = textButton(title + (expanded ? " ⌄" : " ›"), frame: CGRect(x: 0, y: 0, width: frame.width, height: 28), onPress: onPress)
-    button.accessibilityValue = expanded ? "Expanded" : "Collapsed"
-    view.addSubview(button)
-    let bodyView = ShadowListKitTextView(frame: CGRect(x: theme.spacing.md, y: 28 + theme.spacing.xs,
-      width: body.size.width, height: body.size.height))
-    bodyView.show(body, theme.colors.secondaryLabel)
-    bodyView.isAccessibilityElement = true
-    bodyView.accessibilityLabel = text
-    view.addSubview(bodyView)
+  private func disclosure(title: String, text: String, body: ShadowListUtilsAssistantDisclosureTextLayout, frame: CGRect, expanded: Bool, onPress: @escaping () -> Void) -> UIView {
+    let view = ShadowListUtilsAssistantDisclosure(theme: theme)
+    view.frame = frame
+    view.onPress = onPress
+    view.show(title: title, text: text, layout: body, expanded: expanded)
     return view
   }
 

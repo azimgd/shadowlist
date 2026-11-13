@@ -362,4 +362,31 @@ retry, stop, regeneration, version selection, feedback, attachments and editing 
 
 The exported native views include Assistant list, composer, user message, reply message, Markdown, action button
 and attachment chip. Thinking, tool cards, sources, follow-ups and variant controls are integrated in replies;
-separate React Native component exports and exact visual parity remain separate work.
+standalone components are described below; exact visual parity and other component families remain separate work.
+
+
+### Standalone Assistant and Poll components
+
+The transcript and standalone `ShadowListUtilsAssistantThinking` and
+`ShadowListUtilsAssistantToolCallCard` share disclosure layout and rendering. Thinking takes
+`thinking`, `thinkingMs` and `active`; the collapsed preview keeps the last 160 UTF-16 units.
+Tool cards take the existing typed `call`, plus `grouped` and `separated`. Both own only local
+expansion state. Expanded text uses native selection with zero text insets; application turns
+and calls remain unchanged. Existing `labels` supply the text and status formatters.
+
+`ShadowListUtilsAssistantEmpty` takes `suggestions` of `ShadowListUtilsAssistantSuggestion(title, prompt)`
+and `onSelectSuggestion`; selection returns the unchanged suggestion. Place it over the transcript,
+not among its rows. `ShadowListUtilsAssistantScrollButton` takes `visible` and `onPress`; hiding it
+preserves its slot while removing touch and accessibility interaction. Its fade lasts 180 ms.
+`ShadowListUtilsAssistantTypingIndicator` presents one localized progress element with three
+composited dots, a 600 ms pulse and 160 ms stagger; animations stop when hidden or detached and
+respect the system animation preference.
+
+`ShadowListUtilsPollFooter(totalVotes, theme)` is the exported total-vote footer used by PollList's
+default footer. Its existing Poll `labels.totalVotes` formatter receives the application total.
+Custom or explicitly cleared PollList footers remain application-owned.
+
+The native `Components` example route uses all six views: suggestions update the screen's selected
+prompt, disclosures expand, Finish changes a running tool to done and increments the displayed vote
+total, and the scroll button returns to the first component. Form, Grouped and other controls are
+separate implementation milestones; these additions do not imply complete visual/API parity.

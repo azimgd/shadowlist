@@ -33,6 +33,12 @@ android {
     }
   }
 
+  testOptions {
+    // Only the instrumentation APK targets the current SDK. A legacy target shows a system
+    // compatibility dialog that prevents real Activity focus and native clipboard acceptance.
+    targetSdk = 36
+  }
+
   sourceSets {
     // The tests replay the vector files the core tests and the TypeScript tests share.
     getByName("androidTest").assets.srcDir("../../shadowlist-core-tests/vectors")

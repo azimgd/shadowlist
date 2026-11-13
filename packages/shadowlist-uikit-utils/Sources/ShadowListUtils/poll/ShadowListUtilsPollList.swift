@@ -44,7 +44,7 @@ public final class ShadowListUtilsPollList: ShadowListUtilsList {
     stickyHeader = true
     stickyFooter = true
     pollHeader = ShadowListUtilsListHeader(title: storedPoll.question, theme: theme)
-    pollFooter = ShadowListUtilsListFooter(text: labels.totalVotes(0), theme: theme)
+    pollFooter = ShadowListUtilsPollFooter(totalVotes: 0, theme: theme)
     headerView = pollHeader
     footerView = pollFooter
     rebuildRows()
@@ -57,7 +57,9 @@ public final class ShadowListUtilsPollList: ShadowListUtilsList {
       headerView = pollHeader
     }
     if footerView === pollFooter {
-      pollFooter = ShadowListUtilsListFooter(text: labels.totalVotes(tally.totalVotes), theme: theme)
+      let footer = ShadowListUtilsPollFooter(totalVotes: tally.totalVotes, theme: theme)
+      footer.labels = labels
+      pollFooter = footer
       footerView = pollFooter
     }
     return storedPoll.options.enumerated().map { index, item in

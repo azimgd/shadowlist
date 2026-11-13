@@ -83,9 +83,10 @@ class ShadowListUtilsAssistantReplyMessage(
   internal sealed interface Section {
     val key: String
     val frame: Rect
+    data class Typing(override val frame: Rect) : Section { override val key = "typing" }
     data class Text(override val key: String, val text: ShadowListKitTextLayout, override val frame: Rect, val error: Boolean) : Section
-    data class Thinking(val title: String, val body: ShadowListKitTextLayout, override val frame: Rect, val expanded: Boolean) : Section { override val key = "thinking" }
-    data class Tool(val call: ShadowListUtilsAssistantToolCall, val title: String, val body: ShadowListKitTextLayout,
+    data class Thinking(val title: String, val body: ShadowListUtilsAssistantDisclosureTextLayout, override val frame: Rect, val expanded: Boolean) : Section { override val key = "thinking" }
+    data class Tool(val call: ShadowListUtilsAssistantToolCall, val title: String, val body: ShadowListUtilsAssistantDisclosureTextLayout,
                     override val frame: Rect, val expanded: Boolean) : Section { override val key = "tool-${call.key}" }
     data class Markdown(override val key: String, val text: String, val streaming: Boolean, override val frame: Rect) : Section
     data class Source(val source: ShadowListUtilsAssistantSource, val label: String, override val frame: Rect) : Section { override val key = "source-${source.key}" }
@@ -114,14 +115,15 @@ class ShadowListUtilsAssistantReplyMessage(
     for (section in layout.sections) {
       val view = sections.getValue(section.key)
       when (section) {
+        is Section.Typing -> (view as ShadowListUtilsAssistantTypingIndicator).labels = labels
         is Section.Text -> (view as ShadowListKitTextView).apply {
           show(section.text, if (section.error) theme.colors.red else theme.colors.secondaryLabel, section.frame)
           contentDescription = section.text.layout.text.toString()
         }
-        is Section.Thinking -> (view as Disclosure).show(section.title, section.body, section.expanded) {
+        is Section.Thinking -> (view as ShadowListUtilsAssistantDisclosure).show(section.title, section.body, section.expanded) {
           thinkingExpanded = !thinkingExpanded; changedPresentation()
         }
-        is Section.Tool -> (view as Disclosure).show(section.title, section.body, section.expanded) {
+        is Section.Tool -> (view as ShadowListUtilsAssistantDisclosure).apply { status = section.call.status }.show(section.title, section.body, section.expanded) {
           expandedToolKeys = if (section.call.key in expandedToolKeys) expandedToolKeys - section.call.key else expandedToolKeys + section.call.key
           changedPresentation()
         }
@@ -169,8 +171,10 @@ class ShadowListUtilsAssistantReplyMessage(
     for (section in layout.sections) {
       val view = sections.getOrPut(section.key) {
         when (section) {
+          is Section.Typing -> ShadowListUtilsAssistantTypingIndicator(context, theme)
           is Section.Text -> ShadowListKitTextView(context)
-          is Section.Thinking, is Section.Tool -> Disclosure(context)
+          is Section.Thinking -> ShadowListUtilsAssistantDisclosure(context, theme)
+          is Section.Tool -> ShadowListUtilsAssistantDisclosure(context, theme).apply { background = GradientDrawable().apply { setColor(theme.colors.elevated); cornerRadius = theme.radius.md.pxf } }
           is Section.Markdown -> ShadowListUtilsAssistantMarkdown(context, theme = theme)
           else -> Button(context).apply { isAllCaps = false; setTextColor(theme.colors.label); textSize = theme.typography.footnote.fontSize }
         }.also(::addView)
@@ -215,46 +219,6 @@ class ShadowListUtilsAssistantReplyMessage(
   }
   override fun onDetachedFromWindow() { handler.removeCallbacks(resetCopied); copied = false; super.onDetachedFromWindow() }
 
-  private inner class Disclosure(context: Context) : ViewGroup(context) {
-    private val title = Button(context).apply { isAllCaps = false; setTextColor(theme.colors.secondaryLabel); textSize = theme.typography.footnote.fontSize }
-    private val body = ShadowListKitTextView(context)
-    private var bodyLayout: ShadowListKitTextLayout? = null
-    private var expanded = false
-    init {
-      addView(title); addView(body)
-      background = GradientDrawable().apply { setColor(theme.colors.elevated); cornerRadius = theme.radius.sm.pxf }
-      title.accessibilityDelegate = object : AccessibilityDelegate() {
-        override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
-          super.onInitializeAccessibilityNodeInfo(host, info)
-          info.addAction(if (expanded) android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction.ACTION_COLLAPSE else android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction.ACTION_EXPAND)
-        }
-        override fun performAccessibilityAction(host: View, action: Int, arguments: android.os.Bundle?): Boolean {
-          if (action == android.view.accessibility.AccessibilityNodeInfo.ACTION_EXPAND || action == android.view.accessibility.AccessibilityNodeInfo.ACTION_COLLAPSE) return title.performClick()
-          return super.performAccessibilityAction(host, action, arguments)
-        }
-      }
-    }
-    fun show(label: String, text: ShadowListKitTextLayout, expanded: Boolean, onToggle: () -> Unit) {
-      val titleText = "${if (expanded) "▾" else "▸"} $label"
-      if (title.text.toString() != titleText) title.text = titleText
-      if (title.contentDescription?.toString() != label) title.contentDescription = label
-      title.setOnClickListener { onToggle() }
-      this.expanded = expanded
-      body.contentDescription = text.layout.text.toString()
-      bodyLayout = text
-      body.show(text, theme.colors.secondaryLabel, Rect(0, 0, text.width, text.height))
-    }
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-      val width = MeasureSpec.getSize(widthMeasureSpec)
-      title.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(32f.px, MeasureSpec.EXACTLY))
-      body.measure(MeasureSpec.makeMeasureSpec((width - 2 * theme.spacing.sm.px).coerceAtLeast(1), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(bodyLayout?.height ?: 0, MeasureSpec.EXACTLY))
-      setMeasuredDimension(width, MeasureSpec.getSize(heightMeasureSpec))
-    }
-    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-      title.layout(0, 0, right - left, 32f.px)
-      body.layout(theme.spacing.sm.px, 32f.px, right - left - theme.spacing.sm.px, 32f.px + (bodyLayout?.height ?: 0))
-    }
-  }
 
   companion object {
     internal fun resolvedTurn(message: ShadowListUtilsAssistantReply, live: ShadowListUtilsAssistantTurn?): ShadowListUtilsAssistantTurn =
@@ -289,15 +253,15 @@ class ShadowListUtilsAssistantReplyMessage(
       var y = headerFrame.bottom + spacing.md.px
       val sections = ArrayList<Section>()
       if (!turn.thinking.isNullOrEmpty()) {
-        val preview = if (thinkingExpanded) turn.thinking else turn.thinking.takeLast(160)
-        val body = theme.typography.footnote.layout(preview, (inner - spacing.md.px).coerceAtLeast(1), if (thinkingExpanded) 0 else 1)
-        val frame = Rect(x, y, x + inner, y + 32f.px + body.height + spacing.sm.px)
+        val layout = ShadowListUtilsAssistantThinking.layout(turn.thinking, texts.thinkingTitle, thinkingExpanded, inner, theme)
+        val body = layout.body
+        val frame = Rect(x, y, x + inner, y + layout.heightPx)
         sections.add(Section.Thinking(texts.thinkingTitle, body, direction.place(frame), thinkingExpanded)); y = frame.bottom + spacing.md.px
       }
       if (streaming && turn.thinking.isNullOrEmpty() && turn.content.isEmpty() && turn.toolCalls.isEmpty()) {
-        val text = theme.typography.footnote.layout(labels.typing, inner)
-        val frame = frameOf(x, y, text)
-        sections.add(Section.Text("typing", text, direction.place(frame), false)); y = frame.bottom + spacing.md.px
+        val height = 7f.px + 2 * spacing.sm.px
+        val frame = Rect(x, y, x + inner, y + height)
+        sections.add(Section.Typing(direction.place(frame))); y = frame.bottom + spacing.md.px
       }
       val steps = ShadowListUtilsCore.stepsOf(turn.content, LongArray(turn.toolCalls.size) { turn.toolCalls[it].at?.toLong() ?: 0L })
       for ((index, step) in steps.withIndex()) when (step) {
@@ -314,11 +278,9 @@ class ShadowListUtilsAssistantReplyMessage(
           for (callIndex in step.callIndices) {
             val call = turn.toolCalls.getOrNull(callIndex) ?: continue
             val expanded = call.key in expandedToolKeys
-            val output = when (val status = call.status) { is ShadowListUtilsAssistantToolStatus.Done -> status.output; is ShadowListUtilsAssistantToolStatus.Failed -> status.output; else -> null }
-            val status = texts.toolStatuses[call.key].orEmpty()
-            val bodyText = if (expanded) "${labels.toolInput}\n${call.input}" + (output?.takeIf { it.isNotEmpty() }?.let { "\n\n${labels.toolOutput}\n$it" } ?: "") else output?.takeIf { it.isNotEmpty() } ?: status
-            val body = theme.typography.footnote.layout(bodyText, (inner - 2 * spacing.md.px).coerceAtLeast(1), if (expanded) 0 else 1)
-            val frame = Rect(x, y, x + inner, y + 32f.px + body.height + 2 * spacing.sm.px)
+            val layout = ShadowListUtilsAssistantToolCallCard.layout(call, texts.toolTitles[call.key].orEmpty(), texts.toolStatuses[call.key].orEmpty(), labels, expanded, inner, theme)
+            val body = layout.body
+            val frame = Rect(x, y, x + inner, y + layout.heightPx)
             sections.add(Section.Tool(call, texts.toolTitles[call.key].orEmpty(), body, direction.place(frame), expanded)); y = frame.bottom + spacing.xs.px
           }
           y += spacing.sm.px
