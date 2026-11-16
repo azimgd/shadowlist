@@ -9,6 +9,8 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 @RunWith(AndroidJUnit4::class)
 class MasonryTest {
@@ -115,24 +117,24 @@ class MasonryTest {
     assertEquals(6f.px, frames.imageFrame.left)
     assertEquals(0, frames.imageFrame.top)
     assertEquals(imageWidth, frames.imageFrame.width())
-    // The image's height keeps its aspect, on the pixel grid.
-    assertEquals(imageWidth * 600f / 400f, frames.imageFrame.height().toFloat(), 0.5f)
-    val imageHeight = frames.imageFrame.height()
-    assertEquals(6f.px + 4f.px, frames.titleFrame.left)
-    assertEquals(imageHeight + 8f.px, frames.titleFrame.top)
+    // The image keeps its aspect over the card's unrounded content width. A text origin is floored and the height rounds once.
+    val imageHeight = (cardWidth - 2 * 6f.pxf) * 600f / 400f
+    assertEquals(imageHeight.roundToInt(), frames.imageFrame.height())
+    assertEquals(floor(6f.pxf).toInt() + floor(4f.pxf).toInt(), frames.titleFrame.left)
+    assertEquals(floor(imageHeight + 8f.pxf).toInt(), frames.titleFrame.top)
     val title = requireNotNull(frames.title)
     assertLines(title, theme.typography.subhead, 2)
-    assertEquals(imageHeight + 8f.px + title.height + 12f.px, frames.heightPx)
+    assertEquals((imageHeight + 8f.pxf + title.height + 12f.pxf).roundToInt(), frames.heightPx)
     assertEquals(cardWidth, frames.widthPx)
 
     val untitled = layout(ShadowListUtilsMasonryCard(item(1, title = null), theme, labels))
     assertNull(untitled.title)
     assertTrue(untitled.titleFrame.isEmpty)
-    assertEquals(imageHeight + 8f.px + 12f.px, untitled.heightPx)
+    assertEquals((imageHeight + 8f.pxf + 12f.pxf).roundToInt(), untitled.heightPx)
     val square = item(2, title = null).let { it.copy(image = it.image.copy(height = 0f)) }
     val squareFrames = layout(ShadowListUtilsMasonryCard(square, theme, labels))
     assertEquals(imageWidth, squareFrames.imageFrame.width())
-    assertEquals(imageWidth, squareFrames.imageFrame.height())
+    assertEquals((cardWidth - 2 * 6f.pxf).roundToInt(), squareFrames.imageFrame.height())
   }
 
   @Test
@@ -153,7 +155,7 @@ class MasonryTest {
     val plain = layout(card)
     val mirrored = withRightToLeft { layout(card) }
     assertEquals(plain.imageFrame, mirrored.imageFrame)
-    assertEquals(cardWidth - 6f.px - 4f.px, mirrored.titleFrame.right)
+    assertEquals(cardWidth - plain.titleFrame.left, mirrored.titleFrame.right)
     assertEquals(cardWidth - plain.titleFrame.right, mirrored.titleFrame.left)
   }
 

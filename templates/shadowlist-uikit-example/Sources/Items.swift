@@ -61,7 +61,7 @@ enum Items {
   static func tile(_ number: Int) -> ShadowListUtilsReorderTileItem {
     ShadowListUtilsReorderTileItem(
       key: "tile-\(number)",
-      title: FixtureStrings.imageTitles[number % FixtureStrings.imageTitles.count],
+      title: FixtureStrings.imageTitles[(number - 1) % FixtureStrings.imageTitles.count],
       label: "\(number)",
       aspectRatio: 200 / Photo.designHeights[number % Photo.designHeights.count])
   }
@@ -75,14 +75,14 @@ enum Items {
   }
 
   /*
-   * A shelf of twelve pictures under a traveller's name.
+   * A shelf of ten pictures grouped by destination category.
    */
   static func shelf(_ index: Int) -> ShadowListUtilsNestedItem {
-    let name = FixtureStrings.characterNames[index % FixtureStrings.characterNames.count]
+    let titles = ["Weekend Escapes", "Island Hopping", "Dark-Sky Destinations", "Northern Lights Trips", "Mountain Airports", "City Breaks", "Desert Stargazing", "Scenic Approaches", "Last-Minute Deals", "Bucket-List Flights"]
     return ShadowListUtilsNestedItem(
-      key: "shelf-\(index)", title: "\(name)'s picks",
-      cards: (0..<12).map { card in
-        let picture = index * 3 + card
+      key: "shelf-\(index)", title: titles[index % titles.count],
+      cards: (0..<10).map { card in
+        let picture = index * 10 + card
         return ShadowListUtilsNestedCardItem(
           key: "shelf-\(index)-card-\(card)", title: FixtureStrings.imageTitles[picture % FixtureStrings.imageTitles.count],
           imageUrl: Fixtures.imageUrl(picture, width: 400))
@@ -95,11 +95,11 @@ enum Items {
   static func mail(_ index: Int) -> ShadowListUtilsInboxMessage {
     ShadowListUtilsInboxMessage(
       key: "message-\(index)",
-      sender: FixtureStrings.characterNames[index % FixtureStrings.characterNames.count],
-      subject: FixtureStrings.imageTitles[index % FixtureStrings.imageTitles.count],
-      preview: FixtureStrings.sampleTexts[index % FixtureStrings.sampleTexts.count],
+      sender: FixtureStrings.characterNames[(index * 5) % FixtureStrings.characterNames.count],
+      subject: InboxFixtures.subjects[index % InboxFixtures.subjects.count],
+      preview: InboxFixtures.previews[(index * 3) % InboxFixtures.previews.count],
       receivedAtMs: nowMs - Double(max(0, index)) * 37 * minuteMs,
-      read: index % 3 == 0,
-      flagged: false)
+      read: index % 3 != 0,
+      flagged: index % 11 == 4)
   }
 }

@@ -16,7 +16,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import com.shadowlist.kit.ShadowListKitSwipeActionsConfiguration
 
-/* A grouped native row. The primary press and the enclosing action surface have separate owners. */
+/*
+ * A grouped row whose primary press and enclosing swipe/menu surface have separate owners.
+ */
 class ShadowListUtilsGroupedRow(context: Context, title: String, theme: ShadowListUtilsTheme = ShadowListUtilsTheme.system(context)) : FrameLayout(context) {
   var title = title
     set(value) { field = value; refresh() }
@@ -128,7 +130,16 @@ class ShadowListUtilsGroupedRow(context: Context, title: String, theme: ShadowLi
     subtitleView.ellipsize = android.text.TextUtils.TruncateAt.END
     theme.typography.footnote.applyTo(subtitleView, theme.colors.secondaryLabel)
     texts.replaceChildren(if (subtitle != null) listOf(titleView, subtitleView) else listOf(titleView))
-    subtitleView.layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 1f.px }
+    /*
+     * React Native rounds the row's height once and floors a text origin inside the text
+     * column to the pixel grid. The paddings and the gap between the texts follow the same rule.
+     */
+    val padding = theme.spacing.sm + PADDING_EXTRA_DP
+    val gap = if (subtitle != null) TEXT_GAP_DP else 0f
+    val paddingTop = padding.px
+    val textGap = kotlin.math.floor(gap.pxf).toInt()
+    val paddingBottom = (2 * padding + gap).px - paddingTop - textGap
+    subtitleView.layoutParams = LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = textGap }
     texts.layoutParams = LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
     val rest = mutableListOf<View>(texts)
     trailing?.let { rest.add(it) }
@@ -140,7 +151,8 @@ class ShadowListUtilsGroupedRow(context: Context, title: String, theme: ShadowLi
         if (child === chevronView) 16f.px else old?.height ?: LayoutParams.WRAP_CONTENT).apply { marginStart = theme.spacing.sm.px }
     }
     chevronView.color = theme.colors.tertiaryLabel
-    bodyRow.setPaddingRelative(0, (theme.spacing.sm + 2f).px, theme.grouped.rowInset.px, (theme.spacing.sm + 2f).px)
+    bodyRow.setPaddingRelative(0, paddingTop + if (separated) ShadowListUtilsTheme.HAIRLINE_PX else 0,
+      theme.grouped.rowInset.px, paddingBottom)
     body.minimumHeight = theme.grouped.rowHeight.px
     bodyRow.minimumHeight = theme.grouped.rowHeight.px
     body.layoutParams = LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f)
@@ -163,5 +175,10 @@ class ShadowListUtilsGroupedRow(context: Context, title: String, theme: ShadowLi
     primary.alpha = if (disabled) 0.4f else 1f
     contentDescription = if (subtitle == null) title else "$title, $subtitle"
     requestLayout()
+  }
+
+  private companion object {
+    const val PADDING_EXTRA_DP = 2f
+    const val TEXT_GAP_DP = 1f
   }
 }

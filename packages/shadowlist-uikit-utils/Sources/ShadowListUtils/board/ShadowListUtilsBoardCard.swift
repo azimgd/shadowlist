@@ -34,19 +34,43 @@ public struct ShadowListUtilsBoardCard: ShadowListUtilsRow {
     hasher.combine(accessibilityLabel)
     return hasher.finalize()
   }
+
   public func layout(width: CGFloat) -> ShadowListUtilsRowLayout {
     let inset = theme.spacing.md
-    let textWidth = max(1, width - inset * 4)
-    let title = theme.typography.headline.layout(self.title, width: textWidth, maxLines: 0)
-    let meta = [label, detail].compactMap { $0 }.joined(separator: " · ")
-    let detail = meta.isEmpty ? nil : theme.typography.footnote.layout(meta, width: textWidth, maxLines: 0)
-    let accent = color == nil ? 0 : theme.spacing.xs
-    let height = inset * 3 + accent + title.size.height + (detail.map { theme.spacing.sm + $0.size.height } ?? 0)
-    return ShadowListUtilsBoardCardLayout(width: width, height: height,
-      card: CGRect(x: inset, y: 0, width: max(0, width - inset * 2), height: height - inset),
-      accent: CGRect(x: inset * 2, y: inset, width: textWidth, height: accent), title: title,
-      titleFrame: CGRect(x: inset * 2, y: inset + accent, width: title.size.width, height: title.size.height), detail: detail,
-      detailFrame: CGRect(x: inset * 2, y: inset + accent + title.size.height + theme.spacing.sm,
-                          width: detail?.size.width ?? 0, height: detail?.size.height ?? 0))
+    let border = ShadowListUtilsTheme.hairline
+    let accent: CGFloat = color == nil ? 0 : Self.accentWidth
+    let textX = inset * 2 + accent + border
+    let textRight = width - inset * 2 - border
+    let textWidth = max(1, textRight - textX)
+    let title = theme.typography.subhead.layout(self.title, width: textWidth, maxLines: 0)
+    // The detail's digits are all one width.
+    let dueFont = UIFont.monospacedDigitSystemFont(ofSize: theme.typography.caption.fontSize * ShadowListUtilsPlatform.textScale, weight: .regular)
+    let due = detail.map {
+      theme.typography.caption.layout(NSAttributedString(string: $0, attributes: [.font: dueFont]), width: textWidth / 2, maxLines: 1)
+    }
+    let dueWidth = due?.size.width ?? 0
+    let dotSize: CGFloat = color == nil ? 0 : Self.dotSize
+    let dotGap: CGFloat = color == nil ? 0 : theme.spacing.xs
+    let detail = label.map {
+      theme.typography.caption.with(.semibold).layout(
+        $0, width: max(1, textWidth - dueWidth - dotSize - dotGap - theme.spacing.xs), maxLines: 1)
+    }
+    let top = border + inset
+    let metaTop = top + title.size.height + theme.spacing.xs
+    let metaHeight = max(detail?.size.height ?? 0, due?.size.height ?? 0)
+    let cardHeight = 2 * border + 2 * inset + title.size.height + (detail != nil || due != nil ? theme.spacing.xs + metaHeight : 0)
+    return ShadowListUtilsBoardCardLayout(
+      width: width, height: cardHeight + theme.spacing.sm,
+      card: CGRect(x: inset, y: 0, width: max(0, width - inset * 2), height: cardHeight),
+      accent: CGRect(x: inset + border, y: border, width: accent, height: cardHeight - 2 * border),
+      title: title, titleFrame: CGRect(x: textX, y: top, width: title.size.width, height: title.size.height),
+      detail: detail,
+      detailFrame: CGRect(x: textX + dotSize + dotGap, y: metaTop, width: detail?.size.width ?? 0, height: metaHeight),
+      due: due, dueFrame: CGRect(x: textRight - dueWidth, y: metaTop, width: dueWidth, height: metaHeight),
+      dotFrame: detail != nil && dotSize > 0
+        ? CGRect(x: textX, y: metaTop + (metaHeight - dotSize) / 2, width: dotSize, height: dotSize) : .zero)
   }
+
+  private static let accentWidth: CGFloat = 4
+  static let dotSize: CGFloat = 8
 }

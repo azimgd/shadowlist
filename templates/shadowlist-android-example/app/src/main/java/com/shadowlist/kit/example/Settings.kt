@@ -69,6 +69,12 @@ object Settings {
   var selectDemo: Boolean = false
     private set
 
+  /*
+   * SLDebug 1: screens show their debug status lines.
+   */
+  var debug: Boolean = false
+    private set
+
   fun read(intent: Intent) {
     route = intent.getStringExtra("SLRoute")
     engine = Engine.of(intent.getStringExtra("SLEngine"))
@@ -76,6 +82,7 @@ object Settings {
     images = intent.getStringExtra("SLImages") != "0"
     padding = intent.getStringExtra("SLPadding")?.toIntOrNull()?.coerceAtLeast(0) ?: 0
     animate = intent.getStringExtra("SLAnimate") == "1"
+    debug = intent.getStringExtra("SLDebug") == "1"
     states = intent.getStringExtra("SLStates") == "1"
     selectDemo = intent.getStringExtra("SLSelectDemo") == "1"
     drawDelayMs = intent.getStringExtra("SLBenchDrawDelay")?.toDoubleOrNull()?.toLong()?.coerceAtLeast(0) ?: 0

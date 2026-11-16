@@ -10,7 +10,8 @@ import {
  * The next rows to mount, by the keys at both ends. lowIndex and highIndex are where those rows
  * were in the keys native had, a hint that saves JS a lookup while the data is unchanged.
  * Sequence and generation go back to native in the mountedSequence and mountedGeneration props
- * once applied. A landed event only says a scroll command's rows can unmount.
+ * once applied. Every scroll command's seed advances the generation before its render commits.
+ * A landed event only says that generation's scroll command rows can unmount.
  */
 export type MountedRangeChangeEvent = {
   lowKey: string;

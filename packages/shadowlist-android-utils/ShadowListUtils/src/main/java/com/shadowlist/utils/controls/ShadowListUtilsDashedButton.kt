@@ -19,7 +19,7 @@ class ShadowListUtilsDashedButton(context: Context, label: String, val theme: Sh
     setPadding(0, 8f.px, 0, 8f.px)
     background = GradientDrawable().apply {
       setColor(theme.colors.accentSoft); cornerRadius = 10f.pxf
-      setStroke(1f.px, theme.colors.accent, 4f.pxf, 3f.pxf)
+      setStroke(1f.px, theme.colors.accent, 3f.pxf, 3f.pxf)
     }
     setOnClickListener { if (!disabled) onPress?.invoke() }
     applyStyle(); updateInteraction()

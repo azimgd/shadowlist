@@ -254,7 +254,7 @@ final class InboxTests: XCTestCase {
     XCTAssertEqual(mirrored.unreadDotFrame.minX, testWidth - plain.unreadDotFrame.maxX)
     XCTAssertEqual(mirrored.senderFrame.maxX, testWidth - 80)
     XCTAssertEqual(mirrored.timeFrame.minX, 16)
-    XCTAssertEqual(mirrored.flagFrame.minX, mirrored.timeFrame.maxX + 4)
+    XCTAssertEqual(mirrored.flagFrame.minX, mirrored.timeFrame.maxX + 4, accuracy: 1e-9)
   }
 
   func testTheRowReadsItsStatesAndShowsItsSelectionWhileEditing() {

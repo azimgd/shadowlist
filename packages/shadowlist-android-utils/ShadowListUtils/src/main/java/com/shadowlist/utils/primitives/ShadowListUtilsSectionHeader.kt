@@ -30,11 +30,12 @@ data class ShadowListUtilsSectionHeader(
     val countWidth = countText?.let { it.width + theme.spacing.sm.px } ?: 0
     val shown = if (theme.grouped.captionCase == ShadowListUtilsCaptionCase.UPPER) title.uppercase() else title
     val titleText = footnote.with(ShadowListUtilsFontWeight.SEMIBOLD).layout(shown, (contentWidth - countWidth).coerceAtLeast(1), 1)
-    val top = PADDING_VERTICAL_DP.px
+    // React Native floors a text origin to the pixel grid and rounds the vertical padding once.
+    val top = kotlin.math.floor(PADDING_VERTICAL_DP.pxf).toInt()
     val titleFrame = frameOf(inset, top, titleText)
     val countFrame = countText?.let { frameOf(widthPx - inset - it.width, top, it) } ?: Rect()
     return ShadowListUtilsSectionHeaderLayout(
-      widthPx, footnote.scaledLineHeightPx() + 2 * top, titleText, direction.place(titleFrame), countText, direction.place(countFrame))
+      widthPx, footnote.scaledLineHeightPx() + (2 * PADDING_VERTICAL_DP).px, titleText, direction.place(titleFrame), countText, direction.place(countFrame))
   }
 
   internal companion object {

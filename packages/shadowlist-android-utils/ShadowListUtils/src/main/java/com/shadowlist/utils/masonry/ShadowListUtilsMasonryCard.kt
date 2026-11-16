@@ -7,6 +7,7 @@ import android.widget.Button
 import android.widget.ImageView
 import com.shadowlist.kit.ShadowListKitTextLayout
 import com.shadowlist.kit.ShadowListKitTextView
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /*
@@ -26,22 +27,29 @@ data class ShadowListUtilsMasonryCard(
   override fun layout(widthPx: Int): ShadowListUtilsRowLayout {
     val direction = ShadowListUtilsDirection(widthPx)
     val padding = PADDING_HORIZONTAL_DP.px
+    val textInset = (PADDING_HORIZONTAL_DP + theme.spacing.xs).px
     val imageWidth = (widthPx - 2 * padding).coerceAtLeast(0)
     val aspectRatio = if (item.image.height > 0f) item.image.width / item.image.height else 1f
-    val imageHeight = if (aspectRatio > 0f) (imageWidth / aspectRatio).roundToInt() else imageWidth
-    val imageFrame = Rect(padding, 0, padding + imageWidth, imageHeight)
-    var bottom = imageFrame.bottom + theme.spacing.sm.px
+    /*
+     * React Native sizes the image from the card's unrounded content width, floors the title's
+     * origin and its padding, and rounds the card's height once.
+     */
+    val contentWidth = (widthPx - 2 * PADDING_HORIZONTAL_DP.pxf).coerceAtLeast(0f)
+    val imageHeight = if (aspectRatio > 0f) contentWidth / aspectRatio else contentWidth
+    val imageFrame = Rect(padding, 0, padding + imageWidth, imageHeight.roundToInt())
+    val textX = floor(PADDING_HORIZONTAL_DP.pxf).toInt() + floor(theme.spacing.xs.pxf).toInt()
+    var bottom = imageHeight + theme.spacing.sm.pxf
     var title: ShadowListKitTextLayout? = null
     var titleFrame = Rect()
     item.title?.let { text ->
       val lines = if (ShadowListUtilsPlatform.isLargeText) LARGE_TEXT_TITLE_LINES else TITLE_LINES
-      val typeset = theme.typography.subhead.layout(text, (imageWidth - 2 * theme.spacing.xs.px).coerceAtLeast(1), lines)
-      titleFrame = frameOf(padding + theme.spacing.xs.px, bottom, typeset)
+      val typeset = theme.typography.subhead.layout(text, (widthPx - 2 * textInset).coerceAtLeast(1), lines)
+      titleFrame = frameOf(textX, floor(bottom).toInt(), typeset)
       title = typeset
       bottom += typeset.height
     }
     return ShadowListUtilsMasonryCardLayout(
-      widthPx, bottom + theme.spacing.md.px, direction.place(imageFrame), title, direction.place(titleFrame))
+      widthPx, (bottom + theme.spacing.md.pxf).roundToInt(), direction.place(imageFrame), title, direction.place(titleFrame))
   }
 
   internal companion object {

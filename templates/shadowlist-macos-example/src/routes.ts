@@ -17,6 +17,12 @@ import { TemplatesScreen } from '@example/screens/TemplatesScreen';
 import { InboxScreen } from '@example/screens/InboxScreen';
 import { ScrollLabScreen } from '@example/screens/ScrollLabScreen';
 
+import { PollScreen } from '@example/screens/PollScreen';
+import { SectionsScreen } from '@example/screens/SectionsScreen';
+import { HorizontalScreen } from '@example/screens/HorizontalScreen';
+import { ChangesScreen } from '@example/screens/ChangesScreen';
+import { CollapsingScreen } from '@example/screens/CollapsingScreen';
+
 export type Route =
   | { name: 'Home' }
   | { name: ExampleRoute }
@@ -38,7 +44,12 @@ export type ExampleRoute =
   | 'Snap'
   | 'Inbox'
   | 'ScrollLab'
-  | 'Templates';
+  | 'Templates'
+  | 'Poll'
+  | 'Sections'
+  | 'Horizontal'
+  | 'Changes'
+  | 'Collapsing';
 
 export interface Example {
   route: ExampleRoute;
@@ -166,6 +177,41 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         title: 'Templates',
         summary: 'Every reusable template on one page',
         component: TemplatesScreen,
+      },
+    ],
+  },
+  {
+    title: 'Native demos',
+    examples: [
+      {
+        route: 'Poll',
+        title: 'Poll',
+        summary: 'Choose a destination and see the votes',
+        component: PollScreen,
+      },
+      {
+        route: 'Horizontal',
+        title: 'Horizontal',
+        summary: 'A horizontal list',
+        component: HorizontalScreen,
+      },
+      {
+        route: 'Changes',
+        title: 'Changes',
+        summary: 'Insert, remove and update rows',
+        component: ChangesScreen,
+      },
+      {
+        route: 'Collapsing',
+        title: 'Collapsing',
+        summary: 'A list with a collapsing header',
+        component: CollapsingScreen,
+      },
+      {
+        route: 'Sections',
+        title: 'Sections',
+        summary: 'Section headers, footers and an index',
+        component: SectionsScreen,
       },
     ],
   },

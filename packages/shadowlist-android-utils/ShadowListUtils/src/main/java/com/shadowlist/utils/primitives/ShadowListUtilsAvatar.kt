@@ -68,7 +68,9 @@ class ShadowListUtilsAvatar(
     val text = initials ?: return
     text.layout.paint.color = theme.colors.label
     canvas.save()
-    canvas.translate((sizePx - text.width) / 2f, (sizePx - text.height) / 2f)
+    val metrics = text.layout.paint.fontMetricsInt
+    val baseline = (sizePx - (metrics.bottom - metrics.top)) / 2f - metrics.top
+    canvas.translate((sizePx - text.width) / 2f, baseline - text.layout.getLineBaseline(0))
     text.layout.draw(canvas)
     canvas.restore()
   }

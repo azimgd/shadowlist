@@ -30,7 +30,7 @@ class ShadowListUtilsListFooter(context: Context, val text: String, theme: Shado
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
     val width = MeasureSpec.getSize(widthMeasureSpec)
     layoutText(width)
-    val height = 2 * theme.spacing.xl.px + (textLayout?.height ?: 0)
+    val height = (2 * theme.spacing.xl).px + (textLayout?.height ?: 0)
     setMeasuredDimension(width, resolveSize(height, heightMeasureSpec))
   }
 
@@ -40,8 +40,9 @@ class ShadowListUtilsListFooter(context: Context, val text: String, theme: Shado
     val layout = textLayout ?: return
     label.textColor = theme.colors.secondaryLabel
     label.textLayout = layout
-    // Centered lines are placed inside the width they were typeset for.
-    label.place(theme.spacing.lg.px, theme.spacing.xl.px, (width - 2 * theme.spacing.lg.px).coerceAtLeast(1), layout.height)
+    // React Native floors a text origin to the pixel grid.
+    label.place(if (layout.lineCount > 1) theme.spacing.lg.px else (width - layout.width) / 2,
+      kotlin.math.floor(theme.spacing.xl.pxf).toInt(), if (layout.lineCount > 1) layout.layout.width else layout.width, layout.height)
   }
 
   private fun applyTheme() {
@@ -63,6 +64,6 @@ class ShadowListUtilsListFooter(context: Context, val text: String, theme: Shado
     if (widthPx == layoutWidthPx) return
     layoutWidthPx = widthPx
     val textWidth = (widthPx - 2 * theme.spacing.lg.px).coerceAtLeast(1)
-    textLayout = theme.typography.footnote.layout(text, textWidth, 0, scaled = true, centered = true)
+    textLayout = theme.typography.footnote.layout(text, textWidth)
   }
 }

@@ -375,7 +375,7 @@ respect the system animation preference.
 default footer. Its existing Poll `labels.totalVotes` formatter receives the application total.
 Custom or explicitly cleared PollList footers remain application-owned.
 
-The native `Components` example route uses all six views: suggestions update the screen's selected
+The native `Templates` example route uses all six views: suggestions update the screen's selected
 prompt, disclosures expand, Finish changes a running tool to done and increments the displayed vote
 total, and the scroll button returns to the first component. The composition and controlled-field
 examples below use the same route; these additions do not imply complete visual/API parity.
@@ -393,7 +393,7 @@ inserting separators. Compose `ShadowListUtilsGroupedSeparator(context, inset)` 
 `ShadowListUtilsGroupedCaption(context, title)` uses theme caption casing and heading accessibility.
 `ShadowListUtilsGroupedSection(context, title, children)` composes a caption and card; null or an empty
 title hides the caption. Supplying the same child views retains their identity and order.
-The Components route demonstrates Save/Remove callbacks updating a read-only account value.
+The Templates route demonstrates Save/Remove callbacks updating a read-only account value.
 
 ```kotlin
 val value = ShadowListUtilsFormValue(context, "3 saved routes")
@@ -434,7 +434,7 @@ back to native text as in RN's Android adapter.
 Android follows RN's platform behavior for the iOS-only clearButtonMode affordance.
 All four share ChatInput's native editing owner: programmatic values are silent, user edits
 request `onChange`, and app-controlled replacements wait until native composition finishes.
-The new wrappers do not add an uncontrolled mode or a secure-entry prop. Components owns the
+The new wrappers do not add an uncontrolled mode or a secure-entry prop. Templates owns the
 controlled Route, Budget, Search and Notes values.
 
 ### Action controls
@@ -461,7 +461,7 @@ not an RN optional callback. Disabled Pill/Dashed controls retain their styling 
 FormButton retain their existing highlight behavior. One shared helper uses the native pressed
 state; no separate gesture or animation state machine is introduced.
 
-Components now uses matching light-theme data: Continue disables itself, Add route increments the
+Templates now uses matching light-theme data: Continue disables itself, Add route increments the
 badge and re-enables Continue, and More routes reports its application callback. The standalone
 scroll button is centered at its intended 36dp size.
 
@@ -487,7 +487,7 @@ requests an application update. No extra disabled, clear or variant props are in
 the shared C++ `wrapLayout`, using `theme.spacing.sm` between children and lines and the existing
 native RTL frame mirroring. Child identity and order remain application-owned.
 
-The Components route demonstrates toggling and removing Direct routes, clearing a compact
+The Templates route demonstrates toggling and removing Direct routes, clearing a compact
 monospaced seat preference without a primary press handler, and controlled Train/Flight choices.
 
 ### Progress and segmented choices
@@ -506,7 +506,7 @@ and accent-soft. Both retain Double precision until painting and update without 
 selected-option tap still invokes the callback; setting `value` or replacing `options` never
 does. `size` defaults to `REGULAR` (36dp, equal-width options); `COMPACT` is 34dp with natural
 widths. Optional `accessibilityLabel` labels the group, with native tab/selected metadata on
-the options. Standard native layout parameters replace RN's style prop. Components shows
+the options. Standard native layout parameters replace RN's style prop. Templates shows
 repeated Book requests and application-owned progress updates.
 
 ### Grouped rows and native actions

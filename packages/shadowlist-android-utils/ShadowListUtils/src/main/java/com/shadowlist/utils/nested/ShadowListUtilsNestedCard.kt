@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Rect
 import com.shadowlist.kit.ShadowListKitTextLayout
 import com.shadowlist.kit.ShadowListKitTextView
+import kotlin.math.floor
 
 /*
  * A card of the horizontal list in a nested row: an image with a title of two lines under it.
@@ -26,7 +27,8 @@ data class ShadowListUtilsNestedCard(
     val direction = ShadowListUtilsDirection(along)
     val imageFrame = Rect(leading, 0, along, IMAGE_HEIGHT_DP.px)
     val title = theme.typography.subhead.layout(item.title, imageWidth, TITLE_LINES)
-    val titleFrame = frameOf(leading, imageFrame.bottom + theme.spacing.sm.px, title)
+    // React Native floors a text origin to the pixel grid.
+    val titleFrame = frameOf(leading, floor((IMAGE_HEIGHT_DP + theme.spacing.sm).pxf).toInt(), title)
     return ShadowListUtilsNestedCardLayout(
       along, titleFrame.bottom, direction.place(imageFrame), title, direction.place(titleFrame))
   }
@@ -36,10 +38,10 @@ data class ShadowListUtilsNestedCard(
 
     /*
      * How tall a card is: its image, the gap under it and the lines of its title at the reader's
-     * text size. A row's list of cards is this tall.
+     * text size, before rounding. A row's list of cards is this tall.
      */
-    fun heightPx(theme: ShadowListUtilsTheme): Int =
-      IMAGE_HEIGHT_DP.px + theme.spacing.sm.px + TITLE_LINES * theme.typography.subhead.scaledLineHeightPx()
+    fun heightPxf(theme: ShadowListUtilsTheme): Float =
+      (IMAGE_HEIGHT_DP + theme.spacing.sm).pxf + TITLE_LINES * theme.typography.subhead.lineHeight.spf
 
     const val IMAGE_WIDTH_DP = 180f
     const val IMAGE_HEIGHT_DP = 220f

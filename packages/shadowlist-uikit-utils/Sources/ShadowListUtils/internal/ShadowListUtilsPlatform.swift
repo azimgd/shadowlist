@@ -90,16 +90,31 @@ enum ShadowListUtilsPlatform {
   static var hairline: CGFloat { 1 / displayScale }
 
   /*
-   * A length rounded to the pixel grid, and rounded up to it.
+   * A length rounded to the pixel grid, rounded down to it and rounded up to it.
    */
   static func roundToPixel(_ value: CGFloat) -> CGFloat {
     let scale = displayScale
     return (value * scale).rounded() / scale
   }
 
+  static func floorToPixel(_ value: CGFloat) -> CGFloat {
+    let scale = displayScale
+    return (value * scale).rounded(.down) / scale
+  }
+
   static func ceilToPixel(_ value: CGFloat) -> CGFloat {
     let scale = displayScale
     return (value * scale - pixelEpsilon).rounded(.up) / scale
+  }
+
+  /*
+   * Where a button's one-line title sits in its content: as wide as its glyphs on whole pixels
+   * and centered from a floored origin, the way React Native places a centered text. A title
+   * wider than the content keeps the button's own rectangle.
+   */
+  static func centeredTitleRect(_ rect: CGRect, title: NSAttributedString?, in content: CGRect) -> CGRect {
+    guard let width = title.map({ ceilToPixel($0.size().width) }), width <= content.width else { return rect }
+    return CGRect(x: content.minX + floorToPixel((content.width - width) / 2), y: rect.minY, width: width, height: rect.height)
   }
 
   // MARK: - Text size
@@ -204,94 +219,4 @@ extension ShadowListKitTextView {
     textColor = color
     textLayout = layout
   }
-}
-
-/*
- * The three icons the rows draw: the grip of a reorderable row, the chevron of a row that opens
- * something and the check of a selected row. Each fills its view, which is square.
- */
-final class ShadowListUtilsIconView: ShadowListUtilsView {
-  enum Kind {
-    case grip
-    case chevron
-    case check
-  }
-
-  let kind: Kind
-
-  var color: ShadowListUtilsColor = .clear {
-    didSet { setNeedsDisplay() }
-  }
-
-  init(kind: Kind) {
-    self.kind = kind
-    super.init(frame: .zero)
-    isOpaque = false
-    backgroundColor = .clear
-    contentMode = .redraw
-    isUserInteractionEnabled = false
-    isAccessibilityElement = false
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
-
-  override func draw(_ rect: CGRect) {
-    let path = Self.path(kind, size: bounds.width, isRightToLeft: ShadowListUtilsPlatform.isRightToLeft)
-    if kind == .grip {
-      color.setFill()
-      path.fill()
-    } else {
-      color.setStroke()
-      path.stroke()
-    }
-  }
-
-  /*
-   * The icon's shape in a square of a size. The grip is filled and the others are stroked. A
-   * chevron points left in a layout that runs from right to left.
-   */
-  static func path(_ kind: Kind, size: CGFloat, isRightToLeft: Bool = false) -> UIBezierPath {
-    let path = UIBezierPath()
-    switch kind {
-    case .grip:
-      // Three lines as wide as the icon, gripGapShare of its size apart.
-      let step = gripStroke + size * gripGapShare
-      let top = (size - (3 * gripStroke + 2 * size * gripGapShare)) / 2
-      for line in 0..<3 {
-        let frame = CGRect(x: 0, y: top + CGFloat(line) * step, width: size, height: gripStroke)
-        path.append(UIBezierPath(roundedRect: frame, cornerRadius: gripStroke / 2))
-      }
-    case .chevron:
-      // Two arms of chevronArmShare of the size, meeting at a right angle.
-      let reach = size * chevronArmShare * halfDiagonal
-      let side: CGFloat = isRightToLeft ? -1 : 1
-      path.move(to: CGPoint(x: size / 2 - side * reach / 2, y: size / 2 - reach))
-      path.addLine(to: CGPoint(x: size / 2 + side * reach / 2, y: size / 2))
-      path.addLine(to: CGPoint(x: size / 2 - side * reach / 2, y: size / 2 + reach))
-      path.lineWidth = chevronStroke
-    case .check:
-      // A short arm and a long one meeting at the bottom, the long one rising to the right.
-      let short = size * checkShortShare * halfDiagonal
-      let long = size * checkLongShare * halfDiagonal
-      let corner = CGPoint(x: size / 2 + (short - long) / 2, y: size / 2 + (short + long) / 2 - size * checkLiftShare)
-      path.move(to: CGPoint(x: corner.x - short, y: corner.y - short))
-      path.addLine(to: corner)
-      path.addLine(to: CGPoint(x: corner.x + long, y: corner.y - long))
-      path.lineWidth = checkStroke
-    }
-    return path
-  }
-
-  private static let halfDiagonal: CGFloat = 0.70710677
-  private static let gripStroke: CGFloat = 1.75
-  private static let gripGapShare: CGFloat = 0.22
-  private static let chevronStroke: CGFloat = 2
-  private static let chevronArmShare: CGFloat = 0.42
-  private static let checkStroke: CGFloat = 2.2
-  private static let checkShortShare: CGFloat = 0.26
-  private static let checkLongShare: CGFloat = 0.5
-  private static let checkLiftShare: CGFloat = 0.06
 }

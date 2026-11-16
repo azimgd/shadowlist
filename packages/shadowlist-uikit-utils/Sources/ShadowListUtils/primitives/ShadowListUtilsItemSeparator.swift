@@ -34,6 +34,10 @@ public final class ShadowListUtilsItemSeparator: UIView {
     CGSize(width: size.width, height: ShadowListUtilsTheme.hairline)
   }
 
+  public override var intrinsicContentSize: CGSize {
+    CGSize(width: UIView.noIntrinsicMetric, height: ShadowListUtilsTheme.hairline)
+  }
+
   public override func layoutSubviews() {
     super.layoutSubviews()
     let frame = CGRect(x: inset, y: 0, width: max(0, bounds.width - inset), height: bounds.height)

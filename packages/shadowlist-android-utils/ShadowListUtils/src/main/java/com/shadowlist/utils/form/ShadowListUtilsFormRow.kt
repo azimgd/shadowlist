@@ -22,6 +22,7 @@ class ShadowListUtilsFormRow(context: Context, label: String, children: List<Vie
     super.onMeasure(widthMeasureSpec, heightMeasureSpec)
   }
   private fun applyLayout() {
+    theme.typography.body.applyTo(labelView, theme.colors.label)
     val over = stacked || resources.configuration.fontScale >= 1.3f
     orientation = if (over) VERTICAL else HORIZONTAL
     gravity = if (over) Gravity.FILL_HORIZONTAL else Gravity.CENTER_VERTICAL

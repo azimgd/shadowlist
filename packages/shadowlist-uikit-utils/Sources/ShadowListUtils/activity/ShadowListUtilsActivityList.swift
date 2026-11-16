@@ -41,6 +41,8 @@ public final class ShadowListUtilsActivityList: ShadowListUtilsList {
     super.init(theme: theme)
     allowsSelection = false
     showsSeparators = true
+    separatorInsetStart = theme.rowInset
+    separatorColor = theme.colors.separator
   }
 
   private func makeRow(_ item: ShadowListUtilsActivityItem) -> ShadowListUtilsRow {

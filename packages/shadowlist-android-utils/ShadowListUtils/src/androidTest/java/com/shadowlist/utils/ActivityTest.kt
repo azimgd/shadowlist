@@ -18,11 +18,15 @@ class ActivityTest {
       "followed a remarkably wonderful itinerary", createdAtMs = 0.0)
     val row = ShadowListUtilsActivityRow(item, theme = theme, formatTime = { "" })
     val layout = row.layout(2000f.px) as ShadowListUtilsActivityRowLayout
-    val text = "${item.actor.name} ${item.action}"
-    val regular = theme.typography.subhead.layout(text, 2000f.px)
-    val semibold = theme.typography.subhead.with(ShadowListUtilsFontWeight.SEMIBOLD).layout(text, 2000f.px)
-    assertTrue(layout.title.width > regular.width)
-    assertTrue(layout.title.width < semibold.width)
+    val text = layout.title.layout.text as android.text.Spanned
+    val actor = android.text.TextPaint(layout.title.layout.paint)
+    val action = android.text.TextPaint(layout.title.layout.paint)
+    text.getSpans(0, item.actor.name.length, android.text.style.MetricAffectingSpan::class.java)
+      .forEach { it.updateMeasureState(actor) }
+    text.getSpans(item.actor.name.length + 1, text.length, android.text.style.MetricAffectingSpan::class.java)
+      .forEach { it.updateMeasureState(action) }
+    assertEquals(ShadowListUtilsTextStyle.typeface(ShadowListUtilsTextStyle.WEIGHT_SEMIBOLD), actor.typeface)
+    assertEquals(ShadowListUtilsTextStyle.typeface(ShadowListUtilsTextStyle.WEIGHT_REGULAR), action.typeface)
     val narrow = withTextSize(1.6f) { row.layout(230f.px) as ShadowListUtilsActivityRowLayout }
     assertTrue(narrow.title.lineCount > 1)
   }

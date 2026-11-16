@@ -5,8 +5,6 @@ import android.os.Parcelable
 import android.util.Log
 import android.util.SparseArray
 import android.view.View
-import android.widget.Button
-import android.view.Gravity
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.shadowlist.kit.ShadowListKitAnchorState
@@ -18,6 +16,8 @@ import com.shadowlist.utils.ShadowListUtilsContactItem
 import com.shadowlist.utils.ShadowListUtilsContactSection
 import com.shadowlist.utils.ShadowListUtilsInboxList
 import com.shadowlist.utils.ShadowListUtilsInboxMessage
+import com.shadowlist.utils.ShadowListUtilsSectionHeader
+import com.shadowlist.utils.ShadowListUtilsSectionHeaderView
 import com.shadowlist.utils.shadowListUtilsGroupIntoSections
 import org.json.JSONArray
 import org.json.JSONObject
@@ -44,26 +44,35 @@ class SectionsScreen(context: Context) : Screen, ShadowListKitListView.DataSourc
     list.estimatedItemSizePx = 64.dpf
     list.stickySectionHeaders = true
     list.renderStickyHeaderOverlay = { _, _, section ->
-      sections.getOrNull(section)?.let { data ->
-        Button(view.context).apply {
-          text = "${data.title} · ${data.items.size} travellers · Next section"
-          contentDescription = text
-          gravity = Gravity.START or Gravity.CENTER_VERTICAL
-          setPadding(16.dp, 12.dp, 16.dp, 12.dp)
-          setOnClickListener {
-            if (sections.isNotEmpty()) list.scrollToSection((section + 1) % sections.size, animated = true)
-          }
-        }
-      }
+      if (section in sections.indices) ShadowListUtilsSectionHeaderView(view.context).also { show(section, it) } else null
     }
     list.showsSeparators = true
-    list.separatorInsetStartPx = 68.dp
+    list.separatorInsetStartPx = view.context.listTheme.rowInset.dp
     list.registerCell("contact") { ContactCell(it) }
+    list.registerCell("header") { ShadowListUtilsSectionHeaderView(it) }
+    list.registerCell("footer") { ListFooterCell(it) }
     list.dataSource = this
     list.delegate = this
     group(List(400) { Items.contact(Contact(it)) })
     list.reloadData()
     if (LaunchArgs.get("SLScenario") == "sections") TouchScript(list).after(1500) { FeatureScenario.sections(this) }
+  }
+
+  override fun headerMenu() = listOf(listOf(HeaderAction("Add Traveller", onPress = ::addTraveller)))
+
+  /*
+   * A section's header in a header view, which jumps to the next section on a tap.
+   */
+  private fun show(section: Int, header: ShadowListUtilsSectionHeaderView) {
+    val data = sections[section]
+    val title = "${data.title} · ${data.items.size} travellers · Next section"
+    header.configure(ShadowListUtilsSectionHeader(data.key, title, theme = view.context.listTheme), null)
+    header.setOnClickListener { showNextSection(data.key) }
+  }
+
+  private fun showNextSection(key: String) {
+    val section = sections.indexOfFirst { it.key == key }
+    if (section >= 0) list.scrollToSection((section + 1) % sections.size, animated = true)
   }
 
   fun group(contacts: List<ShadowListUtilsContactItem>) {
@@ -86,6 +95,13 @@ class SectionsScreen(context: Context) : Screen, ShadowListKitListView.DataSourc
   override fun keyForSection(listView: ShadowListKitListView, section: Int) = sections[section].key
   override fun titleForHeaderInSection(listView: ShadowListKitListView, section: Int) = sections[section].title
   override fun titleForFooterInSection(listView: ShadowListKitListView, section: Int) = "${sections[section].items.size} travellers"
+
+  override fun cellForHeaderInSection(listView: ShadowListKitListView, section: Int): ShadowListKitListCell =
+    listView.dequeueReusableCell<ShadowListUtilsSectionHeaderView>("header").also { show(section, it) }
+
+  override fun cellForFooterInSection(listView: ShadowListKitListView, section: Int): ShadowListKitListCell =
+    listView.dequeueReusableCell<ListFooterCell>("footer").also { it.configure("${sections[section].items.size} travellers") }
+
   override fun sectionIndexTitles(listView: ShadowListKitListView) = sections.map { it.title }
 
   override fun keyForItem(listView: ShadowListKitListView, index: Int) = allContacts[index].key
@@ -115,10 +131,6 @@ class ContactCell(context: Context) : ShadowListKitListCell(context, "contact") 
 
   init {
     setBackgroundColor(theme.colors.background)
-    name.textSize = 17f
-    name.setTextColor(theme.colors.label)
-    note.textSize = 15f
-    note.setTextColor(theme.colors.secondaryLabel)
     val column = LinearLayout(context).apply {
       orientation = LinearLayout.VERTICAL
       addView(name)
@@ -126,8 +138,8 @@ class ContactCell(context: Context) : ShadowListKitListCell(context, "contact") 
     }
     val row = LinearLayout(context).apply {
       orientation = LinearLayout.HORIZONTAL
-      setPadding(16.dp, 11.dp, 36.dp, 11.dp)
-      addView(avatar, LinearLayout.LayoutParams(40.dp, 40.dp).apply { marginEnd = 12.dp })
+      setPadding(theme.spacing.lg.dp, PADDING_VERTICAL_DP.dp, PADDING_END_DP.dp, PADDING_VERTICAL_DP.dp)
+      addView(avatar, LinearLayout.LayoutParams(avatar.size.dp, avatar.size.dp).apply { marginEnd = theme.spacing.md.dp })
       addView(column, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
     }
     addView(row)
@@ -137,11 +149,18 @@ class ContactCell(context: Context) : ShadowListKitListCell(context, "contact") 
     avatar.show(contact.name)
     name.text = contact.name
     note.text = text
+    theme.typography.body.applyTo(name, theme.colors.label)
+    theme.typography.subhead.applyTo(note, theme.colors.secondaryLabel)
   }
 
   override fun setHighlighted(highlighted: Boolean, animated: Boolean) {
     super.setHighlighted(highlighted, animated)
     setBackgroundColor(if (highlighted) theme.colors.elevated2 else theme.colors.background)
+  }
+
+  private companion object {
+    const val PADDING_VERTICAL_DP = 11
+    const val PADDING_END_DP = 36
   }
 }
 

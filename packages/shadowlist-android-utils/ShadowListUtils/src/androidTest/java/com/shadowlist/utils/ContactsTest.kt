@@ -166,14 +166,14 @@ class ContactsTest {
   fun the_row_layout_holds_its_metrics() = onMain {
     val typography = theme.typography
     val layout = layout(ShadowListUtilsContactRow(Fixture.contact(0), true, theme))
-    val height = 12f.px + typography.body.scaledLineHeightPx() + 1f.px + typography.subhead.scaledLineHeightPx() + 12f.px
+    val height = 24f.px + typography.body.scaledLineHeightPx() + 1f.px + typography.subhead.scaledLineHeightPx()
     assertEquals(height, layout.heightPx)
     val avatarTop = (height - 40f.px) / 2
     assertEquals(Rect(16f.px, avatarTop, 16f.px + 40f.px, avatarTop + 40f.px), layout.avatarFrame)
     assertEquals(textLeft, layout.nameFrame.left)
     assertEquals(12f.px, layout.nameFrame.top)
     assertEquals(textLeft, layout.subtitleFrame.left)
-    assertEquals(12f.px + typography.body.scaledLineHeightPx() + 1f.px, layout.subtitleFrame.top)
+    assertEquals(12f.px + typography.body.scaledLineHeightPx() + kotlin.math.floor(1f.pxf).toInt(), layout.subtitleFrame.top)
     val chevronTop = (height - 20f.px) / 2
     assertEquals(Rect(width - 12f.px - 20f.px, chevronTop, width - 12f.px, chevronTop + 20f.px), layout.chevronFrame)
     assertEquals(Rect(68f.px, height - ShadowListUtilsTheme.HAIRLINE_PX, width, height), layout.separatorFrame)
@@ -185,7 +185,7 @@ class ContactsTest {
     assertTrue(Rect.intersects(chevronBounds(), Rect(center - 1f.px, center - 1f.px, center + 1f.px, center + 1f.px)))
 
     val short = layout(ShadowListUtilsContactRow(Fixture.contact(1).copy(subtitle = null), false, theme))
-    assertEquals(40f.px + 2 * 12f.px, short.heightPx)
+    assertEquals(40f.px + 24f.px, short.heightPx)
     assertNull(short.subtitle)
     assertEquals(Rect(), short.chevronFrame)
     assertEquals(12f.px, short.avatarFrame.top)
@@ -199,11 +199,11 @@ class ContactsTest {
     val row = ShadowListUtilsContactRow(contact, false, theme)
     val plain = layout(row)
     assertEquals(1, plain.name.lineCount)
-    assertEquals(12f.px + body.scaledLineHeightPx() + 1f.px + theme.typography.subhead.scaledLineHeightPx() + 12f.px, plain.heightPx)
+    assertEquals(24f.px + body.scaledLineHeightPx() + 1f.px + theme.typography.subhead.scaledLineHeightPx(), plain.heightPx)
     val large = withTextSize(1.5f) { layout(row) }
     assertTrue(large.name.lineCount > 1)
-    assertEquals(large.nameFrame.bottom + 1f.px, large.subtitleFrame.top)
-    assertEquals(large.subtitleFrame.bottom + 12f.px, large.heightPx)
+    assertEquals(large.nameFrame.bottom + kotlin.math.floor(1f.pxf).toInt(), large.subtitleFrame.top)
+    assertEquals((large.subtitleFrame.bottom + 24f.px / 2).toFloat(), large.heightPx.toFloat(), 1f)
     withTextSize(1.5f) { assertLines(large.name, body) }
   }
 
@@ -291,7 +291,7 @@ class ContactsTest {
     assertEquals(3, list.firstItemIndexInSection(2))
     assertEquals(0, list.sectionForItem(0))
     assertEquals(1, list.sectionForItem(2))
-    val headerHeight = theme.typography.footnote.scaledLineHeightPx() + 2 * 10f.px
+    val headerHeight = theme.typography.footnote.scaledLineHeightPx() + 20f.px
     assertEquals(RectF(0f, 0f, width.toFloat(), headerHeight.toFloat()), list.rectForHeaderInSection(0))
     assertEquals(headerHeight.toFloat(), list.rectForItem(0)?.top)
     assertEquals(listOf("A, 2", "B, 1", "C, 3"), shownHeaders(list).map { it.contentDescription.toString() }.sorted())

@@ -22,7 +22,7 @@ class ControlButtonsTest {
     var presses = 0
     button.onPress = { presses++ }
     assertEquals(ShadowListUtilsPillButtonVariant.PRIMARY, button.variant)
-    assertEquals(testTheme.typography.body.letterSpacing / testTheme.typography.body.fontSize, button.letterSpacing, 0.0001f)
+    assertEquals(testTheme.typography.body.letterSpacing.spf / kotlin.math.ceil(testTheme.typography.body.fontSize.spf), button.letterSpacing, 0.0001f)
     button.performClick(); assertEquals(1, presses)
     button.disabled = true; button.performClick()
     assertEquals(1, presses); assertEquals(0.4f, button.alpha)

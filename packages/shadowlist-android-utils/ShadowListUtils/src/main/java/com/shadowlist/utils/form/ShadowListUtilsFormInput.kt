@@ -7,7 +7,9 @@ import android.view.Gravity
 import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 
-/* Controlled, borderless input; FormRow supplies its stacked/trailing alignment. */
+/*
+ * Controlled, borderless input; FormRow supplies its stacked/trailing alignment.
+ */
 class ShadowListUtilsFormInput(context: Context, value: String, accessibilityLabel: String, val theme: ShadowListUtilsTheme = ShadowListUtilsTheme.system(context)) : FrameLayout(context) {
   var value = value
     set(value) { field = value; editing.value = value }
@@ -64,6 +66,6 @@ class ShadowListUtilsFormInput(context: Context, value: String, accessibilityLab
     input.typeface = Typeface.DEFAULT
     input.fontFeatureSettings = if (numeric) "tnum" else null
     input.hint = placeholder
-    input.letterSpacing = theme.typography.body.letterSpacing / theme.typography.body.fontSize
+    input.letterSpacing = theme.typography.body.letterSpacing.spf / input.textSize
   }
 }

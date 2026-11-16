@@ -14,6 +14,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.math.max
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 @RunWith(AndroidJUnit4::class)
 class ReorderTest {
@@ -190,18 +192,18 @@ class ReorderTest {
     val body = theme.typography.body
     val subhead = theme.typography.subhead
     val textHeight = body.scaledLineHeightPx() + 1f.px + subhead.scaledLineHeightPx()
-    val height = max(40f.px, textHeight) + 2 * 12f.px
+    val height = max(40f.px, textHeight) + 24f.px
     assertEquals(height, frames.heightPx)
     // 12 + 22 + 1 + 20 + 12 at a text size of 1, within the rounding of its parts.
     assertEquals(67f.px.toFloat(), frames.heightPx.toFloat(), 3f)
     val avatarTop = (height - 40f.px) / 2
     assertEquals(Rect(16f.px, avatarTop, 16f.px + 40f.px, avatarTop + 40f.px), frames.avatarFrame)
     val textLeft = 16f.px + 40f.px + 12f.px
-    val textTop = (height - textHeight) / 2
+    val textTop = kotlin.math.round((height - textHeight) / 2f).toInt()
     assertEquals(textLeft, frames.nameFrame.left)
     assertEquals(textTop, frames.nameFrame.top)
     assertEquals(textLeft, frames.subtitleFrame.left)
-    assertEquals(textTop + body.scaledLineHeightPx() + 1f.px, frames.subtitleFrame.top)
+    assertEquals(textTop + body.scaledLineHeightPx() + kotlin.math.floor(1f.pxf).toInt(), frames.subtitleFrame.top)
     val gripTop = (height - 20f.px) / 2
     assertEquals(Rect(width - 16f.px - 20f.px, gripTop, width - 16f.px, gripTop + 20f.px), frames.gripFrame)
     assertEquals(68f.px, frames.separatorFrame.left)
@@ -216,23 +218,25 @@ class ReorderTest {
     val footnote = theme.typography.footnote
     val swatch = tileWidth - 2 * 6f.px
     val frames = layout(ShadowListUtilsReorderTile(tile(0), null, theme, labels))
-    assertEquals(Rect(6f.px, 0, 6f.px + swatch, swatch), frames.swatchFrame)
+    // The swatch keeps its aspect over the tile's unrounded content width. A text origin is floored and the height rounds once.
+    val swatchHeight = tileWidth - 2 * 6f.pxf
+    assertEquals(Rect(6f.px, 0, 6f.px + swatch, swatchHeight.roundToInt()), frames.swatchFrame)
     assertEquals(frames.swatchFrame.exactCenterX(), frames.labelFrame.exactCenterX(), 1f)
     assertEquals(frames.swatchFrame.exactCenterY(), frames.labelFrame.exactCenterY(), 1f)
-    assertEquals(6f.px + 4f.px, frames.titleFrame.left)
-    assertEquals(swatch + 4f.px, frames.titleFrame.top)
+    assertEquals(floor(6f.pxf).toInt() + floor(4f.pxf).toInt(), frames.titleFrame.left)
+    assertEquals(floor(swatchHeight + 4f.pxf).toInt(), frames.titleFrame.top)
     assertLines(frames.title, footnote, 1)
-    assertEquals(swatch + 4f.px + footnote.scaledLineHeightPx() + 12f.px, frames.heightPx)
+    assertEquals((swatchHeight + 4f.pxf + footnote.scaledLineHeightPx() + 12f.pxf).roundToInt(), frames.heightPx)
 
     val long = tile(1).copy(title = "word ".repeat(20), aspectRatio = 2f)
     val wrapped = layout(ShadowListUtilsReorderTile(long, null, theme, labels))
     // Half the swatch's width, on the pixel grid.
-    assertEquals(swatch / 2f, wrapped.swatchFrame.height().toFloat(), 0.5f)
+    assertEquals((swatchHeight / 2f).roundToInt(), wrapped.swatchFrame.height())
     assertEquals(2, wrapped.title.lineCount)
     assertLines(wrapped.title, footnote, 2)
-    assertEquals(wrapped.titleFrame.bottom + 12f.px, wrapped.heightPx)
+    assertEquals((swatchHeight / 2f + 4f.pxf + wrapped.title.height + 12f.pxf).roundToInt(), wrapped.heightPx)
     val even = layout(ShadowListUtilsReorderTile(long, 1f, theme, labels))
-    assertEquals(swatch, even.swatchFrame.height())
+    assertEquals(swatchHeight.roundToInt(), even.swatchFrame.height())
     assertEquals(1, even.title.lineCount)
 
     val unlabelled = layout(ShadowListUtilsReorderTile(tile(2).copy(label = null), null, theme, labels))

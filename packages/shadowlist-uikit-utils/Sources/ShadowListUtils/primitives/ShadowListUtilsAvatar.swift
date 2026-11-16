@@ -58,9 +58,10 @@ public final class ShadowListUtilsAvatar: UIView {
     backgroundColor = color ?? theme.colors.avatarColor(for: name)
     let layout = Self.initialsLayout(name, size: size)
     initials.show(layout, theme.colors.label)
+    // React Native floors a text origin to the pixel grid.
     initials.frame = CGRect(
-      x: ShadowListUtilsPlatform.roundToPixel((size - layout.size.width) / 2),
-      y: ShadowListUtilsPlatform.roundToPixel((size - layout.size.height) / 2), width: layout.size.width, height: layout.size.height)
+      x: ShadowListUtilsPlatform.floorToPixel((size - layout.size.width) / 2),
+      y: ShadowListUtilsPlatform.floorToPixel((size - layout.size.height) / 2), width: layout.size.width, height: layout.size.height)
     image.isHidden = imageUrl == nil
     image.url = imageUrl
   }
@@ -84,7 +85,9 @@ public final class ShadowListUtilsAvatar: UIView {
         return layout
       }
       let metrics = ShadowListUtilsCore.avatarInitialsMetrics(forSize: size)
-      let style = ShadowListUtilsTextStyle(fontSize: metrics.fontSize, fontWeight: .semibold, lineHeight: metrics.lineHeight, letterSpacing: 0)
+      // React Native gives the initials no line height: the line is the font's own, on whole pixels.
+      let lineHeight = ShadowListUtilsPlatform.ceilToPixel(UIFont.systemFont(ofSize: metrics.fontSize, weight: .semibold).lineHeight)
+      let style = ShadowListUtilsTextStyle(fontSize: metrics.fontSize, fontWeight: .semibold, lineHeight: lineHeight, letterSpacing: 0)
       let layout = style.layout(text, width: size, maxLines: 1, scaled: false)
       layouts[key] = layout
       return layout

@@ -1,5 +1,5 @@
 import type { InboxMessage } from 'shadowlist-utils/native';
-import { CHARACTER_NAMES, generateUniqueId } from './common';
+import { CHARACTER_NAMES, FIXTURE_NOW, generateUniqueId } from './common';
 
 const SUBJECTS = [
   'Gate change for the 6:40 to Reykjavik',
@@ -34,7 +34,7 @@ const MINUTE_MS = 60_000;
  */
 export function generateInboxMessage(
   index: number,
-  now: number = Date.now()
+  now: number = FIXTURE_NOW
 ): InboxMessage {
   return {
     id: generateUniqueId(),

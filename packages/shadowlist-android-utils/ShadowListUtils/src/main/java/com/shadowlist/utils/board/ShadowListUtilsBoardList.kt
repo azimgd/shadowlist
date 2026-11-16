@@ -52,6 +52,7 @@ class ShadowListUtilsBoardList<Item>(
       view.list.reorderEnabled = onMoveItem != null
       val rows = column.items.map { item -> rowForItem(item).also { require(it.key == keyExtractor(item)) { "A board row must use its item's key" } } }
       view.list.setRows(rows, animated)
+      view.list.setBackgroundColor(android.graphics.Color.TRANSPARENT)
       val renderer = renderColumnHeader
       val header = if (renderer != null) renderer(column) else ShadowListUtilsListHeader(context, column.title, column.items.size.toString(), theme).apply {
         contentDescription = labels.columnSummary(column.title, column.items.size)
@@ -98,6 +99,7 @@ class ShadowListUtilsBoardList<Item>(
 
   init {
     outer.horizontal = true
+    outer.clipToPadding = false
     outer.snapToItem = true
     outer.allowsSelection = false
     outer.isHorizontalScrollBarEnabled = false

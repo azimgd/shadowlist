@@ -56,9 +56,11 @@ class ListScreen: UIViewController {
     let opaque = UINavigationBarAppearance()
     opaque.configureWithOpaqueBackground()
     opaque.backgroundColor = AppTheme.colors.background
+    if !inverted { opaque.shadowColor = .clear }
     navigationItem.standardAppearance = opaque
     navigationItem.scrollEdgeAppearance = opaque
     navigationItem.largeTitleDisplayMode = .never
+    navigationItem.backButtonDisplayMode = .minimal
     DispatchQueue.main.async { Scenario.start(self) }
   }
 
@@ -226,6 +228,8 @@ final class ChatScreen: ListScreen {
     composer.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(composer)
     composer.onSend = { [weak self] text in self?.send(text) }
+    // The composer runs to the screen bottom and pads itself by the safe area, or above a keyboard.
+    if #available(iOS 17, *) { view.keyboardLayoutGuide.usesBottomSafeArea = false }
     NSLayoutConstraint.activate([
       list.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
       list.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -240,6 +244,7 @@ final class ChatScreen: ListScreen {
   override func viewDidLoad() {
     super.viewDidLoad()
     title = "Chat"
+    composer.labels.placeholder = "Message your crew"
     let count = Settings.count
     all = (0..<Self.history + count).map { ChatMessage(index: $0) }
     let own = all.filter(\.isOwn)
@@ -373,7 +378,7 @@ final class ContactsScreen: ListScreen {
     title = "Companions"
     companions.onPressItem = { [weak self] in self?.open($0) }
     companions.onDelete = { [weak self] in self?.delete($0) }
-    let seed = generate(min(Settings.count, 200))
+    let seed = generate(Settings.count)
     FakeNetwork.reply { [weak self] in
       guard let self else { return }
       self.contacts = seed
@@ -399,43 +404,12 @@ final class ContactsScreen: ListScreen {
   }
 
   private func open(_ contact: ShadowListUtilsContactItem) {
-    navigationController?.pushViewController(ContactScreen(contact), animated: true)
+    navigationController?.pushViewController(ContactDetailScreen(contact), animated: true)
   }
 
   private func delete(_ contact: ShadowListUtilsContactItem) {
     contacts.removeAll { $0.key == contact.key }
     show(.update, animated: true)
-  }
-}
-
-/*
- * One contact, shown with the library's empty state: a large avatar over the name.
- */
-final class ContactScreen: UIViewController {
-  private let state: ShadowListUtilsEmptyState
-
-  init(_ contact: ShadowListUtilsContactItem) {
-    let avatar = ShadowListUtilsAvatar(size: 96, theme: AppTheme.theme)
-    avatar.show(name: contact.name, imageUrl: contact.avatarUrl, color: contact.avatarColor)
-    state = ShadowListUtilsEmptyState(title: contact.name, message: contact.subtitle, icon: avatar, theme: AppTheme.theme)
-    super.init(nibName: nil, bundle: nil)
-    title = contact.name
-    navigationItem.largeTitleDisplayMode = .never
-  }
-
-  required init?(coder: NSCoder) { fatalError() }
-
-  override func viewDidLoad() {
-    super.viewDidLoad()
-    view.backgroundColor = AppTheme.colors.background
-    view.addSubview(state)
-  }
-
-  override func viewDidLayoutSubviews() {
-    super.viewDidLayoutSubviews()
-    let area = view.bounds.inset(by: view.safeAreaInsets)
-    let size = state.sizeThatFits(CGSize(width: area.width, height: .greatestFiniteMagnitude))
-    state.frame = CGRect(x: area.minX, y: area.minY, width: area.width, height: size.height)
   }
 }
 
@@ -466,9 +440,9 @@ final class DirectoryScreen: ListScreen {
   override func viewDidLoad() {
     super.viewDidLoad()
     title = "Directory"
-    if list.template == nil {
-      installRail()
-    }
+    // The React Native list runs to the screen bottom without an inset, which is where its index centers.
+    directory.contentInsetAdjustmentBehavior = .never
+    installRail()
     let seed = generate(Settings.count)
     FakeNetwork.reply { [weak self] in
       guard let self else { return }
@@ -482,12 +456,16 @@ final class DirectoryScreen: ListScreen {
     view.addSubview(rail)
     NSLayoutConstraint.activate([
       rail.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      rail.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor),
+      rail.centerYAnchor.constraint(equalTo: list.view.centerYAnchor),
       rail.widthAnchor.constraint(equalToConstant: 24),
     ])
     rail.onSelect = { [weak self] section in
-      guard let self, section < self.headerIndices.count else { return }
-      self.list.scrollToItem(at: self.headerIndices[section], animated: false)
+      guard let self else { return }
+      if self.list.template != nil {
+        self.directory.scrollToSection(section, animated: false)
+      } else if section < self.headerIndices.count {
+        self.list.scrollToItem(at: self.headerIndices[section], animated: false)
+      }
     }
   }
 
@@ -538,6 +516,9 @@ final class SectionIndexRail: UIView {
 
   override init(frame: CGRect) {
     super.init(frame: frame)
+    isAccessibilityElement = true
+    accessibilityLabel = "Section index"
+    accessibilityTraits = .adjustable
     stack.axis = .vertical
     stack.alignment = .center
     stack.translatesAutoresizingMaskIntoConstraints = false
@@ -559,9 +540,23 @@ final class SectionIndexRail: UIView {
       label.attributedText = NSAttributedString(string: title, attributes: [
         .font: UIFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: AppTheme.colors.accent,
       ])
-      label.heightAnchor.constraint(equalToConstant: 14).isActive = true
+      label.heightAnchor.constraint(equalToConstant: ceil(UIFont.systemFont(ofSize: 11, weight: .semibold).lineHeight * UIScreen.main.scale) / UIScreen.main.scale + 2).isActive = true
       stack.addArrangedSubview(label)
     }
+  }
+
+  override func accessibilityIncrement() {
+    guard !titles.isEmpty else { return }
+    current = min(titles.count - 1, current + 1)
+    accessibilityValue = titles[current]
+    onSelect?(current)
+  }
+
+  override func accessibilityDecrement() {
+    guard !titles.isEmpty else { return }
+    current = max(0, current - 1)
+    accessibilityValue = titles[current]
+    onSelect?(current)
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) { track(touches) }
@@ -634,86 +629,5 @@ final class GalleryScreen: ListScreen {
   override func prependRows() {
     photos = generate(10) + photos
     show(.prepend(10))
-  }
-}
-
-// MARK: - Home
-
-struct ExampleRoute {
-  let route: String
-  let title: String
-  let summary: String
-  let make: () -> UIViewController
-
-  static let all: [ExampleRoute] = [
-    ExampleRoute(route: "Feed", title: "Feed", summary: "Posts with photo carousels and pull to refresh") { FeedScreen() },
-    ExampleRoute(route: "Masonry", title: "Gallery", summary: "Photos in three columns") { GalleryScreen() },
-    ExampleRoute(route: "Nested", title: "Explore", summary: "Horizontal shelves inside a vertical list") { NestedScreen() },
-    ExampleRoute(route: "Chat", title: "Chat", summary: "Group chat that keeps your place as messages arrive") { ChatScreen() },
-    ExampleRoute(route: "Contacts", title: "Companions", summary: "Swipe a row to remove it") { ContactsScreen() },
-    ExampleRoute(route: "SectionList", title: "Directory", summary: "Sections with sticky headers and an index") { DirectoryScreen() },
-    ExampleRoute(route: "Reorder", title: "Boarding Order", summary: "Touch and hold a row, then drag it") { ReorderScreen() },
-    ExampleRoute(route: "ReorderGrid", title: "Sky Wishlist", summary: "Touch and hold a card, then drag it across the grid") { ReorderGridScreen() },
-    ExampleRoute(route: "Snap", title: "Destinations", summary: "Cards that snap into place") { SnapScreen() },
-    ExampleRoute(route: "Sections", title: "Sections", summary: "Section headers, footers, an index and self-sizing cells") { SectionsScreen() },
-    ExampleRoute(route: "Components", title: "Components", summary: "Controlled public components and accessible native interactions") { ComponentsScreen() },
-    ExampleRoute(route: "Assistant", title: "Assistant", summary: "A controlled transcript, live replies and composer actions") { AssistantScreen() },
-    ExampleRoute(route: "Activity", title: "Activity", summary: "Unread activity and pull to refresh") { ActivityScreen() },
-    ExampleRoute(route: "Board", title: "Travel board", summary: "Move cards within and between columns") { BoardScreen() },
-    ExampleRoute(route: "Tree", title: "Files", summary: "Expand folders and open files") { TreeScreen() },
-    ExampleRoute(route: "Poll", title: "Poll", summary: "Choose a destination and see the votes") { PollScreen() },
-    ExampleRoute(route: "Inbox", title: "Inbox", summary: "Swipe actions, a menu on long press and selection") { InboxScreen() },
-  ]
-}
-
-final class HomeScreen: UITableViewController {
-  init() {
-    super.init(style: .insetGrouped)
-    title = "ShadowList UIKit"
-  }
-
-  required init?(coder: NSCoder) { fatalError() }
-
-  override func viewDidLoad() {
-    super.viewDidLoad()
-    navigationItem.largeTitleDisplayMode = .always
-    tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
-  }
-
-  override func numberOfSections(in tableView: UITableView) -> Int { 2 }
-
-  override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-    section == 0 ? "Engine" : "Examples"
-  }
-
-  override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    section == 0 ? Engine.allCases.count : ExampleRoute.all.count
-  }
-
-  override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-    let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
-    var content = UIListContentConfiguration.subtitleCell()
-    if indexPath.section == 0 {
-      let engine = Engine.allCases[indexPath.row]
-      content.text = engine.title
-      cell.accessoryType = engine == Settings.engine ? .checkmark : .none
-    } else {
-      let example = ExampleRoute.all[indexPath.row]
-      content.text = example.title
-      content.secondaryText = example.summary
-      cell.accessoryType = .disclosureIndicator
-    }
-    cell.contentConfiguration = content
-    return cell
-  }
-
-  override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-    tableView.deselectRow(at: indexPath, animated: true)
-    if indexPath.section == 0 {
-      UserDefaults.standard.set(Engine.allCases[indexPath.row].rawValue, forKey: "SLEngine")
-      tableView.reloadSections(IndexSet(integer: 0), with: .none)
-    } else {
-      navigationController?.pushViewController(ExampleRoute.all[indexPath.row].make(), animated: true)
-    }
   }
 }

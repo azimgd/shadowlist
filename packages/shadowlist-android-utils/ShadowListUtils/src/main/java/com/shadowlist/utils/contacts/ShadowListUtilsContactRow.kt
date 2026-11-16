@@ -5,7 +5,9 @@ import android.graphics.Rect
 import android.view.View
 import com.shadowlist.kit.ShadowListKitTextLayout
 import com.shadowlist.kit.ShadowListKitTextView
+import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /*
  * A contact: an avatar, a name and an optional subtitle of one line each, with a chevron at the
@@ -72,12 +74,17 @@ internal class ShadowListUtilsContactBody(
     subtitle = item.subtitle?.takeIf { it.isNotEmpty() }?.let { theme.typography.subhead.layout(it, textWidth, lines) }
     val subtitleGap = SUBTITLE_GAP_DP.px
     val textHeight = name.height + (subtitle?.let { subtitleGap + it.height } ?: 0)
-    heightPx = max(avatarSize, textHeight) + 2 * spacing.md.px
-    val textY = (heightPx - textHeight) / 2
-    val avatarY = (heightPx - avatarSize) / 2
+    heightPx = max(avatarSize, textHeight) + (2 * spacing.md).px
+    /*
+     * React Native centers the texts on unrounded sizes and rounds their column to the pixel
+     * grid. Inside the column it floors each text origin.
+     */
+    val exactTextHeight = name.height + (subtitle?.let { SUBTITLE_GAP_DP.pxf + it.height } ?: 0f)
+    val textY = ((max(AVATAR_SIZE_DP.pxf, exactTextHeight) - exactTextHeight) / 2f + spacing.md.pxf).roundToInt()
+    val avatarY = ((heightPx - avatarSize) / 2f).roundToInt()
     avatarFrame = Rect(spacing.lg.px, avatarY, spacing.lg.px + avatarSize, avatarY + avatarSize)
     nameFrame = frameOf(textX, textY, name)
-    subtitleFrame = subtitle?.let { frameOf(textX, textY + name.height + subtitleGap, it) } ?: Rect()
+    subtitleFrame = subtitle?.let { frameOf(textX, textY + floor(name.height + SUBTITLE_GAP_DP.pxf).toInt(), it) } ?: Rect()
     separatorFrame = Rect(theme.rowInset.px, heightPx - ShadowListUtilsTheme.HAIRLINE_PX, widthPx, heightPx)
   }
 

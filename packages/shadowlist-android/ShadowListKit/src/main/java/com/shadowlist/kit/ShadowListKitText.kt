@@ -50,6 +50,8 @@ class ShadowListKitTextLayout private constructor(val layout: StaticLayout) {
       val builder = StaticLayout.Builder.obtain(text, 0, text.length, paint, width.coerceAtLeast(1))
         .setAlignment(Layout.Alignment.ALIGN_NORMAL)
         .setIncludePad(false)
+        .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
+        .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
         .setLineSpacing(lineSpacingExtra, 1f)
         .setMaxLines(maxLines)
         .setEllipsize(if (maxLines == Int.MAX_VALUE) null else TextUtils.TruncateAt.END)

@@ -71,7 +71,8 @@ struct ShadowListUtilsContactBody {
     self.name = name
     self.subtitle = subtitle
     self.height = height
-    avatarFrame = CGRect(x: spacing.lg, y: (height - Self.avatarSize) / 2, width: Self.avatarSize, height: Self.avatarSize)
+    avatarFrame = CGRect(
+      x: spacing.lg, y: ShadowListUtilsPlatform.roundToPixel((height - Self.avatarSize) / 2), width: Self.avatarSize, height: Self.avatarSize)
     nameFrame = CGRect(CGPoint(x: textX, y: textY), name)
     subtitleFrame = subtitle.map { CGRect(CGPoint(x: textX, y: textY + nameHeight + Self.subtitleGap), $0) } ?? .zero
     separatorFrame = CGRect(x: theme.rowInset, y: height - hairline, width: max(0, width - theme.rowInset), height: hairline)

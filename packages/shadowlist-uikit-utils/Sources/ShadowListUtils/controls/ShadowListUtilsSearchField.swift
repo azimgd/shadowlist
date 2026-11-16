@@ -4,10 +4,10 @@ public final class ShadowListUtilsSearchField: UIView {
   public var value: String { didSet { editing.value = value } }
   public var onChange: ((String) -> Void)?
   public var icon: UIView? { didSet { updateIcon() } }
-  public var labels = ShadowListUtilsSearchFieldLabels() { didSet { input.placeholder = labels.placeholder; input.accessibilityLabel = labels.placeholder } }
+  public var labels = ShadowListUtilsSearchFieldLabels() { didSet { applyLabels() } }
   public let theme: ShadowListUtilsTheme
   let input = ShadowListUtilsTextInputField()
-  private let defaultIcon = UIImageView(image: UIImage(systemName: "magnifyingglass"))
+  private let defaultIcon = UIImageView(image: ShadowListUtilsSearchIcon.image(size: 16))
   private weak var shownIcon: UIView?
   private lazy var editing = ShadowListUtilsTextInput(input: .textField(input), defaultValue: value)
 
@@ -17,8 +17,8 @@ public final class ShadowListUtilsSearchField: UIView {
     backgroundColor = theme.colors.elevated2; layer.cornerRadius = 10
     input.font = .systemFont(ofSize: theme.typography.body.fontSize * ShadowListUtilsPlatform.textScale)
     input.defaultTextAttributes[.kern] = theme.typography.body.letterSpacing * ShadowListUtilsPlatform.textScale
-    input.textColor = theme.colors.label; input.placeholder = labels.placeholder
-    input.accessibilityLabel = labels.placeholder
+    input.textColor = theme.colors.label
+    applyLabels()
     input.autocorrectionType = .no; input.autocapitalizationType = .none
     input.clearButtonMode = .always
     defaultIcon.tintColor = theme.colors.secondaryLabel; defaultIcon.contentMode = .scaleAspectFit
@@ -50,7 +50,16 @@ public final class ShadowListUtilsSearchField: UIView {
       ShadowListUtilsPlatform.resolve(category: traitCollection.preferredContentSizeCategory, window: window)
       input.font = .systemFont(ofSize: theme.typography.body.fontSize * ShadowListUtilsPlatform.textScale)
       input.defaultTextAttributes[.kern] = theme.typography.body.letterSpacing * ShadowListUtilsPlatform.textScale
+      applyLabels()
     }
+  }
+  private func applyLabels() {
+    input.attributedPlaceholder = NSAttributedString(string: labels.placeholder, attributes: [
+      .font: input.font as Any,
+      .kern: theme.typography.body.letterSpacing * ShadowListUtilsPlatform.textScale,
+      .foregroundColor: theme.colors.secondaryLabel,
+    ])
+    input.accessibilityLabel = labels.placeholder
   }
   private func updateIcon() {
     let next = icon ?? defaultIcon

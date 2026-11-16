@@ -3,6 +3,7 @@ package com.shadowlist.utils
 import android.content.Context
 import android.graphics.Rect
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /*
  * An option's label, share and selection. The core computes its percentage with the same
@@ -28,25 +29,31 @@ data class ShadowListUtilsPollRow(
     val spacing = theme.spacing
     val typography = theme.typography
     val direction = ShadowListUtilsDirection(widthPx)
-    val top = 14f.px
     val selectionSize = SELECTION_SIZE_DP.px
-    val selectionFrame = Rect(spacing.lg.px, top, spacing.lg.px + selectionSize, top + selectionSize)
-    val initialText = if (item.label.isEmpty()) "" else String(Character.toChars(item.label.codePointAt(0))).uppercase(java.util.Locale.ROOT)
-    val initial = typography.headline.layout(initialText, selectionSize, 1, scaled = true, centered = true)
-    val initialFrame = Rect(selectionFrame.left, top + (selectionSize - initial.height) / 2,
-      selectionFrame.right, top + (selectionSize + initial.height) / 2)
-    val bodyX = selectionFrame.right + 14f.px
+    val bodyX = spacing.lg.px + selectionSize + SELECTION_GAP_DP.px
     val bodyWidth = (widthPx - bodyX - spacing.lg.px).coerceAtLeast(1)
     val percent = typography.subhead.with(if (isLeading) ShadowListUtilsFontWeight.SEMIBOLD else ShadowListUtilsFontWeight.REGULAR).layout("${this.percent}%", (bodyWidth / 3).coerceAtLeast(1), 1)
-    val percentFrame = frameOf(widthPx - spacing.lg.px - percent.width, top, percent)
     val label = typography.headline.layout(item.label, (bodyWidth - percent.width - spacing.sm.px).coerceAtLeast(1))
-    val labelFrame = frameOf(bodyX, top, label)
-    val barTop = max(labelFrame.bottom, percentFrame.bottom) + spacing.sm.px
+    // The selection and the body are centered against the taller of the two.
+    val bodyTopHeight = max(label.height, percent.height)
+    val bodyHeight = bodyTopHeight + spacing.sm.px + BAR_HEIGHT_DP.px
+    // The vertical padding rounds once with the selection, the way React Native rounds the row.
+    val heightPx = max((2 * PADDING_VERTICAL_DP + SELECTION_SIZE_DP).px, bodyHeight + (2 * PADDING_VERTICAL_DP).px)
+    val selectionTop = ((heightPx - selectionSize) / 2f).roundToInt()
+    val bodyTop = (heightPx - bodyHeight) / 2
+    val selectionFrame = Rect(spacing.lg.px, selectionTop, spacing.lg.px + selectionSize, selectionTop + selectionSize)
+    val initialText = if (item.label.isEmpty()) "" else String(Character.toChars(item.label.codePointAt(0))).uppercase(java.util.Locale.ROOT)
+    val initial = typography.headline.layout(initialText, selectionSize, 1, scaled = true, centered = true)
+    val initialFrame = Rect(selectionFrame.left, selectionTop + (selectionSize - initial.height) / 2,
+      selectionFrame.right, selectionTop + (selectionSize + initial.height) / 2)
+    val percentFrame = frameOf(widthPx - spacing.lg.px - percent.width, bodyTop + (bodyTopHeight - percent.height) / 2, percent)
+    val labelFrame = frameOf(bodyX, bodyTop + (bodyTopHeight - label.height) / 2, label)
+    val barTop = bodyTop + bodyTopHeight + spacing.sm.px
     val barFrame = Rect(bodyX, barTop, bodyX + bodyWidth, barTop + BAR_HEIGHT_DP.px)
     val fillWidth = (bodyWidth * this.percent.coerceIn(0, 100) / 100.0).toInt()
     val barFillFrame = Rect(bodyX, barTop, bodyX + fillWidth, barFrame.bottom)
     return ShadowListUtilsPollRowLayout(
-      widthPx, max(selectionFrame.bottom, barFrame.bottom) + spacing.md.px,
+      widthPx, heightPx,
       direction.place(selectionFrame), initial, direction.place(initialFrame), label, direction.place(labelFrame), percent, direction.place(percentFrame),
       direction.place(barFrame), direction.place(barFillFrame))
   }
@@ -54,6 +61,8 @@ data class ShadowListUtilsPollRow(
   internal companion object {
     const val REUSE_IDENTIFIER = "ShadowListUtilsPollRow"
     const val SELECTION_SIZE_DP = 44f
+    private const val SELECTION_GAP_DP = 14f
+    private const val PADDING_VERTICAL_DP = 14f
     private const val BAR_HEIGHT_DP = 6f
   }
 }

@@ -15,10 +15,16 @@ public final class ShadowListUtilsPollFooter: UIView {
   @available(*, unavailable)
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   public override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: sizeThatFits(CGSize(width: max(1, bounds.width), height: CGFloat.greatestFiniteMagnitude)).height) }
-  public override func sizeThatFits(_ size: CGSize) -> CGSize { footer?.sizeThatFits(size) ?? .zero }
+  // The hairline sits above the text and its padding, and adds to the height.
+  public override func sizeThatFits(_ size: CGSize) -> CGSize {
+    guard let fitted = footer?.sizeThatFits(size) else { return .zero }
+    return CGSize(width: fitted.width, height: fitted.height + ShadowListUtilsTheme.hairline)
+  }
   public override func layoutSubviews() {
-    super.layoutSubviews(); footer?.frame = bounds
-    separator.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 1 / UIScreen.main.scale)
+    super.layoutSubviews()
+    let hairline = ShadowListUtilsTheme.hairline
+    footer?.frame = CGRect(x: 0, y: hairline, width: bounds.width, height: bounds.height - hairline)
+    separator.frame = CGRect(x: 0, y: 0, width: bounds.width, height: hairline)
     bringSubviewToFront(separator)
   }
   private func rebuild() {

@@ -28,9 +28,10 @@ internal class ShadowListUtilsSegmentedButton(context: Context, var option: Shad
   }
   fun refresh() {
     contentDescription = option.label
-    label.text = option.label; label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+    label.text = option.label; label.setTextSize(TypedValue.COMPLEX_UNIT_PX, kotlin.math.ceil(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 13f, resources.displayMetrics)))
+    label.paint.isSubpixelText = true
     label.typeface = ShadowListUtilsTextStyle.typeface(if (isSelected) ShadowListUtilsTextStyle.WEIGHT_SEMIBOLD else ShadowListUtilsTextStyle.WEIGHT_REGULAR)
-    label.letterSpacing = -0.1f / 13f
+    label.letterSpacing = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, -0.1f, resources.displayMetrics) / label.textSize
     label.setTextColor(if (compact && isSelected) theme.colors.accent else theme.colors.label)
     label.layoutParams = (label.layoutParams as LayoutParams).apply { marginStart = if (compact) 10f.px else 0; marginEnd = marginStart }
     background = GradientDrawable().apply {
@@ -50,6 +51,12 @@ internal class ShadowListUtilsSegmentedButton(context: Context, var option: Shad
     label.measure(MeasureSpec.makeMeasureSpec((width - inset * 2).coerceAtLeast(0), MeasureSpec.EXACTLY), unspecified)
     divider.measure(MeasureSpec.makeMeasureSpec(1, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec((height - 14f.px).coerceAtLeast(0), MeasureSpec.EXACTLY))
     setMeasuredDimension(width, height)
+  }
+  override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+    super.onLayout(changed, left, top, right, bottom)
+    // React Native centers the label in the segment's unrounded height and floors its origin.
+    val labelTop = kotlin.math.floor(((if (compact) 30f else 32f).pxf - label.measuredHeight) / 2).toInt()
+    label.layout(label.left, labelTop, label.right, labelTop + label.measuredHeight)
   }
   override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
     super.onInitializeAccessibilityNodeInfo(info)

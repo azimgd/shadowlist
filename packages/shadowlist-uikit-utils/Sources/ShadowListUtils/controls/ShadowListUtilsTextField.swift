@@ -1,6 +1,8 @@
 import UIKit
 
-/* Controlled field or code/text block; only native text input owns marked text and selection. */
+/*
+ * Controlled field or code/text block; only native text input owns marked text and selection.
+ */
 public final class ShadowListUtilsTextField: UIView {
   public var value: String { didSet { editing.value = value; updatePlaceholder() } }
   public var onChange: ((String) -> Void)?
@@ -42,7 +44,7 @@ public final class ShadowListUtilsTextField: UIView {
     super.layoutSubviews()
     field.frame = bounds.insetBy(dx: 12, dy: 0)
     textView.frame = bounds.insetBy(dx: 12, dy: 10)
-    placeholderView.frame = CGRect(x: 12, y: 10, width: max(0, bounds.width - 24), height: placeholderView.font.lineHeight)
+    placeholderView.frame = CGRect(x: 12, y: 10, width: max(0, bounds.width - 24), height: ShadowListUtilsPlatform.ceilToPixel(placeholderView.font.lineHeight))
   }
   public override var canBecomeFirstResponder: Bool { multiline ? textView.canBecomeFirstResponder : field.canBecomeFirstResponder }
   public override func becomeFirstResponder() -> Bool { multiline ? textView.becomeFirstResponder() : field.becomeFirstResponder() }
@@ -58,7 +60,7 @@ public final class ShadowListUtilsTextField: UIView {
     let scale = ShadowListUtilsPlatform.textScale
     field.font = .systemFont(ofSize: theme.typography.body.fontSize * scale)
     field.defaultTextAttributes[.kern] = theme.typography.body.letterSpacing * scale
-    let font = UIFont.monospacedSystemFont(ofSize: 14 * scale, weight: .regular)
+    let font = UIFont(name: "Menlo", size: 14 * scale) ?? UIFont.monospacedSystemFont(ofSize: 14 * scale, weight: .regular)
     textView.font = font
     textView.typingAttributes = [.font: font, .kern: -0.6 * scale, .foregroundColor: theme.colors.label]
     placeholderView.font = font
@@ -74,8 +76,12 @@ public final class ShadowListUtilsTextField: UIView {
   }
   private func updatePlaceholder() {
     field.accessibilityLabel = super.accessibilityLabel ?? placeholder
-    field.attributedPlaceholder = placeholder.map { NSAttributedString(string: $0, attributes: [.foregroundColor: theme.colors.secondaryLabel]) }
-    placeholderView.text = placeholder
+    field.attributedPlaceholder = placeholder.map {
+      NSAttributedString(string: $0, attributes: field.defaultTextAttributes.merging([.foregroundColor: theme.colors.secondaryLabel]) { _, color in color })
+    }
+    placeholderView.attributedText = placeholder.map {
+      NSAttributedString(string: $0, attributes: textView.typingAttributes.merging([.foregroundColor: theme.colors.secondaryLabel]) { _, color in color })
+    }
     placeholderView.isHidden = !multiline || !editing.text.isEmpty
     textView.accessibilityLabel = super.accessibilityLabel ?? placeholder
   }

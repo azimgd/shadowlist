@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.widget.Button
 
 class ShadowListUtilsPillButton(context: Context, label: String, val theme: ShadowListUtilsTheme = ShadowListUtilsTheme.system(context)) : Button(context) {
+  private var labelColor = theme.colors.onAccent
   var label = label
     set(value) { field = value; applyStyle() }
   var onPress: (() -> Unit)? = null
@@ -16,6 +17,7 @@ class ShadowListUtilsPillButton(context: Context, label: String, val theme: Shad
   var disabled = false
     set(value) { field = value; updateInteraction() }
   init {
+    setLayerType(LAYER_TYPE_HARDWARE, null)
     stateListAnimator = null; elevation = 0f; translationZ = 0f
     isAllCaps = false; gravity = Gravity.CENTER
     minWidth = 72f.px; minimumWidth = 72f.px
@@ -35,6 +37,7 @@ class ShadowListUtilsPillButton(context: Context, label: String, val theme: Shad
       ShadowListUtilsPillButtonVariant.PLAIN -> theme.colors.secondaryLabel
       ShadowListUtilsPillButtonVariant.DESTRUCTIVE -> theme.colors.red
     }
+    labelColor = color
     if (emphasized) theme.typography.body.applyTo(this, color, ShadowListUtilsTextStyle.WEIGHT_SEMIBOLD)
     else theme.typography.body.applyTo(this, color)
     val fill = when (variant) {
@@ -48,5 +51,9 @@ class ShadowListUtilsPillButton(context: Context, label: String, val theme: Shad
     updateFeedback()
   }
   private fun updateInteraction() { isEnabled = !disabled && onPress != null; updateFeedback() }
-  private fun updateFeedback() { alpha = ShadowListUtilsPressFeedback.alpha(isPressed, disabled, theme.pressFeedback == ShadowListUtilsThemePressFeedback.RIPPLE) }
+  private fun updateFeedback() {
+    alpha = ShadowListUtilsPressFeedback.alpha(isPressed, disabled, theme.pressFeedback == ShadowListUtilsThemePressFeedback.RIPPLE)
+    // React Native applies feedback opacity to the background and the child label separately.
+    setTextColor(labelColor.withOpacity(alpha))
+  }
 }

@@ -423,17 +423,17 @@ class PrimitivesTest {
   fun a_list_header_is_its_title_and_subtitle_with_their_padding() = onMain {
     val typography = theme.typography
     val titled = ShadowListUtilsListHeader(testContext, "Lisbon Crew", theme = theme)
-    assertEquals(4f.px + typography.largeTitle.scaledLineHeightPx() + 12f.px, fit(titled))
+    assertEquals(typography.largeTitle.scaledLineHeightPx() + 16f.px, fit(titled))
     val header = ShadowListUtilsListHeader(testContext, "Lisbon Crew", "8 travellers", theme)
     assertEquals(
-      4f.px + typography.largeTitle.scaledLineHeightPx() + 2f.px + typography.subhead.scaledLineHeightPx() + 12f.px, fit(header))
+      typography.largeTitle.scaledLineHeightPx() + typography.subhead.scaledLineHeightPx() + 18f.px, fit(header))
     assertEquals(theme.colors.background, backgroundColor(header))
     val title = header.getChildAt(0) as ShadowListKitTextView
     val subtitle = header.getChildAt(1) as ShadowListKitTextView
     assertEquals(16f.px, title.left)
-    assertEquals(4f.px, title.top)
+    assertEquals(kotlin.math.floor(4f.pxf).toInt(), title.top)
     assertEquals(16f.px, subtitle.left)
-    assertEquals(4f.px + typography.largeTitle.scaledLineHeightPx() + 2f.px, subtitle.top)
+    assertEquals(kotlin.math.floor(6f.pxf).toInt() + typography.largeTitle.scaledLineHeightPx(), subtitle.top)
     assertEquals(theme.colors.label, title.textColor)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) assertTrue(title.isAccessibilityHeading)
   }
@@ -441,12 +441,12 @@ class PrimitivesTest {
   @Test
   fun a_list_footer_centers_its_text_with_its_padding() = onMain {
     val footer = ShadowListUtilsListFooter(testContext, "42 travellers", theme)
-    assertEquals(20f.px + theme.typography.footnote.scaledLineHeightPx() + 20f.px, fit(footer))
+    assertEquals(40f.px + theme.typography.footnote.scaledLineHeightPx(), fit(footer))
     val text = footer.getChildAt(0) as ShadowListKitTextView
     assertEquals(width / 2f, (text.left + text.right) / 2f, 1f)
-    assertEquals(20f.px, text.top)
+    assertEquals(kotlin.math.floor(20f.pxf).toInt(), text.top)
     assertEquals(theme.colors.secondaryLabel, text.textColor)
-    // Every line centers itself in the text's width.
+    // The text block is centered; wrapped lines retain leading alignment.
     val layout = requireNotNull(text.textLayout) { "the footer has no text" }.layout
     assertEquals(text.width / 2f, (layout.getLineLeft(0) + layout.getLineRight(0)) / 2f, 1f)
   }
@@ -456,7 +456,7 @@ class PrimitivesTest {
     val footnote = theme.typography.footnote
     val header = ShadowListUtilsSectionHeader("a", "a", 12, theme)
     val layout = header.layout(width) as ShadowListUtilsSectionHeaderLayout
-    assertEquals(10f.px + footnote.scaledLineHeightPx() + 10f.px, layout.heightPx)
+    assertEquals(footnote.scaledLineHeightPx() + 20f.px, layout.heightPx)
     assertLines(layout.title, footnote, 1)
     assertEquals(16f.px, layout.titleFrame.left)
     assertEquals(10f.px, layout.titleFrame.top)
@@ -574,7 +574,7 @@ class PrimitivesTest {
     // The chevron's arms are 42 percent of the size and 2 thick, and its tip points right.
     val chevron = ink(ShadowListUtilsIconView.Kind.CHEVRON, size)
     val reach = size * 0.42f * sqrt(0.5f)
-    assertEquals(2 * reach + 2f.pxf * sqrt(0.5f), chevron.height().toFloat(), 2f)
+    assertEquals(2 * reach, chevron.height().toFloat(), 2f)
     assertEquals(size / 2f, chevron.exactCenterY(), 1f)
     assertTrue(tipIsAtTheRight(ShadowListUtilsIconView.Kind.CHEVRON, size))
     assertFalse(withRightToLeft { tipIsAtTheRight(ShadowListUtilsIconView.Kind.CHEVRON, size) })

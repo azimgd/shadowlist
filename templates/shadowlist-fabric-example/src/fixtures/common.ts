@@ -1,3 +1,8 @@
+/*
+ * Fixture ages count back from app startup, matching the native examples.
+ */
+export const FIXTURE_NOW = Date.now();
+
 export const AVATAR_COLORS = [
   '#FF6B6B',
   '#4ECDC4',

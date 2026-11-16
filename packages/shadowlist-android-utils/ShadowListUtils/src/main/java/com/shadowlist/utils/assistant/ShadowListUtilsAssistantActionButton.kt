@@ -3,7 +3,6 @@ package com.shadowlist.utils
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
-import android.util.TypedValue
 import android.widget.Button
 
 /*
@@ -28,12 +27,13 @@ class ShadowListUtilsAssistantActionButton(
 
   init {
     isAllCaps = false
+    stateListAnimator = null
+    elevation = 0f
+    gravity = android.view.Gravity.CENTER
     minWidth = 32f.px
     minimumWidth = 32f.px
     minHeight = 32f.px
     minimumHeight = 32f.px
-    setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.typography.footnote.fontSize)
-    typeface = ShadowListUtilsTextStyle.typeface(ShadowListUtilsTextStyle.WEIGHT_SEMIBOLD)
     isEnabled = !disabled
     isSelected = selected
     setOnClickListener { if (isEnabled) onPress?.invoke() }
@@ -43,12 +43,13 @@ class ShadowListUtilsAssistantActionButton(
   private fun apply() {
     contentDescription = label
     text = if (showLabel) label else ""
-    setTextColor(theme.colors.label)
+    theme.typography.footnote.with(ShadowListUtilsFontWeight.SEMIBOLD).applyTo(this, theme.colors.label)
     setPadding(if (showLabel) 10f.px else 0, 0, if (showLabel) 10f.px else 0, 0)
     background = GradientDrawable().apply { setColor(if (showLabel) theme.colors.elevated else 0); cornerRadius = theme.radius.sm.pxf }
     val drawable = icon?.constantState?.newDrawable()?.mutate() ?: icon
     drawable?.setBounds(0, 0, 18f.px, 18f.px)
-    setCompoundDrawablesRelative(drawable, null, null, null)
+    foreground = if (showLabel) null else drawable
+    setCompoundDrawablesRelative(if (showLabel) drawable else null, null, null, null)
     compoundDrawablePadding = if (showLabel) theme.spacing.xs.px else 0
     alpha = if (isEnabled) 1f else 0.35f
   }

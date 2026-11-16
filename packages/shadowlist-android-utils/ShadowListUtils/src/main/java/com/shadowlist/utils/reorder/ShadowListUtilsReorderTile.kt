@@ -6,6 +6,7 @@ import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
 import com.shadowlist.kit.ShadowListKitTextLayout
 import com.shadowlist.kit.ShadowListKitTextView
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /*
@@ -29,9 +30,16 @@ data class ShadowListUtilsReorderTile(
     val spacing = theme.spacing
     val direction = ShadowListUtilsDirection(widthPx)
     val padding = PADDING_HORIZONTAL_DP.px
+    val textInset = (PADDING_HORIZONTAL_DP + theme.spacing.xs).px
     val swatchWidth = (widthPx - 2 * padding).coerceAtLeast(0)
     val ratio = aspectRatio ?: item.aspectRatio ?: 1f
-    val swatchFrame = Rect(padding, 0, padding + swatchWidth, if (ratio > 0f) (swatchWidth / ratio).roundToInt() else swatchWidth)
+    /*
+     * React Native sizes the swatch from the tile's unrounded content width, floors the title's
+     * origin and its padding, and rounds the tile's height once.
+     */
+    val contentWidth = (widthPx - 2 * PADDING_HORIZONTAL_DP.pxf).coerceAtLeast(0f)
+    val swatchHeight = if (ratio > 0f) contentWidth / ratio else contentWidth
+    val swatchFrame = Rect(padding, 0, padding + swatchWidth, swatchHeight.roundToInt())
     var label: ShadowListKitTextLayout? = null
     var labelFrame = Rect()
     item.label?.let { text ->
@@ -42,10 +50,12 @@ data class ShadowListUtilsReorderTile(
       label = typeset
     }
     val lines = if (aspectRatio != null) 1 else if (ShadowListUtilsPlatform.isLargeText) LARGE_TEXT_TITLE_LINES else TITLE_LINES
-    val title = theme.typography.footnote.layout(item.title, (swatchWidth - 2 * spacing.xs.px).coerceAtLeast(1), lines)
-    val titleFrame = frameOf(padding + spacing.xs.px, swatchFrame.bottom + spacing.xs.px, title)
+    val title = theme.typography.footnote.layout(item.title, (widthPx - 2 * textInset).coerceAtLeast(1), lines)
+    val textX = floor(PADDING_HORIZONTAL_DP.pxf).toInt() + floor(spacing.xs.pxf).toInt()
+    val titleTop = swatchHeight + spacing.xs.pxf
+    val titleFrame = frameOf(textX, floor(titleTop).toInt(), title)
     return ShadowListUtilsReorderTileLayout(
-      widthPx, titleFrame.bottom + spacing.md.px, direction.place(swatchFrame), label, direction.place(labelFrame), title,
+      widthPx, (titleTop + title.height + spacing.md.pxf).roundToInt(), direction.place(swatchFrame), label, direction.place(labelFrame), title,
       direction.place(titleFrame))
   }
 

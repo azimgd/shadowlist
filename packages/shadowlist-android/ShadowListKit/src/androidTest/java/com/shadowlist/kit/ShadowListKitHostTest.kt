@@ -13,6 +13,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -1401,6 +1402,26 @@ class ShadowListKitHostTest {
   // endregion
 
   // region Text
+
+  @Test
+  fun a_text_layout_wraps_paragraphs_without_hyphenation() {
+    val text = "People ask why I still print paper boarding passes. It is not nostalgia, " +
+      "I tell them; it is insurance. Phones die, apps crash, and airport wifi is a rumour. " +
+      "A folded piece of paper tucked in my jacket pocket has rescued me at more boarding gates than I can count."
+    val paint = TextPaint().apply { textSize = 45f; letterSpacing = -0.41f * 2.625f / textSize }
+    val width = 690
+    val layout = ShadowListKitTextLayout.make(text, paint, width).layout
+    val expected = android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
+      .setIncludePad(false)
+      .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY)
+      .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE)
+      .build()
+    val simple = android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
+      .setIncludePad(false).setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE).build()
+    val ends = (0 until layout.lineCount).map(layout::getLineEnd)
+    assertEquals((0 until expected.lineCount).map(expected::getLineEnd), ends)
+    assertNotEquals((0 until simple.lineCount).map(simple::getLineEnd), ends)
+  }
 
   @Test
   fun a_text_layout_gives_the_part_of_each_line_its_text_takes() {

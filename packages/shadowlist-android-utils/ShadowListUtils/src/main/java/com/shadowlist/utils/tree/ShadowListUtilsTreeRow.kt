@@ -3,6 +3,7 @@ package com.shadowlist.utils
 import android.content.Context
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
+import kotlin.math.floor
 
 /*
  * A tree node at the depth and expansion state the shared tree source returned. icon replaces
@@ -30,19 +31,20 @@ data class ShadowListUtilsTreeRow(
     val start = (indentWidth.coerceAtLeast(0f) * depth).px
     val count = item.children?.let { theme.typography.footnote.layout(it.size.toString(), (widthPx / 4).coerceAtLeast(1), 1) }
     val countWidth = count?.width ?: 0
-    val textX = start + 22f.px + 24f.px + spacing.sm.px
+    val textX = floor((indentWidth.coerceAtLeast(0f) * depth + 22f + 24f + spacing.sm).pxf).toInt()
     val textWidth = (widthPx - textX - spacing.lg.px - countWidth - if (count == null) 0 else spacing.sm.px).coerceAtLeast(1)
     val name = theme.typography.callout.layout(item.name, textWidth, if (ShadowListUtilsPlatform.isLargeText) 0 else 1)
     val height = maxOf(44f.px, name.height + spacing.xs.px * 2)
-    val glyphSize = 20f.px
+    val textHeight = maxOf(44f.pxf, name.height + spacing.xs.pxf * 2)
+    val glyphSize = 24f.px
     val chevronSize = 14f.px
     val chevronY = (height - chevronSize) / 2
     val glyphY = (height - glyphSize) / 2
     return ShadowListUtilsTreeRowLayout(
-      widthPx, height, name, direction.place(frameOf(textX, (height - name.height) / 2, name)),
+      widthPx, height, name, direction.place(frameOf(textX, floor((textHeight - name.height) / 2).toInt(), name)),
       direction.place(Rect(start + 4f.px, chevronY, start + 4f.px + chevronSize, chevronY + chevronSize)),
       direction.place(Rect(start + 22f.px, glyphY, start + 22f.px + glyphSize, glyphY + glyphSize)), count,
-      direction.place(count?.let { frameOf(widthPx - spacing.lg.px - countWidth, (height - it.height) / 2, it) } ?: Rect()))
+      direction.place(count?.let { frameOf(widthPx - spacing.lg.px - countWidth, floor((textHeight - it.height) / 2).toInt(), it) } ?: Rect()))
   }
 
   internal companion object { const val REUSE_IDENTIFIER = "ShadowListUtilsTreeRow" }

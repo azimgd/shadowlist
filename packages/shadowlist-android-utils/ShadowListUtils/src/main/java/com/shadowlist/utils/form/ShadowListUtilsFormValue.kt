@@ -4,7 +4,9 @@ import android.content.Context
 import android.view.Gravity
 import android.widget.TextView
 
-/* Read-only trailing value, retaining the application value independently of its empty glyph. */
+/*
+ * Read-only trailing value, retaining the application value independently of its empty glyph.
+ */
 class ShadowListUtilsFormValue(context: Context, text: String, val theme: ShadowListUtilsTheme = ShadowListUtilsTheme.system(context)) : android.widget.FrameLayout(context) {
   var text = text
     set(value) { field = value; label.text = value.ifEmpty { "—" }; updateAccessibility(); requestLayout() }
@@ -21,5 +23,5 @@ class ShadowListUtilsFormValue(context: Context, text: String, val theme: Shadow
     label.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
     updateAccessibility()
   }
-  private fun updateAccessibility() { contentDescription = accessibilityLabel ?: text.ifEmpty { "—" } }
+  private fun updateAccessibility() { theme.typography.body.applyTo(label, theme.colors.secondaryLabel); contentDescription = accessibilityLabel ?: text.ifEmpty { "—" } }
 }

@@ -70,7 +70,7 @@ object Items {
   fun tile(number: Int) = ShadowListUtilsReorderTileItem(
     key = "tile-$number",
     title = FixtureStrings.imageTitles[number % FixtureStrings.imageTitles.size],
-    label = "$number",
+    label = "${number + 1}",
     aspectRatio = 200f / Photo.designHeights[number % Photo.designHeights.size],
   )
 
@@ -85,9 +85,10 @@ object Items {
    * A shelf of twelve pictures under a traveller's name.
    */
   fun shelf(index: Int): ShadowListUtilsNestedItem {
-    val name = FixtureStrings.characterNames[index % FixtureStrings.characterNames.size]
-    return ShadowListUtilsNestedItem("shelf-$index", "$name's picks", List(12) {
-      val picture = index * 3 + it
+    val categories = listOf("Weekend Escapes", "Island Hopping", "Dark-Sky Destinations", "Northern Lights Trips", "Mountain Airports", "City Breaks", "Desert Stargazing", "Scenic Approaches", "Last-Minute Deals", "Bucket-List Flights")
+    val name = categories[index % categories.size]
+    return ShadowListUtilsNestedItem("shelf-$index", name, List(10) {
+      val picture = index * 10 + it
       ShadowListUtilsNestedCardItem(
         "shelf-$index-card-$it", FixtureStrings.imageTitles[picture % FixtureStrings.imageTitles.size],
         Fixtures.imageUrl(picture, 400))
@@ -99,11 +100,37 @@ object Items {
    */
   fun mail(index: Int) = ShadowListUtilsInboxMessage(
     key = "message-$index",
-    sender = FixtureStrings.characterNames[index % FixtureStrings.characterNames.size],
-    subject = FixtureStrings.imageTitles[index % FixtureStrings.imageTitles.size],
-    preview = FixtureStrings.sampleTexts[index % FixtureStrings.sampleTexts.size],
+    sender = FixtureStrings.characterNames[(index * 5) % FixtureStrings.characterNames.size],
+    subject = mailSubjects[index % mailSubjects.size],
+    preview = mailPreviews[(index * 3) % mailPreviews.size],
     receivedAtMs = nowMs - index.coerceAtLeast(0) * 37 * MINUTE_MS,
-    read = index % 3 == 0,
-    flagged = false,
+    read = index % 3 != 0,
+    flagged = index % 11 == 4,
+  )
+
+  private val mailSubjects = listOf(
+    "Gate change for the 6:40 to Reykjavik",
+    "Your seat upgrade request",
+    "Photos from the aurora night",
+    "Itinerary for the coast trip",
+    "Re: Packing list",
+    "Lounge access this weekend",
+    "Boarding pass inside",
+    "Dinner on the last night?",
+    "Weather looks clear for Thursday",
+    "Receipt for your booking",
+  )
+
+  private val mailPreviews = listOf(
+    "Boarding moved to B14 and starts twenty minutes later than planned. Grab a coffee on the way.",
+    "Good news, there is room up front. Confirm before midnight and the upgrade is yours.",
+    "I finally sorted through the shots from the ridge. The green band over the lake came out best.",
+    "Day one is the drive along the cliffs, day two the lighthouse, day three nothing at all.",
+    "Adding a rain shell and the small tripod. Anything else you want me to bring along?",
+    "The lounge by gate C opens at five. Show the card at the desk and they will let two in.",
+    "Here is your pass for tomorrow. Keep it handy, the scanner at security is slow.",
+    "There is a tiny place by the harbour that does grilled fish. Want me to book a table?",
+    "Low cloud clears by noon, light wind from the southwest. Perfect for the walk out.",
+    "Thanks for booking with us. Your total and the cancellation terms are below.",
   )
 }

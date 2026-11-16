@@ -431,6 +431,19 @@ public class ShadowListView extends FrameLayout {
     mDragController.onWindowChanged();
   }
 
+  /*
+   * Pin again once the scroll view has its new size. A short list whose rows all mounted
+   * before this layout gets no other pass, and its sticky footer would stay where a window
+   * of no size put it.
+   */
+  @Override
+  protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+    super.onLayout(changed, left, top, right, bottom);
+    if (changed) {
+      mStickyController.applyStickyTransforms();
+    }
+  }
+
   // endregion
 
   // region Props

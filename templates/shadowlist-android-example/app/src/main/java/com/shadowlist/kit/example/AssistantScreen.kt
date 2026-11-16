@@ -4,7 +4,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.view.View
+import android.view.WindowInsets
 import android.widget.Button
 import android.widget.LinearLayout
 import com.shadowlist.utils.*
@@ -14,6 +16,10 @@ import com.shadowlist.utils.*
  * typed terminal states back to the transcript. No view owns the application's messages.
  */
 class AssistantScreen(private val context: Context) : Screen {
+  private companion object {
+    const val KEYBOARD_GAP_DP = 8
+  }
+
   private val theme = ShadowListUtilsTheme.system(context)
   val list = ShadowListUtilsAssistantList(context, theme)
   val composer = ShadowListUtilsAssistantComposer(context, theme)
@@ -27,32 +33,49 @@ class AssistantScreen(private val context: Context) : Screen {
   private var activeKey: String? = null
   private var chunk = 0
   private var editingKey: String? = null
-  private var items: List<ShadowListUtilsAssistantMessage> = listOf(
-    ShadowListUtilsAssistantMessage.User(ShadowListUtilsAssistantPrompt("user-0", "How does a list keep its place?")),
-    ShadowListUtilsAssistantMessage.Assistant(ShadowListUtilsAssistantReply("reply-0", listOf(
-      ShadowListUtilsAssistantTurn(content = "## Stable keys\nA list holds a **visible row** by its key while measurements arrive.\n\n```cpp\nlist.scrollToEnd();\n```",
-        thinking = "Compare the row's screen position before and after measuring.", thinkingMs = 1800.0,
-        toolCalls = listOf(ShadowListUtilsAssistantToolCall("inspect-0", "Inspect anchor", "row.key", 15, ShadowListUtilsAssistantToolStatus.Done("The anchor stayed at the same screen position."))),
-        status = ShadowListUtilsAssistantTurnStatus.Done(listOf(ShadowListUtilsAssistantSource("source-0", "List example", "https://example.com/list")), listOf("Show a short example", "What happens when a row grows?")))
-    ), model = "Example model")),
-    ShadowListUtilsAssistantMessage.endMarker)
+  private val empty = ShadowListUtilsAssistantEmpty(context, theme)
+  private val transcript = android.widget.FrameLayout(context)
+  private var items: List<ShadowListUtilsAssistantMessage> = emptyList()
   private var turns = emptyMap<String, ShadowListUtilsAssistantTurn>()
   override val view: View get() = root
 
   override fun load() {
-    for (button in listOf(next, finish, fail)) controls.addView(button, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+    for (button in listOf(next, finish, fail)) {
+      button.isAllCaps = false
+      button.textSize = 13f
+      button.setTextColor(theme.colors.accent)
+      button.background = android.graphics.drawable.GradientDrawable().apply { setColor(theme.colors.accentSoft); cornerRadius = 16.dpf }
+      button.stateListAnimator = null
+      controls.addView(button, LinearLayout.LayoutParams(0, 36.dp, 1f).apply { setMargins(4.dp, 4.dp, 4.dp, 4.dp) })
+    }
     root.addView(controls)
-    root.addView(list, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+    transcript.addView(list, android.widget.FrameLayout.LayoutParams(-1, -1))
+    empty.labels = ShadowListUtilsAssistantLabels(emptyTitle = "Where are we flying?", emptySubtitle = "Plan flights, weather and stays.")
+    empty.suggestions = listOf(
+      ShadowListUtilsAssistantSuggestion("Write an itinerary", "Write a three-day itinerary for Lisbon in May"),
+      ShadowListUtilsAssistantSuggestion("Compare fares", "Compare fares to Tokyo across airlines in a table"),
+      ShadowListUtilsAssistantSuggestion("Search flights", "Search Skyfy for flights to Reykjavik"),
+      ShadowListUtilsAssistantSuggestion("Try a dropped connection", "Simulate a dropped connection error"))
+    empty.onSelectSuggestion = { send(it.prompt, emptyList()) }
+    transcript.addView(empty, android.widget.FrameLayout.LayoutParams(-1, -2))
+    root.addView(transcript, LinearLayout.LayoutParams(-1, 0, 1f))
     root.addView(latest)
-    root.addView(composer)
+    root.addView(composer, LinearLayout.LayoutParams(-1, -2))
+    // The column settles a gap above the keyboard while it is up, as the React Native screen does.
+    root.setOnApplyWindowInsetsListener { _, insets ->
+      val keyboard = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && insets.isVisible(WindowInsets.Type.ime())
+      root.setPadding(0, 0, 0, if (keyboard) KEYBOARD_GAP_DP.dp else 0)
+      insets
+    }
     next.setOnClickListener { advance() }
     finish.setOnClickListener { complete(ShadowListUtilsAssistantTurnStatus.Done(
       listOf(ShadowListUtilsAssistantSource("source-$serial", "Native list", "https://example.com/native-list")), listOf("Explain the next step", "Show another example"))) }
     fail.setOnClickListener { complete(ShadowListUtilsAssistantTurnStatus.Failed("The example request failed. Retry to start another turn.")) }
     composer.onSend = ::send
     composer.onStop = { complete(ShadowListUtilsAssistantTurnStatus.Stopped) }
-    composer.model = "Example model"
-    composer.onPressModel = { composer.model = if (composer.model == "Example model") "Reasoning model" else "Example model" }
+    composer.thinking = true
+    composer.model = "Cruise"
+    composer.onPressModel = { composer.model = if (composer.model == "Cruise") "Reasoning" else "Cruise" }
     composer.onThinkingChange = { composer.thinking = it }
     composer.onPressAttach = {
       composer.attachments = composer.attachments + ShadowListUtilsAssistantAttachment("file-${serial++}", ShadowListUtilsAssistantAttachment.Kind.FILE,
@@ -145,6 +168,8 @@ class AssistantScreen(private val context: Context) : Screen {
 
   private fun show() {
     val streaming = activeKey != null
+    empty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+    controls.visibility = if (streaming) View.VISIBLE else View.GONE
     list.nonAnchorKeys = setOf(ShadowListUtilsAssistantMessage.endMarker.key) + listOfNotNull(activeKey)
     list.streaming = streaming
     composer.streaming = streaming

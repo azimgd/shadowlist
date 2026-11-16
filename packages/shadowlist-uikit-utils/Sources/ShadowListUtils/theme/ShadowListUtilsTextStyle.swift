@@ -46,11 +46,7 @@ public struct ShadowListUtilsTextStyle: Hashable {
   func layout(
     _ text: String, width: CGFloat, maxLines: Int, scaled: Bool, alignment: NSTextAlignment = .natural, weight: UIFont.Weight? = nil
   ) -> ShadowListKitTextLayout {
-    let scale = scaled ? ShadowListUtilsPlatform.textScale : 1
-    let font = UIFont.systemFont(ofSize: fontSize * scale, weight: weight ?? self.weight)
-    return ShadowListKitTextLayout(
-      string: text, font: font, lineHeight: scaledLineHeight(scaled), kern: letterSpacing * scale, width: max(0, width),
-      maximumLines: UInt(max(0, maxLines)), alignment: alignment)
+    layout(NSAttributedString(string: text), width: width, maxLines: maxLines, scaled: scaled, alignment: alignment, weight: weight)
   }
 
   /*
@@ -58,11 +54,29 @@ public struct ShadowListUtilsTextStyle: Hashable {
    * colors survive drawing, for titles whose actor and action have different emphasis.
    */
   func layout(_ text: NSAttributedString, width: CGFloat, maxLines: Int = 0) -> ShadowListKitTextLayout {
-    let scale = ShadowListUtilsPlatform.textScale
-    return ShadowListKitTextLayout(
-      attributedString: text, font: UIFont.systemFont(ofSize: fontSize * scale, weight: weight),
-      lineHeight: scaledLineHeight(), kern: letterSpacing * scale, width: max(0, width),
-      maximumLines: UInt(max(0, maxLines)), alignment: .natural)
+    layout(text, width: width, maxLines: maxLines, scaled: true, alignment: .natural, weight: nil)
+  }
+
+  private func layout(
+    _ text: NSAttributedString, width: CGFloat, maxLines: Int, scaled: Bool, alignment: NSTextAlignment, weight: UIFont.Weight?
+  ) -> ShadowListKitTextLayout {
+    let scale = scaled ? ShadowListUtilsPlatform.textScale : 1
+    let font = UIFont.systemFont(ofSize: fontSize * scale, weight: weight ?? self.weight)
+    let layout = ShadowListKitTextLayout(
+      attributedString: text, font: font, lineHeight: scaledLineHeight(scaled), kern: letterSpacing * scale,
+      width: max(0, width), maximumLines: UInt(max(0, maxLines)), alignment: alignment)
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.minimumLineHeight = scaledLineHeight(scaled)
+    paragraph.maximumLineHeight = paragraph.minimumLineHeight
+    paragraph.alignment = alignment
+    let attributed = NSMutableAttributedString(string: text.string, attributes: [
+      .font: font, .kern: letterSpacing * scale, .paragraphStyle: paragraph,
+      .baselineOffset: Self.baselineOffset(font, lineHeight: scaledLineHeight(scaled)),
+    ])
+    text.enumerateAttributes(in: NSRange(location: 0, length: text.length)) { attributes, range, _ in
+      attributed.addAttributes(attributes, range: range)
+    }
+    return ShadowListUtilsTextLayout(layout: layout, text: attributed, width: max(0, width), maxLines: maxLines)
   }
 
   /*
@@ -71,6 +85,26 @@ public struct ShadowListUtilsTextStyle: Hashable {
    */
   func scaledLineHeight(_ scaled: Bool = true) -> CGFloat {
     scaled ? ShadowListUtilsPlatform.ceilToPixel(lineHeight * ShadowListUtilsPlatform.textScale) : lineHeight
+  }
+
+  /*
+   * How far the glyphs of a font rise to sit centered in a taller line, the half-leading React
+   * Native applies.
+   */
+  static func baselineOffset(_ font: UIFont, lineHeight: CGFloat) -> CGFloat {
+    max(0, lineHeight - font.lineHeight) / 2
+  }
+
+  /*
+   * The half-leading as a UILabel needs it. A label rounds the baseline of its line to a device
+   * pixel and raises the glyphs by the whole pixels of the offset. React Native draws the raised
+   * baseline on the first pixel at or under its exact place.
+   */
+  static func labelBaselineOffset(_ font: UIFont, lineHeight: CGFloat) -> CGFloat {
+    let scale = ShadowListUtilsPlatform.displayScale
+    let baseline = (lineHeight + font.descender) * scale
+    let raised = (baseline - baselineOffset(font, lineHeight: lineHeight) * scale).rounded(.up)
+    return (baseline.rounded() - raised) / scale
   }
 
   var weight: UIFont.Weight {

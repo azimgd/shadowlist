@@ -1,7 +1,9 @@
 import ShadowListKit
 import UIKit
 
-/* A grouped row whose primary press and enclosing swipe/menu surface have separate owners. */
+/*
+ * A grouped row whose primary press and enclosing swipe/menu surface have separate owners.
+ */
 public final class ShadowListUtilsGroupedRow: UIView {
   public var title: String { didSet { refresh() } }
   public var subtitle: String? { didSet { refresh() } }
@@ -50,9 +52,10 @@ public final class ShadowListUtilsGroupedRow: UIView {
     isAccessibilityElement = true
     primary.isAccessibilityElement = false
     primary.theme = theme
+    primary.passiveViews = [row, body, bodyRow, texts, separator, chevronView]
     row.axis = .horizontal; row.alignment = .center
     bodyRow.axis = .horizontal; bodyRow.alignment = .center
-    texts.axis = .vertical; texts.spacing = 1
+    texts.axis = .vertical; texts.spacing = Self.textGap
     row.translatesAutoresizingMaskIntoConstraints = false
     bodyRow.translatesAutoresizingMaskIntoConstraints = false
     separator.translatesAutoresizingMaskIntoConstraints = false
@@ -70,7 +73,9 @@ public final class ShadowListUtilsGroupedRow: UIView {
       separator.trailingAnchor.constraint(equalTo: body.trailingAnchor), separator.heightAnchor.constraint(equalToConstant: ShadowListUtilsTheme.hairline),
       chevronView.widthAnchor.constraint(equalToConstant: 16), chevronView.heightAnchor.constraint(equalToConstant: 16),
     ])
-    texts.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    texts.setContentHuggingPriority(.init(1), for: .horizontal)
+    titleView.setContentHuggingPriority(.init(1), for: .horizontal)
+    subtitleView.setContentHuggingPriority(.init(1), for: .horizontal)
     texts.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     titleView.lineBreakMode = .byTruncatingTail; subtitleView.lineBreakMode = .byTruncatingTail
     primary.addAction(UIAction { [weak self] _ in self?.menuOwnsPress = false }, for: .touchDown)
@@ -125,14 +130,15 @@ public final class ShadowListUtilsGroupedRow: UIView {
     let large = ShadowListUtilsPlatform.isLargeText
     titleView.numberOfLines = large ? 3 : 1
     subtitleView.numberOfLines = large ? max(3, subtitleLines) : max(0, subtitleLines)
-    titleView.attributedText = attributed(title, style: theme.typography.body, color: theme.colors.label)
-    subtitleView.attributedText = subtitle.map { attributed($0, style: theme.typography.footnote, color: theme.colors.secondaryLabel) }
+    titleView.attributedText = theme.typography.body.attributedString(title, color: theme.colors.label)
+    subtitleView.attributedText = subtitle.map { theme.typography.footnote.attributedString($0, color: theme.colors.secondaryLabel) }
     texts.replaceArrangedSubviews(subtitle != nil ? [titleView, subtitleView] : [titleView])
     bodyRow.replaceArrangedSubviews([texts] + (trailing.map { [$0] } ?? []) + ((chevron ?? theme.grouped.chevron) ? [chevronView] : []))
     row.replaceArrangedSubviews((leading.map { [$0] } ?? []) + [body])
     row.spacing = theme.spacing.md; bodyRow.spacing = theme.spacing.sm
     rowInset.constant = theme.grouped.rowInset; rightInset.constant = -theme.grouped.rowInset
-    topInset.constant = theme.spacing.sm + 2; bottomInset.constant = -(theme.spacing.sm + 2)
+    let padding = theme.spacing.sm + Self.paddingExtra
+    topInset.constant = padding + (separated ? ShadowListUtilsTheme.hairline : 0); bottomInset.constant = -padding
     minimumHeight.constant = theme.grouped.rowHeight
     chevronView.color = theme.colors.tertiaryLabel
     separator.isHidden = !separated; separator.backgroundColor = theme.colors.separator
@@ -143,12 +149,7 @@ public final class ShadowListUtilsGroupedRow: UIView {
     if disabled { accessibilityTraits.insert(.notEnabled) }
     invalidateIntrinsicContentSize(); setNeedsLayout()
   }
-  private func attributed(_ text: String, style: ShadowListUtilsTextStyle, color: UIColor) -> NSAttributedString {
-    let scale = ShadowListUtilsPlatform.textScale
-    let paragraph = NSMutableParagraphStyle()
-    paragraph.minimumLineHeight = style.scaledLineHeight(); paragraph.maximumLineHeight = paragraph.minimumLineHeight
-    paragraph.lineBreakMode = .byTruncatingTail
-    return NSAttributedString(string: text, attributes: [.font: UIFont.systemFont(ofSize: style.fontSize * scale, weight: style.weight),
-      .kern: style.letterSpacing * scale, .foregroundColor: color, .paragraphStyle: paragraph])
-  }
+
+  private static let paddingExtra: CGFloat = 2
+  private static let textGap: CGFloat = 1
 }

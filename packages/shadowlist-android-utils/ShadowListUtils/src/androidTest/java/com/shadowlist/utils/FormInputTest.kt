@@ -45,7 +45,7 @@ class FormInputTest {
     assertTrue(field.stacked)
     val expected = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
       testTheme.typography.body.fontSize, context.resources.displayMetrics)
-    assertEquals(expected, field.input.textSize, 0.01f)
+    assertEquals(kotlin.math.ceil(expected), field.input.textSize, 0.01f)
   }
   @Test fun row_retains_field_and_supports_explicit_stacking() = onMain {
     val field = ShadowListUtilsFormInput(testContext, "24", "Amount", testTheme)

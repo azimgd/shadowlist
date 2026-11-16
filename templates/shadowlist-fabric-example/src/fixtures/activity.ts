@@ -1,5 +1,6 @@
 import type { ActivityItem } from 'shadowlist-utils/native';
 import {
+  FIXTURE_NOW,
   CHARACTER_NAMES,
   generateRandomText,
   generateUniqueId,
@@ -22,7 +23,7 @@ export function buildActivity(index: number): ActivityItem {
     actor: { name: CHARACTER_NAMES[index % CHARACTER_NAMES.length]! },
     action: ACTIVITY_ACTIONS[index % ACTIVITY_ACTIONS.length]!,
     text: generateRandomText(index).slice(0, 90),
-    createdAt: Date.now() - ((index % 59) + 1) * MINUTE_MS,
+    createdAt: FIXTURE_NOW - ((index % 59) + 1) * MINUTE_MS,
   };
 }
 

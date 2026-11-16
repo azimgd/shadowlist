@@ -32,13 +32,28 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
       sendGap.constant = showsSendButton ? -8 : 0
     }
   }
+  private var boxTop: NSLayoutConstraint!
+  private var boxBottom: NSLayoutConstraint!
+  private var boxLeading: NSLayoutConstraint!
+  private var sendTrailing: NSLayoutConstraint!
+  private var inputTop: NSLayoutConstraint!
+  private var inputBottom: NSLayoutConstraint!
   private var sendWidth: NSLayoutConstraint!
   private var sendGap: NSLayoutConstraint!
   private let box = UIView()
+  private let border = UIView()
   let input: ShadowListUtilsTextInputView
   private let placeholder = UILabel()
-  let send = UIButton(type: .system)
+  let send = UIButton(type: .custom)
   private var inputHeight: NSLayoutConstraint!
+  private var embedded = false
+
+  /*
+   * The space under the box: the safe area, or spacing.sm where there is none, as above a keyboard.
+   */
+  private var bottomPadding: CGFloat {
+    embedded ? 0 : safeAreaInsets.bottom > 0 ? safeAreaInsets.bottom : theme.spacing.sm
+  }
 
   public init(defaultValue: String = "", theme: ShadowListUtilsTheme = .system) {
     self.theme = theme
@@ -47,7 +62,6 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
     editing = ShadowListUtilsTextInput(input: .textView(input), defaultValue: defaultValue)
     super.init(frame: .zero)
     backgroundColor = theme.colors.background
-    let border = UIView()
     border.backgroundColor = theme.colors.separator
     box.layer.cornerRadius = theme.radius.lg + 2
     box.layer.borderWidth = ShadowListUtilsTheme.hairline
@@ -59,11 +73,9 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
     input.textContainer.lineFragmentPadding = 0
     editing.maxLength = maxLength
     input.accessibilityLabel = labels.placeholder
-    placeholder.font = input.font
-    placeholder.textColor = theme.colors.secondaryLabel
-    placeholder.text = labels.placeholder
-    send.setImage(UIImage(systemName: "arrow.up", withConfiguration: UIImage.SymbolConfiguration(pointSize: 16, weight: .bold)), for: .normal)
+    send.setImage(ShadowListUtilsArrowUpIcon.image(size: 20, strokeWidth: 2.4), for: .normal)
     send.layer.cornerRadius = 16
+    send.adjustsImageWhenDisabled = false
     send.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
     for subview in [border, box, input, placeholder, send] {
       subview.translatesAutoresizingMaskIntoConstraints = false
@@ -72,17 +84,23 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
     inputHeight = input.heightAnchor.constraint(equalToConstant: 22)
     sendWidth = send.widthAnchor.constraint(equalToConstant: 32)
     sendGap = box.trailingAnchor.constraint(equalTo: send.leadingAnchor, constant: -8)
+    boxTop = box.topAnchor.constraint(equalTo: topAnchor, constant: theme.spacing.sm + ShadowListUtilsTheme.hairline)
+    boxLeading = box.leadingAnchor.constraint(equalTo: leadingAnchor, constant: theme.spacing.sm)
+    sendTrailing = send.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -theme.spacing.sm)
+    boxBottom = box.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -bottomPadding)
+    inputTop = input.topAnchor.constraint(equalTo: box.topAnchor, constant: Self.inputPaddingVertical + ShadowListUtilsTheme.hairline)
+    inputBottom = input.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -Self.inputPaddingVertical - ShadowListUtilsTheme.hairline)
     NSLayoutConstraint.activate([
       border.topAnchor.constraint(equalTo: topAnchor),
       border.leadingAnchor.constraint(equalTo: leadingAnchor),
       border.trailingAnchor.constraint(equalTo: trailingAnchor),
       border.heightAnchor.constraint(equalToConstant: ShadowListUtilsTheme.hairline),
-      box.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-      box.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+      boxTop,
+      boxLeading,
       sendGap,
-      box.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -8),
-      input.topAnchor.constraint(equalTo: box.topAnchor, constant: 7),
-      input.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -7),
+      boxBottom,
+      inputTop,
+      inputBottom,
       input.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 12),
       input.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -12),
       inputHeight,
@@ -90,17 +108,48 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
       placeholder.centerYAnchor.constraint(equalTo: input.centerYAnchor),
       sendWidth,
       send.heightAnchor.constraint(equalToConstant: 32),
-      send.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+      sendTrailing,
       send.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -2),
     ])
     editing.onChangeText = { [weak self] in self?.onChangeText?($0) }
-    editing.onContentSizeChange = { [weak self] in self?.updateInputHeight(); self?.updateSend() }
+    editing.onContentSizeChange = { [weak self] in self?.applyInputAttributes(); self?.updateInputHeight(); self?.updateSend() }
+    applyInputAttributes()
     updateSend()
   }
 
   public required init?(coder: NSCoder) { fatalError() }
 
   public func textViewDidChange(_ textView: UITextView) { editing.textViewDidChange(textView) }
+
+  /*
+   * The assistant supplies one rounded surface around the input and its toolbar.
+   */
+  func useEmbeddedAppearance() {
+    embedded = true
+    boxBottom.constant = 0
+    backgroundColor = .clear
+    border.isHidden = true
+    box.layer.borderWidth = 0
+    boxTop.constant = 0
+    boxLeading.constant = 0
+    sendTrailing.constant = 0
+    inputTop.constant = Self.inputPaddingVertical
+    inputBottom.constant = -Self.inputPaddingVertical
+  }
+
+  public override func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    boxBottom?.constant = -bottomPadding
+  }
+
+  /*
+   * Typed text keeps the line of the style without the half-leading, as the placeholder does.
+   * An empty input forgets its typing attributes.
+   */
+  private func applyInputAttributes() {
+    guard input.text.isEmpty else { return }
+    input.typingAttributes = theme.typography.body.attributes(color: theme.colors.label, lineBreakMode: .byWordWrapping, halfLeading: false)
+  }
 
   private func updateInputHeight() {
     let height = min(maximumInputHeight, max(22, ceil(input.sizeThatFits(CGSize(width: input.bounds.width, height: CGFloat.greatestFiniteMagnitude)).height)))
@@ -119,7 +168,8 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
     input.isEditable = !disabled
     input.accessibilityLabel = labels.placeholder
     send.accessibilityLabel = labels.send
-    placeholder.text = labels.placeholder
+    placeholder.attributedText = NSAttributedString(
+      string: labels.placeholder, attributes: theme.typography.body.attributes(color: theme.colors.secondaryLabel, halfLeading: false))
     placeholder.isHidden = !input.text.isEmpty
     send.backgroundColor = enabled ? theme.colors.accent : theme.colors.fill
     send.tintColor = enabled ? theme.colors.onAccent : theme.colors.secondaryLabel
@@ -137,4 +187,6 @@ public final class ShadowListUtilsChatInput: UIView, UITextViewDelegate {
     }
     updateSend()
   }
+
+  private static let inputPaddingVertical: CGFloat = 7
 }

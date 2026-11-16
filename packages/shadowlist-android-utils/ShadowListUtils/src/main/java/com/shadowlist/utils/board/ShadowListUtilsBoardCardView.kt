@@ -13,13 +13,13 @@ class ShadowListUtilsBoardCardView(context: Context) : ShadowListUtilsRowView(co
   private val accent = View(context)
   private val title = ShadowListKitTextView(context)
   private val detail = ShadowListKitTextView(context)
+  private val due = ShadowListKitTextView(context)
+  private val dot = View(context)
   private val shape = GradientDrawable()
-  private val accentShape = GradientDrawable()
   init {
     card.background = shape
-    accent.background = accentShape
     addView(card)
-    for (view in listOf(accent, title, detail)) card.addView(view)
+    for (view in listOf(accent, title, detail, due, dot)) card.addView(view)
   }
   override fun fill(row: ShadowListUtilsRow) {
     val item = row as ShadowListUtilsBoardCard
@@ -27,8 +27,10 @@ class ShadowListUtilsBoardCardView(context: Context) : ShadowListUtilsRowView(co
     pressedBackgroundColor = null
     shape.setColor(item.theme.colors.background)
     shape.cornerRadius = item.theme.radius.md.pxf
-    accentShape.setColor(item.color ?: Color.TRANSPARENT)
-    accentShape.cornerRadius = item.theme.spacing.xs.pxf / 2
+    shape.setStroke(ShadowListUtilsTheme.HAIRLINE_PX, item.theme.colors.separator)
+    card.clipToOutline = true
+    accent.setBackgroundColor(item.color ?: Color.TRANSPARENT)
+    dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(item.color ?: Color.TRANSPARENT) }
     contentDescription = item.accessibilityLabel ?: listOfNotNull(item.title, item.label, item.detail).joinToString(", ")
   }
   override fun apply(row: ShadowListUtilsRow, layout: ShadowListUtilsRowLayout) {
@@ -39,5 +41,7 @@ class ShadowListUtilsBoardCardView(context: Context) : ShadowListUtilsRowView(co
     accent.place(inside(frames.accent))
     title.show(frames.title, item.theme.colors.label, inside(frames.titleFrame))
     detail.show(frames.detail, item.theme.colors.secondaryLabel, inside(frames.detailFrame))
+    due.show(frames.due, item.theme.colors.tertiaryLabel, inside(frames.dueFrame))
+    dot.place(inside(frames.dotFrame))
   }
 }

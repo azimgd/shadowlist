@@ -36,18 +36,23 @@ public final class ShadowListUtilsAssistantComposer: UIView {
   public var labels = ShadowListUtilsAssistantLabels() { didSet { applyLabels(); rebuildTray(); updateToolbar() } }
   public let theme: ShadowListUtilsTheme
   let input: ShadowListUtilsChatInput
-  let primary = UIButton(type: .system)
+  let primary = UIButton(type: .custom)
   private let stack = UIStackView()
+  private let field = UIView()
+  private let border = UIView()
   private let editBanner = UIStackView()
   private let editLabel = UILabel()
   private let cancel = UIButton(type: .system)
   private let tray = UIScrollView()
   private let trayContent = UIStackView()
   private var trayHeight: NSLayoutConstraint!
+  private var stackBottom: NSLayoutConstraint!
+  private var modelWidth: NSLayoutConstraint!
+  private var thinkingWidth: NSLayoutConstraint!
   private let toolbar = UIStackView()
   private let attach = UIButton(type: .system)
   private let modelButton = UIButton(type: .system)
-  private let thinkingSwitch = UISwitch()
+  private let thinkingButton = UIButton(type: .system)
   private let spacer = UIView()
   private let dictate = UIButton(type: .system)
 
@@ -57,6 +62,14 @@ public final class ShadowListUtilsAssistantComposer: UIView {
     super.init(frame: .zero)
     backgroundColor = theme.colors.background
     input.showsSendButton = false
+    input.useEmbeddedAppearance()
+    field.backgroundColor = theme.colors.elevated
+    field.layer.cornerRadius = theme.radius.xl
+    field.layer.borderWidth = ShadowListUtilsTheme.hairline
+    field.layer.borderColor = theme.colors.separator.cgColor
+    addSubview(field)
+    border.backgroundColor = theme.colors.separator
+    addSubview(border)
     input.maximumInputHeight = 126
     input.maxLength = maxLength
     input.onChangeText = { [weak self] text in self?.onChangeText?(text); self?.updatePrimary() }
@@ -83,12 +96,20 @@ public final class ShadowListUtilsAssistantComposer: UIView {
     toolbar.axis = .horizontal
     toolbar.alignment = .center
     toolbar.spacing = theme.spacing.xs
-    [attach, modelButton, thinkingSwitch, spacer, dictate, primary].forEach(toolbar.addArrangedSubview)
-    attach.setImage(UIImage(systemName: "plus"), for: .normal)
+    toolbar.isLayoutMarginsRelativeArrangement = true
+    toolbar.layoutMargins = UIEdgeInsets(top: 0, left: theme.spacing.xs + 2, bottom: theme.spacing.xs + 2, right: theme.spacing.xs + 2)
+    [attach, modelButton, thinkingButton, spacer, dictate, primary].forEach(toolbar.addArrangedSubview)
+    attach.setImage(ShadowListUtilsPlusIcon.image(size: 18), for: .normal)
+    attach.tintColor = theme.colors.label
     attach.addAction(UIAction { [weak self] _ in self?.onPressAttach?() }, for: .touchUpInside)
     modelButton.addAction(UIAction { [weak self] _ in self?.onPressModel?() }, for: .touchUpInside)
-    thinkingSwitch.addTarget(self, action: #selector(thinkingChanged), for: .valueChanged)
-    thinkingSwitch.onTintColor = theme.colors.accent
+    thinkingButton.addTarget(self, action: #selector(thinkingChanged), for: .touchUpInside)
+    modelButton.heightAnchor.constraint(equalToConstant: 30).isActive = true
+    thinkingButton.heightAnchor.constraint(equalToConstant: 30).isActive = true
+    modelWidth = modelButton.widthAnchor.constraint(equalToConstant: 0)
+    thinkingWidth = thinkingButton.widthAnchor.constraint(equalToConstant: 0)
+    modelWidth.isActive = true
+    thinkingWidth.isActive = true
     dictate.setImage(UIImage(systemName: "mic"), for: .normal)
     dictate.addAction(UIAction { [weak self] _ in self?.onPressDictate?() }, for: .touchUpInside)
     primary.addTarget(self, action: #selector(submit), for: .touchUpInside)
@@ -97,11 +118,12 @@ public final class ShadowListUtilsAssistantComposer: UIView {
       button.heightAnchor.constraint(equalToConstant: 32).isActive = true
     }
     stack.addArrangedSubview(toolbar)
+    stackBottom = stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -bottomPadding - ShadowListUtilsTheme.hairline)
     NSLayoutConstraint.activate([
-      stack.topAnchor.constraint(equalTo: topAnchor, constant: theme.spacing.sm),
-      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: theme.spacing.sm),
-      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -theme.spacing.sm),
-      stack.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -theme.spacing.sm),
+      stack.topAnchor.constraint(equalTo: topAnchor, constant: 2 * (theme.spacing.sm + ShadowListUtilsTheme.hairline)),
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: theme.spacing.sm + ShadowListUtilsTheme.hairline),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -theme.spacing.sm - ShadowListUtilsTheme.hairline),
+      stackBottom,
       toolbar.heightAnchor.constraint(greaterThanOrEqualToConstant: 32),
     ])
     applyLabels()
@@ -110,6 +132,26 @@ public final class ShadowListUtilsAssistantComposer: UIView {
 
   @available(*, unavailable)
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  /*
+   * The space under the field: the safe area, or spacing.sm where there is none, as above a keyboard.
+   */
+  private var bottomPadding: CGFloat {
+    safeAreaInsets.bottom > 0 ? safeAreaInsets.bottom : theme.spacing.sm
+  }
+
+  public override func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    stackBottom?.constant = -bottomPadding - ShadowListUtilsTheme.hairline
+    setNeedsLayout()
+  }
+
+  public override func layoutSubviews() {
+    super.layoutSubviews()
+    let top = theme.spacing.sm + ShadowListUtilsTheme.hairline
+    field.frame = CGRect(x: theme.spacing.sm, y: top, width: bounds.width - 2 * theme.spacing.sm, height: bounds.height - bottomPadding - top)
+    border.frame = CGRect(x: 0, y: 0, width: bounds.width, height: ShadowListUtilsTheme.hairline)
+  }
 
   public func setDraft(_ text: String, focus: Bool = true) {
     input.input.text = text
@@ -131,9 +173,7 @@ public final class ShadowListUtilsAssistantComposer: UIView {
   }
 
   @objc private func thinkingChanged() {
-    let requested = thinkingSwitch.isOn
-    thinkingSwitch.setOn(thinking, animated: false)
-    onThinkingChange?(requested)
+    onThinkingChange?(!thinking)
   }
 
   private func applyLabels() {
@@ -147,11 +187,12 @@ public final class ShadowListUtilsAssistantComposer: UIView {
   }
 
   private func updatePrimary() {
-    primary.setImage(UIImage(systemName: showStop ? "stop.fill" : "arrow.up"), for: .normal)
+    primary.setImage(showStop ? UIImage(systemName: "stop.fill") : ShadowListUtilsArrowUpIcon.image(size: 18, strokeWidth: 2.4), for: .normal)
     primary.accessibilityLabel = showStop ? labels.stop : labels.send
+    primary.adjustsImageWhenDisabled = false
     primary.isEnabled = showStop ? onStop != nil : onSend != nil && hasDraft && (!streaming || sendWhileStreaming)
     primary.tintColor = showStop ? theme.colors.background : primary.isEnabled ? theme.colors.label : theme.colors.secondaryLabel
-    primary.backgroundColor = showStop ? theme.colors.label : theme.colors.fill
+    primary.backgroundColor = showStop ? theme.colors.label : primary.isEnabled ? theme.colors.accent : theme.colors.fill
     primary.layer.cornerRadius = 16
   }
 
@@ -159,17 +200,40 @@ public final class ShadowListUtilsAssistantComposer: UIView {
     attach.isHidden = onPressAttach == nil
     attach.accessibilityLabel = labels.addAttachment
     modelButton.isHidden = model == nil
-    modelButton.setTitle(model, for: .normal)
-    modelButton.titleLabel?.font = .systemFont(ofSize: theme.typography.footnote.fontSize * ShadowListUtilsPlatform.textScale)
+    let modelTitle = model.map { theme.typography.footnote.with(.semibold).attributedString($0, color: theme.colors.label) }
+    modelButton.setAttributedTitle(modelTitle, for: .normal)
+    modelButton.setImage(onPressModel == nil ? nil : ShadowListUtilsChevronIcon.image(size: Self.modelChevronSize, strokeWidth: 1.8, direction: .down), for: .normal)
+    modelWidth.constant = pillWidth(modelTitle) + (onPressModel == nil ? 0 : theme.spacing.xs + Self.modelChevronSize)
+    modelButton.tintColor = theme.colors.secondaryLabel
+    modelButton.semanticContentAttribute = .forceRightToLeft
+    modelButton.contentHorizontalAlignment = .left
+    modelButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: theme.spacing.xs, bottom: 0, right: -theme.spacing.xs)
+    modelButton.backgroundColor = theme.colors.fill
+    modelButton.layer.cornerRadius = 15
+    modelButton.contentEdgeInsets = UIEdgeInsets(top: 0, left: theme.spacing.md, bottom: 0, right: theme.spacing.md + (onPressModel == nil ? 0 : theme.spacing.xs))
     modelButton.accessibilityLabel = model.map(labels.model)
     modelButton.isEnabled = onPressModel != nil
-    thinkingSwitch.isHidden = onThinkingChange == nil
-    thinkingSwitch.setOn(thinking, animated: false)
-    thinkingSwitch.accessibilityLabel = labels.thinkingToggleDescription
+    thinkingButton.isHidden = onThinkingChange == nil
+    let thinkingTitle = theme.typography.footnote.with(.semibold).attributedString(labels.thinkingToggle, color: thinking ? theme.colors.accent : theme.colors.label)
+    thinkingButton.setAttributedTitle(thinkingTitle, for: .normal)
+    thinkingWidth.constant = pillWidth(thinkingTitle)
+    thinkingButton.contentEdgeInsets = UIEdgeInsets(top: 0, left: theme.spacing.md, bottom: 0, right: theme.spacing.md)
+    thinkingButton.layer.cornerRadius = 15
+    thinkingButton.backgroundColor = thinking ? theme.colors.accentSoft : theme.colors.fill
+    thinkingButton.accessibilityLabel = labels.thinkingToggleDescription
+    thinkingButton.accessibilityTraits = thinking ? [.button, .selected] : .button
     dictate.isHidden = onPressDictate == nil
     dictate.accessibilityLabel = dictating ? labels.stopDictating : labels.dictate
     dictate.accessibilityTraits = dictating ? [.button, .selected] : .button
     updatePrimary()
+  }
+
+  /*
+   * A pill is as wide as its title on whole pixels and its padding. A button alone rounds its
+   * title up to a point.
+   */
+  private func pillWidth(_ title: NSAttributedString?) -> CGFloat {
+    2 * theme.spacing.md + ShadowListUtilsPlatform.ceilToPixel(title?.size().width ?? 0)
   }
 
   private func rebuildTray() {
@@ -190,4 +254,6 @@ public final class ShadowListUtilsAssistantComposer: UIView {
     tray.contentSize = trayContent.frame.size
     trayHeight.constant = attachments.isEmpty ? 0 : height + theme.spacing.sm
   }
+
+  private static let modelChevronSize: CGFloat = 10
 }

@@ -84,14 +84,6 @@ public final class ShadowListUtilsContactsList: ShadowListUtilsList {
     return .deleting(storedItems[index], title: labels.delete, color: theme.colors.red, onDelete: onDelete)
   }
 
-  override func accessibilityActions(at index: Int) -> [UIAccessibilityCustomAction] {
-    guard let onDelete, storedItems.indices.contains(index) else { return [] }
-    let item = storedItems[index]
-    return [UIAccessibilityCustomAction(name: labels.delete) { _ in
-      onDelete(item)
-      return true
-    }]
-  }
 }
 
 extension ShadowListKitSwipeActionsConfiguration {

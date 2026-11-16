@@ -75,7 +75,9 @@ class AssistantComponentsTest {
     view.suggestions = listOf(item, item)
     var selected: ShadowListUtilsAssistantSuggestion? = null
     view.onSelectSuggestion = { selected = it }
-    (0 until view.childCount).map(view::getChildAt).filterIsInstance<Button>().first().performClick()
+    val button = (0 until view.childCount).map(view::getChildAt).first { it.isClickable }
+    assertEquals(Button::class.java.name, button.createAccessibilityNodeInfo().className.toString())
+    button.performClick()
     assertEquals(item, selected)
     assertEquals(listOf(item, item), view.suggestions)
     val narrow = measure(view, 210f.px)

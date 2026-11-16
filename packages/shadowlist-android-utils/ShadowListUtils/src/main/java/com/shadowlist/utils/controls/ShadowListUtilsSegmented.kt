@@ -20,7 +20,7 @@ class ShadowListUtilsSegmented(context: Context, options: List<ShadowListUtilsSe
   var accessibilityLabel: String? = null
     set(value) { field = value; contentDescription = value }
   private val track = LinearLayout(context).apply {
-    orientation = LinearLayout.HORIZONTAL; setPadding(2f.px, 2f.px, 2f.px, 2f.px)
+    orientation = LinearLayout.HORIZONTAL
     clipChildren = false; clipToPadding = false
   }
   private var buttons = emptyList<ShadowListUtilsSegmentedButton>()
@@ -58,7 +58,11 @@ class ShadowListUtilsSegmented(context: Context, options: List<ShadowListUtilsSe
       setColor(if (compact) theme.colors.fill else theme.colors.elevated2)
       cornerRadius = (if (compact) 8f else 9f).pxf
     }
-    track.layoutParams = (track.layoutParams as LayoutParams).apply { width = if (compact) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT; height = (if (compact) 34f else 36f).px }
+    val height = if (compact) 34f else 36f
+    track.layoutParams = (track.layoutParams as LayoutParams).apply { width = if (compact) LayoutParams.WRAP_CONTENT else LayoutParams.MATCH_PARENT; this.height = height.px }
+    // The bottom padding takes what the top padding and the segments leave of the rounded height.
+    val padding = PADDING_DP.px
+    track.setPadding(padding, padding, padding, height.px - padding - (height - 2 * PADDING_DP).px)
     val selected = options.indexOfFirst { it.id == value }
     buttons.forEachIndexed { index, button ->
       button.compact = compact; button.index = index; button.isSelected = selected == index
@@ -67,5 +71,9 @@ class ShadowListUtilsSegmented(context: Context, options: List<ShadowListUtilsSe
       button.refresh()
     }
     requestLayout()
+  }
+
+  private companion object {
+    const val PADDING_DP = 2f
   }
 }

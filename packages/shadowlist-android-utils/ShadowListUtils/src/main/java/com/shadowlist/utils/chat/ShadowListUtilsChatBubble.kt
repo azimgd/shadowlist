@@ -85,7 +85,7 @@ data class ShadowListUtilsChatBubble(
     val captionLine = typography.caption.scaledLineHeightPx()
     val avatarSize = AVATAR_SIZE_DP.px
     // Others keep the avatar's column whether or not the avatar shows.
-    val leading = if (own) spacing.md.px else spacing.md.px + avatarSize + spacing.sm.px
+    val leading = if (own) spacing.md.px else (spacing.md + AVATAR_SIZE_DP + spacing.sm).px
     val trailing = widthPx - spacing.md.px
 
     val spec = DoubleArray(ShadowListUtilsCore.CHAT_OUT_SLOTS)
@@ -106,7 +106,7 @@ data class ShadowListUtilsChatBubble(
     var failedFrame = Rect()
     var imagesFrame = Rect()
 
-    var y = spacing.xxs.px
+    var y = (2 * spacing.xxs).px - spacing.xxs.px
     var columnWidth = 0
     if (images.isNotEmpty()) {
       val imagesWidth = IMAGES_WIDTH_DP.px
@@ -124,7 +124,7 @@ data class ShadowListUtilsChatBubble(
 
     if (text != null) {
       val typeset = typography.body.layout(text, textWidth)
-      var innerWidth = typeset.width
+      var innerWidth = if (typeset.lineCount > 1) textWidth else typeset.width
       var innerHeight = typeset.height
       if (caption != null) {
         val line = typography.caption.layout(caption, textWidth, 1)

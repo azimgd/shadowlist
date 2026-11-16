@@ -7,6 +7,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 @RunWith(AndroidJUnit4::class)
 class BoardTest {
@@ -115,5 +117,26 @@ class BoardTest {
     val view = ShadowListUtilsBoardCardView(testContext)
     view.configure(row, row.layout(220f.px))
     assertEquals("Title, Label, Detail", view.contentDescription)
+  }
+
+  @Test fun a_board_card_places_its_accent_dot_and_detail_inside_the_border() = onMain {
+    val card = ShadowListUtilsBoardCard("card", "Title", "Label", "Detail", 0xffff0000.toInt(), theme = testTheme)
+    val layout = card.layout(220f.px) as ShadowListUtilsBoardCardLayout
+    val border = ShadowListUtilsTheme.HAIRLINE_PX
+    assertEquals(layout.card.left + border, layout.accent.left)
+    // Sizes come from rounded edges and a text origin is floored, which moves a frame by at most a pixel.
+    assertEquals((12f + 4f).px - 12f.px, layout.accent.width())
+    val bodyLeft = layout.card.left + (border + 4f.pxf).roundToInt()
+    assertEquals(bodyLeft + floor(12f.pxf).toInt(), layout.titleFrame.left)
+    assertEquals(bodyLeft + 12f.px, layout.dotFrame.left)
+    assertEquals(8f.px, layout.dotFrame.width()); assertEquals(8f.px, layout.dotFrame.height())
+    assertEquals(layout.dotFrame.left + floor((8f + 4f).pxf).toInt(), layout.detailFrame.left)
+    assertEquals(layout.dotFrame.left - layout.titleFrame.left + 220f.px - (2 * 12f).px - border, layout.dueFrame.right)
+    assertEquals(layout.card.height() + 8f.px, layout.heightPx)
+    val plain = ShadowListUtilsBoardCard("card", "Title", "Label", theme = testTheme).layout(220f.px) as ShadowListUtilsBoardCardLayout
+    assertEquals(0, plain.accent.width())
+    assertEquals(android.graphics.Rect(), plain.dotFrame)
+    assertEquals(plain.card.left + border + 12f.px, plain.detailFrame.left)
+    assertEquals(plain.card.left + border + floor(12f.pxf).toInt(), plain.titleFrame.left)
   }
 }

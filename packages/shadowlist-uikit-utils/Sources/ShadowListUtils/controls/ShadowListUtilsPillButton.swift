@@ -18,7 +18,14 @@ public final class ShadowListUtilsPillButton: UIButton {
   }
   @available(*, unavailable)
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-  public override var intrinsicContentSize: CGSize { CGSize(width: max(72, super.intrinsicContentSize.width), height: 40) }
+  // The pill is as wide as its title on whole pixels and its padding. A button alone rounds its title up to a point.
+  public override var intrinsicContentSize: CGSize {
+    let title = ShadowListUtilsPlatform.ceilToPixel(currentAttributedTitle?.size().width ?? 0)
+    return CGSize(width: max(72, contentEdgeInsets.left + title + contentEdgeInsets.right), height: 40)
+  }
+  public override func titleRect(forContentRect contentRect: CGRect) -> CGRect {
+    ShadowListUtilsPlatform.centeredTitleRect(super.titleRect(forContentRect: contentRect), title: currentAttributedTitle, in: contentRect)
+  }
   public override func sizeThatFits(_ size: CGSize) -> CGSize { intrinsicContentSize }
   public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)

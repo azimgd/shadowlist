@@ -49,29 +49,37 @@ public struct ShadowListUtilsPollRow: ShadowListUtilsRow {
     let spacing = theme.spacing
     let typography = theme.typography
     let direction = ShadowListUtilsDirection(width: width)
-    let top: CGFloat = 14
-    let selectionFrame = CGRect(x: spacing.lg, y: top, width: Self.selectionSize, height: Self.selectionSize)
+    let bodyX = spacing.lg + Self.selectionSize + Self.selectionGap
+    let bodyWidth = max(1, width - bodyX - spacing.lg)
+    let percentText = typography.subhead.with(isLeading ? .semibold : .regular).layout("\(percent)%", width: bodyWidth / 3, maxLines: 1)
+    let label = typography.headline.layout(item.label, width: max(1, bodyWidth - percentText.size.width - spacing.sm))
+    // The selection and the body are centered against the taller of the two.
+    let bodyTopHeight = max(label.size.height, percentText.size.height)
+    let bodyHeight = bodyTopHeight + spacing.sm + Self.barHeight
+    let contentHeight = max(Self.selectionSize, bodyHeight)
+    let top = Self.paddingVertical
+    let selectionFrame = CGRect(x: spacing.lg, y: top + (contentHeight - Self.selectionSize) / 2, width: Self.selectionSize, height: Self.selectionSize)
     let initial = typography.headline.layout(
       item.label.unicodeScalars.first.map { String($0).uppercased() } ?? "", width: Self.selectionSize,
       maxLines: 1, scaled: true, alignment: .center)
-    let initialFrame = CGRect(x: selectionFrame.minX, y: top + (Self.selectionSize - initial.size.height) / 2,
+    let initialFrame = CGRect(x: selectionFrame.minX, y: selectionFrame.minY + (Self.selectionSize - initial.size.height) / 2,
                               width: Self.selectionSize, height: initial.size.height)
-    let bodyX = selectionFrame.maxX + 14
-    let bodyWidth = max(1, width - bodyX - spacing.lg)
-    let percentText = typography.subhead.with(isLeading ? .semibold : .regular).layout("\(percent)%", width: bodyWidth / 3, maxLines: 1)
-    let percentFrame = CGRect(CGPoint(x: width - spacing.lg - percentText.size.width, y: top), percentText)
-    let label = typography.headline.layout(item.label, width: max(1, bodyWidth - percentText.size.width - spacing.sm))
-    let labelFrame = CGRect(CGPoint(x: bodyX, y: top), label)
-    let barFrame = CGRect(x: bodyX, y: max(labelFrame.maxY, percentFrame.maxY) + spacing.sm, width: bodyWidth, height: Self.barHeight)
+    let bodyTop = top + (contentHeight - bodyHeight) / 2
+    let percentFrame = CGRect(
+      CGPoint(x: width - spacing.lg - percentText.size.width, y: bodyTop + (bodyTopHeight - percentText.size.height) / 2), percentText)
+    let labelFrame = CGRect(CGPoint(x: bodyX, y: bodyTop + (bodyTopHeight - label.size.height) / 2), label)
+    let barFrame = CGRect(x: bodyX, y: bodyTop + bodyTopHeight + spacing.sm, width: bodyWidth, height: Self.barHeight)
     let fillWidth = bodyWidth * CGFloat(max(0, min(100, percent))) / 100
     let barFillFrame = CGRect(x: barFrame.minX, y: barFrame.minY, width: fillWidth, height: barFrame.height)
     return ShadowListUtilsPollRowLayout(
-      width: width, height: max(selectionFrame.maxY, barFrame.maxY) + spacing.md,
+      width: width, height: contentHeight + 2 * Self.paddingVertical,
       selectionFrame: direction.place(selectionFrame), initial: initial, initialFrame: direction.place(initialFrame), label: label, labelFrame: direction.place(labelFrame),
       percent: percentText, percentFrame: direction.place(percentFrame), barFrame: direction.place(barFrame),
       barFillFrame: direction.place(barFillFrame))
   }
 
   static let selectionSize: CGFloat = 44
+  private static let selectionGap: CGFloat = 14
+  private static let paddingVertical: CGFloat = 14
   private static let barHeight: CGFloat = 6
 }

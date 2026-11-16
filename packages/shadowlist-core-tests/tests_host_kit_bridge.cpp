@@ -7,6 +7,8 @@
 
 #include <shadowlist-core/host/KitBridge.hpp>
 
+#include <cmath>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -31,6 +33,42 @@ TEST(kit_bridge_settings_count_at_least_one_column) {
   ListSettings settings = kit::listSettingsFrom(40.0, 1.0, 1.0, 1.0, 0, false, false, false, false, 1);
   CHECK_EQ(settings.numberOfColumns, std::size_t{1});
   CHECK(settings.snapAlignment == SnapAlignment::Center);
+}
+
+TEST(kit_bridge_mount_slots_reject_non_integral_and_out_of_range_numbers) {
+  double slots[kit::MOUNT_SLOTS] = {};
+  const double invalid[] = {-1.0, -0.5, 0.5, std::numeric_limits<double>::quiet_NaN(),
+    std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(), std::ldexp(1.0, 64)};
+  for (double value : invalid) {
+    slots[kit::MOUNT_LOW] = value;
+    slots[kit::MOUNT_HIGH] = value;
+    slots[kit::MOUNT_STICKY] = value;
+    slots[kit::MOUNT_GEOMETRY] = value;
+    slots[kit::MOUNT_STRUCTURE] = value;
+    MountRecord record = kit::readMountRecord(slots);
+    CHECK_EQ(record.low, UNDEFINED_INDEX);
+    CHECK_EQ(record.high, UNDEFINED_INDEX);
+    CHECK_EQ(record.sticky, UNDEFINED_INDEX);
+    CHECK_EQ(record.geometry, std::numeric_limits<std::uint64_t>::max());
+    CHECK_EQ(record.structure, std::numeric_limits<std::uint64_t>::max());
+  }
+}
+
+TEST(kit_bridge_versions_keep_the_unsigned_range_without_a_signed_intermediate) {
+  CHECK_EQ(kit::versionFrom(0.0), std::uint64_t{0});
+  CHECK_EQ(kit::versionFrom(std::ldexp(1.0, 63)), std::uint64_t{1} << 63);
+  double largest = std::nextafter(std::ldexp(1.0, 64), 0.0);
+  CHECK_EQ(kit::versionFrom(largest), std::numeric_limits<std::uint64_t>::max() - 2047);
+}
+
+TEST(kit_bridge_indices_do_not_wrap_when_the_bridge_is_narrower) {
+  CHECK_EQ(kit::intFrom(static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max())),
+    std::numeric_limits<std::int32_t>::max());
+  CHECK_EQ(kit::intFrom(static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max()) + 1), -1);
+  CHECK_EQ(kit::indexFrom(std::int64_t{0}), std::size_t{0});
+  if (sizeof(std::size_t) < sizeof(std::int64_t)) {
+    CHECK_EQ(kit::indexFrom(std::numeric_limits<std::int64_t>::max()), UNDEFINED_INDEX);
+  }
 }
 
 TEST(kit_bridge_pass_slots_carry_a_pass_there_and_back) {

@@ -61,10 +61,10 @@ public struct ShadowListUtilsTreeRow: ShadowListUtilsRow {
     let height = max(44, name.size.height + theme.spacing.xs * 2)
     return ShadowListUtilsTreeRowLayout(
       width: width, height: height, name: name,
-      nameFrame: direction.place(CGRect(x: textX, y: (height - name.size.height) / 2, width: name.size.width, height: name.size.height)),
+      nameFrame: direction.place(CGRect(x: textX, y: ShadowListUtilsPlatform.floorToPixel((height - name.size.height) / 2), width: name.size.width, height: name.size.height)),
       chevronFrame: direction.place(CGRect(x: start + 4, y: (height - 14) / 2, width: 14, height: 14)),
-      iconFrame: direction.place(CGRect(x: start + 22, y: (height - 20) / 2, width: 20, height: 20)), count: count,
-      countFrame: direction.place(CGRect(x: width - end - countWidth, y: (height - (count?.size.height ?? 0)) / 2,
+      iconFrame: direction.place(CGRect(x: start + 22, y: (height - 20) / 2, width: 24, height: 20)), count: count,
+      countFrame: direction.place(CGRect(x: width - end - countWidth, y: ShadowListUtilsPlatform.roundToPixel((height - (count?.size.height ?? 0)) / 2),
                                        width: countWidth, height: count?.size.height ?? 0)))
   }
 }

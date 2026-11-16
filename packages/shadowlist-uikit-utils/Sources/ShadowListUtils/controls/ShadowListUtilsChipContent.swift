@@ -1,6 +1,8 @@
 import UIKit
 
-/* Chip and ChoiceChip share label measurement, native actions and leading/trailing slots. */
+/*
+ * Chip and ChoiceChip share label measurement, native actions and leading/trailing slots.
+ */
 final class ShadowListUtilsChipContent: UIView {
   let button = ShadowListUtilsChipButton(type: .custom)
   let clearButton = ShadowListUtilsChipClearButton(type: .custom)
@@ -51,7 +53,7 @@ final class ShadowListUtilsChipContent: UIView {
     paragraph.alignment = .center; paragraph.lineBreakMode = .byTruncatingTail
     let color = textColorOverride ?? (selected ? theme.colors.onAccent : plain ? theme.colors.secondaryLabel : theme.colors.accent)
     let title = NSAttributedString(string: label, attributes: [.font: font, .kern: (mono ? -0.6 : style.letterSpacing) * scale,
-      .paragraphStyle: paragraph, .foregroundColor: color])
+      .paragraphStyle: paragraph, .baselineOffset: ShadowListUtilsTextStyle.labelBaselineOffset(font, lineHeight: paragraph.maximumLineHeight), .foregroundColor: color])
     button.setAttributedTitle(title, for: .normal)
     button.accessibilityLabel = labelOverride ?? label
     button.accessibilityTraits = selected ? [.button, .selected] : .button

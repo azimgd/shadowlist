@@ -29,7 +29,8 @@ class ChatTest {
    * Where the column of a message from someone else starts: after the padding, the avatar and
    * the gap.
    */
-  private val leading = 12f.px + 30f.px + 8f.px
+  private val leading = (12f + 30f + 8f).px
+  private val topPadding = 4f.px - 2f.px
 
   private fun message(
     index: Int,
@@ -299,10 +300,10 @@ class ChatTest {
     val other = layout(message(0))
     assertEquals(0.75f * (width - 2 * 12f.px), other.maximumBubbleWidthPx.toFloat(), 2f)
     assertEquals(leading + 12f.px, other.nameFrame.left)
-    assertEquals(2f.px, other.nameFrame.top)
+    assertEquals(topPadding, other.nameFrame.top)
     assertLines(other.name, caption, 1)
     assertEquals(leading, other.bubbleFrame.left)
-    assertEquals(2f.px + caption.scaledLineHeightPx() + 2f.px, other.bubbleFrame.top)
+    assertEquals(topPadding + caption.scaledLineHeightPx() + 2f.px, other.bubbleFrame.top)
     assertEquals(other.bubbleFrame.left + 14f.px, other.textFrame.left)
     assertEquals(other.bubbleFrame.top + 8f.px, other.textFrame.top)
     assertEquals(other.textFrame.width() + 2 * 14f.px, other.bubbleFrame.width())
@@ -314,7 +315,7 @@ class ChatTest {
     val own = layout(message(1, own = true))
     assertNull(own.name)
     assertEquals(width - 12f.px, own.bubbleFrame.right)
-    assertEquals(2f.px, own.bubbleFrame.top)
+    assertEquals(topPadding, own.bubbleFrame.top)
     assertEquals(Rect(), own.avatarFrame)
     // The row is the text and the inset the core gives: the row's and the bubble's padding.
     assertEquals(body.scaledLineHeightPx() + (2f + 16f + 2f).px, own.heightPx)
@@ -322,7 +323,7 @@ class ChatTest {
     val hidden = layout(message(2), showsAuthor = false)
     assertNull(hidden.name)
     assertEquals(leading, hidden.bubbleFrame.left)
-    assertEquals(2f.px, hidden.bubbleFrame.top)
+    assertEquals(topPadding, hidden.bubbleFrame.top)
 
     val captioned = layout(message(3, own = true), caption = "09:41")
     assertLines(captioned.caption, caption, 1)
@@ -346,7 +347,7 @@ class ChatTest {
     assertEquals(plain.bubbleFrame, empty.bubbleFrame)
     val images = layout(message(1, text = null, images = listOf("a")), caption = "")
     assertNull(images.caption)
-    assertEquals(2f.px + 2f.px + 320f.px + 2f.px + 2f.px, images.heightPx)
+    assertEquals(topPadding + 2f.px + 320f.px + 2f.px + 2f.px, images.heightPx)
   }
 
   @Test
@@ -355,15 +356,15 @@ class ChatTest {
     assertEquals(30f.px + 3 * 2f.px, empty.heightPx)
     assertEquals(Rect(12f.px, 2f.px, 12f.px + 30f.px, 2f.px + 30f.px), empty.avatarFrame)
     assertEquals(2f.px, layout(message(1, text = "")).avatarFrame.top)
-    assertEquals(2f.px + 2f.px, layout(message(2, own = true, text = null)).heightPx)
+    assertEquals(4f.px, layout(message(2, own = true, text = null)).heightPx)
   }
 
   @Test
   fun images_show_large_or_as_a_grid_of_four() {
     val single = layout(message(0, text = null, images = listOf("a")))
-    assertEquals(Rect(leading, 2 * 2f.px, leading + 240f.px, 2 * 2f.px + 320f.px), single.imagesFrame)
+    assertEquals(Rect(leading, 4f.px, leading + 240f.px, 4f.px + 320f.px), single.imagesFrame)
     assertEquals(listOf(Rect(0, 0, 240f.px, 320f.px)), single.imageFrames)
-    assertEquals(2f.px + 2f.px + 320f.px + 2f.px + 2f.px, single.heightPx)
+    assertEquals(topPadding + 2f.px + 320f.px + 2f.px + 2f.px, single.heightPx)
     assertNull(single.name)
     assertNull(single.text)
     assertEquals(Rect(), single.bubbleFrame)
@@ -372,7 +373,7 @@ class ChatTest {
     val tile = 119f.px
     val gap = 2f.px
     val gridSize = 2 * tile + gap
-    assertEquals(Rect(width - 12f.px - 240f.px, 2 * 2f.px, width - 12f.px, 2 * 2f.px + gridSize), grid.imagesFrame)
+    assertEquals(Rect(width - 12f.px - 240f.px, 4f.px, width - 12f.px, 4f.px + gridSize), grid.imagesFrame)
     assertEquals(
       listOf(
         Rect(0, 0, tile, tile), Rect(tile + gap, 0, 2 * tile + gap, tile),
@@ -381,7 +382,7 @@ class ChatTest {
     assertEquals(grid.imagesFrame.bottom + 2f.px + 4f.px, grid.captionFrame.top)
     assertEquals(width - 12f.px, grid.captionFrame.right)
     assertEquals(
-      2f.px + 2f.px + gridSize + 2f.px + 4f.px + theme.typography.caption.scaledLineHeightPx() + 2f.px + 2f.px, grid.heightPx)
+      topPadding + 2f.px + gridSize + 2f.px + 4f.px + theme.typography.caption.scaledLineHeightPx() + 2f.px + 2f.px, grid.heightPx)
   }
 
   @Test

@@ -101,7 +101,10 @@ final class ChatTests: XCTestCase {
     XCTAssertFalse(view.gestureRecognizerShouldBegin(tap))
     list.onRetryMessage = { calls.append("retry \($0.key)") }
     XCTAssertTrue(view.gestureRecognizerShouldBegin(tap))
-    XCTAssertEqual(retry.frame, layout.failedFrame.insetBy(dx: -8, dy: -8))
+    let expectedRetryFrame = layout.failedFrame.insetBy(dx: -8, dy: -8)
+    XCTAssertEqual(retry.frame.minX, expectedRetryFrame.minX, accuracy: 1e-9)
+    XCTAssertEqual(retry.frame.minY, expectedRetryFrame.minY, accuracy: 1e-9)
+    XCTAssertEqual(retry.frame.size, expectedRetryFrame.size)
     XCTAssertTrue(view.hitTest(CGPoint(x: layout.bubbleFrame.midX, y: layout.bubbleFrame.midY), with: nil) !== retry)
   }
 

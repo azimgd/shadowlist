@@ -37,6 +37,11 @@ import kotlin.math.min
 interface Screen {
   val view: View
   fun load()
+
+  /*
+   * The screen's own actions in the More menu, in groups.
+   */
+  fun headerMenu(): List<List<HeaderAction>> = emptyList()
 }
 
 /*
@@ -93,18 +98,16 @@ private fun travellerRows(context: Context, count: Int, first: Int = 0): List<Sh
 }
 
 /*
- * A plain list of travellers. A tap opens nothing here and only shows the row's highlight and
- * its chevron. A swipe from the trailing side deletes the traveller.
+ * A plain list of travellers. A tap opens the contact; a trailing swipe deletes it.
  */
 class ContactsScreen(context: Context) : Screen {
   private val list = ShadowListUtilsContactsList(context)
   override val view: View get() = list
 
   override fun load() {
-    list.headerView = ShadowListUtilsListHeader(view.context, "Travellers", "Swipe a row to delete it.", view.context.listTheme)
-    list.onPressItem = { Log.i("SLEXAMPLE", "pressed ${it.name}") }
+    list.onPressItem = { (view.context as? MainActivity)?.openContact(it) }
     list.onDelete = { deleted -> list.setItems(list.items.filter { it.key != deleted.key }, true) }
-    list.items = List(200) { Items.contact(Contact(it)) }
+    list.items = List(Settings.count) { Items.contact(Contact(it)) }
   }
 }
 
@@ -133,9 +136,10 @@ class ReorderGridScreen(context: Context) : Screen {
 
   override fun load() {
     list.onMoveItem = { from, to, _ -> Log.i("SLEXAMPLE", "moved $from to $to") }
+    list.tileAspectRatio = 1f
     list.items = List(60) { Items.tile(it) }
-    val featuredKey = list.items.firstOrNull()?.key
-    list.getItemSpan = { index -> if (list.items.getOrNull(index)?.key == featuredKey) list.numberOfColumns else 1 }
+    list.headerView = ShadowListUtilsListFooter(view.context,
+      "Touch and hold a sight, then drag it anywhere in the grid.", view.context.listTheme)
     AutoDrag.runIfRequested(list, 3) { list.items.take(9).map { it.label ?: it.key } }
   }
 }
@@ -163,7 +167,7 @@ class NestedScreen(context: Context) : Screen {
 
   override fun load() {
     val context = view.context
-    list.headerView = ShadowListUtilsListHeader(context, "Shelves", "Every row scrolls sideways.", context.listTheme)
+    list.headerView = DealsShelf(context)
     list.setRows(List(40) { shelf ->
       ShadowListUtilsNestedRow(Items.shelf(shelf), context.listTheme) { card, row ->
         Log.i("SLEXAMPLE", "pressed ${card.title} in ${row.title}")
@@ -188,7 +192,7 @@ class HorizontalScreen(context: Context, private val engine: Engine) : Screen, S
     page.setBackgroundColor(context.listTheme.colors.background)
     page.addView(ShadowListUtilsListFooter(context, "Destinations by letter, scroll sideways.", context.listTheme),
       LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-    page.addView(list, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 140.dp))
+    page.addView(list, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, StripItem.HEIGHT_DP.dp))
     list.horizontal = true
     list.estimatedItemSizePx = 150.dpf
     list.registerCell("strip") { StripCell(it) }
@@ -461,10 +465,13 @@ class ChangesScreen(context: Context, engine: Engine) : Screen {
     if (LaunchArgs.get("SLScenario") == "animate") TouchScript(rows.list).after(1500) { runCheck() }
   }
 
+  override fun headerMenu() = listOf(listOf(HeaderAction("Change Travellers", onPress = ::change)))
+
   /*
    * Remove the row at 2 and insert two rows at 4, through deleteItems and insertItems.
    */
   fun change() {
+    if (items.size <= 4) return
     items.removeAt(2)
     rows.list.deleteItems(intArrayOf(2))
     items.addAll(4, travellerRows(view.context, 2, fresh))
@@ -510,9 +517,9 @@ class ChangesScreen(context: Context, engine: Engine) : Screen {
 }
 
 /*
- * The list under a collapsing bar in a CoordinatorLayout, which needs nested scrolling. With
- * --es SLScenario nested a script drags the list up, then down, and logs how far the bar
- * and the list moved each time.
+ * The list under a collapsing bar in a CoordinatorLayout, which needs nested scrolling: an
+ * elevated space that scrolls away above a caption that stays pinned. With --es SLScenario nested
+ * a script drags the list up, then down, and logs how far the bar and the list moved each time.
  */
 class CollapsingScreen(context: Context, engine: Engine) : Screen {
   private val themed = android.view.ContextThemeWrapper(context, com.google.android.material.R.style.Theme_MaterialComponents_Light_NoActionBar)
@@ -522,17 +529,19 @@ class CollapsingScreen(context: Context, engine: Engine) : Screen {
   override val view: View get() = coordinator
 
   init {
-    // The footer view sizes itself. A frame around it holds the bar's height.
-    val title = android.widget.FrameLayout(themed)
-    title.setBackgroundColor(themed.listTheme.colors.elevated)
-    title.minimumHeight = 56.dp
-    title.addView(ShadowListUtilsListFooter(themed, "A bar that collapses as the list scrolls.", themed.listTheme), android.widget.FrameLayout.LayoutParams(
-      android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.BOTTOM))
+    bar.setBackgroundColor(themed.listTheme.colors.background)
+    bar.stateListAnimator = null
+    bar.elevation = 0f
+    val space = View(themed)
+    space.setBackgroundColor(themed.listTheme.colors.elevated)
     val params = com.google.android.material.appbar.AppBarLayout.LayoutParams(
-      android.view.ViewGroup.LayoutParams.MATCH_PARENT, 200.dp)
-    params.scrollFlags = com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
-      com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_EXIT_UNTIL_COLLAPSED
-    bar.addView(title, params)
+      android.view.ViewGroup.LayoutParams.MATCH_PARENT, SPACE_HEIGHT_DP.dp)
+    params.scrollFlags = com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL
+    bar.addView(space, params)
+    // A child without scroll flags stays pinned once the space above it has scrolled away.
+    bar.addView(ShadowListUtilsListFooter(themed, "A bar that collapses as the list scrolls.", themed.listTheme),
+      com.google.android.material.appbar.AppBarLayout.LayoutParams(
+        android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
     coordinator.addView(bar, androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(
       android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT))
     val listParams = androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams(
@@ -550,7 +559,7 @@ class CollapsingScreen(context: Context, engine: Engine) : Screen {
     val list = rows.list
     // Touches go in at the window, the way a finger's do. The list moves under them when the bar collapses.
     val script = TouchScript(list.rootView)
-    val result = JSONObject().put("scenario", "nested").put("collapseRange", 200.dp - 56.dp)
+    val result = JSONObject().put("scenario", "nested").put("collapseRange", SPACE_HEIGHT_DP.dp)
     fun drag(distance: Float, done: () -> Unit) {
       val location = IntArray(2)
       list.getLocationInWindow(location)
@@ -574,6 +583,13 @@ class CollapsingScreen(context: Context, engine: Engine) : Screen {
         }
       }
     }
+  }
+
+  private companion object {
+    /*
+     * With the caption this makes the 200dp bar of the React Native screen.
+     */
+    const val SPACE_HEIGHT_DP = 142
   }
 }
 

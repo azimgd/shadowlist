@@ -12,20 +12,21 @@ import com.shadowlist.utils.ShadowListUtilsTreeNode
 class TreeScreen(private val context: Context) : Screen {
   val list = ShadowListUtilsTreeList(context)
   override val view: View get() = list
-  private var expanded = setOf("src")
+  private var expanded = setOf("trips", "boarding-passes", "flights", "hotels")
 
   override fun load() {
     list.expandedKeys = expanded
     list.onExpandedChange = { keys -> expanded = keys; list.expandedKeys = keys }
     list.onPressItem = { item -> AlertDialog.Builder(context).setTitle(item.name).setMessage(item.key).setPositiveButton("Close", null).show() }
-    list.items = listOf(
-      ShadowListUtilsTreeNode("src", "src", listOf(
-        ShadowListUtilsTreeNode("components", "components", listOf(
-          ShadowListUtilsTreeNode("avatar", "Avatar.tsx"), ShadowListUtilsTreeNode("header", "Header.tsx"))),
-        ShadowListUtilsTreeNode("screens", "screens", listOf(
-          ShadowListUtilsTreeNode("feed", "FeedScreen.tsx"), ShadowListUtilsTreeNode("chat", "ChatScreen.tsx"))),
-        ShadowListUtilsTreeNode("app", "App.tsx"))),
-      ShadowListUtilsTreeNode("assets", "assets", emptyList()),
-      ShadowListUtilsTreeNode("readme", "README.md"))
+    val folders = listOf("trips", "boarding-passes", "flights", "hotels", "photos", "receipts")
+    list.items = folders.map { folder ->
+      ShadowListUtilsTreeNode(folder, folder, listOf(
+        ShadowListUtilsTreeNode("$folder/trips", "trips", List(6) { ShadowListUtilsTreeNode("$folder/trips/$it", "trip-$it.pdf") }),
+        ShadowListUtilsTreeNode("$folder/boarding-passes", "boarding-passes", List(6) { ShadowListUtilsTreeNode("$folder/passes/$it", "pass-$it.pdf") }),
+        ShadowListUtilsTreeNode("$folder/0", "trips-0.pdf"),
+        ShadowListUtilsTreeNode("$folder/1", "boarding-passes-1.ics"),
+        ShadowListUtilsTreeNode("$folder/2", "flights-2.jpg"),
+        ShadowListUtilsTreeNode("$folder/3", "hotels-3.json")))
+    }
   }
 }

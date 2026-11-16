@@ -4,8 +4,10 @@
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/StickyLayout.hpp>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <vector>
 
@@ -151,17 +153,21 @@ static_assert(static_cast<int>(SnapAlignment::Start) == 0 && static_cast<int>(Sn
   static_cast<int>(SnapAlignment::End) == 2);
 
 /*
- * A bridge's index as the core's: a negative one is UNDEFINED_INDEX.
+ * A bridge's index as the core's: negative or unrepresentable values are UNDEFINED_INDEX.
  */
 inline std::size_t indexFrom(std::int64_t value) {
-  return value < 0 ? UNDEFINED_INDEX : static_cast<std::size_t>(value);
+  return value < 0 || static_cast<std::uint64_t>(value) >= UNDEFINED_INDEX
+    ? UNDEFINED_INDEX
+    : static_cast<std::size_t>(value);
 }
 
 /*
- * The core's index as a bridge's: UNDEFINED_INDEX is -1.
+ * The core's index as a bridge's: a missing or unrepresentable index is -1.
  */
 inline std::int32_t intFrom(std::size_t index) {
-  return index == UNDEFINED_INDEX ? -1 : static_cast<std::int32_t>(index);
+  return index > static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max())
+    ? -1
+    : static_cast<std::int32_t>(index);
 }
 
 /*
@@ -248,18 +254,32 @@ inline PassInput readPassInput(const double* slots) {
 }
 
 /*
- * A version a bridge carries in a double slot. The -1 a bridge holds before it has one becomes
- * a value no count reaches.
+ * A version a bridge carries in a double slot. A finite whole number in [0, 2^64) keeps its
+ * unsigned value. Missing (-1), fractional and out of range values become the unset sentinel.
  */
 inline std::uint64_t versionFrom(double value) {
-  return static_cast<std::uint64_t>(static_cast<std::int64_t>(value));
+  if (!std::isfinite(value) || value < 0.0 || value >= std::ldexp(1.0, 64) || std::trunc(value) != value) {
+    return std::numeric_limits<std::uint64_t>::max();
+  }
+  return static_cast<std::uint64_t>(value);
+}
+
+/*
+ * An index carried in a double slot. Only finite whole numbers below UNDEFINED_INDEX name rows.
+ */
+inline std::size_t indexFromSlot(double value) {
+  if (!std::isfinite(value) || value < 0.0 || value >= static_cast<double>(UNDEFINED_INDEX) ||
+      std::trunc(value) != value) {
+    return UNDEFINED_INDEX;
+  }
+  return static_cast<std::size_t>(value);
 }
 
 inline MountRecord readMountRecord(const double* slots) {
   MountRecord record;
-  record.low = indexFrom(static_cast<std::int64_t>(slots[MOUNT_LOW]));
-  record.high = indexFrom(static_cast<std::int64_t>(slots[MOUNT_HIGH]));
-  record.sticky = indexFrom(static_cast<std::int64_t>(slots[MOUNT_STICKY]));
+  record.low = indexFromSlot(slots[MOUNT_LOW]);
+  record.high = indexFromSlot(slots[MOUNT_HIGH]);
+  record.sticky = indexFromSlot(slots[MOUNT_STICKY]);
   record.geometry = versionFrom(slots[MOUNT_GEOMETRY]);
   record.structure = versionFrom(slots[MOUNT_STRUCTURE]);
   record.shift = slots[MOUNT_SHIFT];

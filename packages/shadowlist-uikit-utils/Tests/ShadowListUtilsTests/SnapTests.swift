@@ -112,7 +112,7 @@ final class SnapTests: XCTestCase {
     XCTAssertEqual(mirrored.cardFrame, plain.cardFrame)
     XCTAssertEqual(mirrored.captionFrame, plain.captionFrame)
     // The text frames mirror inside the card, which is narrower than the row.
-    XCTAssertEqual(mirrored.titleFrame.maxX, plain.cardFrame.width - 16)
+    XCTAssertEqual(mirrored.titleFrame.maxX, plain.cardFrame.width - 16, accuracy: 1e-9)
     XCTAssertEqual(mirrored.subtitleFrame.minX, plain.cardFrame.width - plain.subtitleFrame.maxX)
   }
 

@@ -81,6 +81,8 @@ class ShadowListUtilsContactsSectionList : ShadowListUtilsList {
 
   init {
     stickySectionHeaders = true
+    showsSeparators = true
+    separatorInsetStartPx = theme.rowInset.px
     allowsSelection = false
   }
 

@@ -50,10 +50,9 @@ public final class ShadowListUtilsListFooter: UIView {
     guard width != laidOutWidth, width > 0 else { return }
     laidOutWidth = width
     let textWidth = width - 2 * theme.spacing.lg
-    let layout = theme.typography.footnote.layout(text, width: textWidth, maxLines: 0, scaled: true, alignment: .center)
+    let layout = theme.typography.footnote.layout(text, width: textWidth, maxLines: 0, scaled: true, alignment: .natural)
     textView.show(layout, theme.colors.secondaryLabel)
-    // Centered lines are placed inside the width they were typeset for.
-    textView.frame = CGRect(x: theme.spacing.lg, y: theme.spacing.xl, width: textWidth, height: layout.size.height)
+    textView.frame = CGRect(x: layout.lineCount > 1 ? theme.spacing.lg : (width - layout.size.width) / 2, y: theme.spacing.xl, width: layout.size.width, height: layout.size.height)
     contentHeight = layout.size.height + 2 * theme.spacing.xl
   }
 }

@@ -130,4 +130,12 @@ final class PollTests: XCTestCase {
     XCTAssertGreaterThan(large.height, regular.height)
     XCTAssertGreaterThan(large.label.lineCount, 1)
   }
+
+  func testAPollRowCentersItsBodyAgainstTheSelection() throws {
+    let layout = try XCTUnwrap(ShadowListUtilsPollRow(item: options[0], totalVotes: 8, theme: theme).layout(width: testWidth) as? ShadowListUtilsPollRowLayout)
+    XCTAssertEqual(layout.height, 72)
+    XCTAssertEqual(layout.selectionFrame.minY, 14)
+    XCTAssertEqual(layout.height - layout.selectionFrame.maxY, layout.selectionFrame.minY)
+    XCTAssertEqual(layout.selectionFrame.midY, (layout.labelFrame.minY + layout.barFrame.maxY) / 2, accuracy: 1)
+  }
 }

@@ -9,7 +9,7 @@ import UIKit
  * headers that stick, a count in each section's footer, a section index, separators and Auto
  * Layout cells that size themselves. The data source gives no sizes.
  */
-final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
+final class SectionsScreen: PageScreen, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
   let list = ShadowListKitListView()
   private(set) var sections: [ShadowListUtilsContactSection] = []
   private var fresh = 5000
@@ -17,37 +17,52 @@ final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, S
   override func viewDidLoad() {
     super.viewDidLoad()
     title = "Sections"
-    view.backgroundColor = AppTheme.colors.background
-    list.frame = view.bounds
-    list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    list.contentInsetAdjustmentBehavior = .never
     list.backgroundColor = AppTheme.colors.background
     list.estimatedItemSize = 64
     list.stickySectionHeaders = true
     list.renderStickyHeaderOverlay = { [weak self] _, _, section in
       guard let self, self.sections.indices.contains(section) else { return nil }
-      let header = UIButton(type: .system)
-      header.backgroundColor = AppTheme.colors.background
-      header.contentHorizontalAlignment = .leading
-      header.contentEdgeInsets = UIEdgeInsets(top: 12, left: 16, bottom: 12, right: 16)
-      let title = "\(self.sections[section].title) · \(self.sections[section].items.count) travellers · Next section"
-      header.setTitle(title, for: .normal)
-      header.accessibilityLabel = title
-      header.addAction(UIAction { [weak self] _ in
-        guard let self, !self.sections.isEmpty else { return }
-        self.list.scrollToSection((section + 1) % self.sections.count, animated: true)
-      }, for: .touchUpInside)
+      let header = ShadowListUtilsSectionHeaderView(reuseIdentifier: nil)
+      self.show(section, in: header)
       return header
     }
     list.showsSeparators = true
     list.separatorInsetStart = AppTheme.theme.rowInset
-    list.register(AutoContactCell.self, forCellReuseIdentifier: "contact")
+    list.separatorColor = AppTheme.colors.separator
+    list.register(ContactCell.self, forCellReuseIdentifier: "contact")
+    list.register(ShadowListUtilsSectionHeaderView.self, forCellReuseIdentifier: "header")
+    list.register(ListFooterCell.self, forCellReuseIdentifier: "footer")
     list.dataSource = self
     list.delegate = self
-    view.addSubview(list)
+    page.addSubview(list)
     group((0..<400).map { Items.contact(Contact(index: $0)) })
     list.reloadData()
-    navigationItem.rightBarButtonItem = UIBarButtonItem(systemItem: .add, primaryAction: UIAction { [weak self] _ in self?.addTraveller() })
+    headerMenu([[UIAction(title: "Add Traveller", image: UIImage(systemName: "plus")) { [weak self] _ in self?.addTraveller() }]])
     FeatureScenario.startSections(self)
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    list.frame = page.bounds
+  }
+
+  /*
+   * A section's header in a header view, which jumps to the next section on a tap.
+   */
+  private func show(_ section: Int, in header: ShadowListUtilsSectionHeaderView) {
+    let title = "\(sections[section].title) · \(sections[section].items.count) travellers · Next section"
+    header.configure(ShadowListUtilsSectionHeader(key: sections[section].key, title: title, theme: AppTheme.theme), layout: nil)
+    header.accessibilityTraits = [.header, .button]
+    if header.gestureRecognizers?.isEmpty != false {
+      header.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(showNextSection(_:))))
+    }
+  }
+
+  @objc private func showNextSection(_ tap: UITapGestureRecognizer) {
+    let key = (tap.view as? ShadowListUtilsSectionHeaderView)?.row?.key
+    guard let section = sections.firstIndex(where: { $0.key == key }) else { return }
+    list.scrollToSection((section + 1) % sections.count, animated: true)
   }
 
   func group(_ contacts: [ShadowListUtilsContactItem]) {
@@ -77,6 +92,18 @@ final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, S
   func listView(_ listView: ShadowListKitListView, titleForFooterInSection section: Int) -> String? {
     "\(sections[section].items.count) travellers"
   }
+
+  func listView(_ listView: ShadowListKitListView, cellForHeaderInSection section: Int) -> ShadowListKitListCell {
+    let cell = listView.dequeueReusableCell(withIdentifier: "header")
+    if let header = cell as? ShadowListUtilsSectionHeaderView { show(section, in: header) }
+    return cell
+  }
+
+  func listView(_ listView: ShadowListKitListView, cellForFooterInSection section: Int) -> ShadowListKitListCell {
+    let cell = listView.dequeueReusableCell(withIdentifier: "footer")
+    (cell as? ListFooterCell)?.configure("\(sections[section].items.count) travellers")
+    return cell
+  }
   func sectionIndexTitles(for listView: ShadowListKitListView) -> [String]? { sections.map(\.title) }
 
   func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { contact(at: index).key }
@@ -86,7 +113,7 @@ final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, S
     let contact = contact(at: index)
     let subtitle = contact.subtitle ?? ""
     // Every fifth traveller has a longer note, which wraps and makes the row taller.
-    (cell as? AutoContactCell)?.show(
+    (cell as? ContactCell)?.show(
       contact, note: index % 5 == 0 ? "\(subtitle) · Window seat, travelling with two bags and a guitar case that goes in the cabin." : subtitle)
     return cell
   }
@@ -99,7 +126,7 @@ final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, S
 /*
  * A row laid out with Auto Layout. ShadowListKitListCell fits its constraints for the row height.
  */
-final class AutoContactCell: ShadowListKitListCell {
+final class ContactCell: ShadowListKitListCell {
   private let avatar = ShadowListUtilsAvatar(theme: AppTheme.theme)
   private let name = UILabel()
   private let note = UILabel()
@@ -107,35 +134,34 @@ final class AutoContactCell: ShadowListKitListCell {
   override init(reuseIdentifier: String?) {
     super.init(reuseIdentifier: reuseIdentifier)
     backgroundColor = AppTheme.colors.background
-    name.font = .preferredFont(forTextStyle: .body)
-    name.textColor = AppTheme.colors.label
-    note.font = .preferredFont(forTextStyle: .subheadline)
-    note.textColor = AppTheme.colors.secondaryLabel
     note.numberOfLines = 0
     for view in [avatar, name, note] {
       view.translatesAutoresizingMaskIntoConstraints = false
       addSubview(view)
     }
+    let spacing = AppTheme.theme.spacing
     NSLayoutConstraint.activate([
-      avatar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
-      avatar.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+      avatar.leadingAnchor.constraint(equalTo: leadingAnchor, constant: spacing.lg),
+      avatar.topAnchor.constraint(equalTo: topAnchor, constant: Self.paddingVertical),
       avatar.widthAnchor.constraint(equalToConstant: avatar.size),
       avatar.heightAnchor.constraint(equalToConstant: avatar.size),
-      avatar.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -12),
-      name.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 12),
-      name.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -36),
-      name.topAnchor.constraint(equalTo: topAnchor, constant: 11),
+      avatar.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -Self.paddingVertical),
+      name.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: spacing.md),
+      name.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.paddingEnd),
+      name.topAnchor.constraint(equalTo: topAnchor, constant: Self.paddingVertical),
       note.leadingAnchor.constraint(equalTo: name.leadingAnchor),
       note.trailingAnchor.constraint(equalTo: name.trailingAnchor),
-      note.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 2),
-      note.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -11),
+      note.topAnchor.constraint(equalTo: name.bottomAnchor),
+      note.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.paddingVertical),
     ])
   }
 
   func show(_ contact: ShadowListUtilsContactItem, note text: String) {
     avatar.show(name: contact.name, imageUrl: contact.avatarUrl, color: contact.avatarColor)
-    name.text = contact.name
-    note.text = text
+    name.attributedText = AppTheme.typography.body.string(contact.name)
+    note.attributedText = AppTheme.typography.subhead.string(text, AppTheme.colors.secondaryLabel)
+    isAccessibilityElement = true
+    accessibilityLabel = "\(contact.name), \(text)"
   }
 
   override func setHighlighted(_ highlighted: Bool, animated: Bool) {
@@ -144,6 +170,9 @@ final class AutoContactCell: ShadowListKitListCell {
       self.backgroundColor = highlighted ? AppTheme.colors.elevated2 : AppTheme.colors.background
     }
   }
+
+  private static let paddingVertical: CGFloat = 11
+  private static let paddingEnd: CGFloat = 36
 }
 
 // MARK: - Inbox
@@ -159,7 +188,7 @@ final class InboxScreen: UIViewController {
   private var fresh = 1000
   private var savedPlace: ShadowListKitAnchorState?
   private(set) var refreshes = 0
-  private var editButton: UIBarButtonItem?
+
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -195,15 +224,14 @@ final class InboxScreen: UIViewController {
   }
 
   private func installActions() {
-    let edit = UIBarButtonItem(title: "Edit", primaryAction: UIAction { [weak self] _ in self?.toggleEditing() })
+    let edit = UIAction(title: list.isEditing ? "Done" : "Edit", image: UIImage(systemName: "checkmark.circle")) { [weak self] _ in self?.toggleEditing() }
     let shuffle = UIAction(title: "Shuffle", image: UIImage(systemName: "shuffle")) { [weak self] _ in self?.shuffle() }
     let save = UIAction(title: "Save place", image: UIImage(systemName: "bookmark")) { [weak self] _ in self?.savedPlace = self?.list.anchorState }
     let restore = UIAction(title: "Back to saved place", image: UIImage(systemName: "bookmark.fill")) { [weak self] _ in
       if let place = self?.savedPlace { self?.list.restoreAnchorState(place) }
     }
-    let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: UIMenu(children: [shuffle, save, restore]))
-    editButton = edit
-    navigationItem.rightBarButtonItems = [more, edit]
+    let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: UIMenu(children: [edit, shuffle, save, restore]))
+    navigationItem.rightBarButtonItems = [more]
   }
 
   func show(animated: Bool = false) {
@@ -212,7 +240,7 @@ final class InboxScreen: UIViewController {
 
   func toggleEditing() {
     list.setEditing(!list.isEditing, animated: true)
-    editButton?.title = list.isEditing ? "Done" : "Edit"
+    installActions()
     title = "Inbox"
   }
 

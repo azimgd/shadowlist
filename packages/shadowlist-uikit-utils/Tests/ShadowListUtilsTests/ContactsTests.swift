@@ -83,7 +83,7 @@ final class ContactsTests: XCTestCase {
     let row = ShadowListUtilsContactRow(item: Fixture.contact(0), showsChevron: true, theme: theme)
     let layout = try XCTUnwrap(row.layout(width: testWidth) as? ShadowListUtilsContactRowLayout)
     XCTAssertEqual(layout.height, 67)
-    XCTAssertEqual(layout.avatarFrame, CGRect(x: 16, y: 13.5, width: 40, height: 40))
+    XCTAssertEqual(layout.avatarFrame, CGRect(x: 16, y: ShadowListUtilsPlatform.roundToPixel(13.5), width: 40, height: 40))
     XCTAssertEqual(layout.nameFrame.origin, CGPoint(x: 68, y: 12))
     XCTAssertEqual(layout.subtitleFrame.origin, CGPoint(x: 68, y: 12 + theme.typography.body.scaledLineHeight() + 1))
     XCTAssertEqual(layout.chevronFrame, CGRect(x: testWidth - 12 - 20, y: ShadowListUtilsPlatform.roundToPixel(23.5), width: 20, height: 20))

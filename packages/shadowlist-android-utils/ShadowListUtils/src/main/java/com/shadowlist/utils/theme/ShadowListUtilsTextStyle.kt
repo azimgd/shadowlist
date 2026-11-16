@@ -30,13 +30,21 @@ data class ShadowListUtilsTextStyle(
 ) {
   fun with(fontWeight: ShadowListUtilsFontWeight): ShadowListUtilsTextStyle = copy(fontWeight = fontWeight)
 
-  /* Apply native widget metrics on its UI thread; the widget measures and paints the same text. */
-  internal fun applyTo(view: android.widget.TextView, @androidx.annotation.ColorInt color: Int, weight: Int = fontWeight.weight) {
-    view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, fontSize)
+  /*
+   * Apply native widget metrics on its UI thread; the widget measures and paints the same text.
+   */
+  fun applyTo(view: android.widget.TextView, @androidx.annotation.ColorInt color: Int, weight: Int = fontWeight.weight) {
+    val fontPx = ceil(android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, fontSize, view.resources.displayMetrics))
+    view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, fontPx)
     view.typeface = typeface(weight)
-    view.letterSpacing = if (fontSize > 0f) letterSpacing / fontSize else 0f
-    val height = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, lineHeight, view.resources.displayMetrics)
-    androidx.core.widget.TextViewCompat.setLineHeight(view, ceil(height).toInt())
+    view.paint.isSubpixelText = true
+    view.letterSpacing = if (fontPx > 0f) android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, letterSpacing, view.resources.displayMetrics) / fontPx else 0f
+    view.includeFontPadding = false
+    view.setLineSpacing(0f, 1f)
+    view.text = SpannableString(view.text).apply {
+      getSpans(0, length, LineHeightSpan::class.java).forEach { removeSpan(it) }
+      setSpan(LineHeight(ceil(android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, lineHeight, view.resources.displayMetrics)).toInt()), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+    }
     view.setTextColor(color)
   }
 
@@ -76,13 +84,14 @@ data class ShadowListUtilsTextStyle(
    * by the layouts of every thread: laying out reads it and only drawing, on the UI thread, sets its color.
    */
   private fun paint(scaled: Boolean, weight: Int): TextPaint {
-    val fontPx = if (scaled) fontSize.spf else fontSize.pxf
+    val fontPx = ceil(if (scaled) fontSize.spf else fontSize.pxf)
     val density = Resources.getSystem().displayMetrics.density
-    val key = PaintKey(fontPx, weight, if (fontSize > 0f) letterSpacing / fontSize else 0f, density)
+    val key = PaintKey(fontPx, weight, if (fontPx > 0f) (if (scaled) letterSpacing.spf else letterSpacing.pxf) / fontPx else 0f, density)
     return paints.getOrPut(key) {
       TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = key.fontPx
         typeface = typeface(key.weight)
+        isSubpixelText = true
         // The style's spacing is in dp at its font size, which is the same spacing in em.
         letterSpacing = key.letterSpacingEm
       }

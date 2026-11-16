@@ -1,5 +1,6 @@
 import type { FeedImage, FeedItem } from 'shadowlist-utils/native';
 import {
+  FIXTURE_NOW,
   CHARACTER_NAMES,
   IMAGES,
   IMAGE_TITLES,
@@ -40,6 +41,6 @@ export function generateFeedElement(index: number): FeedItem {
     },
     text: SAMPLE_TEXTS[index % SAMPLE_TEXTS.length]!,
     images,
-    createdAt: new Date(Date.now() - Math.floor(Math.random() * 24) * HOUR_MS),
+    createdAt: new Date(FIXTURE_NOW - (index % 24) * HOUR_MS),
   };
 }

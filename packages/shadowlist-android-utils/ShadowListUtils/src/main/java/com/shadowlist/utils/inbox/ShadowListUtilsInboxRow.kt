@@ -39,7 +39,7 @@ data class ShadowListUtilsInboxRow(
     val gutter = GUTTER_WIDTH_DP.px
     val avatarSize = AVATAR_SIZE_DP.px
     val avatarFrame = Rect(gutter, top, gutter + avatarSize, top + avatarSize)
-    val bodyX = avatarFrame.right + spacing.md.px
+    val bodyX = (GUTTER_WIDTH_DP + AVATAR_SIZE_DP + spacing.md).px
     val bodyWidth = (widthPx - bodyX - spacing.lg.px).coerceAtLeast(1)
 
     // The age keeps its width at the trailing edge, the flag sits before it and the sender takes the rest.

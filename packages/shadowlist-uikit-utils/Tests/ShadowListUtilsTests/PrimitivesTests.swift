@@ -155,10 +155,12 @@ final class PrimitivesTests: XCTestCase {
       avatar.show(name: name)
       return try XCTUnwrap(avatar.subviews.compactMap { $0 as? ShadowListKitTextView }.first?.textLayout).size
     }
+    // The line of the initials is their font's own, on whole pixels.
+    let line = ShadowListUtilsPlatform.ceilToPixel(UIFont.systemFont(ofSize: 17, weight: .semibold).lineHeight)
     let plain = try initialsSize("Grace Hopper")
-    XCTAssertEqual(plain.height, 21)
+    XCTAssertEqual(plain.height, line)
     // Another name, which the avatars have not typeset before.
-    XCTAssertEqual(try withTextSize(2) { try initialsSize("Hedy Gamarr") }.height, 21)
+    XCTAssertEqual(try withTextSize(2) { try initialsSize("Hedy Gamarr") }.height, line)
   }
 
   func testAnImageViewFillsClipsAndShowsItsPlaceholderColor() {
@@ -307,8 +309,8 @@ final class PrimitivesTests: XCTestCase {
     for kind in [ShadowListUtilsIconView.Kind.grip, .chevron, .check] {
       let path = ShadowListUtilsIconView.path(kind, size: 20)
       XCTAssertFalse(path.isEmpty)
-      // The grip is filled. The others are stroked, half their line width outside the path.
-      let reach = kind == .grip ? 0 : path.lineWidth / 2
+      // The check is stroked, half its line width outside the path. The others are filled.
+      let reach = kind == .check ? path.lineWidth / 2 : 0
       XCTAssertTrue(box.contains(path.bounds.insetBy(dx: -reach, dy: -reach)), "\(kind)")
     }
     // Three lines as wide as the icon, 1.75 thick and 22 percent of the size apart, centered.
@@ -316,10 +318,11 @@ final class PrimitivesTests: XCTestCase {
     XCTAssertEqual(grip.width, 20)
     XCTAssertEqual(grip.height, 3 * 1.75 + 2 * 20 * 0.22, accuracy: 1e-9)
     XCTAssertEqual(grip.midY, 10, accuracy: 1e-9)
-    // The chevron's tip points right and its arms are 42 percent of the size.
+    // The chevron's arms are 42 percent of the size and 2 thick, and its tip points right.
     let chevron = ShadowListUtilsIconView.path(.chevron, size: 20)
-    XCTAssertEqual(chevron.lineWidth, 2)
     XCTAssertEqual(chevron.bounds.height, 2 * 20 * 0.42 * 0.5.squareRoot(), accuracy: 1e-4)
+    XCTAssertEqual(chevron.bounds.width, (20 * 0.42 + 2) * 0.5.squareRoot(), accuracy: 1e-4)
+    XCTAssertEqual(chevron.bounds.maxX, 10 + 20 * 0.42 * 0.3535, accuracy: 1e-3)
     XCTAssertEqual(chevron.bounds.midY, 10, accuracy: 1e-9)
     let check = ShadowListUtilsIconView.path(.check, size: 14)
     XCTAssertEqual(check.lineWidth, 2.2)

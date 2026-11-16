@@ -107,7 +107,7 @@ public struct ShadowListUtilsChatBubble: ShadowListUtilsRow {
 
     if let text {
       let body = typography.body.layout(text, width: textWidth)
-      var innerWidth = body.size.width
+      var innerWidth = body.lineCount > 1 ? textWidth : body.size.width
       var innerHeight = body.size.height
       if let caption {
         let line = typography.caption.layout(caption, width: textWidth, maxLines: 1)
@@ -116,7 +116,7 @@ public struct ShadowListUtilsChatBubble: ShadowListUtilsRow {
         innerHeight += spacing.xs + captionLine
       }
       let bubbleWidth = innerWidth + 2 * bubblePadding
-      let bubbleX = own ? trailing - bubbleWidth : leading
+      let bubbleX = ShadowListUtilsPlatform.roundToPixel(own ? trailing - bubbleWidth : leading)
       result.bubbleFrame = CGRect(x: bubbleX, y: y, width: bubbleWidth, height: innerHeight + 2 * spacing.sm)
       result.text = body
       result.textFrame = CGRect(CGPoint(x: bubbleX + bubblePadding, y: y + spacing.sm), body)

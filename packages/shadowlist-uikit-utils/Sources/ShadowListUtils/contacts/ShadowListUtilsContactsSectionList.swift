@@ -78,6 +78,9 @@ public final class ShadowListUtilsContactsSectionList: ShadowListUtilsList {
   public override init(theme: ShadowListUtilsTheme = .system) {
     super.init(theme: theme)
     stickySectionHeaders = true
+    showsSeparators = true
+    separatorInsetStart = theme.rowInset
+    separatorColor = theme.colors.separator
     allowsSelection = false
   }
 
@@ -148,15 +151,6 @@ public final class ShadowListUtilsContactsSectionList: ShadowListUtilsList {
   override func trailingSwipeActions(at index: Int) -> ShadowListKitSwipeActionsConfiguration? {
     guard let onDelete, storedItems.indices.contains(index) else { return nil }
     return .deleting(storedItems[index], title: labels.delete, color: theme.colors.red, onDelete: onDelete)
-  }
-
-  override func accessibilityActions(at index: Int) -> [UIAccessibilityCustomAction] {
-    guard let onDelete, storedItems.indices.contains(index) else { return [] }
-    let item = storedItems[index]
-    return [UIAccessibilityCustomAction(name: labels.delete) { _ in
-      onDelete(item)
-      return true
-    }]
   }
 
   /*

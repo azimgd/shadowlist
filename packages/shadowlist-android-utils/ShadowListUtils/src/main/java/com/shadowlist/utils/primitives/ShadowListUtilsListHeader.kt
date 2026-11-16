@@ -42,8 +42,9 @@ class ShadowListUtilsListHeader(
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
     val width = MeasureSpec.getSize(widthMeasureSpec)
     layoutText(width)
-    var height = theme.spacing.xs.px + (titleLayout?.height ?: 0) + theme.spacing.md.px
-    subtitleLayout?.let { height += theme.spacing.xxs.px + it.height }
+    // The vertical padding rounds once, the way React Native rounds the container.
+    val gap = if (subtitleLayout != null) theme.spacing.xxs else 0f
+    val height = (theme.spacing.xs + theme.spacing.md + gap).px + (titleLayout?.height ?: 0) + (subtitleLayout?.height ?: 0)
     setMeasuredDimension(width, resolveSize(height, heightMeasureSpec))
   }
 
@@ -51,10 +52,11 @@ class ShadowListUtilsListHeader(
     val width = right - left
     layoutText(width)
     val x = theme.spacing.lg.px
-    var y = theme.spacing.xs.px
+    // React Native floors a text origin to the pixel grid.
+    val y = kotlin.math.floor(theme.spacing.xs.pxf).toInt()
     titleView.show(titleLayout, theme.colors.label, leadingFrame(x, y, titleLayout, width))
-    y += (titleLayout?.height ?: 0) + theme.spacing.xxs.px
-    subtitleView.show(subtitleLayout, theme.colors.secondaryLabel, leadingFrame(x, y, subtitleLayout, width))
+    val subtitleY = kotlin.math.floor((theme.spacing.xs + theme.spacing.xxs).pxf).toInt() + (titleLayout?.height ?: 0)
+    subtitleView.show(subtitleLayout, theme.colors.secondaryLabel, leadingFrame(x, subtitleY, subtitleLayout, width))
   }
 
   private fun applyTheme() {

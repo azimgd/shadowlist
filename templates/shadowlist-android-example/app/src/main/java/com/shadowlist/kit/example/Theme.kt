@@ -18,7 +18,9 @@ val Number.dpf: Float get() = toFloat() * density
  * The library's light or dark theme by the device appearance. The template lists follow the
  * appearance themselves. This is for the views the example builds around them.
  */
-val Context.listTheme: ShadowListUtilsTheme get() = ShadowListUtilsTheme.system(this)
+val Context.listTheme: ShadowListUtilsTheme get() = ShadowListUtilsTheme.system(this).let {
+  it.copy(grouped = it.grouped.copy(radius = 26f))
+}
 
 /*
  * Measure and place a child at a frame in one step. A child that only moved keeps its measure.

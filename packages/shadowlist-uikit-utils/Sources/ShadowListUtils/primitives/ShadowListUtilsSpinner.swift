@@ -31,6 +31,11 @@ public final class ShadowListUtilsSpinner: UIView {
     fatalError("init(coder:) has not been implemented")
   }
 
+  public override var intrinsicContentSize: CGSize {
+    let side = size + 2 * theme.spacing.lg
+    return CGSize(width: side, height: side)
+  }
+
   public override func sizeThatFits(_ size: CGSize) -> CGSize {
     CGSize(width: size.width, height: self.size + 2 * theme.spacing.lg)
   }

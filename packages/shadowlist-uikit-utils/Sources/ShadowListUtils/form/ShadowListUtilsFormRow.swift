@@ -1,6 +1,8 @@
 import UIKit
 
-/* Native equivalent of FormRow's stacked context; only FormInput receives its alignment. */
+/*
+ * Native equivalent of FormRow's stacked context; only FormInput receives its alignment.
+ */
 public final class ShadowListUtilsFormRow: UIView {
   public var label: String { didSet { labelView.text = label; invalidateIntrinsicContentSize() } }
   public var children: [UIView] { didSet { applyLayout() } }
@@ -42,7 +44,7 @@ public final class ShadowListUtilsFormRow: UIView {
     row.alignment = over ? .fill : .center
     row.spacing = over ? theme.spacing.sm : theme.spacing.md
     row.layoutMargins = UIEdgeInsets(top: over ? 10 : 6, left: theme.grouped.rowInset, bottom: over ? 10 : 6, right: theme.grouped.rowInset)
-    labelView.font = .systemFont(ofSize: theme.typography.body.fontSize * ShadowListUtilsPlatform.textScale)
+    labelView.attributedText = theme.typography.body.attributedString(label, color: theme.colors.label)
     labelWidth.isActive = !over
     for child in children { (child as? ShadowListUtilsFormInput)?.stacked = over }
     let fills = children.contains { $0 is ShadowListUtilsFormInput }

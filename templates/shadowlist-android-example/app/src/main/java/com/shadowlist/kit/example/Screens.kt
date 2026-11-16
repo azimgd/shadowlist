@@ -6,8 +6,8 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.View
-import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import com.shadowlist.kit.ShadowListKitListView
 import com.shadowlist.kit.bench.ShadowListKitBench
 import com.shadowlist.utils.ShadowListUtilsChatInput
@@ -25,7 +25,6 @@ import com.shadowlist.utils.ShadowListUtilsFeedLabels
 import com.shadowlist.utils.ShadowListUtilsFeedList
 import com.shadowlist.utils.ShadowListUtilsFeedRow
 import com.shadowlist.utils.ShadowListUtilsImageLoader
-import com.shadowlist.utils.ShadowListUtilsImageView
 import com.shadowlist.utils.ShadowListUtilsList
 import com.shadowlist.utils.ShadowListUtilsListFooter
 import com.shadowlist.utils.ShadowListUtilsMasonryCard
@@ -124,6 +123,7 @@ class ChatScreen(context: Context, engine: Engine) :
   private fun caption(message: ShadowListUtilsChatMessage): String? = if (message.key in captioned) "Edited" else null
 
   override fun load() {
+    composer.labels = labels.copy(placeholder = "Message your crew")
     composer.onSend = { text ->
       sent.add(ShadowListUtilsChatMessage(
         key = "sent-${System.nanoTime()}", author = ShadowListUtilsChatAuthor("me", "Me"),
@@ -132,6 +132,8 @@ class ChatScreen(context: Context, engine: Engine) :
       list.backend.scrollToItem(items().lastIndex, true)
     }
     (list.template as? ShadowListUtilsChatList)?.captionForItem = ::caption
+    // The Fabric example seeds 1,000 older messages before the visible first page.
+    generated = 1000
     messages.addAll(generate(Settings.count, ::message))
     show(RowChange.Reset)
   }
@@ -215,6 +217,7 @@ class DirectoryScreen(context: Context, engine: Engine) :
     val directory = list.template as? ShadowListUtilsContactsSectionList
     if (directory != null) {
       directory.footerView = footer
+      directory.sectionIndexTitles = sections.map { it.title }
       list.update(directory) { directory.setSections(sections, Settings.animate) }
       return
     }
@@ -244,47 +247,11 @@ class GalleryScreen(context: Context, engine: Engine) :
 }
 
 /*
- * Routes by the names the iOS and React Native examples use.
- */
-object Routes {
-  val names = listOf("Feed", "Chat", "SectionList", "Masonry")
-
-  /*
-   * Feature screens, which always run on ShadowListKitListView.
-   */
-  val features = listOf(
-    "Activity", "Poll", "Tree", "Board", "Assistant", "Components", "Contacts", "Reorder", "ReorderGrid", "Snap", "Nested", "Inbox", "Horizontal", "Changes", "Collapsing", "Sections")
-
-  fun make(name: String, context: Context, engine: Engine): Screen? = when (name) {
-    "Feed" -> FeedScreen(context, engine)
-    "Chat" -> ChatScreen(context, engine)
-    "SectionList" -> DirectoryScreen(context, engine)
-    "Masonry" -> GalleryScreen(context, engine)
-    "Contacts" -> ContactsScreen(context)
-    "Reorder" -> ReorderScreen(context)
-    "ReorderGrid" -> ReorderGridScreen(context)
-    "Snap" -> SnapScreen(context)
-    "Nested" -> NestedScreen(context)
-    "Activity" -> ActivityScreen(context)
-    "Assistant" -> AssistantScreen(context)
-    "Components" -> ComponentsScreen(context)
-    "Board" -> BoardScreen(context)
-    "Tree" -> TreeScreen(context)
-    "Poll" -> PollScreen(context)
-    "Inbox" -> InboxScreen(context)
-    "Horizontal" -> HorizontalScreen(context, engine)
-    "Changes" -> ChangesScreen(context, engine)
-    "Collapsing" -> CollapsingScreen(context, engine)
-    "Sections" -> SectionsScreen(context)
-    else -> null
-  }
-}
-
-/*
  * Opens the route from the launch extras, or a list of routes and engines.
  */
 class MainActivity : Activity() {
   private var screen: Screen? = null
+  private val preferences by lazy { getPreferences(Context.MODE_PRIVATE) }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
@@ -298,17 +265,29 @@ class MainActivity : Activity() {
       @Suppress("DEPRECATION")
       window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
     }
+    @Suppress("DEPRECATION")
+    window.statusBarColor = listTheme.colors.background
+    if (android.os.Build.VERSION.SDK_INT >= 29) window.isStatusBarContrastEnforced = false
+    window.decorView.setBackgroundColor(listTheme.colors.background)
     // SLImages 0: no image loads, for runs that measure the lists alone.
-    if (!Settings.images) ShadowListUtilsImageLoader.shared = NoImages
+    if (!Settings.images) ShadowListUtilsImageLoader.shared = NoImageLoader
     val route = Settings.route
-    val screen = route?.let { Routes.make(it, this, Settings.engine) }
+    val contactName = intent.getStringExtra("SLContactName")
+    val screen = if (route == "ContactDetail" && contactName != null) {
+      ContactDetailScreen(this, ShadowListUtilsContactItem(
+        key = intent.getStringExtra("SLContactKey") ?: contactName,
+        name = contactName,
+        subtitle = intent.getStringExtra("SLContactSubtitle"),
+        avatarUrl = intent.getStringExtra("SLContactAvatar"),
+        avatarColor = if (intent.hasExtra("SLContactColor")) intent.getIntExtra("SLContactColor", 0) else null))
+    } else route?.let { ExampleSection.example(it)?.make?.invoke(this, Settings.engine) }
     if (screen == null) {
-      setContentView(home())
+      setContentView(insetFrame(page(home(), null)))
       return
     }
     this.screen = screen
     window.decorView.setBackgroundColor(listTheme.colors.background)
-    setContentView(insetFrame(screen.view))
+    setContentView(insetFrame(page(screen.view, route)))
     screen.load()
     ShadowListKitBench.startIfRequested(this, intent)
     if (screen is ListScreen) Scenario.startIfRequested(screen, intent)
@@ -320,33 +299,95 @@ class MainActivity : Activity() {
    */
   private fun insetFrame(content: View): View {
     val frame = android.widget.FrameLayout(this)
-    frame.setBackgroundColor(listTheme.colors.background)
+    frame.setBackgroundColor(if (screen == null) listTheme.colors.groupedBackground else listTheme.colors.background)
     frame.addView(content)
     frame.setOnApplyWindowInsetsListener { view, insets ->
       @Suppress("DEPRECATION")
-      view.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
+      view.setPadding(0, insets.systemWindowInsetTop, 0, 0)
       insets
     }
     return frame
   }
 
   private fun home(): View {
+    val engine = Engine.of(preferences.getString("engine", "sl"))
+    return HomeScreen(this, engine.title,
+      onOpen = { route -> open(route, Engine.of(preferences.getString("engine", "sl"))) },
+      onSelectEngine = { anchor -> showMenu(anchor, null) })
+  }
+
+  private fun page(content: View, route: String?): View {
     val column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    for (engine in Engine.entries) {
-      for (route in Routes.names) {
-        column.addView(Button(this).apply {
-          text = "$route · ${engine.title}"
-          setOnClickListener { open(route, engine) }
-        })
+    val more: ((View) -> Unit)? = if (route in setOf("Feed", "Masonry", "Nested", "Chat", "Assistant", "Inbox", "Activity", "Contacts", "SectionList", "ReorderGrid", "Tree") || screen is ListScreen || screen?.headerMenu().orEmpty().isNotEmpty()) {
+      { anchor -> showMenu(anchor, route) }
+    } else null
+    val title = if (route == "ContactDetail") "" else route?.let { ExampleSection.example(it)?.title ?: it } ?: "ShadowList"
+    val bar = ExampleNavigationBar(this, title,
+      home = route == null, onBack = { if (route == "ContactDetail") finish() else goHome() }, onMore = more)
+    if (route == "ContactDetail") bar.elevation = 0f
+    column.addView(bar, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 56.dp))
+    column.addView(content, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+    return column
+  }
+
+  private fun showMenu(anchor: View, route: String?) {
+    val menu = PopupMenu(this, anchor)
+    val listScreen = screen as? ListScreen
+    if (listScreen != null) {
+      menu.menu.add(if (route == "Chat") "Load Earlier Messages" else "Prepend Items")
+        .setOnMenuItemClickListener { listScreen.prependRows(); true }
+      menu.menu.add(if (route == "Chat") "Simulate Incoming Messages" else "Append Items")
+        .setOnMenuItemClickListener { listScreen.appendRows(); true }
+      menu.menu.add("Jump to Random Item").setOnMenuItemClickListener {
+        if (listScreen.list.rows.isNotEmpty()) {
+          listScreen.list.backend.scrollToItem(listScreen.list.rows.indices.random(), false)
+        }
+        true
       }
     }
-    for (route in Routes.features) {
-      column.addView(Button(this).apply {
-        text = "$route · ${Engine.SHADOWLIST.title}"
-        setOnClickListener { open(route, Engine.SHADOWLIST) }
-      })
+    androidx.core.view.MenuCompat.setGroupDividerEnabled(menu.menu, true)
+    screen?.headerMenu().orEmpty().forEachIndexed { group, actions ->
+      actions.forEach { action ->
+        menu.menu.add(group + 1, android.view.Menu.NONE, android.view.Menu.NONE, action.label).apply {
+          action.checked?.let {
+            isCheckable = true
+            isChecked = it
+          }
+          setOnMenuItemClickListener { action.onPress(); true }
+        }
+      }
     }
-    return android.widget.ScrollView(this).apply { addView(column) }
+    val engines = menu.menu.addSubMenu("List engine")
+    Engine.entries.forEach { engine ->
+      engines.add(engine.title).apply {
+        isCheckable = true
+        isChecked = engine.id == (if (route == null) preferences.getString("engine", "sl") else Settings.engine.id)
+        setOnMenuItemClickListener {
+          preferences.edit().putString("engine", engine.id).apply()
+          (anchor as? com.shadowlist.utils.ShadowListUtilsGroupedRow)?.subtitle = engine.title
+          if (route != null) open(route, engine)
+          true
+        }
+      }
+    }
+    menu.show()
+  }
+
+  private fun goHome() {
+    startActivity(Intent(this, MainActivity::class.java)
+      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+  }
+
+  fun openContact(contact: ShadowListUtilsContactItem) {
+    startActivity(Intent(this, MainActivity::class.java).apply {
+      putExtra("SLRoute", "ContactDetail")
+      putExtra("SLEngine", Settings.engine.id)
+      putExtra("SLContactKey", contact.key)
+      putExtra("SLContactName", contact.name)
+      putExtra("SLContactSubtitle", contact.subtitle)
+      putExtra("SLContactAvatar", contact.avatarUrl)
+      contact.avatarColor?.let { putExtra("SLContactColor", it) }
+    })
   }
 
   private fun open(route: String, engine: Engine) {
@@ -354,12 +395,4 @@ class MainActivity : Activity() {
       .putExtra("SLRoute", route).putExtra("SLEngine", engine.id)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
   }
-}
-
-/*
- * An image loader that loads nothing. Image views keep their placeholder color.
- */
-private object NoImages : ShadowListUtilsImageLoader() {
-  override fun load(url: String, into: ShadowListUtilsImageView) {}
-  override fun cancel(view: ShadowListUtilsImageView) {}
 }

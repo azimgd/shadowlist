@@ -7,7 +7,9 @@ import android.text.InputType
 import android.view.Gravity
 import android.widget.FrameLayout
 
-/* Controlled editing uses the same native composition owner as ChatInput and FormInput. */
+/*
+ * Controlled field or code/text block; only native text input owns marked text and selection.
+ */
 class ShadowListUtilsTextField(context: Context, value: String, val theme: ShadowListUtilsTheme = ShadowListUtilsTheme.system(context)) : FrameLayout(context) {
   var value = value
     set(value) { field = value; editing.value = value }
@@ -22,6 +24,8 @@ class ShadowListUtilsTextField(context: Context, value: String, val theme: Shado
     set(value) { field = value; input.contentDescription = value ?: placeholder }
   internal val input = ShadowListUtilsTextInputEditText(context)
   private val editing = ShadowListUtilsTextInput(input, value)
+  private val defaultPaddingTop = input.paddingTop
+  private val defaultPaddingBottom = input.paddingBottom
 
   init {
     background = GradientDrawable().apply { setColor(theme.colors.fill); cornerRadius = 9f.px.toFloat() }
@@ -50,8 +54,10 @@ class ShadowListUtilsTextField(context: Context, value: String, val theme: Shado
     input.gravity = Gravity.TOP or Gravity.START
     input.textSize = if (multiline) 14f else theme.typography.body.fontSize
     input.typeface = if (multiline) Typeface.MONOSPACE else Typeface.DEFAULT
-    input.letterSpacing = if (multiline) -0.6f / 14f else theme.typography.body.letterSpacing / theme.typography.body.fontSize
-    input.setPadding(12f.px, (if (multiline) 10f else 0f).px, 12f.px, (if (multiline) 10f else 0f).px)
+    input.letterSpacing = if (multiline) (-0.6f).spf / input.textSize else theme.typography.body.letterSpacing.spf / input.textSize
+    // React Native floors a TextInput's padding to pixels.
+    val paddingHorizontal = kotlin.math.floor(12f.pxf).toInt()
+    input.setPadding(paddingHorizontal, if (multiline) 10f.px else defaultPaddingTop, paddingHorizontal, if (multiline) 10f.px else defaultPaddingBottom)
     if (!multiline) input.gravity = Gravity.CENTER_VERTICAL or Gravity.START
   }
 }

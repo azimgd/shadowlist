@@ -3,10 +3,7 @@ package com.shadowlist.utils
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.res.Resources
-import android.graphics.Canvas
 import android.graphics.Outline
-import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.Rect
 import android.os.Build
 import android.util.TypedValue
@@ -205,96 +202,5 @@ internal fun AccessibilityNodeInfo.setHint(hint: String) {
     hintText = hint
   } else {
     contentDescription = listOfNotNull(contentDescription, hint).joinToString(", ")
-  }
-}
-
-/*
- * The three icons the rows draw: the grip of a reorderable row, the chevron of a row that opens
- * something and the check of a selected row. Each fills its view, which is square.
- */
-internal class ShadowListUtilsIconView(context: Context, private val kind: Kind) : View(context) {
-  enum class Kind { GRIP, CHEVRON, CHECK }
-
-  private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-  private val path = Path()
-
-  /*
-   * The direction the chevron was last drawn for.
-   */
-  private var pathRightToLeft = false
-
-  var color: Int
-    get() = paint.color
-    set(value) {
-      if (paint.color == value) return
-      paint.color = value
-      invalidate()
-    }
-
-  override fun onSizeChanged(width: Int, height: Int, previousWidth: Int, previousHeight: Int) {
-    super.onSizeChanged(width, height, previousWidth, previousHeight)
-    buildPath()
-  }
-
-  override fun onDraw(canvas: Canvas) {
-    if (kind == Kind.GRIP) {
-      // Three lines as wide as the icon, GRIP_GAP_SHARE of its size apart.
-      paint.style = Paint.Style.FILL
-      val thickness = GRIP_STROKE_DP.pxf
-      val step = thickness + width * GRIP_GAP_SHARE
-      val top = (height - (3 * thickness + 2 * width * GRIP_GAP_SHARE)) / 2f
-      for (line in 0 until 3) {
-        val y = top + line * step
-        canvas.drawRoundRect(0f, y, width.toFloat(), y + thickness, thickness / 2f, thickness / 2f, paint)
-      }
-      return
-    }
-    if (kind == Kind.CHEVRON && pathRightToLeft != ShadowListUtilsPlatform.isRightToLeft) buildPath()
-    paint.style = Paint.Style.STROKE
-    paint.strokeWidth = (if (kind == Kind.CHECK) CHECK_STROKE_DP else CHEVRON_STROKE_DP).pxf
-    canvas.drawPath(path, paint)
-  }
-
-  /*
-   * The icon's shape in a square of a size. The grip is filled and the others are stroked. A
-   * chevron points left in a layout that runs from right to left.
-   */
-  private fun buildPath() {
-    path.reset()
-    val size = width.toFloat()
-    pathRightToLeft = ShadowListUtilsPlatform.isRightToLeft
-    when (kind) {
-      Kind.GRIP -> Unit
-      Kind.CHEVRON -> {
-        // Two arms of CHEVRON_ARM_SHARE of the size, meeting at a right angle.
-        val reach = size * CHEVRON_ARM_SHARE * HALF_DIAGONAL
-        val direction = if (pathRightToLeft) -1f else 1f
-        path.moveTo(size / 2f - direction * reach / 2f, size / 2f - reach)
-        path.lineTo(size / 2f + direction * reach / 2f, size / 2f)
-        path.lineTo(size / 2f - direction * reach / 2f, size / 2f + reach)
-      }
-      Kind.CHECK -> {
-        // A short arm and a long one meeting at the bottom, the long one rising to the right.
-        val short = size * CHECK_SHORT_SHARE * HALF_DIAGONAL
-        val long = size * CHECK_LONG_SHARE * HALF_DIAGONAL
-        val cornerX = size / 2f + (short - long) / 2f
-        val cornerY = size / 2f + (short + long) / 2f - size * CHECK_LIFT_SHARE
-        path.moveTo(cornerX - short, cornerY - short)
-        path.lineTo(cornerX, cornerY)
-        path.lineTo(cornerX + long, cornerY - long)
-      }
-    }
-  }
-
-  private companion object {
-    const val HALF_DIAGONAL = 0.70710677f
-    const val GRIP_STROKE_DP = 1.75f
-    const val GRIP_GAP_SHARE = 0.22f
-    const val CHEVRON_STROKE_DP = 2f
-    const val CHEVRON_ARM_SHARE = 0.42f
-    const val CHECK_STROKE_DP = 2.2f
-    const val CHECK_SHORT_SHARE = 0.26f
-    const val CHECK_LONG_SHARE = 0.5f
-    const val CHECK_LIFT_SHARE = 0.06f
   }
 }

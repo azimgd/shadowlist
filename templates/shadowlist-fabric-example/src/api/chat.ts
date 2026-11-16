@@ -19,7 +19,9 @@ const FIRST_PAGE_SIZE = listCount;
 
 let generatedCount = 0;
 const generateMessages = (count: number) =>
-  Array.from({ length: count }, () => buildChatMessage(generatedCount++));
+  Array.from({ length: count }, () =>
+    buildChatMessage(generatedCount++, HISTORY_SIZE + listCount)
+  );
 
 const messages = new Collection<ChatMessage>({
   seed: () => generateMessages(HISTORY_SIZE + listCount),

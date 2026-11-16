@@ -13,7 +13,7 @@ public final class ShadowListUtilsDashedButton: UIButton {
     super.init(frame: .zero)
     backgroundColor = theme.colors.accentSoft; layer.cornerRadius = 10
     outline.fillColor = UIColor.clear.cgColor; outline.strokeColor = theme.colors.accent.cgColor
-    outline.lineWidth = 1; outline.lineDashPattern = [4, 3]; layer.addSublayer(outline)
+    outline.lineWidth = 1; outline.lineDashPattern = [3, 3]; layer.addSublayer(outline)
     contentEdgeInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
     titleLabel?.numberOfLines = 0; titleLabel?.textAlignment = .center; titleLabel?.lineBreakMode = .byWordWrapping
     addAction(UIAction { [weak self] _ in guard let self, !self.disabled else { return }; self.onPress?() }, for: .touchUpInside)
@@ -28,6 +28,9 @@ public final class ShadowListUtilsDashedButton: UIButton {
   public override func sizeThatFits(_ size: CGSize) -> CGSize {
     let measured = titleLabel?.sizeThatFits(CGSize(width: max(1, size.width), height: CGFloat.greatestFiniteMagnitude)) ?? .zero
     return CGSize(width: size.width, height: max(theme.tapTarget, measured.height + 16))
+  }
+  public override func titleRect(forContentRect contentRect: CGRect) -> CGRect {
+    ShadowListUtilsPlatform.centeredTitleRect(super.titleRect(forContentRect: contentRect), title: currentAttributedTitle, in: contentRect)
   }
   public override func layoutSubviews() {
     super.layoutSubviews()

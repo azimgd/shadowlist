@@ -51,7 +51,9 @@ internal open class ShadowListUtilsListAdapter(protected val list: ShadowListUti
   protected fun size(row: ShadowListUtilsRow, crossSize: Int): Int {
     list.itemCrossSizePx = crossSize
     val layout = list.layoutCache.layout(row, crossSize)
-    return if (list.horizontal) layout.widthPx else layout.heightPx
+    val separator = if (list is ShadowListUtilsContactsSectionList && row !is ShadowListUtilsSectionHeader &&
+      list.sections.none { it.items.lastOrNull()?.key == row.key }) ShadowListUtilsTheme.HAIRLINE_PX else 0
+    return if (list.horizontal) layout.widthPx else layout.heightPx + separator
   }
 
   // endregion

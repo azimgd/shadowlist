@@ -25,7 +25,7 @@ class InboxTest {
   /*
    * Where a row's text starts: after the gutter, the avatar and the gap.
    */
-  private val bodyLeft = 28f.px + 40f.px + 12f.px
+  private val bodyLeft = (28f + 40f + 12f).px
 
   private fun message(index: Int, read: Boolean = true, flagged: Boolean = false) = ShadowListUtilsInboxMessage(
     key = "mail-$index", sender = "Sender $index", subject = "Subject $index",

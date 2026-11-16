@@ -88,6 +88,97 @@ function packageSource(path: string): string {
   return readFileSync(join(__dirname, '..', path), 'utf8');
 }
 
+/*
+ * All members of a bridge enum, including implicit successive values. An expression needs an
+ * explicit decoder here rather than silently dropping a declaration from the parity check.
+ */
+function bridgeEnum(source: string, name: string): Record<string, number> {
+  const body = new RegExp(`enum ${name} : int \\{([^}]+)\\}`).exec(source);
+  if (!body) throw new Error(`Missing bridge enum ${name}`);
+  const values: Record<string, number> = {};
+  let next = 0;
+  for (const declaration of body[1]!.split(',')) {
+    const member = declaration.trim();
+    if (!member) continue;
+    const match = /^([A-Z_]+)(?:\s*=\s*(0x[\dA-Fa-f]+|\d+))?$/.exec(member);
+    if (!match) throw new Error(`Unparsed ${name} member: ${member}`);
+    if (match[2]) next = Number(match[2]);
+    if (match[1]! in values) throw new Error(`Duplicate ${name}.${match[1]}`);
+    values[match[1]!] = next++;
+  }
+  return values;
+}
+
+function bridgeConstants(
+  source: string,
+  prefix: string
+): Record<string, number> {
+  const values: Record<string, number> = {};
+  const declarations = new RegExp(
+    `(?:const\\s+val|static\\s+readonly)\\s+(${prefix}[A-Z_]+)\\s*=\\s*([^;\\n]+)`,
+    'g'
+  );
+  for (const match of source.matchAll(declarations)) {
+    const value = match[2]!.trim();
+    if (!/^(0x[\dA-Fa-f]+|\d+)$/.test(value)) {
+      throw new Error(`Unparsed bridge constant ${match[1]}: ${value}`);
+    }
+    if (match[1]! in values) throw new Error(`Duplicate ${match[1]}`);
+    values[match[1]!] = Number(value);
+  }
+  return values;
+}
+
+describe('kit bridge declarations', () => {
+  it('maps every shared slot and commit flag exactly across C++, Kotlin and TypeScript', () => {
+    const core = readFileSync(join(CORE_DIR, 'host/KitBridge.hpp'), 'utf8');
+    const android = readFileSync(
+      join(
+        CORE_DIR,
+        '../shadowlist-android/ShadowListKit/src/main/java/com/shadowlist/kit/ShadowListKitCore.kt'
+      ),
+      'utf8'
+    );
+    const androidState = readFileSync(
+      join(
+        CORE_DIR,
+        '../shadowlist-android/ShadowListKit/src/main/java/com/shadowlist/kit/ShadowListKitListState.kt'
+      ),
+      'utf8'
+    );
+    const wasm = readFileSync(
+      join(CORE_DIR, '../shadowlist-wasm/src/ShadowListKitCore.ts'),
+      'utf8'
+    );
+    const groups = [
+      ['PassSlot', 'PASS_'],
+      ['MountSlot', 'MOUNT_'],
+      ['StickySlot', 'STICKY_'],
+      ['CommitFlag', 'COMMIT_'],
+    ];
+    expect(
+      Array.from(
+        core.matchAll(/^enum (\w+) : int /gm),
+        (match) => match[1]
+      ).sort()
+    ).toEqual(
+      [...groups.map(([name]) => name), 'ViewabilityConfigSlot'].sort()
+    );
+    for (const [name, prefix] of groups) {
+      const expected = bridgeEnum(core, name!);
+      expect(bridgeConstants(android + '\n' + androidState, prefix!)).toEqual(
+        expected
+      );
+      expect(bridgeConstants(wasm, prefix!)).toEqual(expected);
+    }
+    expect(bridgeConstants(android, 'VIEWABILITY_')).toEqual(
+      bridgeEnum(core, 'ViewabilityConfigSlot')
+    );
+    // The web kit has no viewability config bridge. Adding one must extend this mapping.
+    expect(bridgeConstants(wasm, 'VIEWABILITY_')).toEqual({});
+  });
+});
+
 describe('core constants', () => {
   it('match the mounted range numbers the JS range math uses', () => {
     expect(SHADOWLIST_OVERSCAN).toBe(

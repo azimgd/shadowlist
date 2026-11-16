@@ -129,4 +129,13 @@ class PollTest {
     assertTrue(large.heightPx > regular.heightPx)
     assertTrue(large.label.lineCount > 1)
   }
+
+  @Test
+  fun a_poll_row_centers_its_body_against_the_selection() = onMain {
+    val layout = ShadowListUtilsPollRow(options[0], 8.0, theme = theme).layout(TEST_WIDTH_DP.px) as ShadowListUtilsPollRowLayout
+    assertEquals(72f.px, layout.heightPx)
+    assertEquals(14f.pxf, layout.selectionFrame.top.toFloat(), 1f)
+    assertEquals((layout.heightPx - layout.selectionFrame.bottom).toFloat(), layout.selectionFrame.top.toFloat(), 1f)
+    assertEquals(layout.selectionFrame.centerY().toFloat(), (layout.labelFrame.top + layout.barFrame.bottom) / 2f, 1f)
+  }
 }

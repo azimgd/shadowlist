@@ -212,4 +212,16 @@ final class ThemeTests: XCTestCase {
       XCTAssertEqual(vector["tapTarget"] as? CGFloat, theme.tapTarget)
     }
   }
+
+  func testALabelsBaselineOffsetRaisesItsGlyphsByWholePixels() {
+    let scale = UIScreen.main.scale
+    let theme = ShadowListUtilsTheme.light
+    for style in [theme.typography.body, theme.typography.subhead, theme.typography.footnote, theme.typography.caption] {
+      let font = UIFont.systemFont(ofSize: style.fontSize)
+      let offset = ShadowListUtilsTextStyle.labelBaselineOffset(font, lineHeight: style.lineHeight)
+      XCTAssertEqual(offset * scale, (offset * scale).rounded(), accuracy: 1e-9)
+      // Within a pixel of the half-leading React Native applies.
+      XCTAssertEqual(offset, ShadowListUtilsTextStyle.baselineOffset(font, lineHeight: style.lineHeight), accuracy: 1 / scale)
+    }
+  }
 }

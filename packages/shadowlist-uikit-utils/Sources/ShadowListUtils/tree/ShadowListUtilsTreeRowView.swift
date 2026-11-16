@@ -11,7 +11,7 @@ public final class ShadowListUtilsTreeRowView: ShadowListUtilsRowView {
     super.init(reuseIdentifier: reuseIdentifier)
     isAccessibilityElement = true
     chevron.contentMode = .scaleAspectFit
-    icon.contentMode = .scaleAspectFit
+    icon.contentMode = .center
     [name, chevron, icon, count].forEach(addSubview)
   }
 
@@ -19,11 +19,13 @@ public final class ShadowListUtilsTreeRowView: ShadowListUtilsRowView {
     guard let row = row as? ShadowListUtilsTreeRow else { return }
     restingBackgroundColor = row.theme.colors.background
     pressedBackgroundColor = row.interactive ? row.theme.colors.elevated : nil
-    chevron.image = UIImage(systemName: row.isExpanded ? "chevron.down" : "chevron.forward")
+    chevron.image = ShadowListUtilsChevronIcon.image(size: 14, strokeWidth: 1.75)
+    chevron.transform = CGAffineTransform(rotationAngle: row.isExpanded ? .pi / 2 : 0)
     chevron.tintColor = row.theme.colors.tertiaryLabel
     chevron.isHidden = !row.hasChildren
-    icon.image = row.icon ?? UIImage(systemName: (row.item.kind ?? (row.item.children == nil ? .file : .folder)) == .folder ? "folder" : "doc")
-    icon.tintColor = row.theme.colors.label
+    let folder = (row.item.kind ?? (row.item.children == nil ? .file : .folder)) == .folder
+    icon.image = row.icon ?? (folder ? ShadowListUtilsFolderIcon.image(size: 20) : ShadowListUtilsDocIcon.image(size: 18))
+    icon.tintColor = folder ? row.theme.colors.accent : row.theme.colors.secondaryLabel
     accessibilityLabel = row.item.name
     accessibilityHint = row.hasChildren ? (row.isExpanded ? row.labels.collapse : row.labels.expand) : nil
     accessibilityValue = row.hasChildren ? (row.isExpanded ? row.labels.collapse : row.labels.expand) : nil

@@ -6,12 +6,14 @@ public final class ShadowListUtilsBoardCardView: ShadowListUtilsRowView {
   private let accent = UIView()
   private let title = ShadowListKitTextView(frame: .zero)
   private let detail = ShadowListKitTextView(frame: .zero)
+  private let due = ShadowListKitTextView(frame: .zero)
+  private let dot = UIView()
 
   public required init(reuseIdentifier: String?) {
     super.init(reuseIdentifier: reuseIdentifier)
     isAccessibilityElement = true
     addSubview(card)
-    [accent, title, detail].forEach(card.addSubview)
+    [accent, title, detail, due, dot].forEach(card.addSubview)
   }
   public override func fill(_ row: ShadowListUtilsRow) {
     guard let row = row as? ShadowListUtilsBoardCard else { return }
@@ -19,8 +21,12 @@ public final class ShadowListUtilsBoardCardView: ShadowListUtilsRowView {
     pressedBackgroundColor = nil
     card.backgroundColor = row.theme.colors.background
     card.layer.cornerRadius = row.theme.radius.md
+    card.clipsToBounds = true
+    card.layer.borderWidth = ShadowListUtilsTheme.hairline
+    card.layer.borderColor = row.theme.colors.separator.cgColor
     accent.backgroundColor = row.color
-    accent.layer.cornerRadius = row.theme.spacing.xs / 2
+    dot.backgroundColor = row.color
+    dot.layer.cornerRadius = ShadowListUtilsBoardCard.dotSize / 2
     accessibilityLabel = row.accessibilityLabel ?? [row.title, row.label, row.detail].compactMap { $0 }.joined(separator: ", ")
   }
   public override func apply(_ row: ShadowListUtilsRow, layout: ShadowListUtilsRowLayout) {
@@ -31,5 +37,8 @@ public final class ShadowListUtilsBoardCardView: ShadowListUtilsRowView {
     title.frame = layout.titleFrame.offsetBy(dx: -layout.card.minX, dy: -layout.card.minY)
     detail.show(layout.detail, row.theme.colors.secondaryLabel)
     detail.frame = layout.detailFrame.offsetBy(dx: -layout.card.minX, dy: -layout.card.minY)
+    due.show(layout.due, row.theme.colors.tertiaryLabel)
+    due.frame = layout.dueFrame.offsetBy(dx: -layout.card.minX, dy: -layout.card.minY)
+    dot.frame = layout.dotFrame.offsetBy(dx: -layout.card.minX, dy: -layout.card.minY)
   }
 }

@@ -1,5 +1,7 @@
 import type { ChatAuthor, ChatMessage } from 'shadowlist-utils/native';
+import { listCount } from '../launchSettings';
 import {
+  FIXTURE_NOW,
   AVATAR_NAMES,
   generateImageGrid,
   generateOptimizedImageUrl,
@@ -10,18 +12,22 @@ import {
 
 export const CHAT_ME: ChatAuthor = { id: 'me', name: 'Me' };
 
-export function buildChatMessage(index: number): ChatMessage {
+export function buildChatMessage(
+  index: number,
+  count: number = listCount
+): ChatMessage {
   if (index % 3 !== 0) {
-    return buildMessageContent(index, CHAT_ME, true);
+    return buildMessageContent(index, CHAT_ME, true, count);
   }
   const name = AVATAR_NAMES[index % AVATAR_NAMES.length]!;
-  return buildMessageContent(index, { id: name, name }, false);
+  return buildMessageContent(index, { id: name, name }, false, count);
 }
 
 function buildMessageContent(
   index: number,
   author: ChatAuthor,
-  isOwn: boolean
+  isOwn: boolean,
+  count: number
 ): ChatMessage {
   const imageUrl = generateOptimizedImageUrl(index);
   const images = shouldBeImageGrid(index)
@@ -35,6 +41,6 @@ function buildMessageContent(
     isOwn,
     text: images === undefined ? generateRandomText(index) : undefined,
     images,
-    createdAt: Date.now(),
+    createdAt: FIXTURE_NOW - Math.max(0, count - index) * 60_000,
   };
 }

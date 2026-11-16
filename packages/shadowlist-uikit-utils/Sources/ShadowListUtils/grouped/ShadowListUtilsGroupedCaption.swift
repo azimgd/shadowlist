@@ -18,5 +18,5 @@ public final class ShadowListUtilsGroupedCaption: UIView {
   @available(*, unavailable)
   public required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
   public override func sizeThatFits(_ size: CGSize) -> CGSize { systemLayoutSizeFitting(CGSize(width: size.width, height: 0), withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel) }
-  private func applyTitle() { label.text = theme.grouped.captionCase == .upper ? title.uppercased() : title; invalidateIntrinsicContentSize() }
+  private func applyTitle() { label.attributedText = theme.typography.footnote.attributedString(theme.grouped.captionCase == .upper ? title.uppercased() : title, color: theme.colors.secondaryLabel); invalidateIntrinsicContentSize() }
 }

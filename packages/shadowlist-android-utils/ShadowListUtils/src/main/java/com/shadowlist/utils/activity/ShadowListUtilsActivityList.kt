@@ -50,6 +50,8 @@ class ShadowListUtilsActivityList : ShadowListUtilsList {
   init {
     allowsSelection = false
     showsSeparators = true
+    separatorInsetStartPx = theme.rowInset.px
+    separatorColor = theme.colors.separator
   }
 
   private fun makeRow(item: ShadowListUtilsActivityItem): ShadowListUtilsRow =

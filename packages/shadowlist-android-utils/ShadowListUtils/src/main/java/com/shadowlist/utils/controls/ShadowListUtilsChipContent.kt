@@ -12,7 +12,9 @@ import android.view.View
 import android.widget.FrameLayout
 import androidx.core.widget.TextViewCompat
 import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /* Shared native slots and text measurement for Chip and ChoiceChip; no application state. */
 internal class ShadowListUtilsChipContent(context: Context, val theme: ShadowListUtilsTheme) : FrameLayout(context) {
@@ -78,29 +80,37 @@ internal class ShadowListUtilsChipContent(context: Context, val theme: ShadowLis
     requestLayout(); invalidate()
   }
 
-  private val padding: Int get() = (if (size == ShadowListUtilsChipSize.COMPACT) 11f else 14f).px + borderWidth.px
-  private val gap: Int get() = (if (size == ShadowListUtilsChipSize.COMPACT) 6f else 4f).px
+  private val inset: Float get() = if (size == ShadowListUtilsChipSize.COMPACT) 11f else 14f
+  private val spacing: Float get() = if (size == ShadowListUtilsChipSize.COMPACT) 6f else 4f
+  private val padding: Int get() = inset.px + borderWidth.px
+  private val gap: Int get() = spacing.px
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
     val unspecified = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
     clearButton.measure(unspecified, unspecified)
-    val leading = if (leadingView == null) 0 else 14f.px + gap
     val trailing = if (onClear == null) 0 else clearButton.measuredWidth + gap
     val widthLimit = 240f.px
     button.setPadding(0, 0, 0, 0); button.measure(unspecified, unspecified)
-    val desired = min(widthLimit, button.measuredWidth + 2 * padding + leading + trailing)
+    val labelWidth = button.measuredWidth
+    /*
+     * React Native rounds the chip's width once and floors the label's origin. The trailing
+     * inset takes the rest of the width.
+     */
+    val insets = 2 * (inset + borderWidth).pxf + if (leadingView == null) 0f else (LEADING_SIZE_DP + spacing).pxf
+    val desired = min(widthLimit, (labelWidth + insets).roundToInt() + trailing)
     val width = resolveSize(desired, widthMeasureSpec)
     val height = (if (size == ShadowListUtilsChipSize.COMPACT) 28f else 34f).px
     val direction = ShadowListUtilsDirection(width)
-    val before = padding + leading; val after = padding + trailing
+    val before = floor(insets - (inset + borderWidth).pxf).toInt()
+    val after = (width - before - labelWidth).coerceAtLeast(padding + trailing)
     button.setPadding(if (direction.isRightToLeft) after else before, 0, if (direction.isRightToLeft) before else after, 0)
     button.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
-    leadingView?.measure(MeasureSpec.makeMeasureSpec(14f.px, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(14f.px, MeasureSpec.EXACTLY))
+    leadingView?.measure(MeasureSpec.makeMeasureSpec(LEADING_SIZE_DP.px, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(LEADING_SIZE_DP.px, MeasureSpec.EXACTLY))
     setMeasuredDimension(width, height)
   }
   override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
     button.layout(0, 0, width, height)
     val direction = ShadowListUtilsDirection(width)
-    leadingView?.let { it.place(direction.place(Rect(padding, (height - 14f.px) / 2, padding + 14f.px, (height + 14f.px) / 2))) }
+    leadingView?.let { it.place(direction.place(Rect(padding, (height - LEADING_SIZE_DP.px) / 2, padding + LEADING_SIZE_DP.px, (height + LEADING_SIZE_DP.px) / 2))) }
     val clearWidth = clearButton.measuredWidth; val clearHeight = clearButton.measuredHeight
     clearButton.place(direction.place(Rect(width - padding - clearWidth, (height - clearHeight) / 2, width - padding, (height + clearHeight) / 2)))
     updateClearDelegate()
@@ -116,5 +126,9 @@ internal class ShadowListUtilsChipContent(context: Context, val theme: ShadowLis
     val group = ShadowListUtilsTouchDelegateGroup.forParent(button)
     if (clearDelegate !== group) { clearDelegate?.remove(clearButton); clearDelegate = group }
     group.update(clearButton, 8f.px)
+  }
+
+  private companion object {
+    const val LEADING_SIZE_DP = 14f
   }
 }

@@ -38,6 +38,25 @@ final class GroupedRowTests: XCTestCase {
     XCTAssertTrue(row.accessibilityTraits.contains(.link))
   }
 
+  func testPhysicalTextHitReachesPrimaryButtonAndPreservesSlotControls() throws {
+    let row = ShadowListUtilsGroupedRow(title: "Reservation")
+    var presses = 0
+    row.onPress = { presses += 1 }
+    let window = attached(row)
+    defer { window.isHidden = true }
+    let hit = try XCTUnwrap(row.hitTest(CGPoint(x: 100, y: row.bounds.midY), with: nil) as? UIButton)
+    hit.sendActions(for: .touchUpInside)
+    XCTAssertEqual(presses, 1)
+
+    let trailing = UIButton(type: .system)
+    trailing.setTitle("More", for: .normal)
+    row.trailing = trailing
+    row.layoutIfNeeded()
+    window.layoutIfNeeded()
+    let point = row.convert(CGPoint(x: trailing.bounds.midX, y: trailing.bounds.midY), from: trailing)
+    XCTAssertTrue(row.hitTest(point, with: nil) === trailing)
+  }
+
   func testDisabledPrimaryAndLabelledAccessibilityHoldKeepIndependentActions() throws {
     let row = ShadowListUtilsGroupedRow(title: "Reservation")
     var presses = 0; var holds = 0; var archives = 0; var caller = 0

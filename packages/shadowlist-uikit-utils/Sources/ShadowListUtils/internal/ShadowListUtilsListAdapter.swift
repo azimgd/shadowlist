@@ -50,7 +50,7 @@ class ShadowListUtilsListAdapter: NSObject, ShadowListKitListViewDataSource, Sha
     guard let list else { return 0 }
     list.itemCrossSize = crossSize
     let layout = list.layoutCache.layout(row, width: crossSize)
-    return listView.isHorizontal ? layout.width : layout.height
+    return listView.isHorizontal ? layout.width : layout.height + (listView.showsSeparators && !(row is ShadowListUtilsSectionHeader) ? ShadowListUtilsTheme.hairline : 0)
   }
 
   // MARK: - Data

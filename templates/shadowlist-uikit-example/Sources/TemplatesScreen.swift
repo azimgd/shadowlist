@@ -2,9 +2,11 @@ import ShadowListUtils
 import ShadowListKit
 import UIKit
 
-/* A real consumer of the exported components; all application state stays on this screen. */
-final class ComponentsScreen: UIViewController {
-  private let theme = ShadowListUtilsTheme.light
+/*
+ * A real consumer of the exported components; all application state stays on this screen.
+ */
+final class TemplatesScreen: UIViewController {
+  private let theme = AppTheme.theme
   private var layoutWidth: CGFloat = -1
   private let scroll = UIScrollView()
   private let stack = UIStackView()
@@ -17,8 +19,9 @@ final class ComponentsScreen: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    title = "Components"
-    view.backgroundColor = theme.colors.background
+    title = "Templates"
+    view.backgroundColor = theme.colors.groupedBackground
+    if #available(iOS 17, *) { view.keyboardLayoutGuide.usesBottomSafeArea = false }
     scroll.translatesAutoresizingMaskIntoConstraints = false
     stack.translatesAutoresizingMaskIntoConstraints = false
     stack.axis = .vertical; stack.spacing = theme.spacing.lg
@@ -26,10 +29,12 @@ final class ComponentsScreen: UIViewController {
     NSLayoutConstraint.activate([
       scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor), scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor), scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
-      stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor), stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
-      stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16), stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
-      stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32),
+      stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: theme.spacing.xxl), stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: theme.spacing.lg),
+      stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -theme.spacing.lg), stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -theme.spacing.xxl),
+      stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -2 * theme.spacing.lg),
     ])
+    stack.addArrangedSubview(TemplatesCatalog())
+    stack.addArrangedSubview(ShadowListUtilsGroupedCaption(title: "Assistant and advanced components", theme: theme))
     status.text = "Choose a suggestion"; status.numberOfLines = 0; status.textColor = theme.colors.label
     stack.addArrangedSubview(status)
     let empty = ShadowListUtilsAssistantEmpty(theme: theme)

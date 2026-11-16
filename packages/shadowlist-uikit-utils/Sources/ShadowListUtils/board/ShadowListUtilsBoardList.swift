@@ -25,6 +25,7 @@ public final class ShadowListUtilsBoardList<Item>: UIView {
     for column in columns {
       let view = columnViews[column.key] ?? makeColumn(column.key)
       view.list.theme = theme
+      view.list.backgroundColor = theme.colors.elevated
       view.list.dragBoardId = boardId
       view.list.dragListId = listId(column.key)
       view.list.dragListLabel = column.title
@@ -165,7 +166,7 @@ public final class ShadowListUtilsBoardList<Item>: UIView {
       guard let view = columnViews[column.key] else { continue }
       let headerHeight = view.header?.sizeThatFits(CGSize(width: layout.columnWidth, height: .greatestFiniteMagnitude)).height ?? 0
       let footerHeight = view.footer?.sizeThatFits(CGSize(width: layout.columnWidth, height: .greatestFiniteMagnitude)).height ?? 0
-      let body = columnHeight == .content ? bodyHeight : max(0, bounds.height - headerHeight - footerHeight)
+      let body = columnHeight == .content ? bodyHeight : max(0, bounds.height - theme.spacing.xl - headerHeight - footerHeight)
       let height = headerHeight + body + footerHeight
       view.frame = CGRect(x: 0, y: 0, width: layout.columnWidth, height: height)
       view.header?.frame = CGRect(x: 0, y: 0, width: layout.columnWidth, height: headerHeight)

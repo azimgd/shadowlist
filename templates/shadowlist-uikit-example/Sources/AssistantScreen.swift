@@ -8,6 +8,8 @@ import UIKit
 final class AssistantScreen: UIViewController {
   let list = ShadowListUtilsAssistantList(theme: AppTheme.theme)
   let composer = ShadowListUtilsAssistantComposer(theme: AppTheme.theme)
+  private let welcome = ShadowListUtilsAssistantEmpty(theme: AppTheme.theme)
+  private let welcomeFrame = UIView()
   private var items: [ShadowListUtilsAssistantMessage] = []
   private var turns: [String: ShadowListUtilsAssistantTurn] = [:]
   private var pending: DispatchWorkItem?
@@ -20,11 +22,26 @@ final class AssistantScreen: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
     title = "Assistant"
+    navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: UIMenu(children: [
+      UIAction(title: "Load Earlier Messages", image: UIImage(systemName: "arrow.up.to.line")) { [weak self] _ in
+        self?.list.scrollToItem(at: 0, viewPosition: 0, animated: false)
+      },
+      UIAction(title: "Send Next Suggestion", image: UIImage(systemName: "arrow.down.to.line")) { [weak self] _ in
+        guard let self, !self.welcome.suggestions.isEmpty else { return }
+        self.send(self.welcome.suggestions[self.sequence % self.welcome.suggestions.count].prompt, attachments: [])
+      },
+      UIAction(title: "Jump to Random Item", image: UIImage(systemName: "scope")) { [weak self] _ in
+        guard let self, !self.items.isEmpty else { return }
+        self.list.scrollToItem(at: Int.random(in: self.items.indices), viewPosition: 0, animated: false)
+      },
+    ]))
     view.backgroundColor = AppTheme.colors.background
     list.translatesAutoresizingMaskIntoConstraints = false
     composer.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(list)
     view.addSubview(composer)
+    // The composer runs to the screen bottom and pads itself by the safe area, or above a keyboard.
+    if #available(iOS 17, *) { view.keyboardLayoutGuide.usesBottomSafeArea = false }
     NSLayoutConstraint.activate([
       list.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
       list.leadingAnchor.constraint(equalTo: view.leadingAnchor), list.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -69,10 +86,31 @@ final class AssistantScreen: UIViewController {
       self.composer.editing = true
       self.composer.setDraft(prompt.text)
     }
-    let welcome = ShadowListUtilsAssistantTurn(
-      content: "# Plan your next trip\n\nTry **Lisbon**, compare fares in a table, or ask about a flight. Type **error** to simulate a dropped connection.",
-      status: .done(followUps: ["Write a three-day itinerary for Lisbon in May", "Compare fares to Tokyo across airlines in a table"]))
-    items = [.assistant(ShadowListUtilsAssistantReply(key: "welcome", variants: [welcome], model: models[0])), .endMarker]
+    welcome.labels.emptyTitle = "Where are we flying?"
+    welcome.labels.emptySubtitle = "Plan flights, weather and stays."
+    welcome.suggestions = [
+      ShadowListUtilsAssistantSuggestion(title: "Write an itinerary", prompt: "Write a three-day itinerary for Lisbon in May"),
+      ShadowListUtilsAssistantSuggestion(title: "Compare fares", prompt: "Compare fares to Tokyo across airlines in a table"),
+      ShadowListUtilsAssistantSuggestion(title: "Search flights", prompt: "Search Skyfy for flights to Reykjavik"),
+      ShadowListUtilsAssistantSuggestion(title: "Try a dropped connection", prompt: "Simulate a dropped connection error"),
+    ]
+    welcome.onSelectSuggestion = { [weak self] in self?.send($0.prompt, attachments: []) }
+    // The welcome shows in the list's frame, which cuts it off at the composer.
+    welcome.translatesAutoresizingMaskIntoConstraints = false
+    welcomeFrame.translatesAutoresizingMaskIntoConstraints = false
+    welcomeFrame.clipsToBounds = true
+    welcomeFrame.addSubview(welcome)
+    view.addSubview(welcomeFrame)
+    NSLayoutConstraint.activate([
+      welcomeFrame.leadingAnchor.constraint(equalTo: list.leadingAnchor),
+      welcomeFrame.trailingAnchor.constraint(equalTo: list.trailingAnchor),
+      welcomeFrame.topAnchor.constraint(equalTo: list.topAnchor),
+      welcomeFrame.bottomAnchor.constraint(equalTo: list.bottomAnchor),
+      welcome.leadingAnchor.constraint(equalTo: welcomeFrame.leadingAnchor),
+      welcome.trailingAnchor.constraint(equalTo: welcomeFrame.trailingAnchor),
+      welcome.topAnchor.constraint(equalTo: welcomeFrame.topAnchor),
+    ])
+    composer.thinking = true
     show()
   }
 
@@ -158,5 +196,9 @@ final class AssistantScreen: UIViewController {
     items[index] = .assistant(reply)
   }
 
-  private func show() { list.items = items; list.turns = turns }
+  private func show() {
+    welcomeFrame.isHidden = !items.isEmpty
+    list.items = items
+    list.turns = turns
+  }
 }

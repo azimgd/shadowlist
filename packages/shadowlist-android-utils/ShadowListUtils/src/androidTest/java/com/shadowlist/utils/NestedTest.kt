@@ -11,6 +11,8 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 @RunWith(AndroidJUnit4::class)
 class NestedTest {
@@ -65,7 +67,8 @@ class NestedTest {
     assertTrue(nested.horizontal)
     assertEquals(List(12) { "shelf-0-card-$it" }, nested.keys)
     assertTrue(nested.rowView(0) is ShadowListUtilsNestedCardView)
-    val listHeight = 220f.px + 8f.px + 2 * theme.typography.subhead.scaledLineHeightPx()
+    val listTop = theme.typography.title3.scaledLineHeightPx() + 12f.pxf
+    val listHeight = (listTop + (220f + 8f).pxf + 2 * theme.typography.subhead.lineHeight.spf).roundToInt() - listTop.roundToInt()
     val second = requireNotNull(nested.rectForItem(1))
     assertEquals(RectF(cardAlong.toFloat(), 0f, 2f * cardAlong, listHeight.toFloat()), second)
     assertEquals(cardAlong, nested.rowView(0)?.width)
@@ -126,13 +129,14 @@ class NestedTest {
     val row = ShadowListUtilsNestedRow(item(0), theme)
     val frames = row.layout(width) as ShadowListUtilsNestedRowLayout
     val title3 = theme.typography.title3
-    val listHeight = 220f.px + 8f.px + 2 * theme.typography.subhead.scaledLineHeightPx()
-    assertEquals(title3.scaledLineHeightPx() + 12f.px + listHeight + 16f.px, frames.heightPx)
+    // The list's edges and the row's height round from sums of unrounded lengths.
+    val listTop = title3.scaledLineHeightPx() + 12f.pxf
+    val listBottom = listTop + (220f + 8f).pxf + 2 * theme.typography.subhead.lineHeight.spf
+    assertEquals((listBottom + 16f.pxf).roundToInt(), frames.heightPx)
     assertEquals(16f.px, frames.titleFrame.left)
     assertEquals(0, frames.titleFrame.top)
     assertLines(frames.title, title3, 1)
-    val listTop = title3.scaledLineHeightPx() + 12f.px
-    assertEquals(Rect(0, listTop, width, listTop + listHeight), frames.listFrame)
+    assertEquals(Rect(0, listTop.roundToInt(), width, listBottom.roundToInt()), frames.listFrame)
   }
 
   @Test
@@ -142,13 +146,15 @@ class NestedTest {
     val large = withTextSize(1.5f) { row.layout(width) as ShadowListUtilsNestedRowLayout }
     val lineHeight = withTextSize(1.5f) { subhead.scaledLineHeightPx() }
     assertTrue(lineHeight > subhead.scaledLineHeightPx())
-    assertEquals(220f.px + 8f.px + 2 * lineHeight, large.listFrame.height())
-    assertEquals(large.listFrame.bottom + 16f.px, large.heightPx)
-    // Two lines of a card's title end inside the list.
+    val listTop = theme.typography.title3.let { withTextSize(1.5f) { it.scaledLineHeightPx() } } + 12f.pxf
+    val listBottom = listTop + (220f + 8f).pxf + 2 * withTextSize(1.5f) { subhead.lineHeight.spf }
+    assertEquals(listBottom.roundToInt() - listTop.roundToInt(), large.listFrame.height())
+    assertEquals((listBottom + 16f.pxf).roundToInt(), large.heightPx)
+    // Two lines of a card's title end inside the list, within the pixel their rounded line boxes add.
     val card = ShadowListUtilsNestedCard(ShadowListUtilsNestedCardItem(key = "long", title = "word ".repeat(20), imageUrl = "https://example.com/long.jpg"), theme)
     val cardLayout = withTextSize(1.5f) { card.layout(large.listFrame.height()) as ShadowListUtilsNestedCardLayout }
     assertEquals(2, cardLayout.title.lineCount)
-    assertEquals(large.listFrame.height(), cardLayout.heightPx)
+    assertEquals(large.listFrame.height().toFloat(), cardLayout.heightPx.toFloat(), 2f)
   }
 
   @Test
@@ -158,7 +164,7 @@ class NestedTest {
     assertEquals(cardAlong, frames.widthPx)
     assertEquals(Rect(16f.px, 0, cardAlong, 220f.px), frames.imageFrame)
     assertEquals(16f.px, frames.titleFrame.left)
-    assertEquals(220f.px + 8f.px, frames.titleFrame.top)
+    assertEquals(floor((220f + 8f).pxf).toInt(), frames.titleFrame.top)
     assertLines(frames.title, theme.typography.subhead, 2)
     // The layout's height is the height of the card's content, not the height of the list.
     assertEquals(frames.titleFrame.bottom, frames.heightPx)

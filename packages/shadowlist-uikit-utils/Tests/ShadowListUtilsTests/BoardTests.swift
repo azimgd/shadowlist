@@ -272,4 +272,23 @@ final class BoardTests: XCTestCase {
     XCTAssertNil(source.superview?.window)
     XCTAssertNil(target.superview?.window)
   }
+
+  func testABoardCardPlacesItsAccentDotAndDetailInsideTheBorder() throws {
+    let card = ShadowListUtilsBoardCard(key: "card", title: "Title", label: "Label", detail: "Detail", color: .red, theme: .light)
+    let layout = try XCTUnwrap(card.layout(width: 220) as? ShadowListUtilsBoardCardLayout)
+    let border = ShadowListUtilsTheme.hairline
+    XCTAssertEqual(layout.accent.minX, layout.card.minX + border)
+    XCTAssertEqual(layout.accent.width, 4)
+    XCTAssertEqual(layout.titleFrame.minX, 2 * 12 + 4 + border, accuracy: 1e-9)
+    XCTAssertEqual(layout.dotFrame.minX, layout.titleFrame.minX)
+    XCTAssertEqual(layout.dotFrame.size, CGSize(width: 8, height: 8))
+    XCTAssertEqual(layout.detailFrame.minX, layout.dotFrame.maxX + 4)
+    XCTAssertEqual(layout.dueFrame.maxX, 220 - 2 * 12 - border, accuracy: 1e-9)
+    XCTAssertEqual(layout.height, layout.card.height + 8)
+    let plain = try XCTUnwrap(
+      ShadowListUtilsBoardCard(key: "card", title: "Title", label: "Label", theme: .light).layout(width: 220) as? ShadowListUtilsBoardCardLayout)
+    XCTAssertEqual(plain.accent.width, 0)
+    XCTAssertEqual(plain.dotFrame, .zero)
+    XCTAssertEqual(plain.detailFrame.minX, plain.titleFrame.minX)
+  }
 }

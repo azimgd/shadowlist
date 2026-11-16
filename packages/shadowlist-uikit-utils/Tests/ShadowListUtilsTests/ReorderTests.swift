@@ -120,7 +120,7 @@ final class ReorderTests: XCTestCase {
     let row = ShadowListUtilsReorderRow(item: Fixture.contact(0), theme: theme, labels: ShadowListUtilsReorderLabels())
     let layout = try XCTUnwrap(row.layout(width: testWidth) as? ShadowListUtilsReorderRowLayout)
     XCTAssertEqual(layout.height, 67)
-    XCTAssertEqual(layout.avatarFrame, CGRect(x: 16, y: 13.5, width: 40, height: 40))
+    XCTAssertEqual(layout.avatarFrame, CGRect(x: 16, y: ShadowListUtilsPlatform.roundToPixel(13.5), width: 40, height: 40))
     XCTAssertEqual(layout.nameFrame.origin, CGPoint(x: 68, y: 12))
     XCTAssertEqual(layout.subtitleFrame.origin, CGPoint(x: 68, y: 35))
     XCTAssertEqual(layout.gripFrame, CGRect(x: testWidth - 16 - 20, y: ShadowListUtilsPlatform.roundToPixel(23.5), width: 20, height: 20))

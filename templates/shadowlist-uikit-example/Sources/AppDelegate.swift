@@ -26,7 +26,8 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     let opaque = UINavigationBarAppearance()
     opaque.configureWithOpaqueBackground()
     opaque.backgroundColor = AppTheme.colors.background
-    if let route = Settings.route, let example = ExampleRoute.all.first(where: { $0.route == route }) {
+    opaque.shadowColor = .clear
+    if let route = Settings.route, let example = ExampleSection.example(route: route) {
       let screen = example.make()
       screen.navigationItem.largeTitleDisplayMode = .never
       screen.navigationItem.standardAppearance = opaque

@@ -2,8 +2,6 @@ package com.shadowlist.kit.example
 
 import android.content.Context
 import android.view.View
-import com.shadowlist.utils.ShadowListUtilsActivityHeader
-import com.shadowlist.utils.ShadowListUtilsActivityHeaderAction
 import com.shadowlist.utils.ShadowListUtilsActivityActor
 import com.shadowlist.utils.ShadowListUtilsActivityItem
 import com.shadowlist.utils.ShadowListUtilsActivityList
@@ -18,12 +16,11 @@ class ActivityScreen(context: Context) : Screen {
   override val view: View get() = list
 
   override fun load() {
-    list.headerView = ShadowListUtilsActivityHeader(list.context, "Activity", "Your trip crew", listOf(
-      ShadowListUtilsActivityHeaderAction("Mark all read", {
-        items = items.map { it.copy(read = true) }
-        list.setItems(items, animated = true)
-      }),
-    ), list.context.listTheme)
+    list.stickyFooter = true
+    list.footerView = View(list.context).apply {
+      minimumHeight = (2 * list.context.listTheme.spacing.xl).dp
+      setBackgroundColor(list.context.listTheme.colors.background)
+    }
     list.onPressItem = { item ->
       items = items.map { if (it.key == item.key) it.copy(read = true) else it }
       list.setItems(items, animated = true)
@@ -34,6 +31,13 @@ class ActivityScreen(context: Context) : Screen {
       list.refreshing = false
     }
     list.items = items
+    // Match the Fabric example's initial position while keeping earlier rows available above.
+    list.scrollToItem(30)
+  }
+
+  fun markAllRead() {
+    items = items.map { it.copy(read = true) }
+    list.setItems(items, animated = true)
   }
 
   private fun activity(index: Int): ShadowListUtilsActivityItem {
@@ -45,7 +49,7 @@ class ActivityScreen(context: Context) : Screen {
       action = actions[index % actions.size],
       text = FixtureStrings.sampleTexts[index % FixtureStrings.sampleTexts.size].take(90),
       createdAtMs = System.currentTimeMillis().toDouble() - (index % 59 + 1) * 60000.0,
-      read = index % 3 == 0,
+      read = true,
     )
   }
 }

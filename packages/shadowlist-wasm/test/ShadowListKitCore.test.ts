@@ -429,6 +429,41 @@ test("the pass, mount and sticky slots are the core's here and on Android", () =
   }
 });
 
+test('mount records keep unsigned versions and decode invalid slots as unset', () => {
+  const previous = new Float64Array(ShadowListKitCore.MOUNT_SLOTS);
+  const next = new Float64Array(previous);
+  previous[ShadowListKitCore.MOUNT_GEOMETRY] = 2 ** 63;
+  next[ShadowListKitCore.MOUNT_GEOMETRY] = 2 ** 63;
+  assert.equal(
+    ShadowListKitCore.shouldSkipMount(previous, next, 0, 1, false),
+    true
+  );
+  next[ShadowListKitCore.MOUNT_GEOMETRY] = 2 ** 63 + 2048;
+  assert.equal(
+    ShadowListKitCore.shouldSkipMount(previous, next, 0, 1, false),
+    false
+  );
+  for (const slot of [
+    ShadowListKitCore.MOUNT_GEOMETRY,
+    ShadowListKitCore.MOUNT_STRUCTURE,
+    ShadowListKitCore.MOUNT_LOW,
+    ShadowListKitCore.MOUNT_HIGH,
+    ShadowListKitCore.MOUNT_STICKY,
+  ]) {
+    previous.fill(0);
+    next.fill(0);
+    previous[slot] = -1;
+    for (const invalid of [-0.5, 0.5, NaN, Infinity, -Infinity, 2 ** 64]) {
+      next[slot] = invalid;
+      assert.equal(
+        ShadowListKitCore.shouldSkipMount(previous, next, 0, 1, false),
+        true,
+        `slot ${slot} with ${invalid}`
+      );
+    }
+  }
+});
+
 test('a pass says whether an inverted list is at its end', () => {
   const { core } = laidOutCore(100, 0, { inverted: true });
   let pass = runPasses(core, core.pass[ShadowListKitCore.PASS_OUT_OFFSET]!);

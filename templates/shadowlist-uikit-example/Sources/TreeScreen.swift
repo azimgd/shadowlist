@@ -6,11 +6,12 @@ import UIKit
  */
 final class TreeScreen: UIViewController {
   let list = ShadowListUtilsTreeList(theme: AppTheme.theme)
-  private var expanded: Set<String> = ["src"]
+  private let roots = TripFileFixtures.roots
+  private var expanded: Set<String> = Set(TripFileFixtures.roots.map(\.key))
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    title = "Files"
+    title = "Trip Files"
     list.frame = view.bounds
     list.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     view.addSubview(list)
@@ -25,20 +26,17 @@ final class TreeScreen: UIViewController {
       alert.addAction(UIAlertAction(title: "Close", style: .cancel))
       self?.present(alert, animated: true)
     }
-    list.items = [
-      ShadowListUtilsTreeNode(key: "src", name: "src", children: [
-        ShadowListUtilsTreeNode(key: "components", name: "components", children: [
-          ShadowListUtilsTreeNode(key: "avatar", name: "Avatar.tsx"),
-          ShadowListUtilsTreeNode(key: "header", name: "Header.tsx"),
-        ]),
-        ShadowListUtilsTreeNode(key: "screens", name: "screens", children: [
-          ShadowListUtilsTreeNode(key: "feed", name: "FeedScreen.tsx"),
-          ShadowListUtilsTreeNode(key: "chat", name: "ChatScreen.tsx"),
-        ]),
-        ShadowListUtilsTreeNode(key: "app", name: "App.tsx"),
-      ]),
-      ShadowListUtilsTreeNode(key: "assets", name: "assets", children: []),
-      ShadowListUtilsTreeNode(key: "readme", name: "README.md"),
-    ]
+    list.items = roots
+    navigationItem.rightBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: UIMenu(children: [
+      UIAction(title: "Expand All", image: UIImage(systemName: "chevron.down.2")) { [weak self] _ in
+        guard let self else { return }
+        expanded = TripFileFixtures.folderKeys(roots)
+        list.expandedKeys = expanded
+      },
+      UIAction(title: "Collapse All", image: UIImage(systemName: "chevron.up.2")) { [weak self] _ in
+        self?.expanded = []
+        self?.list.expandedKeys = []
+      },
+    ]))
   }
 }

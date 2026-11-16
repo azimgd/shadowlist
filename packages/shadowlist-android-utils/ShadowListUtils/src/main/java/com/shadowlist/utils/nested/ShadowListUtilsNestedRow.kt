@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.os.Build
 import com.shadowlist.kit.ShadowListKitTextLayout
 import com.shadowlist.kit.ShadowListKitTextView
+import kotlin.math.roundToInt
 
 /*
  * A titled row that holds a horizontal list of cards. onPressCard runs for a tapped card with
@@ -26,11 +27,13 @@ class ShadowListUtilsNestedRow(
     val direction = ShadowListUtilsDirection(widthPx)
     val title = theme.typography.title3.layout(item.title, (widthPx - 2 * spacing.lg.px).coerceAtLeast(1), 1)
     val titleFrame = frameOf(spacing.lg.px, 0, title)
-    val listTop = title.height + spacing.md.px
+    // React Native rounds the list's edges and the row's height from sums of unrounded lengths.
+    val listTop = title.height + spacing.md.pxf
+    val listBottom = listTop + ShadowListUtilsNestedCard.heightPxf(theme)
     // The list is as tall as a card, and the row adds the space under it.
-    val listFrame = Rect(0, listTop, widthPx, listTop + ShadowListUtilsNestedCard.heightPx(theme))
+    val listFrame = Rect(0, listTop.roundToInt(), widthPx, listBottom.roundToInt())
     return ShadowListUtilsNestedRowLayout(
-      widthPx, listFrame.bottom + spacing.lg.px, title, direction.place(titleFrame), listFrame)
+      widthPx, (listBottom + spacing.lg.pxf).roundToInt(), title, direction.place(titleFrame), listFrame)
   }
 
   internal companion object {

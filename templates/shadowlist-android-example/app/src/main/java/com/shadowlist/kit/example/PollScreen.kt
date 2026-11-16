@@ -20,6 +20,11 @@ class PollScreen(context: Context) : Screen {
   override val view: View get() = list
 
   override fun load() {
+    list.setOnApplyWindowInsetsListener { _, insets ->
+      @Suppress("DEPRECATION")
+      list.setPadding(0, 0, 0, insets.systemWindowInsetBottom)
+      insets
+    }
     list.onPressItem = ::choose
     list.poll = poll
   }
