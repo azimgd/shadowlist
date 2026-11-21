@@ -14,6 +14,7 @@ include(${SHADOWLIST_KIT_CORE_DIR}/sources.cmake)
 
 add_library(shadowlistkit SHARED
   ${CMAKE_CURRENT_LIST_DIR}/ShadowListKitCoreJNI.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ShadowListKitTreeRowsJNI.cpp
   ${SHADOWLIST_CORE_SOURCES}
 )
 

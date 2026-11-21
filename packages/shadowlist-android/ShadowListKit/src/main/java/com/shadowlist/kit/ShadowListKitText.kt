@@ -2,12 +2,14 @@ package com.shadowlist.kit
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextUtils
 import android.view.View
 import kotlin.math.ceil
+import kotlin.math.min
 
 // region Layout
 
@@ -18,6 +20,24 @@ import kotlin.math.ceil
 class ShadowListKitTextLayout private constructor(val layout: StaticLayout) {
   val width: Int = lineWidth(layout)
   val height: Int = layout.height
+  val lineCount: Int = layout.lineCount
+
+  /*
+   * The part of a line its text takes, without the space a line ends in, from the layout's top
+   * left corner: as tall as the line, and as wide as nothing for a blank line. Null for an index
+   * past the lines.
+   */
+  fun rectForLine(index: Int): RectF? {
+    if (index < 0 || index >= lineCount) return null
+    // The layout counts the spaces its last line ends in. A line cut short measures as it shows.
+    val start = layout.getLineStart(index)
+    var end = layout.getLineVisibleEnd(index)
+    while (end > start && Character.isWhitespace(layout.text[end - 1])) --end
+    val width = min(Layout.getDesiredWidth(layout.text, start, end, layout.paint), layout.getLineMax(index))
+    val rightToLeft = layout.getParagraphDirection(index) == Layout.DIR_RIGHT_TO_LEFT
+    val left = if (rightToLeft) layout.getLineRight(index) - width else layout.getLineLeft(index)
+    return RectF(left, layout.getLineTop(index).toFloat(), left + width, layout.getLineBottom(index).toFloat())
+  }
 
   companion object {
     fun make(
@@ -30,6 +50,8 @@ class ShadowListKitTextLayout private constructor(val layout: StaticLayout) {
       val builder = StaticLayout.Builder.obtain(text, 0, text.length, paint, width.coerceAtLeast(1))
         .setAlignment(Layout.Alignment.ALIGN_NORMAL)
         .setIncludePad(false)
+        .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
+        .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
         .setLineSpacing(lineSpacingExtra, 1f)
         .setMaxLines(maxLines)
         .setEllipsize(if (maxLines == Int.MAX_VALUE) null else TextUtils.TruncateAt.END)

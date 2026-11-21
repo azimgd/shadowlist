@@ -23,6 +23,7 @@ void reflowSingleTrack(
   bool& anyOffsetChanged) {
   for (std::size_t nextRowIndex = fromIndex; nextRowIndex < rowCount; ++nextRowIndex) {
     Row& nextRow = rows[nextRowIndex];
+    nextRow.column = 0;
     if (canStopEarly && nextRowIndex > changedThroughIndex && nextRow.*offset == nextOffset) {
       break;
     }
@@ -66,6 +67,7 @@ void reflowTracks(
   for (std::size_t nextRowIndex = fromIndex; nextRowIndex < rows.size(); ++nextRowIndex) {
     Row& nextRow = rows[nextRowIndex];
     std::size_t trackIndex = nextRowIndex % columns;
+    nextRow.column = trackIndex;
 
     // Set the width too. A reflow after the window size is known fixes it.
     anyOffsetChanged = anyOffsetChanged || nextRow.*offset != trackSizes[trackIndex] ||
@@ -81,6 +83,52 @@ void reflowTracks(
     }
   }
 }
+/*
+ * Mixed spans use the same placement for core rows and drag reflow. Append keeps the last
+ * per-track summary; other edits seed from actual prior placements, including long-unused tracks.
+ */
+template <double Row::*offset, double Row::*size, double Row::*crossOffset, double Row::*crossSize>
+void reflowSpans(
+  Container& container,
+  std::size_t fromIndex,
+  double trackSize,
+  double& crossMax,
+  bool& anyOffsetChanged) {
+  auto& rows = container.revision.rows;
+  auto& state = container.state;
+  auto& layout = state.spanLayout;
+  bool append = fromIndex == state.spanLayoutRowCount &&
+    layout.getTrackEnds().size() == container.numberOfColumns &&
+    state.previousLayoutHeaderSize == container.headerSize &&
+    state.previousLayoutHorizontal == container.horizontal &&
+    state.previousLayoutNumberOfColumns == container.numberOfColumns;
+  if (!append) {
+    layout.reset(container.numberOfColumns, container.headerSize);
+    layout.seed(fromIndex, [&](std::size_t index) {
+      const Row& row = rows[index];
+      return TrackPlacement{row.column, row.columnSpan, row.*offset, row.*size};
+    });
+  }
+  for (std::size_t index = fromIndex; index < rows.size(); ++index) {
+    Row& row = rows[index];
+    TrackPlacement placed = layout.place(row.columnSpan, row.*size);
+    double crossLeading = static_cast<double>(placed.column) * trackSize;
+    double crossExtent = static_cast<double>(placed.span) * trackSize;
+    anyOffsetChanged = anyOffsetChanged || row.*offset != placed.leading ||
+      row.*crossOffset != crossLeading || row.*crossSize != crossExtent;
+    row.column = placed.column;
+    row.*offset = placed.leading;
+    row.*crossOffset = crossLeading;
+    row.*crossSize = crossExtent;
+    crossMax = std::max(crossMax, crossLeading + crossExtent);
+  }
+  state.spanRanges.update(fromIndex, rows.size(), [&](std::size_t index) {
+    const Row& row = rows[index];
+    return TrackRange{row.*offset, row.*offset + row.*size};
+  });
+  state.spanLayoutRowCount = rows.size();
+}
+
 }
 
 void Virtualizer::layoutRows(Container& container) {
@@ -141,8 +189,9 @@ void Virtualizer::layoutRows(Container& container) {
           nextRow.*size = fallbackSize;
           anyNewlyEstimated = true;
         }
-        if (nextRow.*crossSize != trackSize) {
-          nextRow.*crossSize = trackSize;
+        double crossExtent = trackSize * static_cast<double>(nextRow.columnSpan);
+        if (nextRow.*crossSize != crossExtent) {
+          nextRow.*crossSize = crossExtent;
           anyNewlyEstimated = true;
         }
       }
@@ -188,6 +237,7 @@ void Virtualizer::layoutRows(Container& container) {
     container.state.previousLayoutWindowHeight = container.revision.windowHeight;
     container.state.previousLayoutNumberOfColumns = container.numberOfColumns;
     container.state.previousLayoutHorizontal = container.horizontal;
+    container.state.previousLayoutRowSpansVersion = container.state.rowSpansVersion;
     container.state.rowStructureDirty = false;
     container.state.rowSizeDirtyFromIndex = UNDEFINED_INDEX;
     container.state.rowSizeDirtyToIndex = 0;
@@ -213,11 +263,30 @@ void Virtualizer::recomputeRowOffsets(
   double crossMax = fromIndex == 0 ? 0.0 : container.state.maxCrossAxisExtent;
 
   if (fromIndex >= rowCount) {
+    if (container.state.hasRowSpans) {
+      container.state.spanRanges.update(rowCount, rowCount, [&](std::size_t index) {
+        const Row& row = container.revision.rows[index];
+        double leading = container.horizontal ? row.offsetX : row.offsetY;
+        return TrackRange{leading, leading + (container.horizontal ? row.width : row.height)};
+      });
+    }
     container.state.maxCrossAxisExtent = crossMax;
     return;
   }
 
-  if (container.numberOfColumns > 1) {
+  if (container.numberOfColumns > 1 && container.state.hasRowSpans) {
+    double trackSize = container.horizontal
+      ? container.revision.windowHeight / container.numberOfColumns
+      : container.revision.windowWidth / container.numberOfColumns;
+    if (container.horizontal) {
+      reflowSpans<&Row::offsetX, &Row::width, &Row::offsetY, &Row::height>(
+        container, fromIndex, trackSize, crossMax, anyOffsetChanged);
+    } else {
+      reflowSpans<&Row::offsetY, &Row::height, &Row::offsetX, &Row::width>(
+        container, fromIndex, trackSize, crossMax, anyOffsetChanged);
+    }
+  } else if (container.numberOfColumns > 1) {
+    container.state.spanLayoutRowCount = UNDEFINED_INDEX;
     double trackSize = container.horizontal
       ? container.revision.windowHeight / container.numberOfColumns
       : container.revision.windowWidth / container.numberOfColumns;
@@ -229,6 +298,7 @@ void Virtualizer::recomputeRowOffsets(
         container, fromIndex, trackSize, crossMax, anyOffsetChanged);
     }
   } else {
+    container.state.spanLayoutRowCount = UNDEFINED_INDEX;
     // Rows start below the header, or right after the row before fromIndex.
     double nextOffset = container.headerSize;
 

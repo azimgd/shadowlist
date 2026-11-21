@@ -582,6 +582,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     // The view follows when the jump lands.
     _scrollToTopJumpY = action.offsetY;
     _scrollToTopJumpToken = action.commitToken;
+    _scrollToTopJumpRevision = action.commitRevision;
   } else if (action.kind == azimgd::shadowlist::MountAction::Kind::Write) {
     // A real move calls scrollViewDidScroll right away, which echoes the token.
     _scrollSync.willWrite(action);
@@ -632,7 +633,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _inStateUpdate = NO;
 
   // The landing command mounted and wrote its exact offset. The animation ends here.
-  if (_landCommandSequence > 0 && nextStateData.mountedScroll().commandSequence >= _landCommandSequence) {
+  if (_landCommandSequence > 0 && nextStateData.mountedScroll().commandSequence >= _landCommandSequence &&
+      !nextStateData.commandPending_) {
     _landCommandSequence = 0;
     [self emitMomentumEndAfterLand];
   }

@@ -47,13 +47,23 @@ struct Host {
   bool reachedEnd = false;
   bool settling = false;
   bool prefetch = false;
+  bool tracking = false;
+  bool clampStart = false;
+  bool clampEnd = false;
+  double clampSlack = 0.0;
   std::size_t measures = 0;
+
+  /*
+   * With a size here every row measures the same, which leaves the content as it is wherever
+   * the list goes.
+   */
+  double uniformSize = 0.0;
 
   explicit Host(std::size_t count, ListSettings settings = {}) {
     driver.setSettings(settings);
     driver.setMeasureRow([this](std::size_t, const std::string& key, double) {
       ++measures;
-      return rowHeight(static_cast<std::size_t>(std::stoul(key.substr(1))));
+      return uniformSize > 0.0 ? uniformSize : rowHeight(static_cast<std::size_t>(std::stoul(key.substr(1))));
     });
     driver.setKeys(keysFrom(0, count));
   }
@@ -65,6 +75,10 @@ struct Host {
     input.windowCross = WINDOW_CROSS;
     input.userScrolled = userScrolled;
     input.prefetch = prefetch;
+    input.tracking = tracking;
+    input.clampStart = clampStart;
+    input.clampEnd = clampEnd;
+    input.clampSlack = clampSlack;
     PassResult result = driver.runPasses(input);
     content = result.contentAlong;
     offset = result.offset;
@@ -123,6 +137,41 @@ TEST(list_driver_layout_inside_the_band_measures_nothing_new) {
   PassResult result = host.layout();
   CHECK_EQ(host.measures, measured);
   CHECK(!result.settling);
+}
+
+TEST(list_driver_one_layout_measures_every_row_its_measured_range_ends_with) {
+  // One tall row sets the estimate of the short rows that follow it.
+  Host host(1);
+  host.driver.setMeasureRow([&host](std::size_t, const std::string& key, double) {
+    ++host.measures;
+    return key == "k0" ? 560.0 : 20.0;
+  });
+  host.layout();
+  host.driver.setKeys(keysFrom(0, 400));
+  PassResult result = host.layout();
+  CHECK(!result.settling);
+  auto measured = host.driver.getMeasuredRange();
+  CHECK(measured.has_value());
+  // The rows up to an overscan past the viewport: the tall one and 33 short ones.
+  CHECK_EQ(measured->high, std::size_t{33});
+  CHECK_EQ(host.measures, std::size_t{34});
+  host.layout();
+  CHECK_EQ(host.measures, std::size_t{34});
+}
+
+TEST(list_driver_a_user_move_reported_at_rest_ends_in_the_same_layout) {
+  ListSettings settings;
+  settings.inverted = true;
+  settings.followAppends = true;
+  Host host(60, settings);
+  host.settle();
+  double end = host.content - WINDOW_ALONG;
+  CHECK_NEAR(host.offset, end, 0.01);
+  // A few points up, inside the band where the list still rests on its newest row.
+  host.scrollTo(end - 10.0);
+  CHECK_NEAR(host.offset, end, 0.01);
+  host.layout();
+  CHECK_NEAR(host.offset, end, 0.01);
 }
 
 TEST(list_driver_rows_are_measured_once_unless_marked) {
@@ -328,6 +377,41 @@ TEST(list_driver_scroll_to_index_lands_on_the_row) {
   CHECK_EQ(host.driver.getExtentAt(500), rowHeight(500));
 }
 
+/*
+ * A scroll to a row arrives on the sizes its pass began with. The rows that pass then measures
+ * move the row in its track, and the layout still ends where the command aims.
+ */
+TEST(list_driver_scroll_to_a_row_lands_on_the_sizes_its_layout_measured) {
+  ListSettings settings;
+  settings.numberOfColumns = 3;
+  Host host(114, settings);
+  // Mostly short rows, some tall and a few taller than the window.
+  host.driver.setMeasureRow([](std::size_t index, const std::string&, double) {
+    unsigned hash = (static_cast<unsigned>(index) + 1) * 2654435761u * 37u;
+    unsigned bucket = (hash >> 8) % 10;
+    unsigned step = (hash >> 16) % 10;
+    if (bucket < 6) {
+      return 80.0 + step * 24.0;
+    }
+    return bucket < 9 ? 240.0 + step * 60.0 : 800.0 + step * 120.0;
+  });
+  host.settle();
+  host.scrollTo(host.content / 6.0);
+  host.settle();
+  for (std::size_t row : {std::size_t{111}, std::size_t{108}}) {
+    host.driver.scrollToRow(row, 0.5);
+    host.layout();
+    CHECK(!host.settling);
+    // The rows are in the last window, where the end of the content cuts the view position short.
+    double room = WINDOW_ALONG - host.driver.getExtentAt(row);
+    double end = host.content - WINDOW_ALONG;
+    CHECK(room > 0.0);
+    CHECK_NEAR(host.offset, std::min(host.driver.getLeadingAt(row) - 0.5 * room, end), 0.01);
+    host.scrollTo(host.content / 6.0);
+    host.settle();
+  }
+}
+
 TEST(list_driver_scroll_to_end_reaches_the_end) {
   Host host(1000);
   host.settle();
@@ -378,6 +462,25 @@ TEST(list_driver_sticky_header_pins_and_is_pushed_up) {
   double next = host.driver.getLeadingAt(40);
   double pushed = host.driver.stickyLeading(20, next - 5.0);
   CHECK_NEAR(pushed, next - host.driver.getExtentAt(20), 0.01);
+}
+
+TEST(list_driver_pass_band_ends_where_another_header_pins) {
+  Host host(300);
+  host.driver.setStickyIndices({0, 20, 40});
+  host.settle();
+  host.scrollTo(host.driver.getLeadingAt(40) + 100.0);
+  // Just past the header at row 20: the band holds no offset where row 0 pins.
+  host.scrollTo(host.driver.getLeadingAt(20) + 1.0);
+  PassResult result = host.layout();
+  CHECK_EQ(host.driver.activeStickyIndex(host.offset), std::size_t{20});
+  CHECK(result.band.contains(host.offset));
+  CHECK(result.band.low >= host.driver.getLeadingAt(20));
+  // Just before the header at row 40: the band holds no offset where it pins.
+  host.scrollTo(host.driver.getLeadingAt(40) - 1.0);
+  result = host.layout();
+  CHECK_EQ(host.driver.activeStickyIndex(host.offset), std::size_t{20});
+  CHECK(result.band.contains(host.offset));
+  CHECK(result.band.high < host.driver.getLeadingAt(40));
 }
 
 /*
@@ -516,6 +619,143 @@ TEST(list_driver_mount_plan_band_with_sticky_rows_is_its_offset) {
   CHECK_EQ(plan.band.high, host.offset);
 }
 
+/*
+ * What a mount pass over a plan covers, with nothing else moved.
+ */
+MountRecord recordOf(const MountPlan& plan, const MountInputs& inputs) {
+  MountRecord record;
+  record.low = plan.low;
+  record.high = plan.high;
+  record.sticky = plan.sticky;
+  record.band = plan.band;
+  record.inputs = inputs;
+  return record;
+}
+
+TEST(a_mount_pass_over_the_same_rows_of_one_column_is_skipped) {
+  Host host(1000);
+  host.settle();
+  host.scrollTo(2000.0);
+  host.settle();
+  MountInputs inputs{WINDOW_ALONG, 40.0, 0.0, 0.0};
+  MountPlan plan = host.driver.planMount(host.offset, inputs.windowAlong, inputs.pad);
+  MountRecord mounted = recordOf(plan, inputs);
+  CHECK(!shouldSkipMount(MountRecord(), mounted, host.offset, 1, false));
+  CHECK(shouldSkipMount(mounted, mounted, host.offset, 1, false));
+  // The ends alone decide: an offset outside the band or new insets keep the rows of one column.
+  MountRecord moved = mounted;
+  moved.inputs.trailingInset = 1.0;
+  CHECK(shouldSkipMount(mounted, moved, plan.band.high + 100.0, 1, false));
+  // A row entered at either end.
+  MountPlan further = host.driver.planMount(plan.band.high + 1.0, inputs.windowAlong, inputs.pad);
+  CHECK(further.low != plan.low || further.high != plan.high);
+  CHECK(!shouldSkipMount(mounted, recordOf(further, inputs), plan.band.high + 1.0, 1, false));
+  // The geometry, the data and the shift each mount again, and so does a held row.
+  MountRecord changed = mounted;
+  changed.geometry = 1;
+  CHECK(!shouldSkipMount(mounted, changed, host.offset, 1, false));
+  changed = mounted;
+  changed.structure = 1;
+  CHECK(!shouldSkipMount(mounted, changed, host.offset, 1, false));
+  changed = mounted;
+  changed.shift = 0.25;
+  CHECK(!shouldSkipMount(mounted, changed, host.offset, 1, false));
+  CHECK(!shouldSkipMount(mounted, mounted, host.offset, 1, true));
+}
+
+/*
+ * In a grid whose columns differ a row between the plan's ends comes into view while the ends
+ * stay. The pass is skipped only inside the band of the plan before.
+ */
+TEST(a_mount_pass_in_a_grid_is_skipped_only_inside_the_band_of_the_plan_before) {
+  ListSettings settings;
+  settings.numberOfColumns = 3;
+  Host host(1000, settings);
+  host.settle();
+  host.scrollTo(2000.0);
+  host.settle();
+  MountInputs inputs{WINDOW_ALONG, 0.0, 0.0, 0.0};
+  auto planAt = [&](double offset) { return host.driver.planMount(offset, inputs.windowAlong, inputs.pad); };
+  auto rowsOf = [&](const MountPlan& plan) {
+    std::vector<std::size_t> rows;
+    for (std::size_t index = plan.low; plan.low != UNDEFINED_INDEX && index <= plan.high; ++index) {
+      if (host.driver.shouldMount(plan, index)) {
+        rows.push_back(index);
+      }
+    }
+    return rows;
+  };
+  MountPlan plan = planAt(host.offset);
+  MountRecord mounted = recordOf(plan, inputs);
+  CHECK(shouldSkipMount(mounted, recordOf(planAt(plan.band.low), inputs), plan.band.low, 3, false));
+  CHECK(shouldSkipMount(mounted, recordOf(planAt(plan.band.high), inputs), plan.band.high, 3, false));
+  // Walk on until the ends stay from one offset to the next and a row between them leaves.
+  bool found = false;
+  for (double offset = host.offset + 0.5; offset < host.offset + 2000.0 && !found; offset += 0.5) {
+    MountPlan next = planAt(offset);
+    found = next.low == plan.low && next.high == plan.high && rowsOf(next) != rowsOf(plan);
+    if (found) {
+      CHECK(!plan.band.contains(offset));
+      CHECK(!shouldSkipMount(mounted, recordOf(next, inputs), offset, 3, false));
+      // One column's rule would skip the pass and leave the rows as they were.
+      CHECK(shouldSkipMount(mounted, recordOf(next, inputs), offset, 1, false));
+    }
+    plan = next;
+    mounted = recordOf(plan, inputs);
+  }
+  CHECK(found);
+}
+
+/*
+ * A band holds for the window, the padding and the insets its plan was made with. A window that
+ * grew shows rows the band knows nothing of.
+ */
+TEST(a_mount_pass_in_a_grid_is_not_skipped_once_the_window_or_an_inset_changed) {
+  ListSettings settings;
+  settings.numberOfColumns = 3;
+  Host host(1000, settings);
+  host.settle();
+  MountInputs inputs{WINDOW_ALONG, 0.0, 0.0, 0.0};
+  MountPlan plan = host.driver.planMount(host.offset, inputs.windowAlong, inputs.pad);
+  MountRecord mounted = recordOf(plan, inputs);
+  for (int field = 0; field < 4; ++field) {
+    MountRecord next = mounted;
+    double& value = field == 0 ? next.inputs.windowAlong : field == 1 ? next.inputs.pad
+      : field == 2 ? next.inputs.leadingInset : next.inputs.trailingInset;
+    value += 1.0;
+    CHECK(!shouldSkipMount(mounted, next, host.offset, 3, false));
+    CHECK(shouldSkipMount(mounted, next, host.offset, 1, false));
+  }
+  // The band a skipped pass keeps is its own plan's: the pass after it compares against that one.
+  MountRecord grown = mounted;
+  grown.inputs.windowAlong += 1.0;
+  CHECK(shouldSkipMount(grown, grown, host.offset, 3, false));
+}
+
+TEST(a_mount_pass_is_not_skipped_when_another_header_pins) {
+  Host host(300);
+  host.driver.setStickyIndices({0, 20, 40});
+  host.settle();
+  host.scrollTo(host.driver.getLeadingAt(20) - 10.0);
+  host.settle();
+  MountInputs inputs{WINDOW_ALONG, 0.0, 0.0, 0.0};
+  MountPlan before = host.driver.planMount(host.offset, inputs.windowAlong, inputs.pad);
+  double pinned = host.driver.getLeadingAt(20) + 1.0;
+  MountPlan after = host.driver.planMount(pinned, inputs.windowAlong, inputs.pad);
+  CHECK_EQ(before.sticky, std::size_t{0});
+  CHECK_EQ(after.sticky, std::size_t{20});
+  MountRecord next = recordOf(after, inputs);
+  // Only the pinned header differs.
+  next.low = before.low;
+  next.high = before.high;
+  CHECK(!shouldSkipMount(recordOf(before, inputs), next, pinned, 1, false));
+  // A list with sticky rows moves under the same header without a mount pass.
+  MountPlan under = host.driver.planMount(host.offset + 1.0, inputs.windowAlong, inputs.pad);
+  if (under.low == before.low && under.high == before.high) {
+    CHECK(shouldSkipMount(recordOf(before, inputs), recordOf(under, inputs), host.offset + 1.0, 1, false));
+  }
+}
+
 TEST(list_driver_reset_keeps_the_first_visible_row) {
   Host host(1000);
   host.settle();
@@ -528,6 +768,34 @@ TEST(list_driver_reset_keeps_the_first_visible_row) {
   auto after = host.topRow();
   CHECK_EQ(after.first, before.first);
   CHECK_NEAR(after.second, before.second, 0.01);
+}
+
+TEST(list_driver_reset_holds_a_row_whose_estimate_sits_at_the_offset) {
+  // Every row measures the estimate until the reset, and two thirds of it after.
+  double size = 120.0;
+  Host host(200);
+  host.driver.setMeasureRow([&size](std::size_t, const std::string&, double) { return size; });
+  host.settle();
+  host.scrollTo(3 * 120.0 + 30.0);
+  host.settle();
+  size = 80.0;
+  host.driver.resetKeepingPosition();
+  host.layout();
+  CHECK(!host.settling);
+  CHECK_NEAR(host.offset - host.driver.getLeadingAt(3), 30.0, 0.01);
+}
+
+TEST(list_driver_reset_measures_the_row_the_viewport_is_deep_into) {
+  // Row 6 is taller than its estimate and the window together.
+  Host host(200);
+  host.driver.setMeasureRow([](std::size_t index, const std::string&, double) { return index == 6 ? 3000.0 : 60.0; });
+  host.settle();
+  host.scrollTo(host.driver.getLeadingAt(6) + 2000.0);
+  host.settle();
+  host.driver.resetKeepingPosition();
+  host.layout();
+  CHECK_EQ(host.driver.getExtentAt(6), 3000.0);
+  CHECK_NEAR(host.offset - host.driver.getLeadingAt(6), 2000.0, 0.01);
 }
 
 TEST(list_driver_visible_range_is_the_rows_on_screen) {
@@ -583,6 +851,41 @@ TEST(list_driver_drag_reaches_the_last_and_first_slot_through_the_content_edge) 
   host.driver.dragEnd();
 }
 
+TEST(list_driver_foreign_drag_uses_target_geometry_and_keys_then_returns_to_normal) {
+  Host host(8);
+  host.uniformSize = 100.0;
+  host.settle();
+  host.driver.dragBegin(2, 210.0, 0.0);
+  host.driver.dragSetHeldAway(true);
+  CHECK(host.driver.isDragHeldAway());
+  CHECK_EQ(host.driver.dragShiftFor(3).leading, -100.0);
+  CHECK_EQ(host.driver.getDragInsertionIndex(), UNDEFINED_INDEX);
+  host.driver.dragSetHeldAway(false);
+  CHECK_EQ(host.driver.getDragInsertionIndex(), std::size_t{2});
+
+  host.driver.dragBeginForeign(80.0, 200.0);
+  CHECK(host.driver.isDragForeign());
+  CHECK(!host.driver.isDragging());
+  CHECK_EQ(host.driver.getHeldIndex(), UNDEFINED_INDEX);
+  host.driver.dragPlaceForeignCenter(120.0, 0.0);
+  host.driver.dragUpdateInsertion({3, 0, 2, 1});
+  CHECK_EQ(host.driver.getDragInsertionIndex(), std::size_t{1});
+  CHECK_EQ(host.driver.getDragInsertionKey(), std::string{"k1"});
+  CHECK_EQ(host.driver.dragShiftFor(0).leading, 0.0);
+  CHECK_EQ(host.driver.dragShiftFor(1).leading, 80.0);
+  host.driver.dragPlaceForeignCenter(900.0, 0.0);
+  host.driver.dragUpdateInsertion({4, 5, 6, 7});
+  CHECK_EQ(host.driver.getDragInsertionIndex(), std::size_t{8});
+  CHECK(host.driver.getDragInsertionKey().empty());
+  host.driver.dragEnd();
+  CHECK(!host.driver.isDragForeign());
+  CHECK_EQ(host.driver.dragShiftFor(1).leading, 0.0);
+  host.driver.dragBegin(1, 110.0, 0.0);
+  CHECK(host.driver.isDragging());
+  CHECK(!host.driver.isDragForeign());
+  CHECK(!host.driver.isDragHeldAway());
+}
+
 TEST(list_driver_drag_moves_the_drop_slot_and_skips_the_held_row) {
   Host host(100);
   host.settle();
@@ -608,6 +911,85 @@ TEST(list_driver_drag_moves_the_drop_slot_and_skips_the_held_row) {
   CHECK_EQ(host.driver.dragShiftFor(3).leading, 0.0);
   CHECK_EQ(host.driver.getDragOriginIndex(), UNDEFINED_INDEX);
   CHECK_EQ(host.driver.getDragInsertionIndex(), UNDEFINED_INDEX);
+}
+
+TEST(list_driver_a_drop_of_the_anchor_row_keeps_the_offset) {
+  ListSettings settings;
+  settings.estimatedRowSize = 100.0;
+  Host host(80, settings);
+  host.uniformSize = 100.0;
+  host.settle();
+  host.scrollTo(3000.0);
+  host.driver.dragBegin(30, 3010.0, 0.0);
+  host.driver.setDropHint({DropHint::Kind::Moved, "k30"});
+  host.driver.dragEnd();
+
+  std::vector<std::string> keys = keysFrom(0, 80);
+  std::rotate(keys.begin() + 30, keys.begin() + 31, keys.begin() + 36);
+  host.driver.reloadKeys(keys);
+  host.settle();
+  host.driver.setDropHint({});
+  CHECK_EQ(host.driver.indexOfKey("k30"), std::size_t{35});
+  CHECK_NEAR(host.offset, 3000.0, 0.5);
+}
+
+TEST(list_driver_a_rejected_drop_leaves_no_hint_for_a_later_sort) {
+  for (bool layoutDuringDrop : {false, true}) {
+    ListSettings settings;
+    settings.estimatedRowSize = 100.0;
+    Host host(80, settings);
+    host.uniformSize = 100.0;
+    host.settle();
+    host.scrollTo(3000.0);
+    host.driver.setDropHint({DropHint::Kind::Moved, "k30"});
+    if (layoutDuringDrop) {
+      host.settle();
+    }
+    host.driver.setDropHint({});
+
+    std::vector<std::string> keys = keysFrom(0, 80);
+    std::rotate(keys.begin() + 30, keys.begin() + 31, keys.begin() + 36);
+    host.driver.reloadKeys(keys);
+    host.settle();
+    CHECK_NEAR(host.offset, 3500.0, 0.5);
+  }
+}
+
+TEST(list_driver_an_unrelated_edit_uses_up_a_drop_hint_without_reseeding_it) {
+  ListSettings settings;
+  settings.estimatedRowSize = 100.0;
+  Host host(80, settings);
+  host.uniformSize = 100.0;
+  host.settle();
+  host.scrollTo(3000.0);
+  host.driver.setDropHint({DropHint::Kind::Moved, "k30"});
+
+  std::vector<std::string> keys = keysFrom(0, 81);
+  host.driver.reloadKeys(keys);
+  host.settle();
+  CHECK_NEAR(host.offset, 3000.0, 0.5);
+  std::rotate(keys.begin() + 30, keys.begin() + 31, keys.begin() + 36);
+  host.driver.reloadKeys(keys);
+  host.settle();
+  host.driver.setDropHint({});
+  CHECK_NEAR(host.offset, 3500.0, 0.5);
+}
+
+TEST(list_driver_a_cancelled_drag_leaves_a_later_sort_holding_the_anchor) {
+  ListSettings settings;
+  settings.estimatedRowSize = 100.0;
+  Host host(80, settings);
+  host.uniformSize = 100.0;
+  host.settle();
+  host.scrollTo(3000.0);
+  host.driver.dragBegin(30, 3010.0, 0.0);
+  host.driver.dragEnd();
+
+  std::vector<std::string> keys = keysFrom(0, 80);
+  std::rotate(keys.begin() + 30, keys.begin() + 31, keys.begin() + 36);
+  host.driver.reloadKeys(keys);
+  host.settle();
+  CHECK_NEAR(host.offset, 3500.0, 0.5);
 }
 
 TEST(list_driver_held_row_follows_its_key) {
@@ -837,4 +1219,424 @@ TEST(list_driver_a_last_row_that_grows_moves_the_geometry_version) {
   driver.markRemeasure({2});
   driver.runPasses(input);
   CHECK_EQ(driver.getGeometryVersion(), grown);
+}
+
+/*
+ * The core leaves an inverted list where it was when its content shrinks. The driver brings a
+ * resting one back to the new end and runs there in the same layout.
+ */
+TEST(list_driver_brings_a_resting_list_back_from_past_the_end) {
+  ListSettings settings;
+  settings.inverted = true;
+  Host host(400, settings);
+  host.settle();
+  double end = host.content - WINDOW_ALONG;
+  CHECK_NEAR(host.offset, end, 0.5);
+  host.reachedEnd = false;
+  host.driver.reloadKeys(keysFrom(0, 3));
+  Host unclamped(400, settings);
+  unclamped.settle();
+  unclamped.driver.reloadKeys(keysFrom(0, 3));
+  unclamped.layout();
+  CHECK(unclamped.offset > std::max(0.0, unclamped.content - WINDOW_ALONG) + 1.0);
+
+  host.clampEnd = true;
+  PassResult result = host.layout();
+  CHECK_EQ(result.offset, std::max(0.0, result.contentAlong - WINDOW_ALONG));
+  CHECK(!result.settling);
+  CHECK(host.reachedEnd);
+  // The core ran at the end: its rows are measured there and one more layout changes nothing.
+  CHECK(result.band.contains(result.offset));
+  PassResult again = host.layout();
+  CHECK_EQ(again.offset, result.offset);
+  CHECK(!again.reachedEnd);
+}
+
+TEST(list_driver_leaves_a_list_a_finger_or_the_host_holds_outside_its_content) {
+  Host host(100);
+  host.uniformSize = 50.0;
+  host.settle();
+  double end = host.content - WINDOW_ALONG;
+  // No end is the driver's to hold.
+  host.offset = end + 80.0;
+  CHECK_EQ(host.layout().offset, end + 80.0);
+  host.offset = -80.0;
+  CHECK_EQ(host.layout().offset, -80.0);
+  // A finger holds the list past either end.
+  host.clampStart = true;
+  host.clampEnd = true;
+  host.tracking = true;
+  CHECK_EQ(host.layout().offset, -80.0);
+  host.offset = end + 80.0;
+  CHECK_EQ(host.layout().offset, end + 80.0);
+  // Each end comes back on its own.
+  host.tracking = false;
+  host.clampEnd = false;
+  CHECK_EQ(host.layout().offset, end + 80.0);
+  host.clampEnd = true;
+  CHECK_EQ(host.layout().offset, end);
+  host.offset = -80.0;
+  host.clampStart = false;
+  CHECK_EQ(host.layout().offset, -80.0);
+  host.clampStart = true;
+  CHECK_EQ(host.layout().offset, 0.0);
+  CHECK_EQ(host.content - WINDOW_ALONG, end);
+}
+
+TEST(list_driver_lets_a_list_rest_within_the_slack_of_an_end) {
+  Host host(100);
+  host.uniformSize = 50.0;
+  host.settle();
+  host.clampStart = true;
+  host.clampEnd = true;
+  host.clampSlack = 0.5;
+  double end = host.content - WINDOW_ALONG;
+  host.offset = end + 0.4;
+  CHECK_EQ(host.layout().offset, end + 0.4);
+  host.offset = end + 0.6;
+  CHECK_EQ(host.layout().offset, end);
+  host.offset = -0.4;
+  CHECK_EQ(host.layout().offset, -0.4);
+  host.offset = -0.6;
+  CHECK_EQ(host.layout().offset, 0.0);
+  // Content shorter than the window rests at the start.
+  Host small(3);
+  small.clampEnd = true;
+  small.offset = 300.0;
+  CHECK_EQ(small.layout().offset, 0.0);
+}
+
+/*
+ * An inverted list resting at its end loses every row it measured. The rows left are placed by
+ * estimate and measure shorter than the window at their end. The list is drawn inside its
+ * content, and a frame the driver asks for finds it at rest.
+ */
+TEST(list_driver_draws_a_list_brought_back_inside_the_content_its_end_run_measured) {
+  for (bool clampEnd : {true, false}) {
+    ListDriver driver;
+    ListSettings settings;
+    settings.inverted = true;
+    driver.setSettings(settings);
+    driver.setMeasureRow([](std::size_t, const std::string& key, double) {
+      return std::stoul(key.substr(1)) < 3 ? 150.0 : 220.0;
+    });
+    driver.setKeys(keysFrom(0, 20));
+    PassInput input;
+    input.windowAlong = WINDOW_ALONG;
+    input.windowCross = WINDOW_CROSS;
+    input.clampEnd = clampEnd;
+    PassResult result = driver.runPasses(input);
+    input.offset = result.offset;
+    result = driver.runPasses(input);
+    CHECK_EQ(result.offset, result.contentAlong - WINDOW_ALONG);
+    CHECK(!result.settling);
+
+    std::vector<std::size_t> deleted;
+    for (std::size_t index = 3; index < 20; ++index) {
+      deleted.push_back(index);
+    }
+    driver.deleteKeys(deleted);
+    result = driver.runPasses(input);
+    if (!clampEnd) {
+      // Without the driver holding the end the list stays outside its content.
+      CHECK(result.offset > 0.0);
+      continue;
+    }
+    CHECK_EQ(result.contentAlong, 450.0);
+    CHECK_EQ(result.offset, 0.0);
+    for (int frame = 0; frame < 3 && result.settling; ++frame) {
+      input.offset = result.offset;
+      result = driver.runPasses(input);
+    }
+    CHECK_EQ(result.offset, 0.0);
+    CHECK(!result.settling);
+  }
+}
+
+TEST(list_driver_reports_an_inverted_list_leaving_its_end_and_coming_back) {
+  ListSettings settings;
+  settings.inverted = true;
+  Host host(60, settings);
+  host.settle();
+  double end = host.content - WINDOW_ALONG;
+  CHECK(host.driver.isAtEnd());
+  CHECK(host.layout().atEnd);
+  // The reader scrolls away from the newest row.
+  host.scrollTo(end - 400.0);
+  CHECK(!host.layout().atEnd);
+  CHECK(!host.driver.isAtEnd());
+  // Rows appended while away leave the list away from its end.
+  std::vector<std::string> keys = keysFrom(0, 70);
+  host.driver.reloadKeys(keys);
+  host.settle();
+  CHECK(!host.layout().atEnd);
+  // A scroll command that lands on the end brings it back.
+  host.driver.scrollToEnd();
+  host.settle();
+  CHECK(host.layout().atEnd);
+  // One that lands away from the end leaves it again.
+  host.driver.scrollToRow(5, 0.0);
+  host.settle();
+  CHECK(!host.layout().atEnd);
+}
+
+TEST(list_driver_a_list_that_is_not_inverted_stays_at_its_end) {
+  Host host(200);
+  host.layout();
+  host.scrollTo(900.0);
+  CHECK(host.layout().atEnd);
+  host.driver.scrollToRow(100, 0.0);
+  host.settle();
+  CHECK(host.layout().atEnd);
+}
+
+TEST(list_driver_reset_leaves_an_inverted_list_away_from_its_end) {
+  ListSettings settings;
+  settings.inverted = true;
+  Host host(200, settings);
+  host.settle();
+  host.scrollTo(host.content - WINDOW_ALONG - 900.0);
+  CHECK(!host.layout().atEnd);
+  host.driver.resetKeepingPosition();
+  // The layout that lands the held row already says where the list is.
+  CHECK(!host.layout().atEnd);
+  host.settle();
+  CHECK(!host.layout().atEnd);
+}
+
+TEST(list_driver_never_holds_the_content_by_a_non_anchor_key) {
+  // A row at the viewport start that grows keeps its place, unless another row holds the content.
+  enum class Case { Anchor, NonAnchor, NonAnchorAfterReset };
+  for (Case which : {Case::Anchor, Case::NonAnchor, Case::NonAnchorAfterReset}) {
+    Host host(100);
+    double size = 60.0;
+    host.driver.setMeasureRow([&size](std::size_t, const std::string& key, double) {
+      return key == "k10" ? size : 60.0;
+    });
+    if (which != Case::Anchor) {
+      host.driver.setNonAnchorKeys({"k10"});
+    }
+    host.layout();
+    if (which == Case::NonAnchorAfterReset) {
+      // A new core takes the keys again.
+      host.driver.resetKeepingPosition();
+      host.layout();
+    }
+    host.scrollTo(600.0);
+    host.layout();
+    CHECK_EQ(host.driver.getLeadingAt(10), 600.0);
+    size = 100.0;
+    host.driver.markRemeasure({10});
+    host.driver.reloadKeys(keysFrom(0, 101));
+    host.settle();
+    if (which == Case::Anchor) {
+      CHECK_NEAR(host.driver.getLeadingAt(10) - host.offset, 0.0, 0.01);
+    } else {
+      // The row after it holds the content: it stays 60 below the viewport start.
+      CHECK_NEAR(host.driver.getLeadingAt(11) - host.offset, 60.0, 0.01);
+    }
+  }
+}
+
+TEST(list_driver_counts_the_empty_view_with_the_header_while_it_has_no_rows) {
+  Host host(0);
+  PassInput input;
+  input.windowAlong = WINDOW_ALONG;
+  input.windowCross = WINDOW_CROSS;
+  input.headerSize = 50.0;
+  input.footerSize = 40.0;
+  input.emptySize = 300.0;
+  PassResult result = host.driver.runPasses(input);
+  CHECK(result.showsEmpty);
+  CHECK(host.driver.showsEmpty());
+  // The footer goes after the empty view and the content holds all three.
+  CHECK_EQ(result.footerStart, 350.0);
+  CHECK_EQ(result.contentAlong, 390.0);
+
+  host.driver.reloadKeys(keysFrom(0, 3));
+  result = host.driver.runPasses(input);
+  CHECK(!result.showsEmpty);
+  // Three rows of 50, 60 and 70 follow the header, without the empty view.
+  CHECK_EQ(host.driver.getLeadingAt(0), 50.0);
+  CHECK_EQ(result.footerStart, 230.0);
+  CHECK_EQ(result.contentAlong, 270.0);
+
+  host.driver.deleteKeys({0, 1, 2});
+  result = host.driver.runPasses(input);
+  CHECK(result.showsEmpty);
+  CHECK_EQ(result.footerStart, 350.0);
+  CHECK_EQ(result.contentAlong, 390.0);
+}
+
+/*
+ * A prepend to short content can settle on an end before its old row fits. A later content
+ * edit starts a new hold at the row now on screen, rather than restoring that old row.
+ */
+TEST(list_driver_remeasuring_changed_content_releases_a_previous_clamped_hold) {
+  Host host(1);
+  double lastSize = 200.0;
+  host.driver.setMeasureRow([&lastSize](std::size_t, const std::string& key, double) {
+    return key == "k0" ? lastSize : 200.0;
+  });
+  host.settle();
+  host.driver.setKeys({"k1", "k2", "k3", "k4", "k5", "k6", "k0"});
+  host.settle();
+  CHECK_NEAR(host.offset, 800.0, 0.5);
+  lastSize = 218.0;
+  host.driver.markRemeasure({6});
+  host.settle();
+  CHECK_NEAR(host.offset, 800.0, 0.5);
+}
+
+TEST(list_driver_auto_hide_keeps_user_intent_across_corrections_and_flag_changes) {
+  ListDriver driver;
+  StickyInput input;
+  input.windowSize = 400.0;
+  input.contentSize = 2000.0;
+  input.hasHeader = input.hasFooter = true;
+  input.headerSize = 60.0;
+  input.footerSize = 40.0;
+  input.footerStart = 1960.0;
+  input.autoHideHeader = input.autoHideFooter = true;
+  input.offset = 200.0;
+  driver.stickyTranslations(input); // A command rebases without hiding.
+  input.accumulate = true;
+  input.offset = 225.0;
+  auto moved = driver.stickyTranslations(input);
+  CHECK_EQ(moved.header, 200.0);
+  CHECK_EQ(moved.footer, 225.0 + 400.0 - 40.0 - 1960.0 + 25.0);
+  input.accumulate = false;
+  input.offset = 325.0; // A prepend correction is separate from the finger's 25.
+  auto corrected = driver.stickyTranslations(input);
+  CHECK_EQ(corrected.header, 300.0);
+  input.autoHideHeader = false;
+  driver.stickyTranslations(input);
+  input.autoHideHeader = true;
+  CHECK_EQ(driver.stickyTranslations(input).header, 300.0);
+  input.offset = 315.0;
+  input.accumulate = true;
+  CHECK_EQ(driver.stickyTranslations(input).header, 300.0);
+  // Repeated layout of the same input cannot count the movement twice.
+  CHECK_EQ(driver.stickyTranslations(input).header, 300.0);
+  ListDriver other;
+  input.accumulate = false;
+  CHECK_EQ(other.stickyTranslations(input).header, 315.0);
+}
+
+TEST(list_driver_persistent_keys_resolve_current_indices_and_measure_off_range_rows) {
+  Host host(200);
+  host.driver.setPersistentKeys({"k199", "missing", "k199", "k150"});
+  host.layout();
+  auto indices = host.driver.getPersistentIndices();
+  CHECK_EQ(indices.size(), 2u);
+  CHECK_EQ(indices[0], 150u);
+  CHECK_EQ(indices[1], 199u);
+  CHECK_EQ(host.driver.getExtentAt(199), rowHeight(199));
+  auto measured = host.driver.getMeasuredRange();
+  CHECK(measured.has_value());
+  CHECK(measured->high < 150);
+  std::size_t measures = host.measures;
+  host.layout();
+  CHECK_EQ(host.measures, measures);
+  host.driver.markRemeasure({199});
+  host.layout();
+  CHECK_EQ(host.measures, measures + 1);
+}
+
+TEST(list_driver_persistent_key_intent_survives_delete_reinsert_and_key_moves) {
+  Host host(200);
+  host.driver.setPersistentKeys({"k199", "k201"});
+  host.layout();
+  host.driver.setKeys(keysFrom(0, 199));
+  host.layout();
+  CHECK(host.driver.getPersistentIndices().empty());
+  auto keys = keysFrom(0, 202);
+  std::swap(keys[199], keys[1]);
+  host.driver.setKeys(keys);
+  host.layout();
+  auto indices = host.driver.getPersistentIndices();
+  CHECK_EQ(indices.size(), 2u);
+  CHECK_EQ(indices[0], 1u);
+  CHECK_EQ(indices[1], 201u);
+  host.driver.setPersistentKeys({});
+  CHECK(host.driver.getPersistentIndices().empty());
+}
+
+TEST(list_driver_predictive_specs_are_bounded_cached_and_preserve_exact_measurements) {
+  Host host(200);
+  host.uniformSize = 60.0;
+  std::size_t callbacks = 0;
+  std::size_t layouts = 0;
+  double predictedHeight = 140.0;
+  host.driver.setGetItemSizeSpec([&](std::size_t, const std::string&) -> std::optional<RowSizeSpec> {
+    ++callbacks;
+    RowSizeSpec spec;
+    spec.text = "prediction";
+    spec.fixedHeight = predictedHeight;
+    return spec;
+  }, [&](const RowSizeSpec& spec, double width) {
+    ++layouts;
+    return Size{width, spec.fixedHeight};
+  });
+  host.layout();
+  CHECK(layouts <= SizeSpecQueue::BUDGET_PER_RUN);
+  host.settle();
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
+  CHECK_EQ(host.driver.getExtentAt(40), 140.0);
+  std::size_t calls = callbacks;
+  std::size_t measured = layouts;
+  host.layout();
+  CHECK_EQ(callbacks, calls);
+  CHECK_EQ(layouts, measured);
+  predictedHeight = 180.0;
+  host.driver.invalidateSizeSpecs();
+  host.settle();
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
+  CHECK_EQ(host.driver.getExtentAt(40), 180.0);
+  host.driver.setGetItemSizeSpec({}, {});
+  host.layout();
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
+  CHECK_EQ(host.driver.getExtentAt(40), 60.0);
+}
+
+TEST(list_driver_predictive_cache_rewraps_at_width_changes_and_deduplicates_retained_keys) {
+  Host host(200);
+  host.uniformSize = 60.0;
+  std::vector<std::size_t> calls;
+  host.driver.setPersistentKeys({"k40", "k199", "k199"});
+  host.driver.setGetItemSizeSpec([&](std::size_t index, const std::string&) -> std::optional<RowSizeSpec> {
+    calls.push_back(index);
+    if (index == 41) return std::nullopt;
+    return RowSizeSpec{};
+  }, [](const RowSizeSpec&, double width) { return Size{width, width / 3.0}; });
+  host.settle();
+  CHECK_EQ(std::count(calls.begin(), calls.end(), 40u), 1);
+  CHECK_EQ(std::count(calls.begin(), calls.end(), 199u), 1);
+  CHECK_EQ(host.driver.getExtentAt(42), 100.0);
+  CHECK_EQ(host.driver.getExtentAt(41), 60.0);
+  PassInput input;
+  input.windowAlong = WINDOW_ALONG;
+  input.windowCross = 600.0;
+  for (int frame = 0; frame < 10; ++frame) host.driver.runPasses(input);
+  CHECK_EQ(host.driver.getExtentAt(42), 200.0);
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
+}
+
+TEST(list_driver_predictive_provider_uses_current_indices_after_key_moves) {
+  Host host(200);
+  host.uniformSize = 60.0;
+  host.driver.setGetItemSizeSpec([](std::size_t index, const std::string&) -> std::optional<RowSizeSpec> {
+    RowSizeSpec spec;
+    spec.fixedHeight = 100.0 + static_cast<double>(index);
+    return spec;
+  }, [](const RowSizeSpec& spec, double width) { return Size{width, spec.fixedHeight}; });
+  host.settle();
+  CHECK_EQ(host.driver.getExtentAt(40), 140.0);
+  auto keys = keysFrom(0, 200);
+  std::swap(keys[40], keys[41]);
+  host.driver.setKeys(keys);
+  host.settle();
+  CHECK_EQ(host.driver.getKeyAt(41), std::string("k40"));
+  CHECK_EQ(host.driver.getExtentAt(41), 141.0);
+  CHECK_EQ(host.driver.getExtentAt(0), 60.0);
 }

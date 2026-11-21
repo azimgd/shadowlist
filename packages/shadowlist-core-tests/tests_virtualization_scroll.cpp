@@ -221,6 +221,47 @@ TEST(inverted_dataset_swap_opens_on_the_new_bottom) {
 }
 
 /*
+ * The reader scrolled up into the history and the conversation is swapped. The offset the view
+ * still reports happens to equal the bottom of the new rows at their estimated size. That report
+ * is not the list arriving on its new bottom. The pin holds until the newest row is measured
+ * and the view sits on the real bottom.
+ */
+TEST(inverted_dataset_swap_pins_again_when_the_old_offset_matches_the_estimated_bottom) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(30, "a");
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  settleAtBottom(container, keys, fixture);
+
+  // Twelve unmeasured rows are 1440 points tall. Their bottom is at 600 in an 840 point window.
+  std::vector<std::string> other = keysFor(12, "b");
+  double parked = static_cast<double>(other.size()) * ESTIMATED_ROW_HEIGHT - WINDOW_HEIGHT;
+  FrameInput away = inputFor(keys, parked, fixture);
+  away.userScrolled = true;
+  Virtualizer::update(container, away);
+  Virtualizer::update(container, inputFor(keys, parked, fixture));
+  CHECK(container.state.invertedBottomReleased);
+
+  Virtualizer::update(container, inputFor(other, parked, fixture));
+  // Without this check the test would pass even if the two offsets never met.
+  CHECK_NEAR(container.revision.contentHeight - WINDOW_HEIGHT, parked, 0.5);
+
+  // The layout pass measures the new rows taller than their estimate, and the host keeps reporting.
+  measureRows(container, std::vector<double>(other.size(), 200.0));
+  Virtualizer::recomputeContentSize(container);
+  for (int frame = 0; frame < 6; ++frame) {
+    Virtualizer::update(container, inputFor(other, container.revision.offsetY, fixture));
+  }
+  double newBottom = static_cast<double>(other.size()) * 200.0 - WINDOW_HEIGHT;
+  CHECK_NEAR(container.revision.contentHeight - WINDOW_HEIGHT, newBottom, 1.0);
+  CHECK_NEAR(container.revision.offsetY, newBottom, 1.0);
+  CHECK(container.state.invertedInitialized);
+}
+
+/*
  * A scroll to the end is still landing when the layout pass measures a row above the viewport
  * larger than its estimate. The rows move down by the difference. The offset must follow the
  * new bottom in the same pass. Waiting for the next frame shows the rows shifted for one frame,
@@ -259,6 +300,77 @@ TEST(scroll_to_end_in_flight_follows_growth_measured_in_the_layout_pass) {
   Virtualizer::recomputeContentSize(container);
   CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 1.0);
   CHECK(container.state.offsetCorrected);
+}
+
+/*
+ * A scroll to the end jumps to rows that have no sizes yet. The host measures the last row
+ * first and the other rows on screen some passes later, like rows React renders in steps. The
+ * command is still running when they come in taller, and the view ends on the real end.
+ */
+TEST(scroll_to_end_waits_for_the_rows_on_screen_at_the_end) {
+  Fixture fixture;
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  layoutRows(container, 0, std::vector<double>(20, ESTIMATED_ROW_HEIGHT));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+
+  container.scrollToEnd();
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ScrollToEnd);
+  auto echo = [&]() {
+    FrameInput input = inputFor(keys, container.revision.offsetY, fixture);
+    input.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
+    Virtualizer::update(container, input);
+  };
+
+  // Only the last row has its size. The view sits on the end of the estimates for three frames.
+  layoutRows(container, 39, std::vector<double>(1, ESTIMATED_ROW_HEIGHT));
+  for (int frame = 0; frame < 3; ++frame) {
+    echo();
+  }
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+  CHECK(container.state.pendingScrollToEnd);
+
+  layoutRows(container, 30, std::vector<double>(9, 300.0));
+  for (int frame = 0; frame < 3; ++frame) {
+    echo();
+  }
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+  CHECK(!container.state.pendingScrollToEnd);
+  CHECK(!container.state.operation.has_value());
+}
+
+/*
+ * The same for an inverted list that opens on its bottom: the last row is measured first, the
+ * rows above it on screen later and taller. The list still rests on its bottom.
+ */
+TEST(inverted_list_opens_on_its_bottom_when_the_rows_on_screen_are_measured_after_the_last_one) {
+  Fixture fixture;
+  fixture.inverted = true;
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  auto echo = [&]() {
+    FrameInput input = inputFor(keys, container.revision.offsetY, fixture);
+    input.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
+    Virtualizer::update(container, input);
+  };
+
+  layoutRows(container, 39, std::vector<double>(1, ESTIMATED_ROW_HEIGHT));
+  for (int frame = 0; frame < 3; ++frame) {
+    echo();
+  }
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+  CHECK(!container.state.invertedInitialized);
+
+  layoutRows(container, 30, std::vector<double>(9, 300.0));
+  for (int frame = 0; frame < 3; ++frame) {
+    echo();
+  }
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+  CHECK(container.state.invertedInitialized);
+  CHECK(!container.state.operation.has_value());
 }
 
 /*
@@ -789,6 +901,182 @@ TEST(inverted_list_reports_leaving_and_returning_to_its_end) {
 }
 
 /*
+ * The newest message of a chat is taller than the screen and the app scrolls to its top, like a
+ * jump to the start of a long reply. The list was never dragged and still counts as resting on
+ * its bottom. The command leaves the bottom the way a drag does and reports it. Otherwise the
+ * next frame would pull the view from the top of the row down to its end.
+ */
+TEST(inverted_scroll_to_the_top_of_a_tall_last_row_stays_there) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(20);
+  Container container;
+  std::vector<bool> reports;
+  container.onAtEndChangeCallback = [&reports](bool atEnd) { reports.push_back(atEnd); };
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  std::vector<double> heights(keys.size(), 100.0);
+  heights.back() = WINDOW_HEIGHT + 100.0;
+  measureRows(container, heights);
+  double bottom = settleAtBottom(container, keys, fixture);
+  CHECK_NEAR(bottom, container.revision.contentHeight - WINDOW_HEIGHT, 1.0);
+  CHECK(!container.state.invertedBottomReleased);
+
+  container.scrollToRow(keys.size() - 1, 0.0);
+  Virtualizer::update(container, inputFor(keys, bottom, fixture));
+  CHECK(container.state.operation.has_value());
+  double target = container.revision.offsetY;
+  CHECK_NEAR(target, offsetOf(container, keys.size() - 1), 1.0);
+  CHECK_NEAR(target, bottom - 100.0, 1.0);
+
+  // The host applies the write and reports it back, then rests.
+  FrameInput echo = inputFor(keys, target, fixture);
+  echo.commitToken = container.state.operation->commitToken;
+  Virtualizer::update(container, echo);
+  for (int frame = 0; frame < 4; ++frame) {
+    Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  }
+  CHECK(!container.state.operation.has_value());
+  CHECK_NEAR(container.revision.offsetY, target, 1.0);
+  CHECK(container.state.invertedBottomReleased);
+  CHECK_EQ(reports.size(), std::size_t(1));
+  CHECK(!reports.back());
+
+  // The row keeps growing, like a streaming reply, and the reader stays at its top.
+  Virtualizer::updateRowAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, WINDOW_HEIGHT + 400.0});
+  Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  CHECK_NEAR(container.revision.offsetY, target, 1.0);
+}
+
+/*
+ * A command that lands on the bottom does not leave it. Growth of the newest row is still followed.
+ */
+TEST(inverted_scroll_to_a_short_last_row_keeps_following_the_bottom) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(20);
+  std::vector<std::string> allButLast(keys.begin(), keys.end() - 1);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  double bottom = settleAtBottom(container, keys, fixture, allButLast);
+
+  auto frameAt = [&](double offset) {
+    FrameInput input = inputFor(keys, offset, fixture);
+    input.nonAnchorKeys = allButLast;
+    return input;
+  };
+  container.scrollToRow(keys.size() - 1, 0.0);
+  Virtualizer::update(container, frameAt(bottom));
+  for (int frame = 0; frame < 4; ++frame) {
+    Virtualizer::update(container, frameAt(container.revision.offsetY));
+  }
+  CHECK_NEAR(container.revision.offsetY, bottom, 1.0);
+  CHECK(!container.state.invertedBottomReleased);
+
+  Virtualizer::updateRowAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 400.0});
+  for (int frame = 0; frame < 4; ++frame) {
+    Virtualizer::update(container, frameAt(container.revision.offsetY));
+  }
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 1.0);
+}
+
+namespace {
+
+/*
+ * A chat with followAppends rests at its bottom. A jump to an older row takes it away, then the
+ * host animates back to the bottom on its own with plain reports. Returns the bottom.
+ */
+double jumpAwayThenAnimateBackToTheBottom(
+  Container& container,
+  const std::vector<std::string>& keys,
+  const Fixture& fixture) {
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  double bottom = settleAtBottom(container, keys, fixture);
+
+  container.scrollToRow(10, 0.0);
+  Virtualizer::update(container, inputFor(keys, bottom, fixture));
+  for (int frame = 0; frame < 4; ++frame) {
+    FrameInput echo = inputFor(keys, container.revision.offsetY, fixture);
+    echo.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
+    Virtualizer::update(container, echo);
+  }
+  CHECK_NEAR(container.revision.offsetY, 1000.0, 1.0);
+  CHECK(container.state.invertedBottomReleased);
+
+  for (double offset = 1400.0; offset < bottom; offset += 400.0) {
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
+  }
+  Virtualizer::update(container, inputFor(keys, bottom, fixture));
+  CHECK(container.state.invertedBottomReleased);
+  return bottom;
+}
+
+}
+
+/*
+ * Jump to a quoted message, then jump to the latest with an animation. The host animates to the
+ * bottom itself and lands the command with the core once it is there. The landing moves nothing.
+ * It still puts the list back on its bottom: the end is reported and the next message is followed.
+ */
+TEST(inverted_scroll_to_end_that_lands_without_moving_returns_to_the_bottom) {
+  Fixture fixture;
+  fixture.inverted = true;
+  fixture.followAppends = true;
+
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  std::vector<bool> reports;
+  container.onAtEndChangeCallback = [&reports](bool atEnd) { reports.push_back(atEnd); };
+  double bottom = jumpAwayThenAnimateBackToTheBottom(container, keys, fixture);
+  CHECK_EQ(reports.size(), std::size_t(1));
+  CHECK(!reports.back());
+
+  container.scrollToEnd();
+  for (int frame = 0; frame < 4; ++frame) {
+    Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  }
+  CHECK_NEAR(container.revision.offsetY, bottom, 1.0);
+  CHECK(!container.state.pendingScrollToEnd);
+  CHECK(!container.state.invertedBottomReleased);
+  CHECK_EQ(reports.size(), std::size_t(2));
+  CHECK(reports.back());
+
+  keys.push_back("incoming");
+  Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  Virtualizer::updateRowAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 100.0});
+  for (int frame = 0; frame < 6; ++frame) {
+    FrameInput echo = inputFor(keys, container.revision.offsetY, fixture);
+    echo.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
+    Virtualizer::update(container, echo);
+  }
+  CHECK_NEAR(container.revision.offsetY, bottom + 100.0, 1.0);
+}
+
+/*
+ * The same landing by a scroll to the newest row.
+ */
+TEST(inverted_scroll_to_the_last_row_that_lands_without_moving_returns_to_the_bottom) {
+  Fixture fixture;
+  fixture.inverted = true;
+  fixture.followAppends = true;
+
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  double bottom = jumpAwayThenAnimateBackToTheBottom(container, keys, fixture);
+
+  container.scrollToRow(keys.size() - 1, 1.0);
+  for (int frame = 0; frame < 4; ++frame) {
+    Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  }
+  CHECK_NEAR(container.revision.offsetY, bottom, 1.0);
+  CHECK(!container.state.operation.has_value());
+  CHECK(!container.state.invertedBottomReleased);
+}
+
+/*
  * A scroll to an index in a grid lands on its row's track. Rows measured afterwards in another
  * track must not pull the landed row away, even though the capture picked a row in that track.
  */
@@ -799,11 +1087,7 @@ TEST(grid_scroll_to_index_keeps_the_landed_row_while_other_tracks_get_measured) 
   std::vector<std::string> keys = keysFor(120);
   Container container;
   Virtualizer::update(container, inputFor(keys, 0.0, fixture));
-  for (std::size_t index = 0; index < keys.size(); ++index) {
-    Virtualizer::applyRowSize(container, index, {WINDOW_WIDTH / 2.0, 100.0});
-  }
-  Virtualizer::commitRowSizes(container, 0);
-  Virtualizer::recomputeContentSize(container);
+  layoutRows(container, 0, keys.size() - 1, [](std::size_t) { return Size{WINDOW_WIDTH / 2.0, 100.0}; });
   Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   // Row 41 sits in the second track, level with row 40 in the first.
@@ -877,6 +1161,176 @@ TEST(grid_keeps_its_anchor_row_while_other_tracks_get_measured) {
     CHECK_EQ(container.state.anchor.key, std::string("k30"));
     CHECK_NEAR(offsetOf(container, 33) - container.revision.offsetY, k30Screen, 0.5);
   }
+}
+
+/*
+ * A scroll to the end of a masonry grid lands while rows above the viewport are still being
+ * measured. The host reports the end, and that frame's layout pass measures one more row above
+ * the viewport, in the track of the row at the top of the screen. Only that track moves, and the
+ * other track still ends where it did. The command is still running and keeps the view on the
+ * end. Holding the top row's track would leave the view short of it.
+ */
+TEST(grid_scroll_to_end_stays_on_the_end_while_rows_above_get_measured) {
+  Fixture fixture;
+  fixture.numberOfColumns = 2;
+
+  std::vector<std::string> keys = keysFor(120);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  layoutRows(container, 0, keys.size() - 1, [](std::size_t) { return Size{WINDOW_WIDTH / 2.0, 100.0}; });
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+
+  auto measure = [&](std::size_t index, double height) {
+    layoutRows(container, index, index, [&](std::size_t) { return Size{WINDOW_WIDTH / 2.0, height}; });
+  };
+  auto endOffset = [&]() { return container.revision.contentHeight - WINDOW_HEIGHT; };
+
+  container.scrollToEnd();
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK(container.state.operation.has_value());
+  CHECK_NEAR(container.revision.offsetY, endOffset(), 0.5);
+
+  /*
+   * The landing frame's layout pass measures a row above the viewport in the second track a
+   * little shorter. The first track stays the longer one and holds the row at the top of the screen.
+   */
+  measure(91, 80.0);
+  CHECK_NEAR(container.revision.offsetY, endOffset(), 0.5);
+
+  // The host reports the end. The pass after it measures a row of the first track much shorter.
+  FrameInput echo = inputFor(keys, container.revision.offsetY, fixture);
+  echo.commitToken = container.state.operation->commitToken;
+  Virtualizer::update(container, echo);
+  measure(88, 40.0);
+  CHECK_NEAR(container.revision.offsetY, endOffset(), 0.5);
+
+  for (int frame = 0; frame < 4; ++frame) {
+    Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  }
+  CHECK_NEAR(container.revision.offsetY, endOffset(), 0.5);
+  CHECK(!container.state.operation.has_value());
+  CHECK(!container.state.pendingScrollToEnd);
+}
+
+/*
+ * A scroll to the end of a grid has landed, and a row on screen keeps changing size on every
+ * frame, like a cell that animates its height. The command waits a few frames for the rows to
+ * settle and then ends. It does not stay alive and write the offset for as long as the row moves.
+ */
+TEST(grid_scroll_to_end_ends_while_a_row_keeps_resizing) {
+  Fixture fixture;
+  fixture.numberOfColumns = 2;
+
+  std::vector<std::string> keys = keysFor(120);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  layoutRows(container, 0, keys.size() - 1, [](std::size_t) { return Size{WINDOW_WIDTH / 2.0, 100.0}; });
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+
+  container.scrollToEnd();
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK(container.state.operation.has_value());
+
+  // Row 117 is in the second track, which stays the shorter one. The end never moves.
+  int framesWithOperation = 0;
+  int framesWithWrite = 0;
+  for (int frame = 0; frame < 40; ++frame) {
+    double height = frame % 2 == 0 ? 60.0 : 70.0;
+    layoutRows(container, 117, 117, [&](std::size_t) { return Size{WINDOW_WIDTH / 2.0, height}; });
+    FrameInput echo = inputFor(keys, container.revision.offsetY, fixture);
+    echo.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
+    Virtualizer::update(container, echo);
+    framesWithOperation += container.state.operation ? 1 : 0;
+    framesWithWrite += container.state.offsetCorrected ? 1 : 0;
+  }
+  CHECK(framesWithOperation <= 4);
+  CHECK(framesWithWrite <= 4);
+  CHECK(!container.state.operation.has_value());
+  CHECK(!container.state.pendingScrollToEnd);
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+}
+
+namespace {
+
+/*
+ * The size of a row in a two column grid whose first track holds tall rows and whose second
+ * track holds short ones.
+ */
+Size unevenTrackSize(std::size_t index) {
+  return {WINDOW_WIDTH / 2.0, index % 2 == 0 ? 400.0 : 50.0};
+}
+
+/*
+ * A layout pass of that grid: sizes for the rows of the measured range in one batch.
+ */
+void measureUnevenTracks(Container& container) {
+  IndexRange measured = container.getMeasuredRange();
+  if (measured.low != UNDEFINED_INDEX) {
+    layoutRows(container, measured.low, measured.high, unevenTrackSize);
+  }
+}
+
+}
+
+/*
+ * A masonry grid whose tracks end far apart gets a row appended to the short track. That row
+ * is the last one by index, and it sits far above the end of the content, outside the measured
+ * range. It never gets a real size. A scroll to the end is done once the row that ends the
+ * content has one.
+ */
+TEST(grid_scroll_to_end_finishes_when_the_last_row_sits_on_a_short_track) {
+  Fixture fixture;
+  fixture.numberOfColumns = 2;
+
+  std::vector<std::string> keys = keysFor(41);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  layoutRows(container, 0, keys.size() - 1, unevenTrackSize);
+  keys.push_back("appended");
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+
+  container.scrollToEnd();
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  for (int frame = 0; frame < 8; ++frame) {
+    measureUnevenTracks(container);
+    FrameInput echo = inputFor(keys, container.revision.offsetY, fixture);
+    echo.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
+    Virtualizer::update(container, echo);
+  }
+  CHECK(!container.revision.rows.back().measured);
+  CHECK(offsetOf(container, keys.size() - 1) + sizeOf(container, keys.size() - 1) < container.revision.offsetY);
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+  CHECK(!container.state.pendingScrollToEnd);
+  CHECK(!container.state.operation.has_value());
+}
+
+/*
+ * The same grid inverted, still opening on its bottom when the row is appended. The opening
+ * pin is done once the row that ends the content has a real size.
+ */
+TEST(inverted_grid_finishes_opening_when_the_last_row_sits_on_a_short_track) {
+  Fixture fixture;
+  fixture.numberOfColumns = 2;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(41);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK(!container.state.invertedInitialized);
+  layoutRows(container, 0, keys.size() - 1, unevenTrackSize);
+
+  keys.push_back("appended");
+  for (int frame = 0; frame < 8; ++frame) {
+    FrameInput echo = inputFor(keys, container.revision.offsetY, fixture);
+    echo.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
+    Virtualizer::update(container, echo);
+    measureUnevenTracks(container);
+  }
+  CHECK(!container.revision.rows.back().measured);
+  CHECK(offsetOf(container, keys.size() - 1) + sizeOf(container, keys.size() - 1) < container.revision.offsetY);
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+  CHECK(container.state.invertedInitialized);
+  CHECK(!container.state.operation.has_value());
 }
 
 TEST(scroll_to_index_lands_on_the_requested_row) {

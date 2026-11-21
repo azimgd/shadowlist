@@ -55,31 +55,54 @@ document.body.append(list);
 list.reloadData();
 ```
 
+## Optional utilities
+
+The avatar, relative-time and poll helpers live in the `shadowlist-wasm-utils` package of [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates).
+
+## Loader
+
+`shadowlist-wasm/loader` exports `ShadowListWasmLoader`, the loader behind `loadShadowListKit`, with its
+`ShadowListWasmLoadOptions` and `ShadowListWasmModuleOptions` types. A package with its own Emscripten binary,
+such as `shadowlist-wasm-utils`, uses it to get the same `source` and `locateFile` options, one shared in-flight
+load and retries after a failed load. It imports no binary.
+
+```ts
+import { ShadowListWasmLoader } from 'shadowlist-wasm/loader';
+import createModule from './mymodule.mjs';
+
+let wasmModule = null;
+const loader = new ShadowListWasmLoader(createModule, (loaded) => {
+  wasmModule = loaded;
+});
+await loader.load({ locateFile: (file) => `/assets/${file}` });
+```
+
 ## API
 
 The data source gives `numberOfItems`, `keyForItem` and `cellForItem`, and optionally `sizeForItem` for sizes
 without cells, `reconfigureCell` for payload reloads and `contentVersionForItem` for `applyChanges`. Without
 `sizeForItem` every item is measured once through its cell's view at the list's cross size. The delegate has
 `willDisplayCell`, `didEndDisplayingCell`, the scroll events of the native kits (`didScroll`, `willBeginDragging`,
-`didEndDragging`, `didEndDecelerating`, `didEndScrollingAnimation`), `didReachStart` and `didReachEnd`, all
-optional. `prefetchDataSource` hears `prefetchItems` and `cancelPrefetchingForItems`.
+`didEndDragging`, `didEndDecelerating`, `didEndScrollingAnimation`), `didReachStart`, `didReachEnd` and
+`didChangeAtEnd(listView, atEnd)`, all optional. `prefetchDataSource` hears `prefetchItems` and
+`cancelPrefetchingForItems`.
 
 Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`,
 `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`
 (`ShadowListKitSnapAlignment.START`, `CENTER` or `END`, the strings `'start'`, `'center'` and `'end'`),
-`stickyIndices`, `headerView`, `footerView`, `contentCrossSize`, and `dataSource`, `delegate` and
-`prefetchDataSource`. Cells: `registerCell(identifier, factory)` and `dequeueReusableCell(identifier)`. Data: `reloadData`, `insertItems`, `deleteItems`,
+`stickyIndices`, `headerView`, `footerView`, `stickyHeader`, `stickyFooter`, `emptyView`, `nonAnchorKeys` (a
+`Set` of keys), `contentCrossSize`, and `dataSource`, `delegate` and `prefetchDataSource`. Cells: `registerCell(identifier, factory)` and `dequeueReusableCell(identifier)`. Data: `reloadData`, `insertItems`, `deleteItems`,
 `reloadItems(indices, payload)`, `moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates(updates, completion)`
 with `completion(finished)`, `applyChanges`. Queries and commands: `itemCount`, `keys`, `offset`, `crossOffset`,
 `cellForItem`, `visibleCells`, `visibleRange` (`{ low, high }`), `rectForItem` (content coordinates, header included),
-`contentSize`, `anchorState`, `scrollToItem(index, viewPosition = 0, animated = false)`, `scrollToStart(animated)`,
+`contentSize`, `anchorState`, `atEnd`, `scrollToItem(index, viewPosition = 0, animated = false)`, `scrollToStart(animated)`,
 `scrollToEnd(animated)`, `restoreAnchorState`. `isShadowListKitLoaded()` tells whether the module has loaded. Sizes are in CSS pixels, which are the native kits' points at zoom 1.
 
 - Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data before,
   inserts and move destinations in the data after. A batch that does not add up reloads everything. `applyChanges`
-  diffs every key with the core's `diffKeys`, reloads items whose `contentVersionForItem` changed since the last
-  reload, and returns a `ShadowListKitListChanges`. The core's `BatchCollector` and `ContentVersions` hold the batch
-  and the versions. A number version compares as itself and a string version by a 64 bit hash. A batch made before
+  diffs every key with the core's `diffKeys`, reloads items whose `contentVersionForItem` changed since the list
+  read it, at a reload, at the item's insert or at the `applyChanges` before, and returns a
+  `ShadowListKitListChanges`. The core's `BatchCollector` and `ContentVersions` hold the batch and the versions. A number version compares as itself and a string version by a 64 bit hash. A batch made before
   the core loaded reads everything again when it ends.
 - A cell's `view` is placed at an exact frame. An item whose content changed size needs `reloadItems`, which
   measures it again.
@@ -87,6 +110,15 @@ with `completion(finished)`, `applyChanges`. Queries and commands: `itemCount`, 
   `contentCrossSize` makes the content that wide (or tall, for a horizontal list) and lets the browser scroll across
   too, as a grid's rows need. `crossOffset` reads that position, and `didScroll` fires for either axis.
 - Masonry is round robin: item `i` goes in column `i % numberOfColumns`, and each column stacks its own items.
+- `stickyHeader` pins `headerView` to the start of the viewport and `stickyFooter` pins `footerView` to its end,
+  over the items. The footer's place pushes a pinned header off, and a pinned footer stays under the header's
+  place. `emptyView` shows right after the header while the list has no items, at its own size, measured like the
+  header's.
+- `atEnd` is whether an inverted list is at its end. It leaves the end when the reader scrolls away from it or a
+  scroll command lands away from it, and is back when either brings it there. Items appended while it rests there
+  do not leave it. It is always true for a list that is not inverted.
+- `nonAnchorKeys` are the keys of items the list never holds the visible content in place by, like a typing
+  indicator or an item that streams in. The nearest other item holds it instead.
 - A list that connects before `loadShadowListKit` was called starts the load itself. Until it resolves, properties,
   `dataSource`, `registerCell`, `reloadData`, `performBatchUpdates` and `restoreAnchorState` are safe and wait for it.
   `insertItems`, `deleteItems`, `applyChanges`, `rectForItem` and the scroll commands throw.
@@ -99,36 +131,34 @@ The view's own behavior:
   scrolling as settling. The list rests on `scrollend`, or after 150 ms without a scroll event.
 - The browser's scroll anchoring is off on the list (`overflow-anchor: none`). The core keeps the content in place.
 - Sticky rows stick with CSS `position: sticky`. Each mounted sticky row sits in a section element that runs to
-  the next sticky row, which pushes it away. The browser pins it on the thread that scrolls.
+  the next sticky row, which pushes it away. The browser pins it on the thread that scrolls. A pinned header or
+  footer sticks the same way inside a span the core's `stickySpans` gives, where the native kits move theirs by
+  the core's `stickyTranslations` on every frame.
 - `snapToItem` moves to the nearest item edge once the list came to rest.
 - Animated scroll commands step once per animation frame. A wheel or a touch stops them.
 - The core is created when the list lays out and destroyed when it disconnects. A list never connected leaves its
   core to a `FinalizationRegistry`.
 - Accessibility: the list has `role="list"`, each cell `role="listitem"` with `aria-posinset` and `aria-setsize`. A list given another role before it connects, such as `rowgroup` in a grid, leaves its cells' roles and positions to the cells. A cell with its own role keeps it.
 
-The web kit has no sections, selection, drag reorder, swipe actions, context menus, pull to refresh, separators or
-change animations.
+The web kit has no sections, selection, drag reorder, swipe actions, context menus, long presses, pull to refresh,
+separators, change animations or text layout. A cell's own listeners hear presses on its view.
 
 ## Example app
 
-The example app lives in [`templates/shadowlist-web-example`](../../templates/shadowlist-web-example). From the
-repo root:
-
-```sh
-cd templates/shadowlist-web-example
-npm run build   # or: ../../packages/shadowlist-wasm/build.sh && ../../node_modules/.bin/tsc -b
-npm start       # serves the repo root on http://localhost:8080
-```
-
-Then open `http://localhost:8080/templates/shadowlist-web-example/?SLRoute=Chat&SLCount=1000`. `SLRoute` takes
-`Feed`, `Chat`, `Masonry`, `Horizontal` and `Sticky`. The page puts the list on `window.list` for the console.
+The example app is `examples/shadowlist-web-example` in [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates),
+which builds against a checkout of this repository. Its README gives the build and serve commands. `SLRoute` takes
+`Feed`, `Poll`, `Chat`, `Masonry`, `Horizontal` and `Sticky`. The page puts the list on `window.list` for the console.
 
 ## Tests
 
 `yarn test:wasm` at the repo root (`yarn workspace shadowlist-wasm run test`) runs `test/*.test.ts` against `dist/`
-in Node 22 or newer. `ShadowListKitCore.test.ts` and `load.test.ts` need no browser. `browser.test.ts` drives the list
+in Node 22 or newer. `ShadowListKitCore.test.ts` and `load.test.ts` need no browser. The first also holds the slot
+numbers here and in the Android kit to the core's `host/KitBridge.hpp`. `browser.test.ts` drives the list
 in headless Chrome through `test/fixture.html` and is skipped when no Chrome is found. `CHROME_PATH` picks the
-binary. Run `yarn build:wasm` first.
+binary. `loader-contract.test.ts` checks the loader's byte source, asset location and concurrent calls. The
+browser suite also opens each route of the web example in shadowlist-templates, found at
+`$SHADOWLIST_TEMPLATES_ROOT/examples/shadowlist-web-example` (default `../shadowlist-templates` next to this
+repository). That test is skipped when the example or its `dist/` build is missing. Run `yarn build:wasm` first.
 
 ## Export names
 
@@ -148,10 +178,11 @@ console on every pass.
 | --- | --- |
 | `packages/shadowlist-core/host/ListDriver.{hpp,cpp}` | The core driven for a native list: layout passes, measurement, keys, sticky math, drag. |
 | `cpp/ShadowListKitCoreWasm.cpp` | Thin wasm hops into the driver through a reused scratch area of the heap. |
+| `src/ShadowListWasmLoader.ts` | Shared module source, retry and concurrent-load handling. |
 | `src/ShadowListKitCore.ts` | Loads the module and wraps the wasm calls, the same shape as Android's `ShadowListKitCore`. |
 | `src/ShadowListKitListView.ts` | Public API, layout pass, mounting, scroll commands. |
 | `src/ShadowListKitListData.ts` | Keys, reloads, inserts, deletes, batches and `applyChanges`. |
 | `src/ShadowListKitScrollGesture.ts` | The scroll phase from browser events, animated commands and the snap. |
-| `src/ShadowListKitStickyPinning.ts` | Pins the active sticky row. |
+| `src/ShadowListKitStickyPinning.ts` | Pins the sticky rows and a pinned header and footer. |
 | `src/ShadowListKitListCell.ts`, `ShadowListKitAnchorState.ts`, `ShadowListKitListChanges.ts` | Cell base class and public value types. |
 | `src/ShadowListKitSnapAlignment.ts` | `snapAlignment` values, in the core's `SnapAlignment` order. |

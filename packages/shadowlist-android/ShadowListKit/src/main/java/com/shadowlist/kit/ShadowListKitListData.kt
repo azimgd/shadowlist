@@ -218,7 +218,19 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     forEachRun(sorted) { first, last -> keys.addAll(sorted[first], inserted.asList().subList(first, last + 1)) }
     state.insertRows(list.liveCore, sorted, inserted)
     setPlainSections(keys.size)
+    insertContentVersions(sorted)
     list.structureChanged()
+  }
+
+  /*
+   * The content version of the items a change inserted, which the next applyChanges compares
+   * against. items are their positions in the item keys after the change. The versions of the
+   * other items stay as they are.
+   */
+  private fun insertContentVersions(items: IntArray) {
+    val versioned = list.dataSource as? ContentVersions ?: return
+    if (items.isEmpty()) return
+    state.insertVersions(items, LongArray(items.size) { versioned.contentVersionForItem(list, items[it]) })
   }
 
   fun deleteItems(indices: IntArray) {
@@ -303,6 +315,7 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     val next = spareKeys
     next.clear()
     var planned = false
+    var inserted = IntArray(0)
     if (source !is Sections && !needsReload) {
       val nextCount = max(0, source.numberOfItems(list))
       val plan = state.planTakenBatch(keys.size, nextCount)
@@ -310,6 +323,7 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
         next.ensureCapacity(plan.size)
         // The core's keysFromPlan: a kept row takes its key, an inserted one reads its own.
         for ((index, from) in plan.withIndex()) next.add(if (from < 0) source.keyForItem(list, index) else keys[from])
+        inserted = plan.indices.filter { plan[it] < 0 }.toIntArray()
         setPlainSections(next.size)
         planned = true
       } else {
@@ -317,8 +331,19 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
       }
     }
     val nextItems = if (planned) next else readRowKeys(next)
-    commitRowKeys(previousItems, next, nextItems, 0)
+    // A batch read again names no items. The ones it inserted are the keys the data did not hold.
+    val diffs = !planned && source is ContentVersions
+    val committed = commitRowKeys(previousItems, next, nextItems, if (diffs) ShadowListKitListState.COMMIT_DIFF else 0)
+    insertContentVersions(if (diffs) insertedOf(committed) else inserted)
     reloadKeyRows(reloadedKeys, payload, reloadsSectionIndex = !planned)
+  }
+
+  /*
+   * The inserted items of a packed COMMIT_DIFF diff, which follow its deleted ones.
+   */
+  private fun insertedOf(diff: IntArray): IntArray {
+    val at = 1 + diff[0]
+    return diff.copyOfRange(at + 1, at + 1 + diff[at])
   }
 
   /*

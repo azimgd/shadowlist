@@ -4,6 +4,10 @@
 #import "ShadowListKitCoreBridge.h"
 #import "ShadowListKitListCell+Private.h"
 #import "ShadowListKitPlatform.h"
+#if !TARGET_OS_OSX
+#import "ShadowListKitSwipeController.h"
+#import "ShadowListKitMenuController.h"
+#endif
 
 #if TARGET_OS_OSX
 #import <ShadowListKit/ShadowListKitScrollEngine.h>
@@ -26,6 +30,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class ShadowListKitChangeAnimator;
+@class ShadowListKitDragBoard;
 @class ShadowListKitRowAccessibilityElement;
 @class ShadowListKitSwipeActionsView;
 #if !TARGET_OS_OSX
@@ -50,6 +55,10 @@ extern const char ShadowListKitListViewActionsLink;
 extern const char ShadowListKitListViewCommandsLink;
 extern const char ShadowListKitListViewDataLink;
 extern const char ShadowListKitListViewDragLink;
+#if !TARGET_OS_OSX
+extern const char ShadowListKitListViewDragBoardLink;
+extern const char ShadowListKitListViewDragBoardAccessibilityLink;
+#endif
 extern const char ShadowListKitListViewPassesLink;
 #if TARGET_OS_OSX
 extern const char ShadowListKitListViewScrollingLink;
@@ -76,10 +85,10 @@ struct ShadowListKitPassGeometry {
  * State and helpers the list shares with its categories. Both kits compile this header, and
  * each kit's own state follows the shared state.
  * _mounted holds the mounted cells by key. A cell follows its key across inserts above it.
- * _mountGeneration counts the mount passes, and _mounted* is what the last one covered: the pass
- * is skipped while all of it holds. _mountedShift is the pixel shift it placed rows with, and
- * _mountBand the offsets where its plan mounts the same rows. _layoutPasses, _corePasses and
- * _mountPasses count the layout passes, the runs of the core and the mount passes, for tests.
+ * _mountGeneration counts the mount passes, and _mountRecord is what the last one covered, with
+ * the band and the inputs of the last mount plan: the core's shouldSkipMount skips a pass while
+ * it holds. _layoutPasses, _corePasses and _mountPasses count the layout passes, the runs of the
+ * core and the mount passes, for tests.
  * _cellClasses holds the registered cell classes and _reusePool the recycled cells, both by
  * reuse identifier. _prefetchRows and _cancelRows are the prefetch changes of a mount pass.
  * _band is the band of offsets where the core has nothing to do, and _needsFrame runs the core
@@ -87,10 +96,10 @@ struct ShadowListKitPassGeometry {
  * footer's and the content's sizes along the axis and where the footer starts. _sentSettings
  * are the settings the core runs with, sent again only when one changed. _previousOffset is the
  * last offset seen, which tells the user's scrolling from the list's own writes, and
- * _userScrolled says the user moved it since the last pass. _clampingPass is set while the pass
- * after a clamp to the end runs. A settle frame waits on _settleLink for the next display frame,
- * at most one at a time while _settleScheduled. _reachedStart and _reachedEnd wait to be told
- * to the delegate after the pass.
+ * _userScrolled says the user moved it since the last pass. A settle frame waits on _settleLink
+ * for the next display frame, at most one at a time while _settleScheduled. _reachedStart and _reachedEnd wait to be told
+ * to the delegate after the pass. _atEnd is whether the core says the list is at its end, and
+ * _atEndChanged a change of it that waits the same way.
  * _sections maps the rows the core places to items, section headers and footers.
  * _windowAlong and _windowCross are the geometry the core last ran with. offset is the scroll
  * offset along the axis, from the content start including the header. writeOffset:byUser: moves
@@ -104,9 +113,14 @@ struct ShadowListKitPassGeometry {
  * show them while they lag.
  * mountedCellAtIndex: is the mounted cell of a row, or nil. mountedCellForKey: is the mounted
  * cell of a key, or nil. itemsOfRows: is the items among rows.
- * _headerView and _footerView are the views before the first row and after the last.
+ * _headerView and _footerView are the views before the first row and after the last, pinned to
+ * the viewport with _stickyHeader and _stickyFooter. _emptyView shows after the header while
+ * _showsEmpty, the core's word that the list has no rows, and _emptySize is its size along the
+ * axis.
  * _stickyIndices and _stickySectionHeaders pick the rows that pin, and _stickyCell is the cell
- * pinned now.
+ * pinned now. A custom sticky header keeps the original cell hidden and records its visibility
+ * for restoration. Its data revision refreshes the factory without replacing it on width changes.
+ * _nonAnchorKeys are the keys of the items the core never holds the content by.
  * _changes animates data changes and _itemAnimator runs its animations.
  * _pendingAnchor is a saved position waiting for its key. contentOffsetAt: is the content offset
  * of an offset along the axis. invalidateFrame runs the core on the next layout pass.
@@ -115,19 +129,21 @@ struct ShadowListKitPassGeometry {
  * reached callbacks, runs in the layout already pending. _sizesFromDataSource is whether the
  * data source gives sizes, read again on every reload. _batch holds the changes
  * performBatchUpdates:completion: collects until its block returns, and _batchPayload the
- * payload of the last reload in it. _contentVersions is the content version of every item
- * applyChanges saw, by key.
+ * payload of the last reload in it. _contentVersions is the content version of every item the
+ * list read, by key, which applyChanges compares against.
  * _selection holds the selected keys, on the Mac with the anchor of a range, and
  * _highlightedCell the row a finger rests on or the item the mouse presses.
  * _heldCell is the cell of the held row and _dragTouch the finger or the mouse in the list's
  * coordinates. _dragStart is where the press began. _dragLink scrolls near the edges.
- * _swipeCell is the row swiped open and _swipeActionsView its actions, _swipeOffset how far the
- * row shows moved across the axis and _swipe where it follows and rests.
+ * On the Mac, _swipeCell is the row swiped open and _swipeActionsView its actions, _swipeOffset
+ * how far the row shows moved across the axis and _swipe where it follows and rests. UIKit's
+ * _swipeController owns that reveal session and _menuController owns its native menus.
  * _rowElements holds the rows' accessibility elements by key.
  *
- * iOS: _editing is the list's editing state. _dragPress lifts a row and _dragMoved tells a hold
- * that moved from one that only lifted the row. _swipePan moves a row, _menuInteraction and
- * _editMenu show the menus and _pendingMenu is the menu the edit menu shows next.
+ * iOS: _editing is the list's editing state. _tap selects an item. _dragPress lifts a row and
+ * _dragMoved tells a hold that moved from one that only lifted the row. _swipePan moves a row,
+ * _menuController shows the menus
+ * next. _longPress hears a hold on an item while the delegate takes long presses.
  * _sectionIndex is the section index view while the data source gives titles for it.
  * _rowElements keeps the stand-ins of rows off screen while accessibility holds them.
  *
@@ -173,13 +189,7 @@ struct ShadowListKitPassGeometry {
 
   std::unordered_map<std::string, ShadowListKitListCell *> _mounted;
   NSUInteger _mountGeneration;
-  std::size_t _mountedLow;
-  std::size_t _mountedHigh;
-  std::size_t _mountedSticky;
-  std::uint64_t _mountedGeometry;
-  NSUInteger _mountedStructure;
-  double _mountedShift;
-  azimgd::shadowlist::OffsetBand _mountBand;
+  azimgd::shadowlist::MountRecord _mountRecord;
   NSUInteger _layoutPasses;
   NSUInteger _corePasses;
   NSUInteger _mountPasses;
@@ -192,26 +202,61 @@ struct ShadowListKitPassGeometry {
   BOOL _needsFrame;
   CGFloat _headerSize;
   CGFloat _footerSize;
+  CGFloat _emptySize;
   CGFloat _contentAlong;
   double _footerStart;
   azimgd::shadowlist::ListSettings _sentSettings;
   BOOL _hasSentSettings;
   double _previousOffset;
   BOOL _userScrolled;
-  BOOL _clampingPass;
   BOOL _settleScheduled;
   CADisplayLink *_settleLink;
   BOOL _reachedStart;
   BOOL _reachedEnd;
+  BOOL _atEnd;
+  BOOL _atEndChanged;
 
   CGFloat _windowAlong;
   CGFloat _windowCross;
 
   ShadowListKitView *_headerView;
   ShadowListKitView *_footerView;
+  ShadowListKitView *_emptyView;
+  BOOL _stickyHeader;
+  BOOL _stickyFooter;
+  BOOL _autoHideHeader;
+  BOOL _autoHideFooter;
+  BOOL _showsEmpty;
   NSIndexSet *_stickyIndices;
   BOOL _stickySectionHeaders;
   ShadowListKitListCell *_stickyCell;
+  ShadowListKitView * _Nullable (^_renderStickyHeaderOverlay)(NSString * _Nullable, NSInteger, NSInteger);
+  ShadowListKitView *_stickyHeaderOverlay;
+  ShadowListKitListCell *_stickyHeaderOverlayCell;
+  BOOL _stickyHeaderOverlayCellHidden;
+  std::string _stickyHeaderOverlayKey;
+  NSUInteger _stickyHeaderOverlayRevision;
+  NSUInteger _stickyHeaderOverlayRenderedRevision;
+
+  NSSet<NSString *> *_nonAnchorKeys;
+  NSSet<NSString *> *_persistentKeys;
+  ShadowListKitItemSizeSpec * _Nullable (^_getItemSizeSpec)(NSInteger);
+  NSUInteger _measureLookaheadRows;
+  NSInteger (^_getItemSpan)(NSInteger);
+  NSUInteger _rowSpansRevision;
+  NSUInteger _rowSpansSentRevision;
+  NSUInteger _rowSpansStructureVersion;
+  NSInteger _rowSpansColumns;
+  ShadowListKitViewabilityConfig *_viewabilityConfig;
+  NSArray<ShadowListKitViewabilityConfigCallbackPair *> *_viewabilityConfigCallbackPairs;
+  void (^_onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *);
+  NSArray<ShadowListKitViewabilityConfigCallbackPair *> *_viewabilityCallbacks;
+  NSMutableArray<NSMutableDictionary<NSString *, ShadowListKitViewToken *> *> *_viewabilityTokens;
+  NSTimer *_viewabilityTimer;
+  BOOL _viewabilityUpdating;
+  BOOL _viewabilityNeedsUpdate;
+  BOOL _viewabilityAttached;
+  NSUInteger _viewabilityGeneration;
 
   BOOL _animatesChanges;
   ShadowListKitChangeAnimator *_changes;
@@ -238,13 +283,27 @@ struct ShadowListKitPassGeometry {
   CGPoint _dragTouch;
   CGPoint _dragStart;
   CADisplayLink *_dragLink;
+#if !TARGET_OS_OSX
+  ShadowListKitDragBoard *_dragBoard;
+  NSString *_dragBoardId;
+  NSString *_dragListId;
+  NSString *_dragListLabel;
+#endif
 
+#if TARGET_OS_OSX
   ShadowListKitListCell *_swipeCell;
   ShadowListKitSwipeActionsView *_swipeActionsView;
   azimgd::shadowlist::SwipeReveal _swipe;
   CGFloat _swipeOffset;
+#else
+  ShadowListKitSwipeController *_swipeController;
+  ShadowListKitMenuController *_menuController;
+#endif
 
   NSMapTable<NSString *, ShadowListKitRowAccessibilityElement *> *_rowElements;
+#if !TARGET_OS_OSX
+  UIAccessibilityCustomRotor *_sectionHeaderRotor;
+#endif
 
 #if TARGET_OS_OSX
   NSView *_contentView;
@@ -293,13 +352,12 @@ struct ShadowListKitPassGeometry {
 #else
   BOOL _editing;
 
+  UITapGestureRecognizer *_tap;
   UILongPressGestureRecognizer *_dragPress;
   BOOL _dragMoved;
 
   UIPanGestureRecognizer *_swipePan;
-  UIContextMenuInteraction *_menuInteraction;
-  UIEditMenuInteraction *_editMenu;
-  UIMenu *_pendingMenu;
+  UILongPressGestureRecognizer *_longPress;
 
   ShadowListKitSectionIndexView *_sectionIndex;
 #endif
@@ -356,7 +414,10 @@ struct ShadowListKitPassGeometry {
  * on device pixels. mountCells mounts the rows near the viewport and recycles the rest, and
  * unmountAll recycles every cell. reportPrefetchRows:cancel: hands prefetch changes to the
  * prefetch data source. measureRow:key:cross: is a row's size for the core. dispatchReached
- * tells the delegate the list reached its start or its end.
+ * tells the delegate the list reached its start or its end, or left its end or is back at it.
+ * shownEmptyView is the empty view while it shows, or nil. isUnderPinnedTemplate: is whether a
+ * pinned header or footer covers a point of the content, and with it the rows there.
+ * sendNonAnchorKeys hands the core the keys it never holds the content by.
  * Each kit gives the view the cells sit in with cellContainer, clears its own state off a
  * recycled cell in clearCellForReuse:, places and hides a cell with placeCell:frame: and
  * setCell:hidden:, shows a cell's state in applyStateToCell:key:, says what
@@ -367,10 +428,16 @@ struct ShadowListKitPassGeometry {
 
 - (void)layoutPass;
 - (void)layoutSticky;
+- (void)clearStickyHeaderOverlay;
+- (void)invalidateStickyHeaderOverlay;
+- (BOOL)layoutStickyHeaderOverlay:(std::size_t)active cell:(nullable ShadowListKitListCell *)cell;
+
 - (void)unpinCell:(ShadowListKitListCell *)cell;
 - (BOOL)readGeometry;
 - (void)trackUserScroll;
+- (void)updateStickyOffset:(double)offset byUser:(BOOL)byUser;
 - (void)runPasses;
+- (BOOL)sendRowSpans;
 - (void)resetKeepingPosition;
 - (ShadowListKitListCell *)makeCellAtRow:(NSInteger)row;
 - (CGRect)displayRect:(double)x y:(double)y width:(double)width height:(double)height;
@@ -379,6 +446,14 @@ struct ShadowListKitPassGeometry {
 - (void)reportPrefetchRows:(const std::vector<std::size_t>&)rows cancel:(const std::vector<std::size_t>&)cancelRows;
 - (CGFloat)measureRow:(NSInteger)row key:(const std::string&)key cross:(CGFloat)cross;
 - (void)dispatchReached;
+- (nullable ShadowListKitView *)shownEmptyView;
+- (BOOL)isUnderPinnedTemplate:(CGPoint)point;
+- (void)sendNonAnchorKeys;
+- (void)sendPersistentKeys;
+- (void)sendSizeSpecSource;
+- (void)sendViewabilityConfigs;
+- (void)updateViewability;
+- (void)detachViewability;
 
 @end
 
@@ -499,7 +574,8 @@ struct ShadowListKitPassGeometry {
  * and points accessibility at it. selectionChangedForAccessibility and
  * rowsChangedForAccessibility hear a data change that dropped selected rows or changed the
  * rows. The Mac posts one selection change for all made in a turn and a new row count, and
- * drops the elements of deleted rows. iOS adds VoiceOver page scrolls.
+ * drops the elements of deleted rows. iOS adds VoiceOver page scrolls and a system Heading
+ * rotor over the current sections. Its cached rotor reads keys when queried, not a row snapshot.
  * On the Mac, accessibilityElementForRow: is the element of a row, mounted or not, made on first
  * use. accessibilityParentOfCell: is the element of a mounted cell's row, or nil for a cell that
  * is not mounted.
@@ -512,6 +588,8 @@ struct ShadowListKitPassGeometry {
 #if TARGET_OS_OSX
 - (ShadowListKitRowAccessibilityElement *)accessibilityElementForRow:(std::size_t)row;
 - (nullable id)accessibilityParentOfCell:(ShadowListKitListCell *)cell;
+#else
+- (nullable UIView *)scrollAccessibilityRowForKey:(NSString *)key;
 #endif
 
 @end
@@ -559,6 +637,7 @@ struct ShadowListKitPassGeometry {
 - (void)updateSwipesItems;
 - (BOOL)swipeWithScrollWheel:(NSEvent *)event;
 - (BOOL)isSwipeOpen;
+- (nullable ShadowListKitListCell *)swipeCell;
 - (BOOL)isSwipedOutCell:(ShadowListKitListCell *)cell;
 - (void)closeSwipeAnimated:(BOOL)animated;
 - (BOOL)swipeOwnsClickAtPoint:(NSPoint)point;
@@ -585,6 +664,29 @@ struct ShadowListKitPassGeometry {
 - (void)adoptHeldCell:(ShadowListKitListCell *)cell;
 - (void)enableDragPress:(BOOL)enabled;
 - (void)applyDragShiftsAnimated:(BOOL)animated;
+- (std::vector<std::size_t>)mountedIndices;
+
+@end
+
+@interface ShadowListKitListView (DragBoard)
+
+- (void)beginDragBoard;
+- (void)noteDragBoardFinger:(CGPoint)location;
+- (void)refreshDragBoardTouch;
+- (BOOL)updateDragBoard;
+- (BOOL)finishDragBoard:(BOOL)commit;
+- (BOOL)scrollDragBoard:(CADisplayLink *)link;
+- (CGPoint)dragBoardReturnOffsetForCenter:(CGPoint)center;
+- (void)leaveDragBoard;
+- (void)joinDragBoard;
+- (BOOL)moveDragBoardItemAtIndex:(NSInteger)source toList:(ShadowListKitListView *)target destinationIndex:(NSInteger)index destinationKey:(NSString *)key;
+
+@end
+
+@interface ShadowListKitListView (DragBoardAccessibility)
+
+- (NSArray<ShadowListKitListView *> *)dragBoardMoveTargets;
+- (NSArray<UIAccessibilityCustomAction *> *)dragBoardAccessibilityActionsForCell:(ShadowListKitListCell *)cell;
 
 @end
 
@@ -592,13 +694,15 @@ struct ShadowListKitPassGeometry {
  * Swipe actions and context menus. installActionGestures runs once at init. layoutSwipe keeps
  * the actions under the swiped row after a layout pass. closeSwipeAnimated: closes an open row.
  * swipeCellWillRecycle: drops the swipe of a cell going back to the pool.
- * showMenuForCell:atPoint: shows a held row's menu.
+ * showMenuForCell:atPoint: shows a held row's menu and returns whether it has one.
+ * longPressCell: tells the delegate of a hold on an item without a menu.
  */
-@interface ShadowListKitListView (Actions) <UIContextMenuInteractionDelegate, UIEditMenuInteractionDelegate>
+@interface ShadowListKitListView (Actions) <ShadowListKitSwipeHost, ShadowListKitMenuHost>
 
 - (void)installActionGestures;
 - (void)layoutSwipe;
 - (BOOL)isSwipeOpen;
+- (nullable ShadowListKitListCell *)swipeCell;
 - (void)closeSwipeAnimated:(BOOL)animated;
 - (BOOL)swipeOwnsTapAtPoint:(CGPoint)point;
 - (BOOL)isSwipedOutCell:(ShadowListKitListCell *)cell;
@@ -606,7 +710,10 @@ struct ShadowListKitPassGeometry {
 - (BOOL)shouldBeginActionGesture:(UIGestureRecognizer *)gesture;
 - (BOOL)swipeTakesPan:(UIPanGestureRecognizer *)pan;
 - (BOOL)showMenuForCell:(ShadowListKitListCell *)cell atPoint:(CGPoint)point;
+- (void)longPressCell:(ShadowListKitListCell *)cell;
 - (void)scriptSwipeOfCell:(ShadowListKitListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity;
+- (NSArray<UIAccessibilityCustomAction *> *)swipeAccessibilityActionsForCell:(ShadowListKitListCell *)cell;
+- (BOOL)isCurrentActionCell:(UIView *)content;
 
 @end
 #endif

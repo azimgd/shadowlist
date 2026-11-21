@@ -79,6 +79,16 @@ std::vector<std::size_t> rowsOfKeys(
   return rows;
 }
 
+std::vector<std::size_t> insertedRows(const BatchPlan& plan, std::size_t previousCount) {
+  std::vector<std::size_t> inserted;
+  for (std::size_t index = 0; index < plan.sources.size(); ++index) {
+    if (plan.sources[index] >= previousCount) {
+      inserted.push_back(index);
+    }
+  }
+  return inserted;
+}
+
 bool BatchCollector::end() {
   if (depth_ == 0) {
     return false;
@@ -179,6 +189,26 @@ std::vector<std::size_t> ContentVersions::update(KeyList itemKeys, const std::ve
   std::vector<std::size_t> changed;
   keep(itemKeys, versions, [&](std::size_t item) { changed.push_back(item); });
   return changed;
+}
+
+void ContentVersions::insert(
+  const std::vector<std::string>& itemKeys,
+  const std::vector<std::size_t>& items,
+  const std::vector<std::int64_t>& versions) {
+  insert(KeyList(itemKeys), items, versions);
+}
+
+void ContentVersions::insert(
+  KeyList itemKeys,
+  const std::vector<std::size_t>& items,
+  const std::vector<std::int64_t>& versions) {
+  std::size_t count = std::min(items.size(), versions.size());
+  for (std::size_t at = 0; at < count; ++at) {
+    if (items[at] < itemKeys.size()) {
+      // A key that left and came back shows its content as it is now.
+      versions_.insert_or_assign(itemKeys[items[at]], Entry{versions[at], round_});
+    }
+  }
 }
 
 HeldKeysCommit HeldKeys::commit(KeyChange rows, std::optional<KeyChange> items, bool diff) {

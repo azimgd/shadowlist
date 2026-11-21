@@ -3,6 +3,17 @@ import ShadowListKitAppKit
 import XCTest
 
 /*
+ * Items with a content version a test bumps by key.
+ */
+private final class VersionedSource: TestSource {
+  var versions: [String: Int] = [:]
+
+  func listView(_ listView: ShadowListKitListView, contentVersionForItemAt index: Int) -> Int {
+    versions[keys[index]] ?? 0
+  }
+}
+
+/*
  * Data changes: rows on screen stay where they are while items come and go around them.
  */
 @MainActor
@@ -124,6 +135,51 @@ final class ListDataTests: XCTestCase {
     XCTAssertEqual(harness.list.rectForItem(at: 3).minY, harness.list.rectForItem(at: 2).maxY, accuracy: 0.01)
   }
 
+  /*
+   * The core leaves an inverted list past its new end. The driver brings it back and runs the core
+   * again there, and the end the first run reached is still told to the delegate.
+   */
+  func testAnInvertedListThatShrinksToAFewRowsReachesItsEnd() {
+    final class Edges: NSObject, ShadowListKitListViewDelegate {
+      var ends = 0
+      func listViewDidReachEnd(_ listView: ShadowListKitListView) { ends += 1 }
+    }
+    let edges = Edges()
+    let source = makeSource(count: 400)
+    let harness = ListHarness(source: source) { $0.isInverted = true }
+    harness.list.contentOffset = CGPoint(x: 0, y: 3000)
+    harness.layout()
+    harness.list.delegate = edges
+    source.keys = Array(source.keys.prefix(3))
+    harness.list.reloadData()
+    XCTAssertEqual(edges.ends, 1)
+    XCTAssertEqual(harness.list.contentOffset.y, 0)
+    harness.layout()
+    XCTAssertEqual(edges.ends, 1)
+  }
+
+  /*
+   * The rows the run at the new end measures are shorter than their estimates, and the content
+   * shrinks once more.
+   */
+  func testAnInvertedListThatShrinksTwiceInOnePassRestsAtItsEnd() throws {
+    let source = makeSource(count: 400)
+    let harness = ListHarness(source: source) {
+      $0.isInverted = true
+      $0.estimatedItemSize = 200
+    }
+    let list = harness.list
+    list.contentOffset = CGPoint(x: 0, y: 3000)
+    harness.layout()
+    source.keys = Array(source.keys.prefix(13))
+    list.deleteItems(at: IndexSet(13..<400))
+    XCTAssertEqual(list.contentOffset.y, list.contentSize.height - 480, accuracy: 0.01)
+    harness.layout()
+    XCTAssertEqual(list.contentSize.height, 666, accuracy: 0.01)
+    XCTAssertEqual(list.contentOffset.y, 186, accuracy: 0.01)
+    XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 12)), 480 - 54, accuracy: 0.01)
+  }
+
   func testApplyChangesFindsInsertsDeletesAndMoves() {
     let source = makeSource(count: 400)
     let harness = harnessInMiddle(source)
@@ -138,5 +194,42 @@ final class ListDataTests: XCTestCase {
     XCTAssertEqual(changes.insertedIndices, IndexSet(integer: 0))
     XCTAssertFalse(changes.movedFromIndices.isEmpty)
     XCTAssertLessThan(harness.maxShift(from: before).shift, 0.5)
+  }
+
+  func testAnItemInsertedThroughItsOwnCallIsReloadedOnceItsContentChanges() {
+    let source = VersionedSource(count: 10)
+    let harness = ListHarness(source: source)
+    source.keys.insert("fresh", at: 2)
+    harness.list.insertItems(at: IndexSet(integer: 2))
+    harness.layout()
+    source.versions["fresh"] = 1
+    XCTAssertEqual(harness.list.applyChanges().reloadedIndices, IndexSet(integer: 2))
+    XCTAssertTrue(harness.list.applyChanges().reloadedIndices.isEmpty)
+  }
+
+  func testAnInsertKeepsTheChangeOfAnotherItemForTheNextDiff() {
+    let source = VersionedSource(count: 10)
+    let harness = ListHarness(source: source)
+    // Item 5 changed and nobody told the list yet.
+    source.versions[source.keys[5]] = 1
+    source.keys.insert("fresh", at: 0)
+    harness.list.insertItems(at: IndexSet(integer: 0))
+    harness.layout()
+    XCTAssertEqual(harness.list.applyChanges().reloadedIndices, IndexSet(integer: 6))
+  }
+
+  func testAnItemInsertedInABatchIsReloadedOnceItsContentChanges() {
+    let source = VersionedSource(count: 10)
+    let harness = ListHarness(source: source)
+    source.versions[source.keys[7]] = 1
+    harness.list.performBatchUpdates({
+      source.keys.remove(at: 0)
+      harness.list.deleteItems(at: IndexSet(integer: 0))
+      source.keys.insert("fresh", at: 3)
+      harness.list.insertItems(at: IndexSet(integer: 3))
+    }, completion: nil)
+    harness.layout()
+    source.versions["fresh"] = 1
+    XCTAssertEqual(harness.list.applyChanges().reloadedIndices, IndexSet([3, 7]))
   }
 }

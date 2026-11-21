@@ -86,6 +86,11 @@ std::vector<std::string> keysFromPlan(
 }
 
 /*
+ * The rows a planned batch inserts, as positions in the next data, low to high.
+ */
+std::vector<std::size_t> insertedRows(const BatchPlan& plan, std::size_t previousCount);
+
+/*
  * A batch performBatchUpdates collected, see BatchCollector. needsReload is a reloadData inside
  * the batch, after which the host reads everything again and update is empty.
  */
@@ -150,6 +155,12 @@ private:
  * may answer something else map it to one: the wasm kit hashes a string version to 64 bits, see
  * versionHalves in its ShadowListKitCore.ts, and a change then goes unseen only if both versions
  * hash the same.
+ *
+ * record and update read every item. A host calls them where it reads all of its data again,
+ * reloadData and applyChanges. After a change that names its items, an insert or a batch, it
+ * calls insert with the new items only: record there would take the versions of items whose
+ * content changed since and hide them from the next update, and an item left without a version
+ * is one update never reports.
  */
 class ContentVersions final {
 public:
@@ -165,6 +176,17 @@ public:
    */
   std::vector<std::size_t> update(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions);
   std::vector<std::size_t> update(KeyList itemKeys, const std::vector<std::int64_t>& versions);
+
+  /*
+   * Keep the versions of items a change inserted. items are their positions in itemKeys, the
+   * keys after the change, and versions has one value per position. The versions of the other
+   * items stay as they are and none is dropped. Positions past the keys are skipped.
+   */
+  void insert(
+    const std::vector<std::string>& itemKeys,
+    const std::vector<std::size_t>& items,
+    const std::vector<std::int64_t>& versions);
+  void insert(KeyList itemKeys, const std::vector<std::size_t>& items, const std::vector<std::int64_t>& versions);
 
   bool isEmpty() const { return versions_.empty(); }
 

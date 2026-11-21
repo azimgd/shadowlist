@@ -82,6 +82,18 @@ struct FrameInput {
   std::size_t numberOfColumns = 1;
 
   /*
+   * Column spans in key order. Missing entries use one; the source includes decoration rows.
+   * A borrowed vector stays alive only during update, like stickyIndicesRef.
+   */
+  std::vector<std::size_t> rowSpans;
+  const std::vector<std::size_t>* rowSpansRef = nullptr;
+  bool rowSpansUnchanged = false;
+
+  const std::vector<std::size_t>& getRowSpanList() const {
+    return rowSpansRef ? *rowSpansRef : rowSpans;
+  }
+
+  /*
    * Extra rows past the viewport, in viewport sizes. 1 means one screen on each side.
    */
   double overscan = 1.0;
@@ -145,6 +157,12 @@ struct FrameInput {
    * The operation id the host sends back when this report came from our offset write, or 0.
    */
   std::uint64_t commitToken = 0;
+
+  /*
+   * The revision of the correction the host applied, including a size correction with no
+   * operation. Earlier revisions cannot confirm a target changed after their write.
+   */
+  std::uint64_t commitRevision = 0;
 
   /*
    * The current gesture. Dragging and Settling mean the user is scrolling, Idle covers our own moves.
@@ -281,6 +299,7 @@ private:
    * Copy the frame's settings into the container. Lists are compared first and copied only on a change.
    */
   static void applyFrameInput(Container& container, const FrameInput& input);
+  static void applyRowSpans(Container& container, const FrameInput& input);
 
   /*
    * Let a gesture cancel or move the running correction. Returns true when the user took over.
@@ -375,7 +394,8 @@ private:
     std::size_t anchorIndex,
     double anchorDelta,
     bool hadRowsBefore,
-    bool offsetConfirmed);
+    bool offsetConfirmed,
+    bool reportedBeforeWrite);
 };
 
 }

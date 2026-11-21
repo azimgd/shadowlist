@@ -1,20 +1,26 @@
 /*
  * RowKeyStore and TreeRows tests: the row keys Fabric keeps natively by version, and the
- * section and tree flattens. The section fuzz test checks the flatten against a full rebuild.
+ * section and tree flattens. The section fuzz test checks the flatten against a full rebuild,
+ * and the tree fuzz test checks TreeRows against a full flatten of a random tree. See
+ * tests_fuzz.cpp for how the fuzz tests run.
  */
 
+#include "FuzzHelpers.hpp"
 #include "TestFramework.hpp"
 
 #include <shadowlist-core/host/ListSections.hpp>
 #include <shadowlist-core/host/RowKeyStore.hpp>
 #include <shadowlist-core/host/TreeRows.hpp>
 
+#include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <functional>
-#include <atomic>
+#include <random>
 #include <set>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace slt;
@@ -502,16 +508,24 @@ TEST(row_key_store_serves_commits_on_other_threads_while_the_renderer_writes) {
     done.store(true);
   });
   std::atomic<int> found{0};
+  auto read = [&] {
+    std::uint64_t version = latest.load();
+    if (auto snapshot = store.snapshot(version)) {
+      if (snapshot->indexOfKey("k1000") != UNDEFINED_INDEX) {
+        found.fetch_add(1);
+      }
+      store.adopted(version);
+    }
+  };
+  /*
+   * The writer can finish before a reader gets a version that is still kept. The read after the
+   * loop finds the last version, which the store never drops.
+   */
   auto reader = [&] {
     while (!done.load()) {
-      std::uint64_t version = latest.load();
-      if (auto snapshot = store.snapshot(version)) {
-        if (snapshot->indexOfKey("k1000") != UNDEFINED_INDEX) {
-          found.fetch_add(1);
-        }
-        store.adopted(version);
-      }
+      read();
     }
+    read();
   };
   std::thread first(reader);
   std::thread second(reader);
@@ -650,4 +664,248 @@ TEST(row_key_store_sections_and_trees_share_the_keys_they_keep) {
   CHECK(sharesKeys(tree->keys(), 21, grown->keys(), 23, 29));
   CHECK(store.collapseTree(5, 4, 20).has_value());
   CHECK(sharesKeys(tree->keys(), 0, store.snapshot(5)->keys(), 0, 50));
+}
+
+namespace {
+
+/*
+ * The keys of the nodes under nodes that have children, depth first.
+ */
+void collectParents(const std::vector<Node>& nodes, std::vector<std::string>& keys) {
+  for (const Node& node : nodes) {
+    if (!node.children.empty()) {
+      keys.push_back(node.key);
+      collectParents(node.children, keys);
+    }
+  }
+}
+
+/*
+ * Fails unless tree holds exactly rows, by rowAt, by its key list and by its depths.
+ */
+void checkTree(const Trail& trail, const TreeRows& tree, const std::vector<TreeRow>& rows, const std::string& what) {
+  KeyList keys = tree.keys();
+  if (tree.size() != rows.size() || keys.size() != rows.size()) {
+    trail.failWith(what + " holds " + std::to_string(tree.size()) + " rows and " + std::to_string(keys.size()) +
+      " keys for " + std::to_string(rows.size()) + " rows of the tree");
+  }
+  for (std::size_t row = 0; row < rows.size(); ++row) {
+    TreeRow actual = tree.rowAt(row);
+    const TreeRow& expected = rows[row];
+    if (actual.key != expected.key || keys[row] != expected.key || actual.depth != expected.depth ||
+        tree.depthAt(row) != expected.depth || actual.hasChildren != expected.hasChildren ||
+        actual.expanded != expected.expanded) {
+      trail.failWith(what + " has " + actual.key + " at depth " + std::to_string(actual.depth) + " children " +
+        std::to_string(actual.hasChildren) + " expanded " + std::to_string(actual.expanded) + " at row " +
+        std::to_string(row) + " where the tree has " + expected.key + " at depth " + std::to_string(expected.depth) +
+        " children " + std::to_string(expected.hasChildren) + " expanded " + std::to_string(expected.expanded));
+    }
+  }
+}
+
+}
+
+/*
+ * TreeRows against a full flatten of a random tree. Nodes expand and collapse in place and
+ * from a base, an expanded node is walked again after its branches changed, leaves and rows
+ * past the end are toggled, and the tree is read afresh. The rows are always the flatten, a
+ * splice names the rows that left and came, a base and every earlier version keep their rows,
+ * and a node's subtree ends at the next row that is not deeper.
+ */
+TEST(fuzz_tree_rows_are_the_flatten_of_the_tree_through_expands_collapses_and_resets) {
+  const FuzzKinds kinds = {
+    {"expand", "expand from a base", "expand again", "collapse", "collapse from a base",
+      "collapse with nothing showing", "expand a leaf", "row past the end", "reset"},
+    {},
+  };
+  forEachFuzzSeed(__func__, 100, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
+    Trail trail(seed, episode);
+    std::mt19937 rng(seed);
+    std::size_t made = 0;
+    std::function<Node(int)> build = [&](int level) {
+      Node node{"n" + std::to_string(made++), {}};
+      int children = level < 4 && chance(rng, level == 0 ? 90 : 55) ? pickInt(rng, 1, 4) : 0;
+      for (int child = 0; child < children; ++child) {
+        node.children.push_back(build(level + 1));
+      }
+      return node;
+    };
+    std::vector<Node> nodes;
+    std::set<std::string> expanded;
+    std::vector<TreeRow> rows;
+    TreeRows tree;
+    // Read the tree afresh: new nodes now and then, and a new pick of the branches that show.
+    auto reset = [&](bool rebuild) {
+      if (rebuild) {
+        nodes.clear();
+        int roots = pickInt(rng, 1, 5);
+        for (int root = 0; root < roots; ++root) {
+          nodes.push_back(build(0));
+        }
+      }
+      std::vector<std::string> parents;
+      collectParents(nodes, parents);
+      expanded.clear();
+      for (const std::string& key : parents) {
+        if (chance(rng, 40)) {
+          expanded.insert(key);
+        }
+      }
+      rows.clear();
+      flatten(nodes, 0, expanded, rows);
+      tree.reset(rows);
+    };
+    reset(true);
+    trail.note("open with " + std::to_string(rows.size()) + " rows");
+
+    // Earlier versions of the tree and the rows each one had.
+    std::vector<std::pair<TreeRows, std::vector<TreeRow>>> earlier;
+    for (int step = 0; step < 30; ++step) {
+      int roll = pickPercent(rng);
+      std::vector<TreeRow> previous = rows;
+      std::size_t row = pickSize(rng, 0, rows.size() - 1);
+      // Half the time the row is one that has children.
+      std::vector<std::size_t> parents;
+      for (std::size_t index = 0; index < rows.size(); ++index) {
+        if (rows[index].hasChildren) {
+          parents.push_back(index);
+        }
+      }
+      if (!parents.empty() && chance(rng, 50)) {
+        row = parents[pickSize(rng, 0, parents.size() - 1)];
+      }
+      TreeRow target = rows[row];
+      // The rows showing under the row now.
+      std::size_t showing = 0;
+      while (row + 1 + showing < rows.size() && rows[row + 1 + showing].depth > target.depth) {
+        ++showing;
+      }
+      bool fromBase = chance(rng, 40);
+      TreeSplice splice;
+      TreeSplice expected{row + 1, 0, 0};
+
+      if (roll < 8) {
+        episode.reach("row past the end");
+        row = rows.size() + pickSize(rng, 0, 3);
+        trail.note("toggle row " + std::to_string(row) + " past the end");
+        splice = chance(rng, 50) ? tree.expand(row, {{"x", 1, false, false}}) : tree.collapse(row);
+        expected = {rows.size(), 0, 0};
+      } else if (roll < 16) {
+        bool rebuild = chance(rng, 40);
+        episode.reach("reset");
+        reset(rebuild);
+        trail.note(std::string("reset") + (rebuild ? " with new nodes" : "") + " to " + std::to_string(rows.size()) +
+          " rows");
+        checkTree(trail, tree, rows, "the tree after a reset");
+        for (const auto& [version, held] : earlier) {
+          checkTree(trail, version, held, "an earlier version after a reset");
+        }
+        continue;
+      } else if (roll < 60) {
+        std::vector<TreeRow> under;
+        if (!target.hasChildren) {
+          episode.reach("expand a leaf");
+          under.push_back({"x", target.depth + 1, false, false});
+        } else {
+          std::uint32_t depth = 0;
+          const Node* node = findNode(nodes, target.key, depth);
+          if (target.expanded) {
+            // A branch under it opened or closed in the data since it was walked.
+            episode.reach("expand again");
+            std::vector<std::string> below;
+            collectParents(node->children, below);
+            if (!below.empty()) {
+              const std::string& key = below[pickSize(rng, 0, below.size() - 1)];
+              if (expanded.erase(key) == 0) {
+                expanded.insert(key);
+              }
+            }
+          } else {
+            episode.reach(fromBase ? "expand from a base" : "expand");
+          }
+          expanded.insert(target.key);
+          flatten(node->children, depth + 1, expanded, under);
+          expected = {row + 1, showing, under.size()};
+        }
+        trail.note("expand row " + std::to_string(row) + " " + target.key + " with " + std::to_string(under.size()) +
+          " rows" + (fromBase ? " from a base" : ""));
+        if (fromBase) {
+          TreeRows next;
+          splice = next.expandFrom(tree, row, under);
+          checkTree(trail, tree, previous, "the base of an expand");
+          tree = std::move(next);
+        } else {
+          splice = tree.expand(row, under);
+        }
+      } else {
+        if (target.hasChildren && target.expanded) {
+          episode.reach(fromBase ? "collapse from a base" : "collapse");
+          expected = {row + 1, showing, 0};
+        } else {
+          episode.reach("collapse with nothing showing");
+        }
+        expanded.erase(target.key);
+        trail.note("collapse row " + std::to_string(row) + " " + target.key + (fromBase ? " from a base" : ""));
+        if (fromBase) {
+          TreeRows next;
+          splice = next.collapseFrom(tree, row);
+          checkTree(trail, tree, previous, "the base of a collapse");
+          tree = std::move(next);
+        } else {
+          splice = tree.collapse(row);
+        }
+      }
+
+      rows.clear();
+      flatten(nodes, 0, expanded, rows);
+      checkTree(trail, tree, rows, "the tree");
+      bool asExpected = splice.start == expected.start && splice.deleted == expected.deleted &&
+        splice.inserted == expected.inserted;
+      if (!asExpected) {
+        trail.failWith("the splice is " + std::to_string(splice.deleted) + " out and " +
+          std::to_string(splice.inserted) + " in at " + std::to_string(splice.start) + " expected " +
+          std::to_string(expected.deleted) + " out and " + std::to_string(expected.inserted) + " in at " +
+          std::to_string(expected.start));
+      }
+      // The rows before the splice and after it are the ones the tree had.
+      bool spliced = previous.size() - splice.deleted + splice.inserted == rows.size();
+      for (std::size_t index = 0; spliced && index < previous.size(); ++index) {
+        bool before = index < splice.start;
+        if (before || index >= splice.start + splice.deleted) {
+          std::size_t after = before ? index : index - splice.deleted + splice.inserted;
+          spliced = rows[after].key == previous[index].key;
+        }
+      }
+      if (!spliced) {
+        trail.failWith("the splice does not turn the rows before into the rows now");
+      }
+      for (int sample = 0; sample < 3 && !rows.empty(); ++sample) {
+        std::size_t from = pickSize(rng, 0, rows.size() - 1);
+        std::size_t end = from + 1;
+        while (end < rows.size() && rows[end].depth > rows[from].depth) {
+          ++end;
+        }
+        if (tree.subtreeEnd(from) != end) {
+          trail.failWith("the subtree of row " + std::to_string(from) + " ends at " +
+            std::to_string(tree.subtreeEnd(from)) + " expected " + std::to_string(end));
+        }
+      }
+      if (tree.subtreeEnd(rows.size() + 2) != rows.size()) {
+        trail.failWith("the subtree of a row past the end does not end with the rows");
+      }
+      for (const auto& [version, held] : earlier) {
+        checkTree(trail, version, held, "an earlier version");
+      }
+      if (step % 6 == 0) {
+        if (earlier.size() == 4) {
+          earlier.erase(earlier.begin());
+        }
+        earlier.emplace_back(tree, rows);
+      }
+      episode.observe(rows.size());
+      episode.observe(splice.start);
+      episode.observe(splice.deleted);
+      episode.observe(splice.inserted);
+    }
+  });
 }

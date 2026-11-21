@@ -118,7 +118,8 @@ public:
   /*
    * A pickup in homeId of the row keyed heldKey. A row without a key can float but never
    * drops into another list. finger and heldCenter are in window coordinates: the finger and
-   * the center of the held row where it rests. The floating picture keeps that grab.
+   * the center of the held row where it rests. The floating picture keeps that grab. A flight
+   * that has not ended is over, its landing and its settling picture included.
    */
   void begin(std::string homeId, std::string heldKey, DragPoint finger = {}, DragPoint heldCenter = {});
 

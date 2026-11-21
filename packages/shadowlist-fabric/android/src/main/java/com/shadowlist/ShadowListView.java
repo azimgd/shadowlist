@@ -68,6 +68,8 @@ public class ShadowListView extends FrameLayout {
   private static final int STATE_OFFSET_X = 3;
   private static final int STATE_OFFSET_Y = 4;
   private static final int STATE_COMMIT_TOKEN = 5;
+  private static final int STATE_COMMIT_REVISION = 21;
+  private static final int STATE_COMMAND_PENDING = 22;
   private static final int STATE_OFFSET_BASE_X = 7;
   private static final int STATE_OFFSET_BASE_Y = 8;
   private static final int STATE_USER_SCROLLED = 9;
@@ -98,6 +100,8 @@ public class ShadowListView extends FrameLayout {
    * Ticks the list's mount driver on frames, see ShadowListMountTicker.
    */
   private final ShadowListMountTicker mMountTicker = new ShadowListMountTicker();
+
+  long getMountHandle() { return mMountTicker.getHandle(); }
 
   /*
    * Live reports, which frames commit, the echo of core corrections and scroll commands.
@@ -209,6 +213,7 @@ public class ShadowListView extends FrameLayout {
    */
   private boolean mDragEventSent = false;
   private boolean mMomentumEventSent = false;
+  private double mLandCommandSequence = 0;
   /*
    * The finger lifted from a drag that had no fling yet. A fling the inner scroll view starts
    * after the lift still sends its momentum begin.
@@ -389,6 +394,7 @@ public class ShadowListView extends FrameLayout {
     mTouchStoppedFling = false;
     mDragEventSent = false;
     mMomentumEventSent = false;
+    mLandCommandSequence = 0;
     mDragEndedAtRest = false;
     mScrollEventEnabled = false;
     mScrollTracker.reset(mScrollEventThrottle);
@@ -409,6 +415,7 @@ public class ShadowListView extends FrameLayout {
    */
   @Override
   protected void onDetachedFromWindow() {
+    mLandCommandSequence = 0;
     if (mDragController.isDragging()) {
       mDragController.cancel();
     }
@@ -422,6 +429,19 @@ public class ShadowListView extends FrameLayout {
   protected void onAttachedToWindow() {
     super.onAttachedToWindow();
     mDragController.onWindowChanged();
+  }
+
+  /*
+   * Pin again once the scroll view has its new size. A short list whose rows all mounted
+   * before this layout gets no other pass, and its sticky footer would stay where a window
+   * of no size put it.
+   */
+  @Override
+  protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+    super.onLayout(changed, left, top, right, bottom);
+    if (changed) {
+      mStickyController.applyStickyTransforms();
+    }
   }
 
   // endregion
@@ -837,6 +857,7 @@ public class ShadowListView extends FrameLayout {
   }
 
   void handleInnerTouchDown() {
+    emitMomentumEndAfterLand();
     /*
      * The finger takes over from any scroll we started. Report the drag as the user.
      * The touch also stops any fling and settling ends here.
@@ -1231,6 +1252,7 @@ public class ShadowListView extends FrameLayout {
       mapBuffer.getDouble(STATE_OFFSET_BASE_X),
       mapBuffer.getDouble(STATE_OFFSET_BASE_Y),
       mapBuffer.getDouble(STATE_COMMIT_TOKEN),
+      mapBuffer.getDouble(STATE_COMMIT_REVISION),
       mapBuffer.getBoolean(STATE_USER_SCROLLED),
       mapBuffer.getDouble(STATE_SCROLL_PHASE),
       mapBuffer.getDouble(STATE_CONCEAL_GENERATION),
@@ -1243,6 +1265,11 @@ public class ShadowListView extends FrameLayout {
       applyMountedState(mapBuffer, offsetEnabled);
     } finally {
       mSync.endMount();
+    }
+    // The command has now mounted and applied its exact offset, not the animation estimate.
+    if (mLandCommandSequence > 0 && mapBuffer.getDouble(STATE_COMMAND_SEQUENCE) >= mLandCommandSequence
+        && !mapBuffer.getBoolean(STATE_COMMAND_PENDING)) {
+      emitMomentumEndAfterLand();
     }
     pokeMountTicker();
   }
@@ -1443,6 +1470,7 @@ public class ShadowListView extends FrameLayout {
    * estimate, see animateCommandTo.
    */
   void issueScrollCommand(double row, double viewPosition, double viewOffset, boolean animated) {
+    emitMomentumEndAfterLand();
     boolean yielded = !mTouching;
     if (yielded) {
       stopMomentum();
@@ -1536,7 +1564,18 @@ public class ShadowListView extends FrameLayout {
     if (DEBUG_LOG) {
       slLog("java.cmd land: offset=(" + liveOffsetX() + "," + liveOffsetY() + ")");
     }
+    mLandCommandSequence = mSync.getCommandSequence();
     mState.updateState(mSync.patchMap());
+  }
+
+  /*
+   * Finish a command once its landing mounts, or once a finger or newer command takes over.
+   */
+  private void emitMomentumEndAfterLand() {
+    if (mLandCommandSequence == 0) {
+      return;
+    }
+    mLandCommandSequence = 0;
     emitScrollEvent(ShadowListScrollEvent.MOMENTUM_END, 0, 0);
   }
 
@@ -1608,6 +1647,11 @@ public class ShadowListView extends FrameLayout {
 
   private void dispatchScrollEvent(
     String eventName, double offsetX, double offsetY, double velocityX, double velocityY) {
+    if (DEBUG_LOG && ShadowListScrollEvent.MOMENTUM_END.equals(eventName)) {
+      slLog("java.event " + eventName + ": time=" + android.os.SystemClock.uptimeMillis()
+        + " seq=" + mSync.getCommandSequence() + " offset=(" + offsetX + "," + offsetY
+        + ") physical=(" + liveOffsetX() + "," + liveOffsetY() + ")");
+    }
     ReactContext reactContext = (ReactContext) getContext();
     EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, getId());
     if (dispatcher == null) {

@@ -9,6 +9,7 @@
 
 #include "TestFramework.hpp"
 #include "TestHelpers.hpp"
+#include "VirtualizationHelpers.hpp"
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
@@ -222,6 +223,27 @@ TEST(header_resizing_while_scrolled_out_of_view_keeps_the_rows_still) {
   double published = container.revision.offsetY;
   Virtualizer::update(container, frame(keys, published, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
+  CHECK_NEAR(container.revision.offsetY, published, 0.5);
+  CHECK_NEAR(onScreen(container, "k10"), before, 0.5);
+}
+
+/*
+ * The same change, and a report from before its write reaches the core after it. The view is
+ * where the write put it. The core keeps the rows and asks for the same offset again as an
+ * operation.
+ */
+TEST(a_report_from_before_a_header_size_correction_keeps_the_rows_still) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  openWithSpinnerAt(container, keys, 900.0);
+  double before = onScreen(container, "k10");
+
+  layoutPass(container, PLAIN_HEADER);
+  double published = container.revision.offsetY;
+  CHECK(!container.state.operation);
+
+  Virtualizer::update(container, frame(keys, 900.0, PLAIN_HEADER));
+  CHECK(container.state.operation && container.state.operation->type == OperationType::MaintainAnchor);
   CHECK_NEAR(container.revision.offsetY, published, 0.5);
   CHECK_NEAR(onScreen(container, "k10"), before, 0.5);
 }
@@ -450,4 +472,67 @@ TEST(rows_measured_during_a_scroll_to_index_keep_the_view_position) {
   Virtualizer::commitRowSizes(container, 28);
   Virtualizer::recomputeContentSize(container);
   CHECK_NEAR(offsetOf(container, 30) - container.revision.offsetY, resting, 1.0);
+}
+
+namespace {
+
+/*
+ * The header shrinks in the layout pass. Returns how far the offset then sits past the end of
+ * the reflowed content.
+ */
+double pastTheEndAfterTheHeaderShrinks(Container& container, double headerSize) {
+  double previousHeader = container.headerSize;
+  container.headerSize = headerSize;
+  Virtualizer::recomputeRowOffsets(container, 0);
+  Virtualizer::applyHeaderSizeChange(container, previousHeader);
+  Virtualizer::recomputeContentSize(container);
+  return container.revision.offsetY - (container.revision.contentHeight - WINDOW_HEIGHT);
+}
+
+/*
+ * A list below a header of 100 with every row measured at 100, resting at offset.
+ */
+void openMeasured(Container& container, const std::vector<std::string>& keys, double offset) {
+  Virtualizer::update(container, frame(keys, 0.0, 100.0));
+  layoutRows(container, 0, std::vector<double>(keys.size(), 100.0));
+  Virtualizer::update(container, frame(keys, offset, 100.0));
+  Virtualizer::update(container, frame(keys, offset, 100.0));
+}
+
+}
+
+/*
+ * A scroll to a row near the end rests on the end, short of the row. The header shrinks while
+ * the command is still landing. The header change aims at the row again and stops at the new
+ * end, not past it.
+ */
+TEST(header_change_during_a_scroll_to_index_cut_short_by_the_end_stays_on_the_end) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  openMeasured(container, keys, 0.0);
+
+  container.scrollToRow(58, 0.0);
+  Virtualizer::update(container, frame(keys, 0.0, 100.0));
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ScrollToKey);
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+
+  CHECK_NEAR(pastTheEndAfterTheHeaderShrinks(container, 40.0), 0.0, 0.5);
+}
+
+/*
+ * The same for a shrink clamp that aims at the row the reader was on. That row sits past the
+ * new end, and the clamp rests on the end.
+ */
+TEST(header_change_during_a_shrink_clamp_stays_on_the_end) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  openMeasured(container, keys, 5000.0);
+
+  std::vector<std::string> shrunk(keys.begin(), keys.begin() + 55);
+  Virtualizer::update(container, frame(shrunk, 5000.0, 100.0));
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ShrinkClamp);
+  CHECK(container.state.operation->target.mode == AnchorMode::Row);
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+
+  CHECK_NEAR(pastTheEndAfterTheHeaderShrinks(container, 40.0), 0.0, 0.5);
 }

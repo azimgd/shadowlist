@@ -4,6 +4,7 @@
 #include <shadowlist-core/Virtualizer.hpp>
 
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <string>
@@ -78,7 +79,7 @@ public:
       Virtualizer::invalidatePredictions(core);
       width_ = width;
     }
-    bool sameSpecs = source_ == source && !widthChanged;
+    bool sameSpecs = source_ == source && !widthChanged && rowSpansVersion_ == core.state.rowSpansVersion;
     if (sameSpecs && done_) {
       return;
     }
@@ -86,11 +87,17 @@ public:
       specs_ = parse();
       cursor_ = 0;
       source_ = source;
+      rowSpansVersion_ = core.state.rowSpansVersion;
     }
     std::size_t measured = 0;
     while (cursor_ < specs_.size() && measured < BUDGET_PER_RUN) {
       const RowSizeSpec& spec = specs_[cursor_];
-      core.setPredictedSize(spec.key, measure(spec, width));
+      double availableWidth = width;
+      if (!core.horizontal && core.state.hasRowSpans) {
+        std::size_t index = core.indexOfKey(spec.key);
+        if (index != UNDEFINED_INDEX) availableWidth *= core.revision.rows[index].columnSpan;
+      }
+      core.setPredictedSize(spec.key, measure(spec, availableWidth));
       ++cursor_;
       ++measured;
     }
@@ -114,6 +121,7 @@ private:
    * Width the current specs were measured at, 0 before the first run.
    */
   double width_ = 0.0;
+  std::uint64_t rowSpansVersion_ = 0;
 };
 
 }

@@ -21,9 +21,6 @@ coverage/
 
 # Benchmark output
 packages/shadowlist-core-bench/results/
-packages/shadowhash/bench/layout
-# Parked shadowhash bench work, kept on disk out of the tree
-packages/shadowhash/bench/shadowhash-bench-parked/
 
 # OS
 .DS_Store
@@ -31,6 +28,7 @@ packages/shadowhash/bench/shadowhash-bench-parked/
 # Native build state and machine-local config
 .gradle/
 .cxx/
+.kotlin/
 local.properties
 xcuserdata/
 *.xcuserstate
@@ -40,9 +38,6 @@ DerivedData/
 *.aab
 *.ipa
 *.dylib
-
-# Agent worktrees and local editor settings
-.claude/
 
 # Local clangd config
 .clangd

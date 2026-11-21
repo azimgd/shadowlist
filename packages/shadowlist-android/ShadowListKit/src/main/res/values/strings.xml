@@ -1,0 +1,4 @@
+<resources>
+  <string name="shadowlist_move_to">Move to %1$s</string>
+  <string name="shadowlist_moved_to">Moved to %1$s</string>
+</resources>

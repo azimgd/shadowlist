@@ -1,10 +1,15 @@
 #import "Internal/ShadowListKitListView+Private.h"
+#import "Internal/ShadowListKitItemSizeSpec.h"
+#import "Internal/ShadowListKitViewabilityConfig.h"
 #import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListSupport.h"
+
+#include <shadowlist-core/host/StickyLayout.hpp>
 
 #include <cmath>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace azimgd::shadowlist;
@@ -13,6 +18,12 @@ static_assert(static_cast<int>(ShadowListKitSnapAlignmentStart) == static_cast<i
                 static_cast<int>(ShadowListKitSnapAlignmentCenter) == static_cast<int>(SnapAlignment::Center) &&
                 static_cast<int>(ShadowListKitSnapAlignmentEnd) == static_cast<int>(SnapAlignment::End),
   "ShadowListKitSnapAlignment mirrors the core's SnapAlignment");
+
+/*
+ * How far past the end of its content a scroll view rests on its own, on the device pixel it
+ * rounds to.
+ */
+static const double SHADOWLIST_KIT_END_SLACK = 0.5;
 
 /*
  * Referenced from ShadowListKitListView.mm to keep this file linked without -ObjC.
@@ -55,6 +66,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 - (void)recycleCell:(ShadowListKitListCell *)cell
 {
+  if (cell == _stickyHeaderOverlayCell) [self clearStickyHeaderOverlay];
   // A cell only measured was never displayed.
   NSInteger index = cell.mountGeneration != 0 ? cell.index : NSNotFound;
   cell.mountGeneration = 0;
@@ -188,11 +200,14 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   }
   CGFloat header = [self templateSize:_headerView cross:cross];
   CGFloat footer = [self templateSize:_footerView cross:cross];
-  BOOL changed = along != _windowAlong || cross != _windowCross || header != _headerSize || footer != _footerSize;
+  CGFloat empty = [self templateSize:_emptyView cross:cross];
+  BOOL changed = along != _windowAlong || cross != _windowCross || header != _headerSize || footer != _footerSize ||
+    empty != _emptySize;
   _windowAlong = along;
   _windowCross = cross;
   _headerSize = header;
   _footerSize = footer;
+  _emptySize = empty;
   return changed;
 }
 
@@ -202,7 +217,10 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   if (std::fabs(current - _previousOffset) < OFFSET_MOVED_THRESHOLD) {
     return;
   }
-  if ([self corePhase] != ScrollPhase::Idle) {
+  BOOL byUser = [self corePhase] != ScrollPhase::Idle;
+  [self updateStickyOffset:current byUser:byUser];
+  if (byUser) {
+    _driver.recordInteraction(CACurrentMediaTime() * 1000);
     _userScrolled = YES;
   }
   _previousOffset = current;
@@ -214,6 +232,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
  */
 - (void)runPasses
 {
+  if (![self sendRowSpans]) return;
   ListSettings settings = [self listSettings];
   if (!_hasSentSettings || settings != _sentSettings) {
     _driver.setSettings(settings);
@@ -226,6 +245,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   input.windowCross = _windowCross;
   input.headerSize = _headerSize;
   input.footerSize = _footerSize;
+  input.emptySize = _emptySize;
   input.phase = [self corePhase];
   input.userScrolled = _userScrolled;
   input.tracking = self.isTracking;
@@ -234,6 +254,13 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   input.mountPad = _windowAlong * self.mountOverscan;
   input.leadingInset = [self leadingInset];
   input.trailingInset = [self trailingInset];
+  /*
+   * Content that shrank under a resting view leaves it past the new end, and the driver brings
+   * it back before the frame is drawn. A drag or a bounce past the end is left to the gesture,
+   * and the start to the scroll view.
+   */
+  input.clampEnd = input.phase == ScrollPhase::Idle;
+  input.clampSlack = SHADOWLIST_KIT_END_SLACK;
   PassResult result = _driver.runPasses(input);
   ++_corePasses;
   _userScrolled = NO;
@@ -242,37 +269,32 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 }
 
 /*
- * The content size goes first. The offset write is then inside the scroll range.
+ * The content size goes first. The offset write is then inside the scroll range. The driver
+ * hands an edge it reached over once, and says after every pass whether the list is at its end.
  */
 - (void)applyPassResult:(const PassResult&)result
 {
   [self applyContentSize:(CGFloat)result.contentAlong];
-  /*
-   * Content that shrank under a resting view clamps it to the new end. The core leaves that
-   * to the host for inverted lists. It runs again on the clamped offset before the frame is
-   * drawn. A drag or a bounce past the end is left to the gesture.
-   */
-  if (result.offset > [self maxOffset] + 0.5 && [self corePhase] == ScrollPhase::Idle && !_clampingPass) {
-    [self writeOffset:[self maxOffset] byUser:NO];
-    _clampingPass = YES;
-    [self runPasses];
-    _clampingPass = NO;
-    return;
+  _reachedStart = _reachedStart || result.reachedStart;
+  _reachedEnd = _reachedEnd || result.reachedEnd;
+  if (result.atEnd != _atEnd) {
+    _atEnd = result.atEnd;
+    _atEndChanged = !_atEndChanged;
   }
+  _showsEmpty = result.showsEmpty;
   if (std::fabs(result.offset - [self offset]) >= 0.01) {
     [self writeOffset:result.offset byUser:NO];
   }
   _band = result.band;
   _footerStart = result.footerStart;
-  _reachedStart = _reachedStart || result.reachedStart;
-  _reachedEnd = _reachedEnd || result.reachedEnd;
   if (result.settling) {
     [self scheduleSettleFrame];
   }
 }
 
 /*
- * A correction waits for one more report. Give it the next display frame, once.
+ * A correction waits for one more report, or the end moved under a list the driver brought back
+ * to it. Give it the next display frame, once.
  */
 - (void)scheduleSettleFrame
 {
@@ -335,9 +357,6 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   if (_windowCross > 0 && _windowAlong > 0) {
     if (_needsFrame || geometryChanged || !_band.contains([self offset])) {
       [self runPasses];
-      if ([self measuredRangeEndsShort]) {
-        [self runPasses];
-      }
     }
     [self readPassGeometry];
     double mountedOffset = [self offset];
@@ -370,6 +389,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   }
 #endif
   [self dispatchReached];
+  [self updateViewability];
 #if TARGET_OS_OSX
   if ([_userDelegate respondsToSelector:@selector(listViewDidLayOut:)]) {
     [_userDelegate listViewDidLayOut:self];
@@ -377,32 +397,267 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 #endif
 }
 
+/*
+ * Place the header, the empty view and the footer. A pinned header or footer moves by the host
+ * layer's translation on every pass and sits over the rows. The empty view shows right after the
+ * header while the core says the list has no rows.
+ */
+- (StickyInput)stickyInput
+{
+  StickyInput sticky;
+  sticky.offset = [self offset];
+  sticky.windowSize = _windowAlong;
+  sticky.contentSize = _contentAlong;
+  sticky.hasHeader = _headerView != nil;
+  sticky.headerSize = _headerSize;
+  sticky.stickyHeader = _stickyHeader;
+  sticky.autoHideHeader = _autoHideHeader;
+  sticky.hasFooter = _footerView != nil;
+  sticky.footerSize = _footerSize;
+  sticky.footerStart = _footerStart;
+  sticky.stickyFooter = _stickyFooter;
+  sticky.autoHideFooter = _autoHideFooter;
+  return sticky;
+}
+
+- (void)updateStickyOffset:(double)offset byUser:(BOOL)byUser
+{
+  StickyInput sticky = [self stickyInput];
+  sticky.offset = offset;
+  sticky.accumulate = byUser;
+  _driver.stickyTranslations(sticky);
+}
+
 - (void)layoutTemplates
 {
+  StickyTranslations translations = _driver.stickyTranslations([self stickyInput]);
   if (_headerView) {
-    CGRect frame = _horizontal ? [self displayRect:0 y:0 width:_headerSize height:_windowCross]
-                               : [self displayRect:0 y:0 width:_windowCross height:_headerSize];
-    ShadowListKitPlace(_headerView, frame);
+    [self placeTemplate:_headerView start:translations.header size:_headerSize pinned:(_stickyHeader || _autoHideHeader)];
+  }
+  if (_emptyView) {
+    if (_emptyView.hidden == _showsEmpty) {
+      _emptyView.hidden = !_showsEmpty;
+    }
+    [self placeTemplate:_emptyView start:_headerSize size:_emptySize pinned:NO];
   }
   if (_footerView) {
-    CGRect frame = _horizontal ? [self displayRect:_footerStart y:0 width:_footerSize height:_windowCross]
-                               : [self displayRect:0 y:_footerStart width:_windowCross height:_footerSize];
-    ShadowListKitPlace(_footerView, frame);
+    [self placeTemplate:_footerView start:_footerStart + translations.footer size:_footerSize pinned:(_stickyFooter || _autoHideFooter)];
   }
 }
 
-/*
- * Whether rows the viewport shows are left out of the measured range. The first frame picks the
- * range from estimates, which can stop short of the viewport's end. One more run fills it.
- */
-- (BOOL)measuredRangeEndsShort
+- (void)placeTemplate:(ShadowListKitView *)view start:(double)start size:(CGFloat)size pinned:(BOOL)pinned
 {
-  std::optional<MountedRange> measured = _driver.getMeasuredRange();
-  if (!measured || measured->high + 1 >= _driver.getRowCount()) {
-    return NO;
+  CGRect frame = _horizontal ? [self displayRect:start y:0 width:size height:_windowCross]
+                             : [self displayRect:0 y:start width:_windowCross height:size];
+  ShadowListKitPlace(view, frame);
+#if TARGET_OS_OSX
+  // A view sits over its siblings by its own layer.
+  if (pinned && !view.wantsLayer) {
+    view.wantsLayer = YES;
   }
-  double end = _driver.getLeadingAt(measured->high) + _driver.getExtentAt(measured->high);
-  return end < [self offset] + _windowAlong + [self trailingInset];
+#endif
+  CGFloat zPosition = pinned ? 1 : 0;
+  if (view.layer.zPosition != zPosition) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    view.layer.zPosition = zPosition;
+    [CATransaction commit];
+  }
+}
+
+- (ShadowListKitView *)shownEmptyView
+{
+  return _showsEmpty ? _emptyView : nil;
+}
+
+- (BOOL)isUnderPinnedTemplate:(CGPoint)point
+{
+  return (_stickyHeaderOverlay && CGRectContainsPoint(_stickyHeaderOverlay.frame, point)) ||
+    ((_stickyHeader || _autoHideHeader) && _headerView && CGRectContainsPoint(_headerView.frame, point)) ||
+    ((_stickyFooter || _autoHideFooter) && _footerView && CGRectContainsPoint(_footerView.frame, point));
+}
+
+- (void)sendSizeSpecSource
+{
+  if (!_getItemSizeSpec) {
+    _driver.setGetItemSizeSpec({}, {});
+  } else {
+    __weak ShadowListKitListView *weakSelf = self;
+    _driver.setGetItemSizeSpec([weakSelf](std::size_t row, const std::string&) -> std::optional<RowSizeSpec> {
+      ShadowListKitListView *list = weakSelf;
+      if (!list || !list->_getItemSizeSpec) return std::nullopt;
+      std::size_t item = list->_sections.itemForRow(row);
+      if (item == UNDEFINED_INDEX) return std::nullopt;
+      ShadowListKitItemSizeSpec *value = list->_getItemSizeSpec((NSInteger)item);
+      return value ? std::optional<RowSizeSpec>(ShadowListKitReadItemSizeSpec(value)) : std::nullopt;
+    }, ShadowListKitMeasureItemSizeSpec);
+  }
+  [self invalidateFrame];
+}
+
+- (BOOL)sendRowSpans
+{
+  if (_rowSpansColumns == self.numberOfColumns && _rowSpansSentRevision == _rowSpansRevision &&
+      _rowSpansStructureVersion == _structureVersion) return YES;
+  auto provider = _getItemSpan;
+  NSUInteger revision = _rowSpansRevision;
+  NSUInteger structure = _structureVersion;
+  NSInteger columns = self.numberOfColumns;
+  std::vector<std::size_t> spans;
+  if (provider || (_sections.isSectioned() && columns > 1)) {
+    spans.reserve(_driver.getKeyCount());
+    for (std::size_t row = 0; row < _driver.getKeyCount(); ++row) {
+      std::size_t item = _sections.itemForRow(row);
+      NSInteger requested = item == UNDEFINED_INDEX ? columns : (provider ? provider((NSInteger)item) : 1);
+      if (revision != _rowSpansRevision || structure != _structureVersion || columns != self.numberOfColumns) {
+        [self invalidateFrame];
+        return NO;
+      }
+      spans.push_back(requested > 0 ? static_cast<std::size_t>(requested) : 1);
+    }
+  }
+  _driver.setRowSpans(std::move(spans));
+  _rowSpansColumns = columns;
+  _rowSpansSentRevision = revision;
+  _rowSpansStructureVersion = structure;
+  return YES;
+}
+
+- (void)sendPersistentKeys
+{
+  std::vector<std::string> keys;
+  keys.reserve(_persistentKeys.count);
+  for (NSString *key in _persistentKeys) {
+    keys.push_back(ShadowListKitStdString(key));
+  }
+  _driver.setPersistentKeys(std::move(keys));
+  ++_structureVersion;
+  [self invalidateFrame];
+}
+
+- (void)sendNonAnchorKeys
+{
+  std::vector<std::string> keys;
+  keys.reserve(_nonAnchorKeys.count);
+  for (NSString *key in _nonAnchorKeys) {
+    keys.push_back(ShadowListKitStdString(key));
+  }
+  _driver.setNonAnchorKeys(std::move(keys));
+  [self invalidateFrame];
+}
+
+#pragma mark - Viewability
+
+- (void)sendViewabilityConfigs
+{
+  [_viewabilityTimer invalidate];
+  _viewabilityTimer = nil;
+  ++_viewabilityGeneration;
+  if (_viewabilityConfigCallbackPairs) {
+    _viewabilityCallbacks = [_viewabilityConfigCallbackPairs copy];
+  } else if (_onViewableItemsChanged) {
+    ShadowListKitViewabilityConfig *config = _viewabilityConfig ?: [ShadowListKitViewabilityConfig new];
+    _viewabilityCallbacks = @[[[ShadowListKitViewabilityConfigCallbackPair alloc]
+      initWithViewabilityConfig:config onViewableItemsChanged:_onViewableItemsChanged]];
+  } else {
+    _viewabilityCallbacks = @[];
+  }
+  std::vector<ViewabilityConfig> configs;
+  for (ShadowListKitViewabilityConfigCallbackPair *pair in _viewabilityCallbacks) {
+    configs.push_back(ShadowListKitReadViewabilityConfig(pair.viewabilityConfig));
+  }
+  auto changed = _driver.setViewabilityConfigs(std::move(configs), CACurrentMediaTime() * 1000);
+  if (!_viewabilityTokens) _viewabilityTokens = [NSMutableArray new];
+  while (_viewabilityTokens.count > _viewabilityCallbacks.count) [_viewabilityTokens removeLastObject];
+  while (_viewabilityTokens.count < _viewabilityCallbacks.count) [_viewabilityTokens addObject:[NSMutableDictionary new]];
+  for (std::size_t index : changed) _viewabilityTokens[index] = [NSMutableDictionary new];
+  [self updateViewability];
+}
+
+- (void)recordInteraction
+{
+  _driver.recordInteraction(CACurrentMediaTime() * 1000);
+  [self updateViewability];
+}
+
+- (void)detachViewability
+{
+  _viewabilityAttached = NO;
+  ++_viewabilityGeneration;
+  [_viewabilityTimer invalidate];
+  _viewabilityTimer = nil;
+  _driver.resetViewability();
+  for (NSMutableDictionary *tokens in _viewabilityTokens) [tokens removeAllObjects];
+}
+
+- (void)updateViewability
+{
+  if (_viewabilityUpdating) { _viewabilityNeedsUpdate = YES; return; }
+  if (!_viewabilityAttached || !self.window || _viewabilityCallbacks.count == 0) return;
+  _viewabilityUpdating = YES;
+  _viewabilityNeedsUpdate = NO;
+  NSUInteger generation = _viewabilityGeneration;
+  @try {
+    auto reports = _driver.updateViewability([self offset], _windowAlong, CACurrentMediaTime() * 1000, &_sections);
+    NSMutableDictionary<NSNumber *, ShadowListKitViewableItemsChangedInfo *> *events = [NSMutableDictionary new];
+    for (auto& entry : reports) {
+      std::size_t config = entry.first;
+      if (config >= _viewabilityTokens.count) continue;
+      auto& report = entry.second;
+      NSMutableDictionary<NSString *, ShadowListKitViewToken *> *current = [NSMutableDictionary new];
+      NSMutableArray<ShadowListKitViewToken *> *viewable = [NSMutableArray new];
+      NSMutableArray<ShadowListKitViewToken *> *changed = [NSMutableArray new];
+      for (const std::string& key : report.viewable) {
+        std::size_t row = _driver.indexOfKey(key);
+        std::size_t item = row == UNDEFINED_INDEX ? UNDEFINED_INDEX : _sections.itemForRow(row);
+        if (item == UNDEFINED_INDEX) continue;
+        NSString *publicKey = [_dataSource listView:self keyForItemAtIndex:(NSInteger)item];
+        if (!publicKey) continue;
+        NSInteger section = _sections.isSectioned() ? (NSInteger)_sections.sectionForItem(item) : NSNotFound;
+        ShadowListKitViewToken *token = [[ShadowListKitViewToken alloc] initWithKey:publicKey index:(NSInteger)item section:section viewable:YES];
+        current[ShadowListKitString(key)] = token;
+        [viewable addObject:token];
+      }
+      [viewable sortUsingComparator:^NSComparisonResult(ShadowListKitViewToken *a, ShadowListKitViewToken *b) {
+        return a.index < b.index ? NSOrderedAscending : a.index > b.index ? NSOrderedDescending : NSOrderedSame;
+      }];
+      for (const std::string& key : report.changes.added) {
+        ShadowListKitViewToken *token = current[ShadowListKitString(key)];
+        if (token) [changed addObject:token];
+      }
+      for (const std::string& key : report.changes.removed) {
+        ShadowListKitViewToken *previous = _viewabilityTokens[config][ShadowListKitString(key)];
+        if (previous) [changed addObject:[[ShadowListKitViewToken alloc] initWithKey:previous.key index:previous.index section:previous.section viewable:NO]];
+      }
+      _viewabilityTokens[config] = current;
+      if (changed.count) {
+        ShadowListKitViewableItemsChangedInfo *info = [[ShadowListKitViewableItemsChangedInfo alloc] initWithViewableItems:viewable changed:changed];
+        events[@(config)] = info;
+      }
+    }
+    for (const auto& entry : reports) {
+      if (generation != _viewabilityGeneration || !_viewabilityAttached) break;
+      NSUInteger config = entry.first;
+      ShadowListKitViewableItemsChangedInfo *info = events[@(config)];
+      if (!info || config >= _viewabilityCallbacks.count) continue;
+      void (^callback)(ShadowListKitViewableItemsChangedInfo *) = _viewabilityCallbacks[config].onViewableItemsChanged;
+      if (callback) callback(info);
+    }
+  } @finally {
+    _viewabilityUpdating = NO;
+  }
+  if (_viewabilityNeedsUpdate || generation != _viewabilityGeneration) {
+    [self updateViewability];
+  } else if (_driver.isViewabilityWaiting() && !_viewabilityTimer && _viewabilityAttached) {
+    __weak ShadowListKitListView *weakSelf = self;
+    _viewabilityTimer = [NSTimer timerWithTimeInterval:0.016 repeats:NO block:^(NSTimer *timer) {
+      ShadowListKitListView *list = weakSelf;
+      if (!list) return;
+      list->_viewabilityTimer = nil;
+      [list updateViewability];
+    }];
+    [NSRunLoop.mainRunLoop addTimer:_viewabilityTimer forMode:NSRunLoopCommonModes];
+  }
 }
 
 #pragma mark - Sticky
@@ -415,6 +670,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 - (void)layoutSticky
 {
   if (!_driver.hasSticky()) {
+    [self clearStickyHeaderOverlay];
     if (_stickyCell) {
       [self unpinCell:_stickyCell];
       _stickyCell = nil;
@@ -432,7 +688,8 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     [self unpinCell:_stickyCell];
   }
   _stickyCell = cell;
-  if (!cell) {
+  if ([self layoutStickyHeaderOverlay:active cell:cell]) return;
+  if (!cell || active >= _driver.getRowCount() || cell.row != (NSInteger)active) {
     return;
   }
   RowRect rect = _driver.getRowRect(active);
@@ -449,6 +706,102 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     cell.layer.zPosition = 1;
     [CATransaction commit];
   }
+}
+
+/*
+ * The original row remains mounted for identity and measurement. Hiding its view gives the
+ * custom header one visual and accessibility representation; removing it restores that view.
+ */
+- (void)clearStickyHeaderOverlay
+{
+#if TARGET_OS_OSX
+  [_stickyHeaderOverlay setAccessibilityParent:nil];
+#endif
+  [_stickyHeaderOverlay removeFromSuperview];
+  _stickyHeaderOverlay = nil;
+  if (_stickyHeaderOverlayCell) {
+#if TARGET_OS_OSX
+    [_stickyHeaderOverlayCell catchUpView];
+#endif
+    _stickyHeaderOverlayCell.hidden = _stickyHeaderOverlayCellHidden;
+  }
+  _stickyHeaderOverlayCell = nil;
+  _stickyHeaderOverlayKey.clear();
+  ++_stickyHeaderOverlayRevision;
+}
+
+- (void)invalidateStickyHeaderOverlay
+{
+  ++_stickyHeaderOverlayRevision;
+}
+
+- (BOOL)layoutStickyHeaderOverlay:(std::size_t)active cell:(ShadowListKitListCell *)cell
+{
+  if (!_renderStickyHeaderOverlay || !cell || active >= _driver.getKeyCount()) {
+    [self clearStickyHeaderOverlay];
+    return NO;
+  }
+  std::string key = _driver.getKeyAt(active);
+  if (_stickyHeaderOverlayKey != key || _stickyHeaderOverlayRenderedRevision != _stickyHeaderOverlayRevision) {
+    [self clearStickyHeaderOverlay];
+    NSUInteger revision = _stickyHeaderOverlayRevision;
+    RowPlace place = _sections.placeOfRow(active);
+    NSInteger index = place.item == UNDEFINED_INDEX ? NSNotFound : (NSInteger)place.item;
+    NSInteger section = _sections.isSectioned() ? (NSInteger)place.section : NSNotFound;
+    NSString *publicKey = nil;
+    if (index != NSNotFound) {
+      publicKey = [_dataSource listView:self keyForItemAtIndex:index];
+    } else if (section != NSNotFound) {
+      if ([_dataSource respondsToSelector:@selector(listView:keyForSection:)]) {
+        publicKey = [_dataSource listView:self keyForSection:section];
+      }
+      if (!publicKey && _sections.itemCountInSection(place.section) > 0) {
+        publicKey = [_dataSource listView:self keyForItemAtIndex:(NSInteger)_sections.firstItemInSection(place.section)];
+      }
+    }
+    ShadowListKitView * _Nullable (^render)(NSString * _Nullable, NSInteger, NSInteger) = [_renderStickyHeaderOverlay copy];
+    ShadowListKitView *view = render(publicKey, index, section);
+    // A factory can synchronously replace the data or itself. Its old view never lands.
+    if (revision != _stickyHeaderOverlayRevision || !_renderStickyHeaderOverlay) return NO;
+    _stickyHeaderOverlayKey = key;
+    _stickyHeaderOverlayRenderedRevision = revision;
+    _stickyHeaderOverlay = view;
+    if (view) {
+      _stickyHeaderOverlayCell = cell;
+#if TARGET_OS_OSX
+      [cell catchUpView];
+#endif
+      _stickyHeaderOverlayCellHidden = cell.hidden;
+      cell.hidden = YES;
+      [[self cellContainer] addSubview:view];
+#if TARGET_OS_OSX
+      [view setAccessibilityParent:(id)[self accessibilityElementForRow:active]];
+#endif
+    }
+  }
+  ShadowListKitView *view = _stickyHeaderOverlay;
+  if (!view) return NO;
+  CGSize constraint = _horizontal ? CGSizeMake(CGFLOAT_MAX, _windowCross) : CGSizeMake(_windowCross, CGFLOAT_MAX);
+#if TARGET_OS_OSX
+  CGSize fits = view.fittingSize;
+  if ([view respondsToSelector:@selector(sizeThatFits:)]) fits = [(id)view sizeThatFits:constraint];
+  if (!view.wantsLayer) view.wantsLayer = YES;
+#else
+  CGSize fits = [view sizeThatFits:constraint];
+#endif
+  CGFloat extent = _horizontal ? fits.width : fits.height;
+  if (!(extent > 0)) extent = _horizontal ? view.frame.size.width : view.frame.size.height;
+  double leading = _driver.stickyLeading(active, [self offset], extent);
+  CGRect frame = _horizontal ? [self displayRect:leading y:0 width:extent height:_windowCross]
+                            : [self displayRect:0 y:leading width:_windowCross height:extent];
+  ShadowListKitPlace(view, frame);
+  if (view.layer.zPosition != 2) {
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    view.layer.zPosition = 2;
+    [CATransaction commit];
+  }
+  return YES;
 }
 
 - (void)unpinCell:(ShadowListKitListCell *)cell
@@ -501,36 +854,23 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     [self unmountAll];
     return;
   }
-  MountPlan plan = _driver.planMount([self offset], _windowAlong, _windowAlong * self.mountOverscan, [self leadingInset],
-    [self trailingInset]);
-  _mountBand = plan.band;
-  if (![self mountNeeded:plan]) {
+  MountInputs inputs;
+  inputs.windowAlong = _windowAlong;
+  inputs.pad = _windowAlong * self.mountOverscan;
+  inputs.leadingInset = [self leadingInset];
+  inputs.trailingInset = [self trailingInset];
+  double offset = [self offset];
+  MountPlan plan = _driver.planMount(offset, inputs.windowAlong, inputs.pad, inputs.leadingInset, inputs.trailingInset);
+  // A pass that covers what the last one did is skipped.
+  MountRecord next{plan.low, plan.high, plan.sticky, _driver.getGeometryVersion(), _structureVersion,
+    [self pixelShift], plan.band, inputs};
+  BOOL skipped = shouldSkipMount(_mountRecord, next, offset, (std::size_t)self.numberOfColumns, [self hasHeldRow]);
+  _mountRecord = next;
+  if (skipped) {
     return;
   }
-  [self recordMount:plan];
   [self mountPlan:plan];
   [self prefetchAround:plan];
-}
-
-/*
- * Whether anything the last mount pass covered changed: the rows, the pinned header, the
- * geometry, the data or the pixel shift. A drag mounts every pass.
- */
-- (BOOL)mountNeeded:(const MountPlan&)plan
-{
-  return plan.low != _mountedLow || plan.high != _mountedHigh || plan.sticky != _mountedSticky ||
-    _driver.getGeometryVersion() != _mountedGeometry || _structureVersion != _mountedStructure ||
-    [self pixelShift] != _mountedShift || [self hasHeldRow];
-}
-
-- (void)recordMount:(const MountPlan&)plan
-{
-  _mountedLow = plan.low;
-  _mountedHigh = plan.high;
-  _mountedSticky = plan.sticky;
-  _mountedGeometry = _driver.getGeometryVersion();
-  _mountedStructure = _structureVersion;
-  _mountedShift = [self pixelShift];
 }
 
 - (void)mountPlan:(const MountPlan&)plan
@@ -544,6 +884,9 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   }
   if (plan.sticky != UNDEFINED_INDEX) {
     [self mountRow:plan.sticky generation:generation];
+  }
+  for (std::size_t index : _driver.getPersistentIndices()) {
+    [self mountRow:index generation:generation];
   }
   // The held row stays mounted wherever the finger or the mouse takes it.
   std::size_t held = _driver.getHeldIndex();
@@ -628,10 +971,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     [self recycleCell:entry.second];
   }
   _mounted.clear();
-  _mountBand = OffsetBand();
-  _mountedLow = UNDEFINED_INDEX;
-  _mountedHigh = UNDEFINED_INDEX;
-  _mountedSticky = UNDEFINED_INDEX;
+  _mountRecord = MountRecord();
 }
 
 #pragma mark - Prefetching
@@ -780,6 +1120,12 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
     _reachedEnd = NO;
     if ([_userDelegate respondsToSelector:@selector(listViewDidReachEnd:)]) {
       [_userDelegate listViewDidReachEnd:self];
+    }
+  }
+  if (_atEndChanged) {
+    _atEndChanged = NO;
+    if ([_userDelegate respondsToSelector:@selector(listView:didChangeAtEnd:)]) {
+      [_userDelegate listView:self didChangeAtEnd:_atEnd];
     }
   }
 }

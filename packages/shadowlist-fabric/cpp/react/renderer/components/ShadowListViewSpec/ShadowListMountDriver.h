@@ -69,6 +69,12 @@ public:
     const azimgd::shadowlist::KeyList& keys,
     const std::vector<std::size_t>& stickyIndices);
 
+  /* Only a completed layout owns the actual child set; adopt can still have empty children. */
+  void reportRowColumns(
+    const azimgd::shadowlist::Container& core,
+    const std::vector<std::string>& mountedKeys,
+    double rowSpansVersion);
+
   /*
    * Whether the host should tick on its next display frame.
    */
@@ -80,6 +86,12 @@ public:
    * One display frame on the UI thread. Returns whether to keep ticking.
    */
   bool tick();
+
+  /* Sent ranges and paced steps still waiting for the renderer, excluding viewability timers. */
+  bool isPending() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return mount_.isPending() || mount_.hasStep();
+  }
 
   /*
    * The sticky and snap lists of the state the Android view mounted last, set when it reads the
@@ -104,6 +116,20 @@ public:
   }
 
   /*
+   * The ShadowNode owns the container. Native drag borrows it without extending the list's
+   * lifetime. The getter releases this mutex before a caller takes Container::coreMutex.
+   */
+  void setContainerManager(std::weak_ptr<azimgd::shadowlist::Container> containerManager) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    containerManager_ = std::move(containerManager);
+  }
+
+  std::shared_ptr<azimgd::shadowlist::Container> getContainerManager() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return containerManager_.lock();
+  }
+
+  /*
    * A process wide id for this list. Android's Java view finds the driver by it, see find.
    */
   std::int64_t getHandle() const {
@@ -120,10 +146,23 @@ private:
   /*
    * What one commit or tick sends, built under the lock and dispatched after it.
    */
+  struct RowColumn {
+    std::string key;
+    std::size_t index;
+    std::size_t column;
+
+    bool operator==(const RowColumn& other) const {
+      return key == other.key && index == other.index && column == other.column;
+    }
+  };
+
   struct Outgoing {
     std::shared_ptr<const ShadowListViewEventEmitter> emitter;
     std::optional<azimgd::shadowlist::MountMessage> mount;
     bool viewability = false;
+    std::optional<std::vector<RowColumn>> rowColumns;
+    double rowSpansVersion = -1.0;
+    std::size_t numberOfColumns = 1;
     std::size_t activeStickyIndex = azimgd::shadowlist::UNDEFINED_INDEX;
     std::size_t visibleLow = azimgd::shadowlist::UNDEFINED_INDEX;
     std::size_t visibleHigh = azimgd::shadowlist::UNDEFINED_INDEX;
@@ -142,6 +181,7 @@ private:
   const std::int64_t handle_;
   std::atomic<bool> needsTick_{false};
   std::shared_ptr<const ShadowListViewEventEmitter> emitter_;
+  std::weak_ptr<azimgd::shadowlist::Container> containerManager_;
 
   azimgd::shadowlist::MountDriver mount_;
 
@@ -156,6 +196,10 @@ private:
   std::size_t visibleLow_ = azimgd::shadowlist::UNDEFINED_INDEX;
   std::size_t visibleHigh_ = azimgd::shadowlist::UNDEFINED_INDEX;
   bool propsChanged_ = false;
+
+  std::vector<RowColumn> rowColumns_;
+  double rowSpansVersion_ = -1.0;
+  std::size_t numberOfColumns_ = 1;
 
   MountedGeometry mountedGeometry_;
 

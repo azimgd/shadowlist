@@ -1,13 +1,17 @@
 /*
- * ListSelection tests: selected rows by key, and the keyboard's moves between them.
+ * ListSelection tests: selected rows by key, the keyboard's moves between them, and a fuzz
+ * test of the selection against a plain list of keys.
  */
 
+#include "FuzzHelpers.hpp"
 #include "TestFramework.hpp"
 
 #include <shadowlist-core/host/KeyNavigation.hpp>
 #include <shadowlist-core/host/ListSelection.hpp>
 
 #include <algorithm>
+#include <cstdint>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -301,4 +305,173 @@ TEST(key_navigation_pages_a_viewport_from_the_lead_and_reveals_at_the_nearest_ed
   CHECK(revealEdge(100.0, 50.0, 120.0, 400.0) == RevealEdge::Start);
   CHECK(revealEdge(500.0, 50.0, 120.0, 400.0) == RevealEdge::End);
   CHECK(revealEdge(200.0, 50.0, 120.0, 400.0) == RevealEdge::None);
+}
+
+/*
+ * ListSelection against a plain list of the selected keys, through taps, the select calls, a
+ * change of mode and data that loses rows. The selection is always that list.
+ */
+TEST(fuzz_selection_is_the_keys_selected_in_order_through_taps_and_data_changes) {
+  const FuzzKinds kinds = {
+    {"tap", "refused tap", "select", "select only", "deselect", "clear", "set keys", "toggle multiple",
+      "delete rows", "insert rows"},
+    {},
+  };
+  forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
+    Trail trail(seed, episode);
+    std::mt19937 rng(seed);
+    ListSelection selection;
+    std::vector<std::string> expected;
+    std::vector<std::string> data;
+    std::size_t nextKey = 0;
+    int rows = pickInt(rng, 12, 31);
+    for (int row = 0; row < rows; ++row) {
+      data.push_back("d" + std::to_string(nextKey++));
+    }
+    auto selected = [&](const std::string& key) {
+      return std::find(expected.begin(), expected.end(), key) != expected.end();
+    };
+    auto others = [&](const std::string& key) {
+      std::vector<std::string> rest;
+      for (const std::string& held : expected) {
+        if (held != key) {
+          rest.push_back(held);
+        }
+      }
+      return rest;
+    };
+
+    for (int step = 0; step < 30 && !data.empty(); ++step) {
+      int roll = pickPercent(rng);
+      const std::string key = data[pickSize(rng, 0, data.size() - 1)];
+      std::vector<std::string> deselected;
+      std::vector<std::string> expectedDeselected;
+      bool changed = false;
+      bool expectedChanged = false;
+      if (roll < 30) {
+        bool allowed = chance(rng, 85);
+        bool togglesOff = selection.isMultiple() && selected(key);
+        episode.reach(allowed || togglesOff ? "tap" : "refused tap");
+        trail.note("tap " + key + (allowed ? "" : " refused"));
+        SelectionTap tap = selection.tap(key, [&] { return allowed; });
+        if (togglesOff) {
+          expected = others(key);
+        } else if (allowed) {
+          expectedDeselected = selection.isMultiple() ? std::vector<std::string>() : others(key);
+          expected = selection.isMultiple() ? expected : std::vector<std::string>();
+          expected.push_back(key);
+        }
+        if (tap.toggledOff != togglesOff || tap.selected != (allowed && !togglesOff)) {
+          trail.failWith("a tap on " + key + " answered " + (tap.selected ? "selected" :
+            tap.toggledOff ? "toggled off" : "nothing"));
+        }
+        deselected = tap.deselected;
+      } else if (roll < 42) {
+        episode.reach("select");
+        trail.note("select " + key);
+        expectedChanged = selection.isMultiple() ? !selected(key) : expected != std::vector<std::string>{key};
+        expectedDeselected = selection.isMultiple() ? std::vector<std::string>() : others(key);
+        expected = selection.isMultiple() ? expected : std::vector<std::string>();
+        if (!selected(key)) {
+          expected.push_back(key);
+        }
+        changed = selection.select(key, deselected);
+      } else if (roll < 50) {
+        episode.reach("select only");
+        trail.note("select only " + key);
+        expectedChanged = expected != std::vector<std::string>{key};
+        expectedDeselected = others(key);
+        expected = {key};
+        changed = selection.selectOnly(key, deselected);
+      } else if (roll < 60) {
+        episode.reach("deselect");
+        trail.note("deselect " + key);
+        expectedChanged = selected(key);
+        expected = others(key);
+        changed = selection.deselect(key);
+      } else if (roll < 65) {
+        episode.reach("clear");
+        trail.note("clear");
+        expectedDeselected = expected;
+        expected.clear();
+        selection.clear(deselected);
+      } else if (roll < 72) {
+        episode.reach("set keys");
+        std::vector<std::string> given;
+        std::vector<std::string> once;
+        int picks = pickInt(rng, 0, 5);
+        for (int pick = 0; pick < picks; ++pick) {
+          given.push_back(data[pickSize(rng, 0, data.size() - 1)]);
+          if (std::find(once.begin(), once.end(), given.back()) == once.end()) {
+            once.push_back(given.back());
+          }
+        }
+        trail.note("set " + std::to_string(given.size()) + " keys");
+        expectedChanged = once != expected;
+        expected = once;
+        changed = selection.setKeys(given);
+      } else if (roll < 80) {
+        /*
+         * The kits clear a selection of several rows when multiple selection goes off.
+         */
+        episode.reach("toggle multiple");
+        bool multiple = !selection.isMultiple();
+        trail.note(multiple ? "multiple on" : "multiple off");
+        selection.setMultiple(multiple);
+        if (!multiple && selection.getCount() > 1) {
+          expectedDeselected = expected;
+          expected.clear();
+          selection.clear(deselected);
+        }
+      } else if (roll < 92) {
+        episode.reach("delete rows");
+        std::size_t at = pickSize(rng, 0, data.size() - 1);
+        std::size_t count = std::min(pickSize(rng, 1, 6), data.size() - at);
+        data.erase(data.begin() + static_cast<std::ptrdiff_t>(at), data.begin() + static_cast<std::ptrdiff_t>(at +
+          count));
+        trail.note("delete " + std::to_string(count) + " rows at " + std::to_string(at));
+        std::vector<std::string> kept;
+        for (const std::string& held : expected) {
+          if (std::find(data.begin(), data.end(), held) != data.end()) {
+            kept.push_back(held);
+          }
+        }
+        expectedChanged = kept != expected;
+        expected = kept;
+        changed = selection.retainKeys(data);
+      } else {
+        episode.reach("insert rows");
+        std::size_t at = pickSize(rng, 0, data.size());
+        data.insert(data.begin() + static_cast<std::ptrdiff_t>(at), "d" + std::to_string(nextKey++));
+        trail.note("insert a row at " + std::to_string(at));
+        changed = selection.retainKeys(data);
+      }
+
+      if (changed != expectedChanged) {
+        trail.failWith(std::string("the call said the selection ") + (changed ? "changed" : "stayed"));
+      }
+      if (deselected != expectedDeselected) {
+        trail.failWith("the call deselected " + std::to_string(deselected.size()) + " rows, expected " +
+          std::to_string(expectedDeselected.size()));
+      }
+      if (selection.getKeys() != expected || selection.getCount() != expected.size() ||
+        selection.isEmpty() != expected.empty()) {
+        trail.failWith("the selection holds " + std::to_string(selection.getCount()) + " keys, expected " +
+          std::to_string(expected.size()) + " in the order they were selected");
+      }
+      std::vector<std::size_t> indices;
+      for (std::size_t row = 0; row < data.size(); ++row) {
+        if (selection.contains(data[row]) != selected(data[row])) {
+          trail.failWith("row " + data[row] + " is selected or not against the keys");
+        }
+        if (selected(data[row])) {
+          indices.push_back(row);
+        }
+      }
+      if (selection.indicesIn(data) != indices) {
+        trail.failWith("the selected rows are not the rows of the selected keys");
+      }
+      episode.observe(selection.getCount());
+    }
+  });
 }

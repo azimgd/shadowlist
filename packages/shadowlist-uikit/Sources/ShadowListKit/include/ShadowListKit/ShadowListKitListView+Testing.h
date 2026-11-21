@@ -24,6 +24,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)shadowListKit_beginDragAtPoint:(CGPoint)point;
 - (void)shadowListKit_moveDragToPoint:(CGPoint)point;
 - (void)shadowListKit_endDrag;
+/* The shared target a native snap requests. The application's scenario checks its animation. */
+- (CGFloat)shadowListKit_nearestSnapOffset:(CGFloat)offset;
 
 @end
 

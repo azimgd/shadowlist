@@ -1,16 +1,33 @@
 /*
  * The list in headless Chrome, driven over the DevTools protocol through test/fixture.html.
  * Skipped when no Chrome is found. CHROME_PATH picks the binary. Run ./build.sh first.
+ * The route test opens the web example of the shadowlist-templates repository, found at
+ * SHADOWLIST_TEMPLATES_ROOT (default ../shadowlist-templates next to this repository). It is
+ * skipped when that example or its build is missing.
  */
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, normalize, resolve as resolvePath } from 'node:path';
 import { after, before, test } from 'node:test';
 
 const ROOT = new URL('..', import.meta.url).pathname;
+const TEMPLATES_ROOT = resolvePath(
+  process.env.SHADOWLIST_TEMPLATES_ROOT ||
+    new URL('../../../../shadowlist-templates', import.meta.url).pathname
+);
+const WEB_EXAMPLE = `${join(TEMPLATES_ROOT, 'examples/shadowlist-web-example')}/`;
+// The packages of the templates repository, which the web example imports beside this one.
+const TEMPLATES_PACKAGES = `${join(TEMPLATES_ROOT, 'packages')}/`;
+const WEB_EXAMPLE_SKIP = !existsSync(WEB_EXAMPLE)
+  ? `no web example at ${WEB_EXAMPLE}, set SHADOWLIST_TEMPLATES_ROOT to the shadowlist-templates checkout`
+  : !existsSync(join(WEB_EXAMPLE, 'dist/main.js'))
+    ? `the web example at ${WEB_EXAMPLE} is not built`
+    : false;
+let serverPort = 0;
+let browserPort = 0;
 
 const CHROME_CANDIDATES = [
   process.env.CHROME_PATH ?? '',
@@ -65,7 +82,11 @@ class Page {
     });
   }
 
-  static async open(debugPort: number, url: string): Promise<Page> {
+  static async open(
+    debugPort: number,
+    url: string,
+    ready = 'window.fixtureReady === true'
+  ): Promise<Page> {
     const response = await fetch(
       `http://127.0.0.1:${debugPort}/json/new?about:blank`,
       { method: 'PUT' }
@@ -87,7 +108,7 @@ class Page {
     });
     await opened.send('Page.navigate', { url });
     for (let attempt = 0; attempt < 200; ++attempt) {
-      if (await opened.evaluate('window.fixtureReady === true')) return opened;
+      if (await opened.evaluate(ready)) return opened;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     throw new Error(`fixture did not load: ${opened.errors.join('\n')}`);
@@ -128,10 +149,27 @@ class Page {
 
 function serve(): Promise<number> {
   server = createServer((request, response) => {
-    const path = normalize(
-      join(ROOT, decodeURIComponent(new URL(request.url!, 'http://x').pathname))
+    const pathname = decodeURIComponent(
+      new URL(request.url!, 'http://x').pathname
     );
-    if (!path.startsWith(ROOT) || !existsSync(path)) {
+    const web = pathname.startsWith('/web/');
+    const packageAsset = pathname.startsWith('/packages/shadowlist-wasm/');
+    const templatesPackage = !packageAsset && pathname.startsWith('/packages/');
+    const root = web
+      ? WEB_EXAMPLE
+      : templatesPackage
+        ? TEMPLATES_PACKAGES
+        : ROOT;
+    let relative = web
+      ? pathname.slice('/web/'.length)
+      : packageAsset
+        ? pathname.slice('/packages/shadowlist-wasm/'.length)
+        : templatesPackage
+          ? pathname.slice('/packages/'.length)
+          : pathname;
+    if (web && relative === '') relative = 'index.html';
+    const path = normalize(join(root, relative));
+    if (!path.startsWith(root) || !existsSync(path)) {
       response.writeHead(404).end();
       return;
     }
@@ -174,6 +212,8 @@ function launchChrome(): Promise<number> {
 before(async () => {
   if (!CHROME) return;
   const [port, debugPort] = await Promise.all([serve(), launchChrome()]);
+  serverPort = port;
+  browserPort = debugPort;
   page = await Page.open(
     debugPort,
     `http://127.0.0.1:${port}/test/fixture.html`
@@ -181,17 +221,22 @@ before(async () => {
 });
 
 after(async () => {
-  page?.close();
   chrome?.removeAllListeners('exit');
   // Chrome writes its profile until it exits. Remove the profile after that.
   if (chrome && chrome.exitCode === null) {
     const exited = new Promise((resolve) => chrome!.once('exit', resolve));
-    chrome.kill();
+    // DevTools closes Chrome after its profile is flushed, including the extra example tabs.
+    page?.send('Browser.close').catch(() => {});
     await Promise.race([
       exited,
       new Promise((resolve) => setTimeout(resolve, 5000).unref()),
     ]);
+    if (chrome.exitCode === null) {
+      chrome.kill();
+      await exited;
+    }
   }
+  page?.close();
   server?.close();
   if (profile) {
     rmSync(profile, {
@@ -571,6 +616,79 @@ browserTest(
   }
 );
 
+/*
+ * Twelve items in four columns. The first and the last are tall and overlap every viewport,
+ * which keeps the ends of the mount plan while the rows between them come and go.
+ */
+browserTest(
+  'a grid mounts a row that comes into view between the same ends',
+  async (tab) => {
+    const shown = await tab.evaluate<{
+      first: number[];
+      later: number[];
+      back: number[];
+      blanks: unknown[];
+    }>(`(async () => {
+      const tall = new Map([[0, 2400], [2, 360], [5, 2280], [6, 2040], [11, 2280]]);
+      window.sizes = new Map(Array.from({ length: 12 }, (_, id) => [id, tall.get(id) ?? 120]));
+      make({ count: 12, columns: 4, sized: true });
+      await frames(3);
+      const indices = () => visible().map((row) => row.index);
+      const first = indices();
+      list.scrollTop = 2040;
+      await frames(3);
+      const later = indices();
+      const gaps = blanks();
+      list.scrollTop = 120;
+      await frames(3);
+      const back = indices();
+      window.sizes = new Map();
+      return { first, later, back, blanks: gaps };
+    })()`);
+    assert.ok(shown.first.includes(2) && !shown.first.includes(9));
+    for (const index of [4, 9, 10]) {
+      assert.ok(shown.later.includes(index), `item ${index} is mounted`);
+    }
+    assert.ok(!shown.later.includes(2));
+    assert.deepEqual(shown.blanks, []);
+    assert.ok(shown.back.includes(2) && !shown.back.includes(9));
+  }
+);
+
+browserTest(
+  'an item inserted by its own call or in a batch is reloaded once its content changes',
+  async (tab) => {
+    await makeList(tab, '{ count: 20 }');
+    const result = await tab.evaluate<{
+      own: number[];
+      kept: number[];
+      batch: number[];
+    }>(`(async () => {
+      const versions = new Map();
+      list.dataSource.contentVersionForItem = (_, index) =>
+        versions.get(list.state.ids[index]) ?? 0;
+      list.reloadData();
+      list.appendRows(1);
+      versions.set(list.state.ids[20], 1);
+      const own = list.applyChanges().reloadedIndices;
+      // Row 5 changed and nobody told the list yet. An insert keeps that for the next diff.
+      versions.set(list.state.ids[5], 1);
+      list.prependRows(1);
+      const kept = list.applyChanges().reloadedIndices;
+      list.performBatchUpdates(() => {
+        list.removeFirstRows(1);
+        list.appendRows(2);
+      });
+      versions.set(list.state.ids[21], 1);
+      const batch = list.applyChanges().reloadedIndices;
+      return { own, kept, batch };
+    })()`);
+    assert.deepEqual(result.own, [20]);
+    assert.deepEqual(result.kept, [6]);
+    assert.deepEqual(result.batch, [21]);
+  }
+);
+
 browserTest(
   'a batch lands as one change and applyChanges reloads changed versions',
   async (tab) => {
@@ -603,5 +721,213 @@ browserTest(
     assert.deepEqual(result.keys, ['k3', 'k0', 'k2', 'k4', 'k500']);
     assert.deepEqual(result.reloaded, [2, 5]);
     assert.deepEqual(result.again, []);
+  }
+);
+
+/*
+ * A header of 50 and a footer of 40 on window.list, and where each shows: its start and end on
+ * screen along the scroll axis, relative to the viewport start.
+ */
+const TEMPLATES = `
+  const template = (size) => {
+    const view = document.createElement('div');
+    // The content gives the size the list measures.
+    view.style.minHeight = size + 'px';
+    return view;
+  };
+  const place = (view) => {
+    const box = list.getBoundingClientRect();
+    const rect = view.getBoundingClientRect();
+    return [Math.round(rect.top - box.top), Math.round(rect.bottom - box.top)];
+  };
+`;
+
+browserTest(
+  'a sticky header stays at the viewport start and a sticky footer at its end',
+  async (tab) => {
+    await makeList(tab, '{ sized: true }');
+    const placed = await tab.evaluate<Record<string, number[]>>(`(async () => {
+      ${TEMPLATES}
+      const header = template(50);
+      const footer = template(40);
+      list.headerView = header;
+      list.footerView = footer;
+      list.stickyHeader = true;
+      list.stickyFooter = true;
+      await frames(3);
+      const placed = { start: [...place(header), ...place(footer)] };
+      list.scrollTop = 3000;
+      await frames(3);
+      placed.middle = [...place(header), ...place(footer)];
+      placed.rows = blanks();
+      list.scrollToEnd();
+      await frames(4);
+      placed.end = [...place(header), ...place(footer)];
+      placed.atEnd = [list.scrollTop + list.clientHeight - list.scrollHeight];
+      list.stickyHeader = false;
+      list.stickyFooter = false;
+      list.scrollTop = 3000;
+      await frames(3);
+      placed.plain = [place(header)[0], header.parentElement === footer.parentElement ? 1 : 0];
+      return placed;
+    })()`);
+    assert.deepEqual(placed.start, [0, 50, 560, 600]);
+    assert.deepEqual(placed.middle, [0, 50, 560, 600]);
+    assert.deepEqual(placed.rows, []);
+    assert.deepEqual(placed.end, [0, 50, 560, 600]);
+    assert.deepEqual(placed.atEnd, [0]);
+    assert.deepEqual(placed.plain, [-3000, 1]);
+  }
+);
+
+browserTest(
+  'the footer pushes a sticky header off and a sticky footer rests at the end of a short list',
+  async (tab) => {
+    await makeList(tab, '{ sized: true }');
+    const pushed = await tab.evaluate<number[]>(`(async () => {
+      ${TEMPLATES}
+      const header = template(50);
+      const footer = template(40);
+      list.headerView = header;
+      list.footerView = footer;
+      list.stickyHeader = true;
+      // A viewport shorter than the two.
+      list.style.height = '70px';
+      await frames(3);
+      list.scrollToEnd();
+      await frames(4);
+      return [...place(header), ...place(footer)];
+    })()`);
+    assert.deepEqual(pushed, [-20, 30, 30, 70]);
+
+    await makeList(tab, '{ sized: true, count: 3 }');
+    const short = await tab.evaluate<number[]>(`(async () => {
+      ${TEMPLATES}
+      const footer = template(40);
+      list.footerView = footer;
+      list.stickyFooter = true;
+      await frames(3);
+      return [...place(footer), list.scrollHeight - list.clientHeight, list.contentSize];
+    })()`);
+    assert.equal(short[1], 600);
+    assert.equal(short[0], 560);
+    assert.equal(short[2], 0);
+    assert.ok(short[3]! < 600);
+  }
+);
+
+browserTest(
+  'the empty view shows after the header while the list has no items',
+  async (tab) => {
+    await makeList(tab, '{ sized: true, count: 0 }');
+    const shown = await tab.evaluate<Record<string, unknown[]>>(`(async () => {
+      ${TEMPLATES}
+      const header = template(50);
+      const footer = template(40);
+      const empty = template(200);
+      list.headerView = header;
+      list.footerView = footer;
+      list.emptyView = empty;
+      await frames(3);
+      const shown = {
+        empty: [getComputedStyle(empty).visibility, ...place(empty), ...place(footer), list.contentSize],
+      };
+      list.appendRows(2);
+      await frames(3);
+      shown.rows = [getComputedStyle(empty).visibility, place(footer)[0] - place(header)[1], list.itemCount];
+      list.removeFirstRows(2);
+      await frames(3);
+      shown.again = [getComputedStyle(empty).visibility, ...place(footer)];
+      list.emptyView = null;
+      await frames(3);
+      shown.none = [empty.isConnected, ...place(footer), list.contentSize];
+      return shown;
+    })()`);
+    assert.deepEqual(shown.empty, ['visible', 50, 250, 250, 290, 290]);
+    assert.equal(shown.rows![0], 'hidden');
+    assert.ok((shown.rows![1] as number) > 0 && shown.rows![1] !== 200);
+    assert.deepEqual(shown.again, ['visible', 250, 290]);
+    assert.deepEqual(shown.none, [false, 50, 90, 90]);
+  }
+);
+
+browserTest(
+  'an inverted list tells when it leaves its end and is back',
+  async (tab) => {
+    await makeList(tab, '{ inverted: true, sized: true }', 'end');
+    const told = await tab.evaluate<Record<string, unknown>>(`(async () => {
+      const told = { opened: [list.atEnd, ...list.events.atEnd] };
+      list.appendRows(3);
+      await frames(3);
+      told.appended = [list.atEnd, ...list.events.atEnd];
+      list.scrollTop -= 1500;
+      await frames(3);
+      told.away = [list.atEnd, ...list.events.atEnd];
+      list.scrollToEnd();
+      await frames(4);
+      told.back = [list.atEnd, ...list.events.atEnd];
+      return told;
+    })()`);
+    assert.deepEqual(told.opened, [true]);
+    assert.deepEqual(told.appended, [true]);
+    assert.deepEqual(told.away, [false, false]);
+    assert.deepEqual(told.back, [true, false, true]);
+  }
+);
+
+browserTest('a non anchor item never holds the visible items', async (tab) => {
+  for (const nonAnchor of [false, true]) {
+    await makeList(tab, '{ sized: true }', 'middle');
+    const moved = await tab.evaluate<number[]>(`(async () => {
+      const [first, next] = visible();
+      const id = Number(first.key.slice(1));
+      if (${nonAnchor}) list.nonAnchorKeys = new Set([first.key]);
+      await frames(2);
+      // The item at the viewport start grows.
+      sizes.set(id, 400);
+      list.reloadItems([list.keys.indexOf(first.key)]);
+      await frames(3);
+      sizes.delete(id);
+      return [positionOf(first.key) - first.start, positionOf(next.key) - next.start];
+    })()`);
+    // One of the two stays where it was: the first item, or the one after it.
+    assert.equal(moved[nonAnchor ? 1 : 0], 0, `nonAnchor ${nonAnchor}`);
+    assert.notEqual(moved[nonAnchor ? 0 : 1], 0, `nonAnchor ${nonAnchor}`);
+  }
+});
+
+test(
+  'actual web routes mount their cells',
+  { skip: CHROME ? WEB_EXAMPLE_SKIP : 'no Chrome found' },
+  async () => {
+    for (const route of [
+      'Chat',
+      'Masonry',
+      'Horizontal',
+      'Feed',
+      'Poll',
+      'Sticky',
+    ]) {
+      const tab = await Page.open(
+        browserPort,
+        `http://127.0.0.1:${serverPort}/web/?SLRoute=${route}&SLCount=20`,
+        'Boolean(window.list)'
+      );
+      try {
+        const result = await tab.evaluate<{
+          mounted: number;
+        }>(`(async () => {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return {
+          mounted: window.list.visibleCells.length,
+        };
+      })()`);
+        assert.ok(result.mounted > 0, `${route} mounted its actual cells`);
+        assert.deepEqual(tab.errors, [], route);
+      } finally {
+        await tab.send('Page.navigate', { url: 'about:blank' });
+        tab.close();
+      }
+    }
   }
 );

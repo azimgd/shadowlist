@@ -3,6 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <title>ShadowListKit browser fixture</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "shadowlist-wasm": "/dist/index.js"
+        }
+      }
+    </script>
     <style>
       html,
       body {
@@ -85,6 +92,7 @@
           cancelled: [],
           shown: 0,
           hidden: 0,
+          atEnd: [],
         };
         list.inverted = !!options.inverted;
         list.followAppends = !!options.followAppends;
@@ -113,6 +121,7 @@
           didReachEnd: () => ++events.end,
           willDisplayCell: () => ++events.shown,
           didEndDisplayingCell: () => ++events.hidden,
+          didChangeAtEnd: (_, atEnd) => events.atEnd.push(atEnd),
         };
         if (options.prefetch) {
           list.prefetchDataSource = {

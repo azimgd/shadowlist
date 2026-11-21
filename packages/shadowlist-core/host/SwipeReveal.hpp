@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <vector>
 
 namespace azimgd::shadowlist {
@@ -31,6 +32,13 @@ constexpr double SWIPE_FLING_VELOCITY = 300.0;
  * How long a released row takes to come to rest, in milliseconds.
  */
 constexpr double SWIPE_SETTLE_DURATION_MS = 250.0;
+
+/*
+ * The background of a swipe action that sets none, as 0xAARRGGBB: gray, and red for a
+ * destructive action.
+ */
+constexpr std::uint32_t SWIPE_ACTION_COLOR_NORMAL = 0xFF8E8E93;
+constexpr std::uint32_t SWIPE_ACTION_COLOR_DESTRUCTIVE = 0xFFFF3B30;
 
 /*
  * Which side of a row shows its actions. Leading is the cross axis start, left in a vertical

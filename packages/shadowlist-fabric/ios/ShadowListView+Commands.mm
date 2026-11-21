@@ -208,6 +208,8 @@ using namespace facebook::react;
   }
   SLF_TRACE("ev=cmd-animate %.1f->%.1f", _horizontal ? current.x : current.y, _horizontal ? target.x : target.y);
   if (fabs(target.x - current.x) < 0.5 && fabs(target.y - current.y) < 0.5) {
+    // No UIKit animation means no animation-end delegate call to request this event.
+    _momentumEndAfterLand = YES;
     [self landAnimatedCommand];
     return;
   }

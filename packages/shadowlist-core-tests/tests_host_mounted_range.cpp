@@ -4,11 +4,13 @@
 
 #include "TestFramework.hpp"
 
+#include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/host/MountDriver.hpp>
 #include <shadowlist-core/host/MountedRange.hpp>
 #include <shadowlist-core/host/Prefetch.hpp>
 #include <shadowlist-core/host/Viewability.hpp>
 
+#include <cstddef>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -20,6 +22,11 @@ namespace {
 
 bool sameRange(const MountedRange& range, std::size_t low, std::size_t high) {
   return range.low == low && range.high == high;
+}
+
+void checkRange(const MountedRange& range, std::size_t low, std::size_t high) {
+  CHECK_EQ(range.low, low);
+  CHECK_EQ(range.high, high);
 }
 
 }
@@ -308,6 +315,27 @@ TEST(mount_driver_steps_keep_their_rows_across_a_data_change) {
   CHECK_EQ(step->lowKey, std::string("k36"));
 }
 
+TEST(mount_driver_steps_follow_a_report_that_keeps_the_range) {
+  MountHost host(36, {0, 20});
+  auto first = host.commit(MountedRange{30, 33});
+  CHECK(sameRange(first->range, 28, 35));
+  CHECK(first->highAtEnd);
+  host.apply(*first);
+  // Ten rows appended: the renderer grows its range at the end over them, and more rows measure.
+  for (std::size_t index = 36; index < 46; ++index) {
+    host.keys.push_back("k" + std::to_string(index));
+  }
+  host.basis.range = {28, 45};
+  CHECK(!host.commit(MountedRange{31, 36}).has_value());
+  // The step goes toward the pads of the rows measured now and keeps every one of them.
+  auto step = host.driver.takeStep();
+  CHECK(step.has_value());
+  CHECK(sameRange(step->range, 27, 45));
+  host.apply(*step);
+  CHECK(!host.commit().has_value());
+  CHECK(!host.driver.hasStep());
+}
+
 TEST(mount_driver_drops_ranges_of_an_older_generation) {
   MountHost host(1000, {0, 20});
   auto first = host.commit(MountedRange{30, 33});
@@ -336,4 +364,97 @@ TEST(mount_driver_says_a_scroll_command_landed) {
   CHECK(landed->landed);
   CHECK_EQ(landed->sequence, std::uint64_t{0});
   CHECK(!host.driver.isPending());
+}
+
+TEST(an_initial_range_starts_at_the_first_row) {
+  checkRange(initialMountedRange(1000, 20, false, UNDEFINED_INDEX, DEFAULT_OVERSCAN_ROWS, 0.0), 0, 20);
+  checkRange(initialMountedRange(5, 20, false, UNDEFINED_INDEX, DEFAULT_OVERSCAN_ROWS, 0.0), 0, 4);
+}
+
+TEST(an_initial_range_of_a_list_without_rows_is_empty) {
+  CHECK(initialMountedRange(0, 20, false, UNDEFINED_INDEX, DEFAULT_OVERSCAN_ROWS, 0.0).isEmpty());
+  CHECK(initialMountedRange(0, 20, true, 3, DEFAULT_OVERSCAN_ROWS, 0.0).isEmpty());
+}
+
+TEST(an_initial_range_of_an_inverted_list_ends_at_the_last_row) {
+  checkRange(initialMountedRange(1000, 20, true, UNDEFINED_INDEX, DEFAULT_OVERSCAN_ROWS, 0.0), 980, 999);
+  checkRange(initialMountedRange(5, 20, true, UNDEFINED_INDEX, DEFAULT_OVERSCAN_ROWS, 0.0), 0, 4);
+}
+
+TEST(an_initial_range_seeds_around_a_target) {
+  checkRange(initialMountedRange(1000, 20, false, 400, DEFAULT_OVERSCAN_ROWS, 0.0), 396, 420);
+  // The target wins over the inverted list's start at the end.
+  checkRange(initialMountedRange(1000, 20, true, 400, DEFAULT_OVERSCAN_ROWS, 0.0), 396, 420);
+}
+
+TEST(an_initial_range_takes_its_overscan_from_the_caller) {
+  checkRange(initialMountedRange(1000, 20, false, 400, 50, 0.0), 350, 420);
+  checkRange(initialMountedRange(1000, 20, false, 400, 0, 0.0), 400, 420);
+}
+
+TEST(an_initial_range_splits_its_rows_around_the_target_by_view_position) {
+  checkRange(initialMountedRange(1000, 20, false, 400, 4, 0.5), 386, 410);
+  checkRange(initialMountedRange(1000, 20, false, 400, 4, 1.0), 376, 400);
+}
+
+TEST(an_initial_range_keeps_a_target_past_the_end_on_the_last_row) {
+  checkRange(initialMountedRange(1000, 20, false, 5000, 4, 0.0), 995, 999);
+}
+
+TEST(an_initial_range_pushed_off_the_rows_is_empty) {
+  CHECK(initialMountedRange(1000, 20, false, 5, 4, 2.0).isEmpty());
+}
+
+TEST(a_new_scroll_index_reseeds_and_a_cleared_one_does_not) {
+  CHECK(shouldReseedFromIndex(UNDEFINED_INDEX, 0));
+  CHECK(shouldReseedFromIndex(3, 9));
+  CHECK(!shouldReseedFromIndex(9, 9));
+  CHECK(!shouldReseedFromIndex(9, UNDEFINED_INDEX));
+  CHECK(!shouldReseedFromIndex(UNDEFINED_INDEX, UNDEFINED_INDEX));
+}
+
+TEST(a_range_union_keeps_the_rows_on_screen_next_to_a_far_target) {
+  std::vector<std::size_t> expected = {0, 1, 2, 3, 400, 401};
+  CHECK(unionRangeIndices({0, 3}, {400, 401}) == expected);
+  CHECK(unionRangeIndices({400, 401}, {0, 3}) == expected);
+}
+
+TEST(a_range_union_merges_ranges_that_overlap_or_touch) {
+  std::vector<std::size_t> expected = {0, 1, 2, 3, 4, 5, 6};
+  CHECK(unionRangeIndices({0, 4}, {3, 6}) == expected);
+  CHECK(unionRangeIndices({0, 3}, {4, 6}) == expected);
+  CHECK(unionRangeIndices({0, 6}, {2, 3}) == expected);
+}
+
+TEST(a_range_union_ignores_an_empty_range) {
+  std::vector<std::size_t> expected = {2, 3, 4};
+  CHECK(unionRangeIndices({}, {2, 4}) == expected);
+  CHECK(unionRangeIndices({2, 4}, {}) == expected);
+  CHECK(unionRangeIndices({}, {}).empty());
+}
+
+TEST(a_grown_range_away_from_the_edges_stays) {
+  checkRange(grownMountedRange({100, 140}, false, false, 1000, 10, false), 100, 140);
+  checkRange(grownMountedRange({140, 100}, false, false, 1000, 10, false), 100, 140);
+}
+
+TEST(a_grown_range_at_an_edge_takes_the_leading_pad) {
+  checkRange(grownMountedRange({5, 40}, true, false, 1000, 10, false), 0, 40);
+  checkRange(grownMountedRange({30, 60}, true, false, 1000, 10, false), 20, 60);
+  checkRange(grownMountedRange({100, 140}, false, true, 1000, 10, false), 100, 150);
+  checkRange(grownMountedRange({100, 995}, false, true, 1000, 10, false), 100, 999);
+}
+
+TEST(a_grown_range_follows_an_append_at_the_end_up_to_the_limit) {
+  // Thirty rows mounted, ten appended: all forty stay.
+  checkRange(grownMountedRange({960, 989}, false, true, 1000, 10, true), 960, 999);
+  // A burst past the limit moves the range to the tail.
+  checkRange(grownMountedRange({100, 129}, false, true, 1000, 10, true), 999 - 29 - MAX_FOLLOWED_APPEND, 999);
+  checkRange(grownMountedRange({0, 9}, true, true, 12, 10, true), 0, 11);
+}
+
+TEST(a_grown_range_without_an_edge_or_rows_is_empty) {
+  CHECK(grownMountedRange({UNDEFINED_INDEX, 4}, true, true, 100, 10, false).isEmpty());
+  CHECK(grownMountedRange({4, UNDEFINED_INDEX}, true, true, 100, 10, true).isEmpty());
+  CHECK(grownMountedRange({0, 4}, true, true, 0, 10, true).isEmpty());
 }

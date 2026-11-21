@@ -3,23 +3,32 @@ package com.shadowlist.kit
 import android.content.Context
 import android.graphics.RenderNode
 import android.os.SystemClock
+import android.text.TextPaint
 import android.view.MotionEvent
 import android.view.View
 import android.view.View.MeasureSpec
 import android.widget.FrameLayout
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /*
  * What a view that hosts the list relies on: exact item sizes, driven mode and the scroll
  * switch, offset adjustments, batches that keep the visible rows still and the layout pass hook.
+ * Then what a list built on it relies on: the pinned header and footer, the empty view, the items
+ * that never hold the content, whether an inverted list is at its end, long presses, the members
+ * a subclass overrides and the lines of a text layout.
  */
 @RunWith(AndroidJUnit4::class)
 class ShadowListKitHostTest {
@@ -77,6 +86,60 @@ class ShadowListKitHostTest {
   }
 
   /*
+   * Tells the order its children draw in.
+   */
+  private class OrderedListView(context: Context) : ShadowListKitListView(context) {
+    fun drawnChildren(): List<View> = List(childCount) { getChildAt(getChildDrawingOrder(childCount, it)) }
+  }
+
+  /*
+   * A list that is its own data source and delegate once locked, and follows editing.
+   */
+  private class GuardedListView(context: Context) : ShadowListKitListView(context) {
+    val editingCalls = ArrayList<Boolean>()
+    var refused = 0
+    var locked = false
+
+    override var dataSource: DataSource?
+      get() = super.dataSource
+      set(value) {
+        if (locked) refused += 1 else super.dataSource = value
+      }
+
+    override var delegate: Delegate?
+      get() = super.delegate
+      set(value) {
+        if (locked) refused += 1 else super.delegate = value
+      }
+
+    override fun setEditing(editing: Boolean, animated: Boolean) {
+      super.setEditing(editing, animated)
+      editingCalls.add(editing)
+    }
+  }
+
+  /*
+   * Records what the list says about its end.
+   */
+  private class EndRecorder : ShadowListKitListView.Delegate {
+    val changes = ArrayList<Boolean>()
+
+    override fun didChangeAtEnd(listView: ShadowListKitListView, atEnd: Boolean) {
+      changes.add(atEnd)
+    }
+  }
+
+  private fun template(size: Int): View = View(context).apply { minimumHeight = size }
+
+  private fun makeSizedList(rows: SizedRows, list: ShadowListKitListView = ShadowListKitListView(context)): ShadowListKitListView {
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    list.dataSource = rows
+    list.reloadData()
+    layOut(list)
+    return list
+  }
+
+  /*
    * Counts the nested scrolls a child starts.
    */
   private class NestedParent(context: Context) : FrameLayout(context) {
@@ -96,11 +159,11 @@ class ShadowListKitHostTest {
     return list
   }
 
-  private fun layOut(view: View) {
+  private fun layOut(view: View, height: Int = HEIGHT) {
     view.measure(
       MeasureSpec.makeMeasureSpec(WIDTH, MeasureSpec.EXACTLY),
-      MeasureSpec.makeMeasureSpec(HEIGHT, MeasureSpec.EXACTLY))
-    view.layout(0, 0, WIDTH, HEIGHT)
+      MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+    view.layout(0, 0, WIDTH, height)
   }
 
   /*
@@ -580,6 +643,115 @@ class ShadowListKitHostTest {
     assertEquals(rect.height().toDouble(), cell.height.toDouble(), 1.0)
   }
 
+  /*
+   * The measured range first comes from the estimate, which ends far short of the viewport. The
+   * pass fills the viewport before the frame is drawn.
+   */
+  @Test
+  fun the_first_frame_fills_the_viewport_when_rows_are_shorter_than_their_estimate() = onMain {
+    val list = ShadowListKitListView(context)
+    list.estimatedItemSizePx = 10_000f
+    makeList(Rows(3_000, 24.0), list)
+    assertVisibleRowsMounted(list)
+    assertTrue(list.visibleCells.maxOf { it.bottom } >= HEIGHT)
+  }
+
+  /*
+   * Twelve items in four columns. The first and the last are tall and overlap every viewport,
+   * which keeps the ends of the mount plan while the rows between them come and go.
+   */
+  private fun makeGrid(height: Int = HEIGHT): ShadowListKitListView {
+    val rows = SizedRows(12, 400.0)
+    rows.sizes[0] = 8000.0
+    rows.sizes[2] = 1200.0
+    rows.sizes[5] = 7600.0
+    rows.sizes[6] = 6800.0
+    rows.sizes[11] = 7600.0
+    val list = ShadowListKitListView(context)
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    list.numberOfColumns = 4
+    list.dataSource = rows
+    list.reloadData()
+    layOut(list, height)
+    return list
+  }
+
+  @Test
+  fun a_grid_mounts_a_row_that_comes_into_view_between_the_same_ends() = onMain {
+    val list = makeGrid()
+    assertEquals(8800, list.contentSize)
+    assertTrue(list.cellForItem(2) != null)
+    assertTrue(list.cellForItem(9) == null)
+    list.scrollTo(0, 6800)
+    for (index in intArrayOf(4, 9, 10)) {
+      assertEquals(8000 - 6800, requireNotNull(list.cellForItem(index)).top - list.scrollY)
+    }
+    assertTrue(list.cellForItem(2) == null)
+    list.scrollTo(0, 400)
+    assertEquals(-400, requireNotNull(list.cellForItem(2)).top - list.scrollY)
+    assertTrue(list.cellForItem(9) == null)
+  }
+
+  @Test
+  fun a_grid_mounts_again_when_its_window_grows_over_more_rows() = onMain {
+    val list = makeGrid(800)
+    list.scrollTo(0, 5200)
+    assertTrue(list.cellForItem(9) == null)
+    layOut(list, 3200)
+    assertEquals(8000 - 5200, requireNotNull(list.cellForItem(9)).top - list.scrollY)
+  }
+
+  /*
+   * The core leaves an inverted list past its new end. The driver brings it back and runs the core
+   * again there, and the end the first run reached is still told to the delegate.
+   */
+  @Test
+  fun an_inverted_list_that_shrinks_to_a_few_rows_reaches_its_end() = onMain {
+    var ends = 0
+    val rows = Rows(400, ROW_SIZE)
+    val list = ShadowListKitListView(context)
+    list.inverted = true
+    makeList(rows, list)
+    list.scrollTo(0, 12_000)
+    list.delegate = object : ShadowListKitListView.Delegate {
+      override fun didReachEnd(listView: ShadowListKitListView) {
+        ends += 1
+      }
+    }
+    rows.keys.subList(3, rows.keys.size).clear()
+    list.reloadData()
+    layOut(list)
+    assertEquals(1, ends)
+    assertEquals(0, list.scrollY)
+    layOut(list)
+    assertEquals(1, ends)
+  }
+
+  /*
+   * The rows the run at the new end measures are shorter than their estimates, and the content
+   * shrinks once more.
+   */
+  @Test
+  fun an_inverted_list_that_shrinks_twice_in_one_pass_rests_at_its_end() = onMain {
+    val rows = SizedRows(400, 0.0)
+    for (index in rows.sizes.indices) rows.sizes[index] = 120.0 + (index % 5) * 48
+    val list = ShadowListKitListView(context)
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    list.inverted = true
+    list.estimatedItemSizePx = 800f
+    list.dataSource = rows
+    list.reloadData()
+    layOut(list, 1920)
+    list.scrollTo(0, 12_000)
+    rows.keys.subList(13, rows.keys.size).clear()
+    list.deleteItems(IntArray(387) { 13 + it })
+    layOut(list, 1920)
+    assertEquals(list.contentSize - 1920, list.scrollY)
+    layOut(list, 1920)
+    assertEquals(2664, list.contentSize)
+    assertEquals(744, list.scrollY)
+  }
+
   @Test
   fun a_recycled_cell_comes_back_without_a_lift() = onMain {
     val rows = Rows(500, ROW_SIZE)
@@ -616,6 +788,106 @@ class ShadowListKitHostTest {
     }
   }
 
+  /*
+   * Rows with a content version a test bumps by key.
+   */
+  private class VersionedRows(count: Int) :
+    ShadowListKitListView.DataSource, ShadowListKitListView.Sizing, ShadowListKitListView.ContentVersions {
+    val keys = MutableList(count) { "row$it" }
+    val versions = HashMap<String, Long>()
+
+    override fun numberOfItems(listView: ShadowListKitListView): Int = keys.size
+    override fun keyForItem(listView: ShadowListKitListView, index: Int): String = keys[index]
+    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+      listView.dequeueReusableCell("row")
+    override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = ROW_SIZE.roundToInt()
+    override fun contentVersionForItem(listView: ShadowListKitListView, index: Int): Long = versions[keys[index]] ?: 0L
+  }
+
+  private fun makeVersionedList(rows: VersionedRows): ShadowListKitListView {
+    val list = ShadowListKitListView(context)
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    list.dataSource = rows
+    list.reloadData()
+    layOut(list)
+    return list
+  }
+
+  @Test
+  fun an_item_inserted_through_its_own_call_is_reloaded_once_its_content_changes() = onMain {
+    val rows = VersionedRows(10)
+    val list = makeVersionedList(rows)
+    rows.keys.add(2, "new")
+    list.insertItems(intArrayOf(2))
+    layOut(list)
+    rows.versions["new"] = 1
+    assertArrayEquals(intArrayOf(2), list.applyChanges().reloadedIndices)
+    assertEquals(0, list.applyChanges().reloadedIndices.size)
+  }
+
+  @Test
+  fun an_insert_keeps_the_change_of_another_item_for_the_next_diff() = onMain {
+    val rows = VersionedRows(10)
+    val list = makeVersionedList(rows)
+    // Row 5 changed and nobody told the list yet.
+    rows.versions["row5"] = 1
+    rows.keys.add(0, "new")
+    list.insertItems(intArrayOf(0))
+    layOut(list)
+    assertArrayEquals(intArrayOf(6), list.applyChanges().reloadedIndices)
+  }
+
+  @Test
+  fun an_item_inserted_in_a_batch_is_reloaded_once_its_content_changes() = onMain {
+    val rows = VersionedRows(10)
+    val list = makeVersionedList(rows)
+    rows.versions["row7"] = 1
+    list.performBatchUpdates({
+      rows.keys.removeAt(0)
+      list.deleteItems(intArrayOf(0))
+      rows.keys.add(3, "new")
+      list.insertItems(intArrayOf(3))
+    })
+    layOut(list)
+    rows.versions["new"] = 1
+    assertArrayEquals(intArrayOf(3, 7), list.applyChanges().reloadedIndices)
+  }
+
+  /*
+   * The pass reaches the end, then its measure throws. The edge is told once the list lays out.
+   */
+  @Test
+  fun an_edge_reached_by_a_pass_whose_measure_threw_is_told_by_the_next_pass() = onMain {
+    var throws = true
+    var ends = 0
+    val rows = object : ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+      override fun numberOfItems(listView: ShadowListKitListView): Int = 3
+      override fun keyForItem(listView: ShadowListKitListView, index: Int): String = "row$index"
+      override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+        listView.dequeueReusableCell("row")
+      override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int {
+        check(!throws) { "no size yet" }
+        return 55
+      }
+    }
+    val list = ShadowListKitListView(context)
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    list.delegate = object : ShadowListKitListView.Delegate {
+      override fun didReachEnd(listView: ShadowListKitListView) {
+        ends += 1
+      }
+    }
+    list.dataSource = rows
+    list.reloadData()
+    assertThrows(IllegalStateException::class.java) { layOut(list) }
+    assertEquals(0, ends)
+    throws = false
+    layOut(list)
+    assertEquals(1, ends)
+    layOut(list)
+    assertEquals(1, ends)
+  }
+
   @Test
   fun a_waiting_saved_position_is_dropped_by_a_scroll_command() = onMain {
     val rows = Rows(100, ROW_SIZE)
@@ -630,4 +902,611 @@ class ShadowListKitHostTest {
     layOut(list)
     assertEquals(top, requireNotNull(list.cellForItem(50)).top - list.scrollY)
   }
+
+  @Test
+  fun persistent_keys_retain_offscreen_cells_through_payloads_moves_and_key_updates() = onMain {
+    val keys = MutableList(200) { "persistent-$it" }
+    val list = ShadowListKitListView(context)
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    list.dataSource = object : ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+      override fun numberOfItems(listView: ShadowListKitListView) = keys.size
+      override fun keyForItem(listView: ShadowListKitListView, index: Int) = keys[index]
+      override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int) = 100
+      override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell = listView.dequeueReusableCell("row")
+      override fun reconfigureCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int, payload: Any?): Boolean {
+        cell.contentDescription = payload as? String
+        return true
+      }
+    }
+    list.persistentKeys = setOf("persistent-150", "later")
+    list.reloadData()
+    layOut(list)
+    val cell = requireNotNull(list.cellForItem(150))
+    assertFalse(150 in requireNotNull(list.visibleRange))
+    keys.add(155, keys.removeAt(150))
+    list.reloadData()
+    assertTrue(list.cellForItem(155) === cell)
+    list.reloadItems(intArrayOf(155), "changed")
+    assertTrue(list.cellForItem(155) === cell)
+    assertEquals("changed", cell.contentDescription)
+    keys.removeAt(155)
+    list.reloadData()
+    assertNull(list.cellForItem(155))
+    assertTrue("persistent-150" in list.persistentKeys)
+    keys.add(170, "persistent-150")
+    list.reloadData()
+    assertTrue(list.cellForItem(170) != null)
+    list.persistentKeys = emptySet()
+    layOut(list)
+    assertNull(list.cellForItem(170))
+  }
+
+  @Test
+  fun persistent_cells_remeasure_after_width_and_orientation_changes() = onMain {
+    val list = ShadowListKitListView(context)
+    list.persistentKeys = setOf("row150")
+    makeSizedList(SizedRows(200, 100.0), list)
+    assertEquals(WIDTH, requireNotNull(list.cellForItem(150)).width)
+    list.measure(MeasureSpec.makeMeasureSpec(800, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(HEIGHT, MeasureSpec.EXACTLY))
+    list.layout(0, 0, 800, HEIGHT)
+    assertEquals(800, requireNotNull(list.cellForItem(150)).width)
+    list.horizontal = true
+    layOut(list)
+    val cell = requireNotNull(list.cellForItem(150))
+    assertEquals(100, cell.width)
+    assertEquals(HEIGHT, cell.height)
+  }
+
+  @Test
+  fun predictive_specs_cache_main_thread_calls_and_disabling_preserves_exact_sizes() = onMain {
+    val list = ShadowListKitListView(context)
+    val calls = HashMap<Int, Int>()
+    list.getItemSizeSpec = { index ->
+      assertEquals(android.os.Looper.getMainLooper(), android.os.Looper.myLooper())
+      calls[index] = (calls[index] ?: 0) + 1
+      ShadowListKitItemSizeSpec("prediction", fixedHeight = 180.0)
+    }
+    makeSizedList(SizedRows(200, 100.0), list)
+    repeat(8) { list.layoutPass() }
+    val density = context.resources.displayMetrics.density
+    assertEquals(180f * density, list.rectForItem(60)!!.height(), 0.01f)
+    assertEquals(100f, list.rectForItem(0)!!.height(), 0f)
+    assertEquals(1, calls[60])
+    repeat(8) { list.layoutPass() }
+    assertEquals(1, calls[60])
+    list.getItemSizeSpec = null
+    layOut(list)
+    assertEquals(100f, list.rectForItem(60)!!.height(), 0f)
+    assertEquals(100f, list.rectForItem(0)!!.height(), 0f)
+  }
+
+  @Test
+  fun predictive_text_rewraps_and_null_specs_use_normal_sizes() = onMain {
+    val list = ShadowListKitListView(context)
+    list.persistentKeys = setOf("row150")
+    val calls = HashMap<Int, Int>()
+    list.getItemSizeSpec = { index ->
+      calls[index] = (calls[index] ?: 0) + 1
+      if (index == 61) null else ShadowListKitItemSizeSpec("word ".repeat(60), fontSize = 14.0,
+        lineHeight = 20.0, insetWidth = 30.0, insetHeight = 12.0, widthFraction = 0.75)
+    }
+    makeSizedList(SizedRows(200, 100.0), list)
+    repeat(8) { list.layoutPass() }
+    val narrow = list.rectForItem(60)!!.height()
+    list.measure(MeasureSpec.makeMeasureSpec(1600, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(HEIGHT, MeasureSpec.EXACTLY))
+    list.layout(0, 0, 1600, HEIGHT)
+    repeat(8) { list.layoutPass() }
+    assertTrue(list.rectForItem(60)!!.height() < narrow)
+    assertEquals(100f, list.rectForItem(61)!!.height(), 0f)
+    // Retention and range lookup invoke the provider once per key per source, not twice.
+    assertEquals(2, calls[150])
+  }
+
+  @Test
+  fun a_throwing_predictive_provider_preserves_measured_sizes_and_can_recover() = onMain {
+    val list = makeSizedList(SizedRows(200, 100.0))
+    list.getItemSizeSpec = { throw IllegalStateException("provider failure") }
+    val error = assertThrows(IllegalStateException::class.java) { list.layoutPass() }
+    assertEquals("provider failure", error.message)
+    list.getItemSizeSpec = { ShadowListKitItemSizeSpec("recovered", fixedHeight = 180.0) }
+    repeat(8) { list.layoutPass() }
+    assertEquals(100f, list.rectForItem(0)!!.height(), 0f)
+    val density = context.resources.displayMetrics.density
+    assertEquals(180f * density, list.rectForItem(60)!!.height(), 0.01f)
+  }
+
+  // region Header, footer and empty view
+
+  @Test
+  fun a_pinned_header_stays_at_the_viewport_start_and_a_pinned_footer_at_its_end() = onMain {
+    val rows = SizedRows(100, 100.0)
+    val list = ShadowListKitListView(context)
+    val header = template(120)
+    val footer = template(100)
+    list.headerView = header
+    list.footerView = footer
+    list.stickyHeader = true
+    list.stickyFooter = true
+    makeSizedList(rows, list)
+    assertEquals(120 + 100 * 100 + 100, list.contentSize)
+    for (offset in intArrayOf(0, 40, 3000)) {
+      list.scrollTo(0, offset)
+      assertEquals(0, header.top - list.scrollY)
+      assertEquals(HEIGHT, footer.bottom - list.scrollY)
+    }
+    // The rows keep their places under the two.
+    assertEquals(120f, list.rectForItem(0)!!.top)
+    scrollThrough(list, Int.MAX_VALUE)
+    assertEquals(requireNotNull(list.cellForItem(99)).bottom, footer.top)
+
+    list.stickyHeader = false
+    list.stickyFooter = false
+    layOut(list)
+    assertEquals(0, header.top)
+    assertEquals(list.contentSize, footer.bottom)
+  }
+
+  @Test
+  fun auto_hide_bars_follow_user_moves_and_rebase_commands_without_a_core_pass() = onMain {
+    val list = ShadowListKitListView(context)
+    val header = template(120)
+    val footer = template(100)
+    list.headerView = header
+    list.footerView = footer
+    list.autoHideHeader = true
+    list.autoHideFooter = true
+    makeSizedList(SizedRows(100, 100.0), list)
+    list.scrollDriven = true
+    list.scrollTo(0, 1050)
+    // As in the driven-host baseline, the pass after a jump publishes its reusable band.
+    list.adjustOffsetBy(1.0)
+    assertEquals(0, header.top - list.scrollY)
+    val passes = list.corePassCount
+    list.writeOffset(1081, byUser = true)
+    list.layoutPass()
+    assertEquals(-30, header.top - list.scrollY)
+    assertEquals(HEIGHT + 30, footer.bottom - list.scrollY)
+    assertEquals(passes, list.corePassCount)
+    // A no-op layout cannot accumulate the same user move a second time.
+    list.layoutPass()
+    assertEquals(-30, header.top - list.scrollY)
+    list.scrollTo(0, 1500)
+    assertEquals(-30, header.top - list.scrollY)
+    list.writeOffset(1480, byUser = true)
+    list.layoutPass()
+    assertEquals(-10, header.top - list.scrollY)
+    assertEquals(HEIGHT + 10, footer.bottom - list.scrollY)
+    // A no-op user write must not mark a later command as user movement.
+    list.writeOffset(1480, byUser = true)
+    list.scrollTo(0, 1700)
+    assertEquals(-10, header.top - list.scrollY)
+  }
+
+  @Test
+  fun a_user_move_then_a_correction_inside_one_mount_pass_accumulates_only_the_user_move() = onMain {
+    val list = ShadowListKitListView(context)
+    val header = template(120)
+    list.headerView = header
+    list.autoHideHeader = true
+    val rows = SizedRows(100, 100.0)
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    var armed = false
+    list.dataSource = object : ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+      override fun numberOfItems(listView: ShadowListKitListView) = rows.keys.size
+      override fun keyForItem(listView: ShadowListKitListView, index: Int) = rows.keys[index]
+      override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int) = 100
+      override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell {
+        if (armed) {
+          armed = false
+          listView.writeOffset(4030, byUser = true)
+          listView.writeOffset(4500)
+        }
+        return listView.dequeueReusableCell("row")
+      }
+    }
+    list.reloadData()
+    layOut(list)
+    list.scrollTo(0, 1000)
+    armed = true
+    // New mounted cells invoke the callback while layoutPass suppresses recursive scroll passes.
+    list.scrollTo(0, 4000)
+    assertFalse(armed)
+    list.layoutPass()
+    assertEquals(-30, header.top - list.scrollY)
+  }
+
+  @Test
+  fun auto_hide_state_survives_flag_and_template_changes_and_resets_near_the_edge() = onMain {
+    val list = ShadowListKitListView(context)
+    var header = template(120)
+    list.headerView = header
+    list.autoHideHeader = true
+    makeSizedList(SizedRows(100, 100.0), list)
+    list.scrollTo(0, 1000)
+    list.writeOffset(1040, byUser = true)
+    list.layoutPass()
+    assertEquals(-40, header.top - list.scrollY)
+    list.autoHideHeader = false
+    layOut(list)
+    assertEquals(0, header.top)
+    list.autoHideHeader = true
+    layOut(list)
+    assertEquals(-40, header.top - list.scrollY)
+    list.headerView = null
+    layOut(list)
+    header = template(120)
+    list.headerView = header
+    layOut(list)
+    assertEquals(-40, header.top - list.scrollY)
+    list.scrollTo(0, 40)
+    assertEquals(0, header.top - list.scrollY)
+  }
+
+  @Test
+  fun horizontal_auto_hide_uses_the_scroll_axis_in_both_layout_directions() = onMain {
+    for (inverted in listOf(false, true)) {
+      val list = ShadowListKitListView(context)
+      list.horizontal = true
+      list.inverted = inverted
+      val header = View(context).apply { minimumWidth = 120 }
+      list.headerView = header
+      list.autoHideHeader = true
+      makeSizedList(SizedRows(100, 100.0), list)
+      list.scrollTo(1000, 0)
+      list.writeOffset(1020, byUser = true)
+      list.layoutPass()
+      assertEquals(-20, header.left - list.scrollX)
+    }
+  }
+
+  @Test
+  fun the_footer_pushes_a_pinned_header_off_and_a_pinned_footer_stays_under_the_header() = onMain {
+    val list = ShadowListKitListView(context)
+    val header = template(120)
+    val footer = template(100)
+    list.headerView = header
+    list.footerView = footer
+    list.stickyHeader = true
+    list.registerCell("row") { ShadowListKitListCell(it, "row") }
+    list.dataSource = SizedRows(100, 100.0)
+    list.reloadData()
+    // A viewport shorter than the two.
+    layOut(list, 200)
+    list.scrollTo(0, Int.MAX_VALUE)
+    assertEquals(list.contentSize, footer.bottom)
+    assertEquals(footer.top, header.bottom)
+
+    list.stickyHeader = false
+    list.stickyFooter = true
+    list.scrollTo(0, 0)
+    layOut(list, 200)
+    assertEquals(header.bottom, footer.top)
+  }
+
+  @Test
+  fun a_pinned_footer_of_a_short_list_rests_at_the_viewport_end() = onMain {
+    val list = ShadowListKitListView(context)
+    val footer = template(100)
+    list.footerView = footer
+    list.stickyFooter = true
+    makeSizedList(SizedRows(2, 100.0), list)
+    assertEquals(300, list.contentSize)
+    assertEquals(HEIGHT, footer.bottom)
+  }
+
+  @Test
+  fun a_pinned_header_and_footer_draw_over_the_rows_and_take_the_taps_there() = onMain {
+    val list = OrderedListView(context)
+    val header = template(120)
+    val footer = template(100)
+    list.headerView = header
+    list.footerView = footer
+    makeSizedList(SizedRows(100, 100.0), list)
+    list.scrollTo(0, 1000)
+    draw(list)
+    assertEquals(listOf(footer, header), list.drawnChildren().take(2))
+
+    list.stickyHeader = true
+    list.stickyFooter = true
+    layOut(list)
+    draw(list)
+    val drawn = list.drawnChildren()
+    assertEquals(listOf(header, footer), drawn.takeLast(2))
+    assertEquals(list.childCount, drawn.toSet().size)
+    // A tap on the pinned header selects no row under it.
+    list.handleTap(WIDTH / 2f, 60f)
+    list.handleTap(WIDTH / 2f, HEIGHT - 50f)
+    assertTrue(list.selectedIndices.isEmpty())
+    list.handleTap(WIDTH / 2f, 170f)
+    assertEquals(listOf(10), list.selectedIndices.toList())
+  }
+
+  @Test
+  fun the_empty_view_shows_after_the_header_while_the_list_has_no_items() = onMain {
+    val rows = SizedRows(0, 100.0)
+    val list = ShadowListKitListView(context)
+    val header = template(120)
+    val footer = template(100)
+    val empty = template(400)
+    list.headerView = header
+    list.footerView = footer
+    list.emptyView = empty
+    makeSizedList(rows, list)
+    assertEquals(View.VISIBLE, empty.visibility)
+    assertEquals(120, empty.top)
+    assertEquals(520, empty.bottom)
+    assertEquals(520, footer.top)
+    assertEquals(620, list.contentSize)
+
+    rows.keys.addAll(listOf("row0", "row1"))
+    rows.sizes.addAll(listOf(100.0, 100.0))
+    list.insertItems(intArrayOf(0, 1))
+    layOut(list)
+    assertEquals(View.INVISIBLE, empty.visibility)
+    assertEquals(120f, list.rectForItem(0)!!.top)
+    assertEquals(320, footer.top)
+    assertEquals(420, list.contentSize)
+
+    rows.keys.clear()
+    rows.sizes.clear()
+    list.reloadData()
+    layOut(list)
+    assertEquals(View.VISIBLE, empty.visibility)
+    assertEquals(520, footer.top)
+
+    list.emptyView = null
+    layOut(list)
+    assertNull(empty.parent)
+    assertEquals(120, footer.top)
+    assertEquals(220, list.contentSize)
+  }
+
+  @Test
+  fun an_empty_view_set_on_a_list_with_items_stays_hidden() = onMain {
+    val list = makeSizedList(SizedRows(5, 100.0))
+    val empty = template(400)
+    list.emptyView = empty
+    layOut(list)
+    assertEquals(View.INVISIBLE, empty.visibility)
+    assertEquals(500, list.contentSize)
+  }
+
+  // endregion
+
+  // region Anchors and the end
+
+  @Test
+  fun a_non_anchor_item_never_holds_the_visible_items() = onMain {
+    for (nonAnchor in booleanArrayOf(false, true)) {
+      val rows = SizedRows(100, 100.0)
+      val list = makeSizedList(rows)
+      if (nonAnchor) list.nonAnchorKeys = setOf("row10")
+      list.scrollTo(0, 1000)
+      assertEquals(0, requireNotNull(list.cellForItem(10)).top - list.scrollY)
+      // The item at the viewport start grows.
+      rows.sizes[10] = 160.0
+      list.reloadItems(intArrayOf(10))
+      layOut(list)
+      if (nonAnchor) {
+        // The item after it holds the content.
+        assertEquals(100, requireNotNull(list.cellForItem(11)).top - list.scrollY)
+      } else {
+        assertEquals(0, requireNotNull(list.cellForItem(10)).top - list.scrollY)
+      }
+    }
+  }
+
+  @Test
+  fun an_inverted_list_says_when_it_leaves_its_end_and_is_back() = onMain {
+    val recorder = EndRecorder()
+    val rows = SizedRows(200, 100.0)
+    val parent = FrameLayout(context)
+    val list = ShadowListKitListView(context)
+    parent.addView(list)
+    list.inverted = true
+    list.delegate = recorder
+    makeSizedList(rows, list)
+    layOut(parent)
+    val end = list.contentSize - HEIGHT
+    assertEquals(end, list.scrollY)
+    assertTrue(list.atEnd)
+
+    // Items appended while the list rests at its end do not leave it.
+    rows.keys.addAll(listOf("new0", "new1"))
+    rows.sizes.addAll(listOf(100.0, 100.0))
+    list.insertItems(intArrayOf(200, 201))
+    layOut(parent)
+    assertTrue(list.atEnd)
+    assertTrue(recorder.changes.isEmpty())
+
+    drag(parent, 300f, floatArrayOf(400f, 800f, 1300f, 1800f))
+    assertTrue(list.scrollY < end - 1000)
+    assertFalse(list.atEnd)
+    assertEquals(listOf(false), recorder.changes)
+
+    list.scrollToEnd()
+    layOut(parent)
+    assertTrue(list.atEnd)
+    assertEquals(listOf(false, true), recorder.changes)
+
+    // A scroll command that lands away from the end leaves it.
+    list.scrollToItem(20)
+    layOut(parent)
+    assertFalse(list.atEnd)
+    assertEquals(listOf(false, true, false), recorder.changes)
+  }
+
+  @Test
+  fun a_list_that_is_not_inverted_is_always_at_its_end() = onMain {
+    val recorder = EndRecorder()
+    val parent = FrameLayout(context)
+    val list = ShadowListKitListView(context)
+    parent.addView(list)
+    list.delegate = recorder
+    makeSizedList(SizedRows(200, 100.0), list)
+    layOut(parent)
+    drag(parent, 1800f, floatArrayOf(1700f, 1300f, 800f, 300f))
+    assertTrue(list.scrollY > 1000)
+    assertTrue(list.atEnd)
+    assertTrue(recorder.changes.isEmpty())
+  }
+
+  // endregion
+
+  // region Long press and subclasses
+
+  @Test
+  fun a_long_press_goes_to_the_delegate_which_says_whether_it_took_it() = onMain {
+    val pressed = ArrayList<Int>()
+    var takes = true
+    val list = makeList(Rows(100, ROW_SIZE))
+    val cell = requireNotNull(list.cellForItem(3))
+    // A delegate that does not answer takes none.
+    list.delegate = object : ShadowListKitListView.Delegate {}
+    assertFalse(list.longPressCell(cell))
+    list.delegate = object : ShadowListKitListView.Delegate {
+      override fun didLongPressItem(listView: ShadowListKitListView, index: Int): Boolean {
+        pressed.add(index)
+        return takes
+      }
+    }
+    assertTrue(list.longPressCell(cell))
+    takes = false
+    assertFalse(list.longPressCell(cell))
+    assertEquals(listOf(3, 3), pressed)
+  }
+
+  @Test
+  fun a_subclass_guards_its_data_source_and_delegate_and_follows_editing() = onMain {
+    val rows = Rows(50, ROW_SIZE)
+    val list = GuardedListView(context)
+    val delegate = object : ShadowListKitListView.Delegate {}
+    list.delegate = delegate
+    makeList(rows, list)
+    list.locked = true
+    list.dataSource = Rows(3, ROW_SIZE)
+    list.delegate = null
+    assertEquals(2, list.refused)
+    assertTrue(list.dataSource === rows)
+    assertTrue(list.delegate === delegate)
+    list.reloadData()
+    layOut(list)
+    assertEquals((50 * ROW_SIZE).roundToInt(), list.contentSize)
+
+    list.editing = true
+    list.setEditing(false, true)
+    assertEquals(listOf(true, false), list.editingCalls)
+    assertFalse(list.editing)
+  }
+
+  // endregion
+
+  // region Text
+
+  @Test
+  fun a_text_layout_wraps_paragraphs_without_hyphenation() {
+    val text = "People ask why I still print paper boarding passes. It is not nostalgia, " +
+      "I tell them; it is insurance. Phones die, apps crash, and airport wifi is a rumour. " +
+      "A folded piece of paper tucked in my jacket pocket has rescued me at more boarding gates than I can count."
+    val paint = TextPaint().apply { textSize = 45f; letterSpacing = -0.41f * 2.625f / textSize }
+    val width = 690
+    val layout = ShadowListKitTextLayout.make(text, paint, width).layout
+    val expected = android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
+      .setIncludePad(false)
+      .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY)
+      .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE)
+      .build()
+    val simple = android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
+      .setIncludePad(false).setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE).build()
+    val ends = (0 until layout.lineCount).map(layout::getLineEnd)
+    assertEquals((0 until expected.lineCount).map(expected::getLineEnd), ends)
+    assertNotEquals((0 until simple.lineCount).map(simple::getLineEnd), ends)
+  }
+
+  @Test
+  fun a_text_layout_gives_the_part_of_each_line_its_text_takes() {
+    val paint = TextPaint().apply { textSize = 40f }
+    val layout = ShadowListKitTextLayout.make("One\n\nTwo words", paint, 600)
+    assertEquals(3, layout.lineCount)
+    val first = requireNotNull(layout.rectForLine(0))
+    val blank = requireNotNull(layout.rectForLine(1))
+    val last = requireNotNull(layout.rectForLine(2))
+    assertEquals(0f, first.left, 0f)
+    assertEquals(0f, first.top, 0f)
+    assertEquals(first.bottom, blank.top, 0f)
+    assertEquals(0f, blank.width(), 0f)
+    assertTrue(last.width() > first.width())
+    assertEquals(layout.height.toFloat(), last.bottom, 0f)
+    assertEquals(layout.width, ceil(last.width()).toInt())
+    // The space a line ends in is not part of it.
+    val spaced = ShadowListKitTextLayout.make("Two words   ", paint, 600)
+    assertEquals(last.width(), requireNotNull(spaced.rectForLine(0)).width(), 0f)
+    assertNull(layout.rectForLine(3))
+    assertNull(layout.rectForLine(-1))
+  }
+
+  // endregion
+
+  // region Swipe actions
+
+  @Test
+  fun a_swipe_action_without_a_color_takes_the_cores_gray_or_red() {
+    val normal = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") { _, completion -> completion(true) }
+    val destructive = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.DESTRUCTIVE, "Delete") { _, completion -> completion(true) }
+    assertEquals(0xFF8E8E93.toInt(), normal.shownColor)
+    assertEquals(0xFFFF3B30.toInt(), destructive.shownColor)
+    assertEquals(ShadowListKitCore.SWIPE_ACTION_COLOR_NORMAL, normal.shownColor)
+    assertEquals(ShadowListKitCore.SWIPE_ACTION_COLOR_DESTRUCTIVE, destructive.shownColor)
+    destructive.backgroundColor = 0xFF112233.toInt()
+    assertEquals(0xFF112233.toInt(), destructive.shownColor)
+  }
+
+  // endregion
+  @Test
+  fun a_dropped_anchor_row_keeps_the_offset_during_the_delegate_move() = onMain {
+    val rows = Rows(80, ROW_SIZE)
+    val list = makeList(rows)
+    list.scrollTo(0, (10 * ROW_SIZE + 7).roundToInt())
+    val before = list.scrollY
+    list.delegate = object : ShadowListKitListView.Delegate {
+      override fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int) {
+        rows.keys.add(destinationIndex, rows.keys.removeAt(sourceIndex))
+      }
+    }
+    assertTrue(list.commitMove(10, 14))
+    assertEquals(before, list.scrollY)
+  }
+
+  @Test
+  fun a_rejected_drop_does_not_change_a_later_sort() = onMain {
+    val rows = Rows(80, ROW_SIZE)
+    val list = makeList(rows)
+    list.scrollTo(0, (10 * ROW_SIZE + 7).roundToInt())
+    list.delegate = object : ShadowListKitListView.Delegate {}
+    assertTrue(list.commitMove(10, 14))
+    val before = list.scrollY
+    rows.keys.add(14, rows.keys.removeAt(10))
+    list.reloadData()
+    layOut(list)
+    assertEquals((before + 4 * ROW_SIZE).roundToInt(), list.scrollY)
+  }
+
+  @Test
+  fun a_delegate_that_throws_does_not_leave_a_drop_hint() = onMain {
+    val rows = Rows(80, ROW_SIZE)
+    val list = makeList(rows)
+    list.scrollTo(0, (10 * ROW_SIZE + 7).roundToInt())
+    list.delegate = object : ShadowListKitListView.Delegate {
+      override fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int) {
+        throw IllegalStateException("rejected move")
+      }
+    }
+    assertThrows(IllegalStateException::class.java) { list.commitMove(10, 14) }
+    val before = list.scrollY
+    rows.keys.add(14, rows.keys.removeAt(10))
+    list.reloadData()
+    layOut(list)
+    assertEquals((before + 4 * ROW_SIZE).roundToInt(), list.scrollY)
+  }
+
 }

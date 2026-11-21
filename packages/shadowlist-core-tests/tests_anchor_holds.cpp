@@ -729,3 +729,581 @@ TEST(a_removal_of_more_than_the_dragged_row_is_not_the_drop) {
   CHECK(container.state.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k11"), k11Before, 0.5);
 }
+
+/*
+ * The reader rests mid list. The rows after the screen are still estimated, and they are
+ * much taller than the estimate. A change removes the measured rows below the top row.
+ * For one update the estimated total is shorter than the offset. The layout pass of the
+ * same commit measures the rows that moved in, and the real total has room for the offset.
+ * The top row stays where it was instead of the view running to the end.
+ */
+TEST(removal_below_the_top_row_keeps_it_when_the_rows_moving_in_measure_taller) {
+  constexpr double TALL = 800.0;
+  std::vector<std::string> keys = keysFor(16);
+  Container container;
+  Virtualizer::update(container, report(keys, 0.0, 0.0));
+  // Rows 0 to 12 get real sizes. Rows 13 to 15 stay estimated.
+  layoutPass(container, 0.0, 0, 12, ESTIMATED_ROW_HEIGHT);
+
+  double resting = 5 * ESTIMATED_ROW_HEIGHT;
+  Virtualizer::update(container, report(keys, resting, 0.0));
+  Virtualizer::update(container, report(keys, resting, 0.0));
+  CHECK_NEAR(onScreen(container, "k5"), 0.0, 0.5);
+  CHECK(!container.state.operation);
+
+  // Rows 6 to 12 go. The estimated rows 13 to 15 now follow the top row.
+  std::vector<std::string> removed(keys.begin(), keys.begin() + 6);
+  removed.insert(removed.end(), keys.begin() + 13, keys.end());
+  Virtualizer::update(container, report(removed, resting, 0.0));
+  layoutPass(container, 0.0, 6, 8, TALL);
+  CHECK_NEAR(onScreen(container, "k5"), 0.0, 0.5);
+
+  for (int commit = 0; commit < 4; ++commit) {
+    std::uint64_t current = container.state.operation ? container.state.operation->commitToken : 0;
+    if (container.state.offsetCorrected) {
+      Virtualizer::update(container, ownWrite(container, removed, 0.0));
+      layoutPass(container, 0.0, 6, 8, TALL);
+    }
+    Virtualizer::update(container, echo(container, removed, current, 0.0));
+    layoutPass(container, 0.0, 6, 8, TALL);
+  }
+  CHECK_NEAR(onScreen(container, "k5"), 0.0, 0.5);
+  CHECK_NEAR(container.revision.offsetY, resting, 0.5);
+  CHECK(!container.state.offsetCorrected);
+}
+
+namespace {
+
+/*
+ * A list of 12 rows resting at its end with only rows 4 to 11 measured gets a scroll to the
+ * start. The host applies it and reports back, then the rows the jump brought in measure taller
+ * than their estimate. Returns the offset the list rests at.
+ */
+double scrollToStartThenMeasureTheTopRows(bool inverted, double header) {
+  std::vector<std::string> keys = keysFor(12);
+  Container container;
+  auto frame = [&](double offset) {
+    FrameInput input = report(keys, offset, header);
+    input.inverted = inverted;
+    return input;
+  };
+  Virtualizer::update(container, frame(0.0));
+  layoutPass(container, header, 4, 11, ESTIMATED_ROW_HEIGHT);
+  double end = container.revision.contentHeight - WINDOW_HEIGHT;
+  for (int commit = 0; commit < 4; ++commit) {
+    Virtualizer::update(container, frame(end));
+  }
+  CHECK_NEAR(container.revision.offsetY, end, 0.5);
+  CHECK(!container.revision.rows[0].measured);
+
+  container.scrollToStart();
+  Virtualizer::update(container, frame(end));
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ScrollToStart);
+  for (int commit = 0; commit < 3; ++commit) {
+    FrameInput landed = frame(container.revision.offsetY);
+    landed.commitToken = container.state.operation ? container.state.operation->commitToken : 0;
+    Virtualizer::update(container, landed);
+  }
+  CHECK(!container.state.operation);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
+
+  layoutPass(container, header, 0, 3, 200.0);
+  for (int commit = 0; commit < 4; ++commit) {
+    Virtualizer::update(container, frame(container.revision.offsetY));
+  }
+  return container.revision.offsetY;
+}
+
+}
+
+/*
+ * A list resting at its start holds the top row, guessed size or not. Nothing sits above that
+ * row, and holding a measured row further down would push the view off the start when the top
+ * rows measure taller.
+ */
+TEST(list_at_its_start_stays_there_when_the_top_rows_measure_taller) {
+  CHECK_NEAR(scrollToStartThenMeasureTheTopRows(false, 0.0), 0.0, 0.5);
+}
+
+TEST(list_at_its_start_below_a_header_stays_there_when_the_top_rows_measure_taller) {
+  CHECK_NEAR(scrollToStartThenMeasureTheTopRows(false, HEADER), 0.0, 0.5);
+}
+
+/*
+ * The same for an inverted list a scroll to the start took off its bottom.
+ */
+TEST(inverted_list_at_its_start_stays_there_when_the_top_rows_measure_taller) {
+  CHECK_NEAR(scrollToStartThenMeasureTheTopRows(true, 0.0), 0.0, 0.5);
+}
+
+namespace {
+
+constexpr double SHORT_ROW = 60.0;
+
+/*
+ * A list of rows SHORT_ROW tall below a header of 100, resting at its start, gets two rows
+ * prepended. The correction holds row k0 where the reader had it, 100 below the top. The layout
+ * pass measures the first new row and leaves the second, which is on screen above k0, for later.
+ * Returns the keys after the prepend.
+ */
+std::vector<std::string> prependTwoRowsAndMeasureTheFirst(Container& container) {
+  std::vector<std::string> keys = keysFor(30);
+  Virtualizer::update(container, report(keys, 0.0, 100.0));
+  layoutPass(container, 100.0, 0, 29, SHORT_ROW);
+  Virtualizer::update(container, report(keys, 0.0, 100.0));
+  CHECK_NEAR(onScreen(container, "k0"), 100.0, 0.5);
+
+  std::vector<std::string> next = keysFor(2, "p");
+  next.insert(next.end(), keys.begin(), keys.end());
+  Virtualizer::update(container, report(next, 0.0, 100.0));
+  CHECK(container.state.operation && container.state.operation->type == OperationType::MaintainAnchor);
+  layoutPass(container, 100.0, 0, 0, SHORT_ROW);
+  CHECK_NEAR(onScreen(container, "k0"), 100.0, 0.5);
+  CHECK(!container.revision.rows[1].measured);
+  return next;
+}
+
+}
+
+/*
+ * The host applies a prepend's correction and reports back, which ends it. The top of the
+ * viewport is now a measured new row, and the new row between it and the reader's row has no
+ * size yet. That row comes in taller. The reader's row stays, and the rows above it take the
+ * growth.
+ */
+TEST(a_prepended_row_measured_after_its_correction_ended_leaves_the_readers_row_in_place) {
+  Container container;
+  std::vector<std::string> next = prependTwoRowsAndMeasureTheFirst(container);
+
+  std::uint64_t token = container.state.operation->commitToken;
+  Virtualizer::update(container, ownWrite(container, next, 100.0));
+  Virtualizer::update(container, echo(container, next, token, 100.0));
+  CHECK(!container.state.operation);
+  CHECK_NEAR(onScreen(container, "p0"), -20.0, 0.5);
+
+  layoutPass(container, 100.0, 1, 1, 160.0);
+  CHECK_NEAR(onScreen(container, "k0"), 100.0, 0.5);
+  Virtualizer::update(container, ownWrite(container, next, 100.0));
+  Virtualizer::update(container, echo(container, next, 0, 100.0));
+  CHECK_NEAR(onScreen(container, "k0"), 100.0, 0.5);
+}
+
+/*
+ * The same when a finger is down. The core sees the report from before the write a second
+ * time, and then the finger's frame reports the correction back, which ends it there.
+ */
+TEST(a_prepended_row_measured_after_a_finger_ended_its_correction_leaves_the_readers_row_in_place) {
+  Container container;
+  std::vector<std::string> next = prependTwoRowsAndMeasureTheFirst(container);
+
+  std::uint64_t token = container.state.operation->commitToken;
+  Virtualizer::update(container, report(next, 0.0, 100.0));
+  CHECK(container.state.operation && container.state.operation->commitToken == token);
+  FrameInput finger = echo(container, next, token, 100.0);
+  finger.scrollPhase = ScrollPhase::Dragging;
+  Virtualizer::update(container, finger);
+  CHECK(!container.state.operation);
+
+  layoutPass(container, 100.0, 1, 1, 160.0);
+  CHECK_NEAR(onScreen(container, "k0"), 100.0, 0.5);
+}
+
+namespace {
+
+/*
+ * A list of 40 rows resting on row k10 with rows 0 to 4 not measured yet. The layout pass
+ * measures row 3 taller by 80 and moves the offset to keep k10 at the top. No operation runs.
+ * Returns the offset the list rested at before.
+ */
+double measureARowAboveAtRest(Container& container, const std::vector<std::string>& keys) {
+  Virtualizer::update(container, report(keys, 0.0, 0.0));
+  layoutPass(container, 0.0, 5, 30, ESTIMATED_ROW_HEIGHT);
+  double resting = 10 * ESTIMATED_ROW_HEIGHT;
+  Virtualizer::update(container, report(keys, resting, 0.0));
+  Virtualizer::update(container, report(keys, resting, 0.0));
+  CHECK_NEAR(onScreen(container, "k10"), 0.0, 0.5);
+
+  layoutPass(container, 0.0, 3, 3, ESTIMATED_ROW_HEIGHT + 80.0);
+  CHECK(container.state.offsetCorrected);
+  CHECK(!container.state.operation);
+  CHECK_NEAR(container.revision.offsetY, resting + 80.0, 0.5);
+  return resting;
+}
+
+}
+
+/*
+ * A report from before the write of that correction reaches the core after it. The view is
+ * where the write put it. The core keeps the reader's row and asks for the same offset again
+ * as an operation, and a row measured in that frame's layout pass moves the offset from there.
+ */
+TEST(a_report_from_before_a_layout_pass_correction_keeps_the_readers_row) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  double resting = measureARowAboveAtRest(container, keys);
+
+  Virtualizer::update(container, report(keys, resting, 0.0));
+  CHECK(container.state.operation && container.state.operation->type == OperationType::MaintainAnchor);
+  CHECK(container.state.offsetCorrected);
+  CHECK_NEAR(container.revision.offsetY, resting + 80.0, 0.5);
+
+  layoutPass(container, 0.0, 2, 2, ESTIMATED_ROW_HEIGHT + 80.0);
+  CHECK_NEAR(container.revision.offsetY, resting + 160.0, 0.5);
+  CHECK_NEAR(onScreen(container, "k10"), 0.0, 0.5);
+
+  std::uint64_t token = container.state.operation->commitToken;
+  Virtualizer::update(container, echo(container, keys, token, 0.0));
+  CHECK(!container.state.operation);
+  CHECK_NEAR(onScreen(container, "k10"), 0.0, 0.5);
+}
+
+/*
+ * The commit that carries the first correction measures another row and moves the offset
+ * again. The host's report of the first write arrives after that. It shows an offset the view
+ * passed on its way, and the reader's row stays where the second correction put it.
+ */
+TEST(a_report_of_an_earlier_layout_pass_correction_keeps_the_readers_row) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  double resting = measureARowAboveAtRest(container, keys);
+
+  Virtualizer::update(container, ownWrite(container, keys, 0.0));
+  layoutPass(container, 0.0, 2, 2, ESTIMATED_ROW_HEIGHT + 80.0);
+  CHECK(!container.state.operation);
+  CHECK_NEAR(container.revision.offsetY, resting + 160.0, 0.5);
+
+  Virtualizer::update(container, report(keys, resting + 80.0, 0.0));
+  CHECK(container.state.operation && container.state.operation->type == OperationType::MaintainAnchor);
+  CHECK_NEAR(container.revision.offsetY, resting + 160.0, 0.5);
+  CHECK_NEAR(onScreen(container, "k10"), 0.0, 0.5);
+}
+
+/*
+ * The host reports the corrected offset, and later the view is moved back to where it was,
+ * like a scrollToOffset from the app. The first report used the remembered offset up. The
+ * second is where the view is, and nothing pulls it back.
+ */
+TEST(a_view_moved_back_after_a_reported_layout_pass_correction_stays_where_it_was_moved) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  double resting = measureARowAboveAtRest(container, keys);
+
+  Virtualizer::update(container, ownWrite(container, keys, 0.0));
+  Virtualizer::update(container, report(keys, resting + 80.0, 0.0));
+  CHECK(!container.state.operation);
+
+  Virtualizer::update(container, report(keys, resting, 0.0));
+  CHECK(!container.state.operation);
+  CHECK(!container.state.offsetCorrected);
+  CHECK_NEAR(container.revision.offsetY, resting, 0.5);
+}
+
+/*
+ * A finger moves the view while the correction's write is on its way. The host adds a
+ * correction to a moving view, and asking for the offset again would add it twice. The report
+ * is taken as it is.
+ */
+TEST(a_finger_report_from_before_a_layout_pass_correction_starts_no_operation) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  double resting = measureARowAboveAtRest(container, keys);
+
+  FrameInput finger = report(keys, resting, 0.0);
+  finger.scrollPhase = ScrollPhase::Dragging;
+  Virtualizer::update(container, finger);
+  CHECK(!container.state.operation);
+  CHECK(!container.state.offsetCorrected);
+  CHECK_NEAR(container.revision.offsetY, resting, 0.5);
+}
+
+namespace {
+
+/*
+ * A list of 60 rows of 100 loses its last five rows while a finger holds it at offset 5000.
+ * The view is past the new end, and a clamp to the end starts. Returns the keys left.
+ */
+std::vector<std::string> shrinkUnderAFinger(Container& container) {
+  std::vector<std::string> keys = keysFor(60);
+  Virtualizer::update(container, report(keys, 0.0, 0.0));
+  layoutPass(container, 0.0, 0, 59, 100.0);
+  FrameInput finger = report(keys, 5000.0, 0.0);
+  finger.scrollPhase = ScrollPhase::Dragging;
+  finger.userScrolled = true;
+  Virtualizer::update(container, finger);
+
+  std::vector<std::string> shrunk(keys.begin(), keys.begin() + 55);
+  finger = report(shrunk, 5000.0, 0.0);
+  finger.scrollPhase = ScrollPhase::Dragging;
+  Virtualizer::update(container, finger);
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ShrinkClamp);
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+  return shrunk;
+}
+
+}
+
+/*
+ * The finger's report from before the clamp's write reaches the core after it. The clamp keeps
+ * its token. The host then sees the correction it already added to the view, not a new one.
+ */
+TEST(a_finger_report_from_before_a_shrink_clamp_keeps_the_clamp_and_its_token) {
+  Container container;
+  std::vector<std::string> shrunk = shrinkUnderAFinger(container);
+  std::uint64_t token = container.state.operation->commitToken;
+  double end = container.revision.contentHeight - WINDOW_HEIGHT;
+
+  FrameInput finger = report(shrunk, 5000.0, 0.0);
+  finger.scrollPhase = ScrollPhase::Dragging;
+  Virtualizer::update(container, finger);
+  CHECK(container.state.operation && container.state.operation->type == OperationType::ShrinkClamp);
+  CHECK_EQ(container.state.operation->commitToken, token);
+  CHECK(container.state.offsetCorrected);
+  CHECK_NEAR(container.revision.offsetY, end, 0.5);
+
+  // The finger's frame that reports the clamp back ends it, like any correction a finger takes over.
+  finger = report(shrunk, end, 0.0);
+  finger.scrollPhase = ScrollPhase::Dragging;
+  finger.commitToken = token;
+  Virtualizer::update(container, finger);
+  CHECK(!container.state.operation);
+}
+
+/*
+ * The host added the clamp to the moving view, which came to rest short of the end, and
+ * reports the clamp back from there. The clamp is done. It does not keep asking for the end.
+ */
+TEST(a_shrink_clamp_made_under_a_finger_ends_when_the_resting_view_reports_it_back) {
+  Container container;
+  std::vector<std::string> shrunk = shrinkUnderAFinger(container);
+  std::uint64_t token = container.state.operation->commitToken;
+  double rest = container.revision.contentHeight - WINDOW_HEIGHT - 260.0;
+
+  FrameInput resting = report(shrunk, rest, 0.0);
+  resting.commitToken = token;
+  Virtualizer::update(container, resting);
+  CHECK(!container.state.operation);
+  CHECK(!container.state.offsetCorrected);
+  CHECK_NEAR(container.revision.offsetY, rest, 0.5);
+}
+
+/*
+ * The host applied the first clamp before another measurement moved its target. A delayed
+ * finger report of that first write keeps the operation until the newer write reports back.
+ */
+TEST(a_finger_echo_of_an_earlier_clamp_revision_keeps_the_pending_correction) {
+  Container container;
+  std::vector<std::string> keys = shrinkUnderAFinger(container);
+  auto publish = [&]() {
+    return container.resolveStateUpdate(0.0, 5000.0, container.revision.contentWidth,
+      container.revision.contentHeight);
+  };
+  ContainerStateUpdate first = publish();
+  CHECK(first.commitToken != 0);
+  CHECK(first.commitRevision != 0);
+  CHECK_EQ(publish().commitRevision, first.commitRevision);
+
+  layoutPass(container, 0.0, 54, 54, 28.0);
+  ContainerStateUpdate second = publish();
+  CHECK_EQ(second.commitToken, first.commitToken);
+  CHECK(second.commitRevision > first.commitRevision);
+  CHECK_NEAR(first.offsetY - second.offsetY, 72.0, 0.5);
+
+  FrameInput finger = report(keys, first.offsetY, 0.0);
+  finger.scrollPhase = ScrollPhase::Dragging;
+  finger.commitToken = first.commitToken;
+  finger.commitRevision = first.commitRevision;
+  Virtualizer::update(container, finger);
+  CHECK(container.state.operation);
+  CHECK_EQ(container.state.operation->commitToken, first.commitToken);
+  CHECK_NEAR(container.revision.offsetY, second.offsetY, 0.5);
+
+  finger.offsetY = second.offsetY;
+  finger.commitRevision = second.commitRevision;
+  Virtualizer::update(container, finger);
+  CHECK(!container.state.operation);
+  CHECK(!container.state.offsetCorrected);
+}
+
+/*
+ * A finger moves before the prepend's write. The target follows that travel once, and the
+ * host still adds only the prepend's correction to the moving view.
+ */
+TEST(a_revisioned_prepend_keeps_the_correction_while_a_finger_moves_before_its_write) {
+  Container container;
+  std::vector<std::string> keys = keysFor(40);
+  Virtualizer::update(container, report(keys, 0.0, 0.0));
+  layoutPass(container, 0.0, 0, 39, 100.0);
+  Virtualizer::update(container, report(keys, 1000.0, 0.0));
+  keys.insert(keys.begin(), "prepended");
+  Virtualizer::update(container, report(keys, 1000.0, 0.0));
+  ContainerStateUpdate first = container.resolveStateUpdate(0.0, 1000.0,
+    container.revision.contentWidth, container.revision.contentHeight);
+  CHECK(first.commitToken != 0);
+
+  FrameInput finger = report(keys, 1030.0, 0.0);
+  finger.scrollPhase = ScrollPhase::Dragging;
+  finger.userScrolled = true;
+  Virtualizer::update(container, finger);
+  ContainerStateUpdate moved = container.resolveStateUpdate(0.0, 1030.0,
+    container.revision.contentWidth, container.revision.contentHeight);
+  CHECK_EQ(moved.commitToken, first.commitToken);
+  CHECK(moved.commitRevision > first.commitRevision);
+  CHECK_NEAR(moved.offsetY - 1030.0, first.offsetY - 1000.0, 0.5);
+
+  Virtualizer::update(container, finger);
+  ContainerStateUpdate repeated = container.resolveStateUpdate(0.0, 1030.0,
+    container.revision.contentWidth, container.revision.contentHeight);
+  CHECK_EQ(repeated.commitRevision, moved.commitRevision);
+  CHECK_NEAR(repeated.offsetY, moved.offsetY, 0.5);
+
+  finger.offsetY = moved.offsetY;
+  finger.commitToken = moved.commitToken;
+  finger.commitRevision = moved.commitRevision;
+  Virtualizer::update(container, finger);
+  CHECK(!container.state.operation);
+}
+
+/*
+ * A late measurement corrects the view after a clamp was acknowledged. An older echo of
+ * that clamp must not start another one. A real finger move with that revision still can.
+ */
+TEST(an_earlier_write_report_starts_no_second_clamp_but_a_finger_move_still_does) {
+  for (bool userScrolled : {false, true}) {
+    Container container;
+    std::vector<std::string> keys = shrinkUnderAFinger(container);
+    ContainerStateUpdate first = container.resolveStateUpdate(0.0, 5000.0,
+      container.revision.contentWidth, container.revision.contentHeight);
+    FrameInput finger = report(keys, first.offsetY, 0.0);
+    finger.scrollPhase = ScrollPhase::Dragging;
+    finger.commitToken = first.commitToken;
+    finger.commitRevision = first.commitRevision;
+    Virtualizer::update(container, finger);
+    CHECK(!container.state.operation);
+
+    layoutPass(container, 0.0, 0, 0, 28.0);
+    ContainerStateUpdate measured = container.resolveStateUpdate(0.0, first.offsetY,
+      container.revision.contentWidth, container.revision.contentHeight);
+    CHECK(measured.applyOffset);
+    CHECK_EQ(measured.commitToken, static_cast<std::uint64_t>(0));
+    CHECK(measured.commitRevision > first.commitRevision);
+    CHECK_EQ(container.resolveStateUpdate(0.0, first.offsetY, container.revision.contentWidth,
+      container.revision.contentHeight).commitRevision, measured.commitRevision);
+
+    finger.userScrolled = userScrolled;
+    Virtualizer::update(container, finger);
+    if (userScrolled) {
+      CHECK(container.state.operation);
+      CHECK(container.state.operation->type == OperationType::ShrinkClamp);
+      CHECK(container.state.offsetCorrected);
+    } else {
+      CHECK(!container.state.operation);
+      CHECK(!container.state.offsetCorrected);
+    }
+  }
+}
+
+/*
+ * A real finger cancels a command that is still landing and keeps its own offset.
+ */
+TEST(a_finger_move_owns_the_offset_when_it_interrupts_a_scroll_to_end) {
+  Container container;
+  std::vector<std::string> keys = keysFor(60);
+  Virtualizer::update(container, report(keys, 0.0, 0.0));
+  layoutPass(container, 0.0, 0, 59, 100.0);
+  container.scrollToEnd();
+  Virtualizer::update(container, report(keys, 0.0, 0.0));
+  CHECK(container.state.pendingScrollToEnd);
+  ContainerStateUpdate command = container.resolveStateUpdate(0.0, 0.0,
+    container.revision.contentWidth, container.revision.contentHeight);
+
+  FrameInput finger = report(keys, 1000.0, 0.0);
+  finger.userScrolled = true;
+  finger.scrollPhase = ScrollPhase::Dragging;
+  finger.commitRevision = command.commitRevision - 1;
+  Virtualizer::update(container, finger);
+  CHECK(!container.state.pendingScrollToEnd);
+  CHECK(!container.state.operation);
+  CHECK(!container.state.offsetCorrected);
+  CHECK_NEAR(container.revision.offsetY, 1000.0, 0.5);
+}
+
+TEST(the_first_correction_at_the_origin_has_a_stable_publication_revision) {
+  Container container;
+  container.state.offsetCorrected = true;
+  ContainerStateUpdate first = container.resolveStateUpdate(0.0, 0.0, 0.0, 0.0);
+  CHECK(first.commitRevision != 0);
+  CHECK_EQ(first.commitToken, static_cast<std::uint64_t>(0));
+  CHECK_EQ(container.resolveStateUpdate(0.0, 0.0, 0.0, 0.0).commitRevision, first.commitRevision);
+}
+
+/*
+ * An inverted list rests on its bottom with only the rows on screen measured. The rows above
+ * its two newest rows are removed, and rows without sizes move in from above. The hold of the
+ * newest rows rests on the end and the host reports it back. The rows that moved in then come
+ * in taller. The hold is still running and follows the end. The list stays on its bottom.
+ */
+TEST(inverted_hold_on_the_end_waits_for_the_rows_that_moved_in_to_be_measured) {
+  std::vector<std::string> keys = keysFor(30);
+  Container container;
+  auto frame = [&](const std::vector<std::string>& frameKeys, double offset) {
+    FrameInput input = report(frameKeys, offset, 0.0);
+    input.inverted = true;
+    return input;
+  };
+  Virtualizer::update(container, frame(keys, 0.0));
+  layoutPass(container, 0.0, 18, 29, 100.0);
+  for (int commit = 0; commit < 4; ++commit) {
+    Virtualizer::update(container, frame(keys, container.revision.offsetY));
+  }
+  double end = container.revision.contentHeight - WINDOW_HEIGHT;
+  CHECK(container.state.invertedInitialized);
+  CHECK_NEAR(container.revision.offsetY, end, 0.5);
+  double newestBefore = onScreen(container, "k28");
+
+  std::vector<std::string> removed(keys.begin(), keys.begin() + 20);
+  removed.insert(removed.end(), keys.begin() + 28, keys.end());
+  Virtualizer::update(container, frame(removed, end));
+  CHECK(container.state.operation && container.state.operation->type == OperationType::MaintainAnchor);
+  std::uint64_t token = container.state.operation->commitToken;
+  FrameInput landed = frame(removed, container.revision.offsetY);
+  landed.commitToken = token;
+  Virtualizer::update(container, landed);
+  CHECK(container.state.operation && container.state.operation->commitToken == token);
+
+  layoutPass(container, 0.0, 13, 17, 200.0);
+  CHECK_NEAR(onScreen(container, "k28"), newestBefore, 0.5);
+  CHECK_NEAR(container.revision.offsetY, container.revision.contentHeight - WINDOW_HEIGHT, 0.5);
+  for (int commit = 0; commit < 3; ++commit) {
+    landed = frame(removed, container.revision.offsetY);
+    landed.commitToken = token;
+    Virtualizer::update(container, landed);
+  }
+  CHECK(!container.state.operation);
+  CHECK_NEAR(onScreen(container, "k28"), newestBefore, 0.5);
+}
+
+/*
+ * The top row has a size and the rows further down the screen have none yet. The top row is
+ * the anchor on the frame that scrolls there and on every frame that rests there, when it is
+ * the row held so far.
+ */
+TEST(a_measured_top_row_stays_the_anchor_while_it_is_the_row_held_so_far) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(container, report(keys, 0.0, 0.0));
+  layoutPass(container, 0.0, 0, 9, 100.0);
+  CHECK(container.revision.rows[9].measured);
+  CHECK(!container.revision.rows[10].measured);
+
+  for (int frame = 0; frame < 3; ++frame) {
+    Virtualizer::update(container, report(keys, 850.0, 0.0));
+    CHECK_EQ(container.state.anchor.key, std::string("k8"));
+    CHECK_NEAR(container.state.anchor.offset, 50.0, 0.001);
+    CHECK_NEAR(container.revision.offsetY, 850.0, 0.001);
+  }
+
+  // The next row down takes over once it is the top row.
+  Virtualizer::update(container, report(keys, 950.0, 0.0));
+  CHECK_EQ(container.state.anchor.key, std::string("k9"));
+  CHECK_NEAR(container.state.anchor.offset, 50.0, 0.001);
+}

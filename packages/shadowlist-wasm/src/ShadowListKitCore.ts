@@ -2,8 +2,10 @@ import createShadowListKitModule, {
   type ShadowListKitModule,
 } from './shadowlistkit.mjs';
 
+import { ShadowListWasmLoader } from './ShadowListWasmLoader.js';
+
 let wasmModule: ShadowListKitModule | null = null;
-let loading: Promise<void> | null = null;
+const loader = new ShadowListWasmLoader(createShadowListKitModule, install);
 
 /*
  * The core's constants the kit reads, at ShadowListKitCore.CONSTANT_* slots, read once on load.
@@ -47,31 +49,6 @@ export interface ShadowListKitLoadOptions {
 }
 
 /*
- * The Emscripten options for a load: source as the module's bytes or the compiled module, else
- * locateFile, else shadowlistkit.wasm next to shadowlistkit.mjs. instantiateWasm has no way to
- * fail the load. A compiled module that does not instantiate calls fail instead.
- */
-function moduleOptions(
-  options: ShadowListKitLoadOptions | undefined,
-  fail: (reason: unknown) => void
-): Parameters<typeof createShadowListKitModule>[0] {
-  const source = options?.source;
-  if (source instanceof WebAssembly.Module) {
-    return {
-      instantiateWasm: (imports, done) => {
-        WebAssembly.instantiate(source, imports).then(
-          (instance) => done(instance, source),
-          fail
-        );
-        return {};
-      },
-    };
-  }
-  if (source !== undefined) return { wasmBinary: source };
-  return { locateFile: options?.locateFile };
-}
-
-/*
  * Wire a loaded module to the cores and read the core's constants.
  */
 function install(loaded: ShadowListKitModule) {
@@ -95,21 +72,7 @@ function install(loaded: ShadowListKitModule) {
 export function loadShadowListKit(
   options?: ShadowListKitLoadOptions
 ): Promise<void> {
-  if (loading) return loading;
-  // A failed load is forgotten. The next call tries again.
-  const attempt = new Promise<ShadowListKitModule>((resolve, reject) => {
-    createShadowListKitModule(moduleOptions(options, reject)).then(
-      resolve,
-      reject
-    );
-  })
-    .then(install)
-    .catch((error: unknown) => {
-      if (loading === attempt) loading = null;
-      throw error;
-    });
-  loading = attempt;
-  return attempt;
+  return loader.load(options);
 }
 
 export function isShadowListKitLoaded(): boolean {
@@ -277,25 +240,72 @@ export class ShadowListKitCore {
   static readonly PASS_WINDOW_CROSS = 2;
   static readonly PASS_HEADER_SIZE = 3;
   static readonly PASS_FOOTER_SIZE = 4;
-  static readonly PASS_PHASE = 5;
-  static readonly PASS_USER_SCROLLED = 6;
-  static readonly PASS_TRACKING = 7;
-  static readonly PASS_PREFETCH = 8;
-  static readonly PASS_MOUNT_PAD = 9;
-  static readonly PASS_LEADING_INSET = 10;
-  static readonly PASS_TRAILING_INSET = 11;
-  static readonly PASS_OUT_OFFSET = 12;
-  static readonly PASS_OUT_CONTENT = 13;
-  static readonly PASS_OUT_BAND_LOW = 14;
-  static readonly PASS_OUT_BAND_HIGH = 15;
-  static readonly PASS_OUT_SETTLING = 16;
-  static readonly PASS_OUT_REACHED_START = 17;
-  static readonly PASS_OUT_REACHED_END = 18;
-  static readonly PASS_OUT_GEOMETRY = 19;
-  static readonly PASS_OUT_MEASURED_LOW = 20;
-  static readonly PASS_OUT_MEASURED_HIGH = 21;
-  static readonly PASS_OUT_FOOTER_START = 22;
-  static readonly PASS_SLOTS = 23;
+  static readonly PASS_EMPTY_SIZE = 5;
+  static readonly PASS_PHASE = 6;
+  static readonly PASS_USER_SCROLLED = 7;
+  static readonly PASS_TRACKING = 8;
+  static readonly PASS_PREFETCH = 9;
+  static readonly PASS_MOUNT_PAD = 10;
+  static readonly PASS_LEADING_INSET = 11;
+  static readonly PASS_TRAILING_INSET = 12;
+  static readonly PASS_CLAMP_START = 13;
+  static readonly PASS_CLAMP_END = 14;
+  static readonly PASS_CLAMP_SLACK = 15;
+  static readonly PASS_OUT_OFFSET = 16;
+  static readonly PASS_OUT_CONTENT = 17;
+  static readonly PASS_OUT_BAND_LOW = 18;
+  static readonly PASS_OUT_BAND_HIGH = 19;
+  static readonly PASS_OUT_SETTLING = 20;
+  static readonly PASS_OUT_REACHED_START = 21;
+  static readonly PASS_OUT_REACHED_END = 22;
+  static readonly PASS_OUT_AT_END = 23;
+  static readonly PASS_OUT_SHOWS_EMPTY = 24;
+  static readonly PASS_OUT_GEOMETRY = 25;
+  static readonly PASS_OUT_MEASURED_LOW = 26;
+  static readonly PASS_OUT_MEASURED_HIGH = 27;
+  static readonly PASS_OUT_FOOTER_START = 28;
+  static readonly PASS_SLOTS = 29;
+
+  /*
+   * Slots of a mount record, the same as MountSlot in the core's host/KitBridge.hpp. A missing
+   * row is -1.
+   */
+  static readonly MOUNT_LOW = 0;
+  static readonly MOUNT_HIGH = 1;
+  static readonly MOUNT_STICKY = 2;
+  static readonly MOUNT_GEOMETRY = 3;
+  static readonly MOUNT_STRUCTURE = 4;
+  static readonly MOUNT_SHIFT = 5;
+  static readonly MOUNT_BAND_LOW = 6;
+  static readonly MOUNT_BAND_HIGH = 7;
+  static readonly MOUNT_WINDOW_ALONG = 8;
+  static readonly MOUNT_PAD = 9;
+  static readonly MOUNT_LEADING_INSET = 10;
+  static readonly MOUNT_TRAILING_INSET = 11;
+  static readonly MOUNT_SLOTS = 12;
+
+  /*
+   * Slots of the pinning of the list header and footer, the same as StickySlot in the core's
+   * host/KitBridge.hpp. A size of 0 is a missing header or footer.
+   */
+  static readonly STICKY_OFFSET = 0;
+  static readonly STICKY_WINDOW_SIZE = 1;
+  static readonly STICKY_CONTENT_SIZE = 2;
+  static readonly STICKY_HEADER_SIZE = 3;
+  static readonly STICKY_FOOTER_SIZE = 4;
+  static readonly STICKY_FOOTER_START = 5;
+  static readonly STICKY_HEADER = 6;
+  static readonly STICKY_FOOTER = 7;
+  static readonly STICKY_OUT_HEADER_TRANSLATION = 8;
+  static readonly STICKY_OUT_FOOTER_TRANSLATION = 9;
+  static readonly STICKY_OUT_HEADER_SPAN_START = 10;
+  static readonly STICKY_OUT_HEADER_SPAN_END = 11;
+  static readonly STICKY_OUT_FOOTER_SPAN_START = 12;
+  static readonly STICKY_OUT_FOOTER_SPAN_END = 13;
+  static readonly STICKY_AUTO_HIDE_HEADER = 14;
+  static readonly STICKY_AUTO_HIDE_FOOTER = 15;
+  static readonly STICKY_ACCUMULATE = 16;
+  static readonly STICKY_SLOTS = 17;
 
   /*
    * Slots of plan, the same as PlanSlot in the wasm side. A missing row is -1.
@@ -305,7 +315,9 @@ export class ShadowListKitCore {
   static readonly PLAN_STICKY = 2;
   static readonly PLAN_VIEW_LOW = 3;
   static readonly PLAN_VIEW_HIGH = 4;
-  static readonly PLAN_SLOTS = 5;
+  static readonly PLAN_BAND_LOW = 5;
+  static readonly PLAN_BAND_HIGH = 6;
+  static readonly PLAN_SLOTS = 7;
 
   /*
    * Values of PASS_PHASE, the same as the core's ScrollPhase.
@@ -390,6 +402,48 @@ export class ShadowListKitCore {
         indices.length,
         previousCount
       )
+    );
+  }
+
+  /*
+   * The core's stickyTranslations and stickySpans over the inputs in slots, see STICKY_*: where
+   * a pinned list header and footer go.
+   */
+  static stickyLayout(slots: Float64Array): void {
+    const at = reserve(ShadowListKitCore.STICKY_SLOTS * 8);
+    wasm().HEAPF64.set(slots, at / 8);
+    wasm()._ShadowListKitCore_nativeStickyLayout(at);
+    const start = at / 8 + ShadowListKitCore.STICKY_OUT_HEADER_TRANSLATION;
+    slots.set(
+      wasm().HEAPF64.subarray(start, at / 8 + ShadowListKitCore.STICKY_SLOTS),
+      ShadowListKitCore.STICKY_OUT_HEADER_TRANSLATION
+    );
+  }
+
+  /*
+   * The core's shouldSkipMount over two mount records, see MOUNT_*: whether the mount pass of
+   * next covers what the pass of previous did.
+   */
+  static shouldSkipMount(
+    previous: Float64Array,
+    next: Float64Array,
+    offset: number,
+    numberOfColumns: number,
+    holdsRow: boolean
+  ): boolean {
+    const bytes = ShadowListKitCore.MOUNT_SLOTS * 8;
+    const at = reserve(bytes * 2);
+    const heap = wasm().HEAPF64;
+    heap.set(previous, at / 8);
+    heap.set(next, (at + bytes) / 8);
+    return (
+      wasm()._ShadowListKitCore_nativeShouldSkipMount(
+        at,
+        at + bytes,
+        offset,
+        numberOfColumns,
+        holdsRow ? 1 : 0
+      ) !== 0
     );
   }
 
@@ -525,6 +579,20 @@ export class ShadowListKitCore {
       this.handle,
       at,
       indices.length
+    );
+  }
+
+  /*
+   * Keys of rows the core never holds the visible content by.
+   */
+  setNonAnchorKeys(keys: ReadonlyArray<string>): void {
+    const at = reserve(packedBytes(keys, 0, keys.length));
+    const { ends, packed } = pack(keys, 0, keys.length, at);
+    wasm()._ShadowListKitCore_nativeSetNonAnchorKeys(
+      this.handle,
+      packed,
+      ends,
+      keys.length
     );
   }
 
@@ -980,6 +1048,32 @@ export class ShadowListKitListState {
       at,
       packed.packed,
       packed.ends,
+      count
+    );
+  }
+
+  /*
+   * The content versions of items a change inserted, at their positions among the keys held, for
+   * the next update to compare against. The versions of the other items stay as they are.
+   */
+  insertVersions(
+    items: ReadonlyArray<number>,
+    versions: ReadonlyArray<number | string>
+  ): void {
+    if (!isShadowListKitLoaded()) return;
+    const handle = this.handle;
+    const count = Math.min(items.length, versions.length);
+    const at = reserve(align(count * 4) + count * 8);
+    putInts(at, items.slice(0, count));
+    const halves = at + align(count * 4);
+    const heap = wasm().HEAP32;
+    for (let item = 0; item < count; ++item) {
+      versionHalves(versions[item]!, heap, halves / 4 + item * 2);
+    }
+    wasm()._ShadowListKitListState_nativeInsertVersions(
+      handle,
+      at,
+      halves,
       count
     );
   }

@@ -3,6 +3,8 @@
 #import <UIKit/UIKit.h>
 
 #import <ShadowListKit/ShadowListKitListModels.h>
+#import <ShadowListKit/ShadowListKitItemSizeSpec.h>
+#import <ShadowListKit/ShadowListKitViewabilityConfig.h>
 #import <ShadowListKit/ShadowListKitListProtocols.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -51,8 +53,10 @@ NS_ASSUME_NONNULL_BEGIN
  * - followAppends: with inverted, items appended or growing while the reader rests at the end
  *   scroll into view, like an assistant reply. Off by default, which keeps the visible items in
  *   place.
- * - numberOfColumns: columns of a grid. Row r, counting section header and footer rows, goes
- *   into column r % numberOfColumns and each column stacks its own rows.
+ * - numberOfColumns: columns of a grid. Plain span-one rows keep round-robin placement.
+ * - getItemSpan: contiguous columns occupied by an item, clamped to 1...numberOfColumns. The
+ *   main-thread callback uses the existing public item index (global across sections). Real
+ *   section edges span every column without invoking it; a zero-height edge adds no spacing.
  * - estimatedItemSize: size along the scroll axis assumed for items not measured yet.
  * - overscan: how far past the viewport items are measured, in viewport sizes. Default 1.
  * - mountOverscan: how far past the viewport cells are mounted, in viewport sizes. Default 0.5.
@@ -67,9 +71,24 @@ NS_ASSUME_NONNULL_BEGIN
  *   Off by default.
  * - stickyIndices: items that stick to the top of the viewport once scrolled past.
  *   stickySectionHeaders does the same for every section header.
+ * - renderStickyHeaderOverlay: an optional custom view for the active sticky row, receiving its
+ *   public key, item index and section. A header has NSNotFound as item index; a plain item has
+ *   NSNotFound as section. An anonymous empty section has a nil key. Nil restores the normal row.
  * - headerView, footerView: views before the first item and after the last. Their size along
  *   the scroll axis comes from sizeThatFits:. Call setNeedsLayout on the list after one changes
  *   size.
+ * - stickyHeader, stickyFooter: pin headerView to the start of the viewport and footerView to
+ *   its end, over the items. The footer's place pushes a pinned header off at the end of the
+ *   content, and a pinned footer never rides up over the header's place.
+ * - emptyView: a view shown while the list has no items, and no section header or footer rows.
+ *   It sits right after headerView at its own size, measured like the header's, and footerView
+ *   follows it.
+ * - nonAnchorKeys: keys of items the list never holds the visible content in place by, like a
+ *   typing indicator or an item that streams in. The nearest other item holds it instead.
+ * - atEnd: whether an inverted list is at its end. It leaves the end when the reader scrolls
+ *   away from it or a scroll command lands away from it, and is back when either brings it
+ *   there. Items appended while it rests there do not leave it. The delegate hears
+ *   listView:didChangeAtEnd:. A list that is not inverted is always at its end.
  *
  * Data:
  * - reloadData reads the item count and keys again. Items keep their sizes and cells by key,
@@ -104,12 +123,12 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * Sections: see the data source. sectionForItemAtIndex:, firstItemIndexInSection:,
  * rectForHeaderInSection:, rectForFooterInSection: and scrollToSection:animated: work in
- * sections. A grid places section header rows in a column slot like any item. Full width rows
- * are not supported.
+ * sections. Grid section headers and footers are full-span barriers.
  *
  * Swipe actions and menus come from the delegate. Swiping an item across the scroll axis shows
  * its actions, touching and holding it shows its menu. closeSwipeActionsAnimated: closes an
- * open item.
+ * open item. A hold on an item without a menu calls the delegate's
+ * listView:didLongPressItemAtIndex:.
  *
  * Selection: a tap selects an item when allowsSelection is set, the default. A tap on a
  * selected item of a list with allowsMultipleSelection deselects it. selectItemAtIndex:animated:
@@ -139,6 +158,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isHorizontal) BOOL horizontal;
 @property (nonatomic) NSInteger numberOfColumns;
 @property (nonatomic) CGFloat estimatedItemSize;
+@property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec * _Nullable (^getItemSizeSpec)(NSInteger index);
+@property (nonatomic) NSUInteger measureLookaheadRows;
+@property (nonatomic, copy, nullable) NSInteger (^getItemSpan)(NSInteger index);
+@property (nonatomic, copy, nullable) ShadowListKitViewabilityConfig *viewabilityConfig;
+@property (nonatomic, copy, nullable) NSArray<ShadowListKitViewabilityConfigCallbackPair *> *viewabilityConfigCallbackPairs;
+@property (nonatomic, copy, nullable) void (^onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *info);
+- (void)recordInteraction;
 @property (nonatomic) CGFloat overscan;
 @property (nonatomic) CGFloat mountOverscan;
 @property (nonatomic) CGFloat startReachedThreshold;
@@ -146,11 +172,26 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL snapToItem;
 @property (nonatomic) ShadowListKitSnapAlignment snapAlignment;
 @property (nonatomic) BOOL reorderEnabled;
+@property (nonatomic, copy, nullable) NSString *dragBoardId;
+@property (nonatomic, copy, nullable) NSString *dragListId;
+@property (nonatomic, copy, nullable) NSString *dragListLabel;
 @property (nonatomic) BOOL animatesChanges;
 @property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
 @property (nonatomic) BOOL stickySectionHeaders;
+@property (nonatomic, copy, nullable) UIView * _Nullable (^renderStickyHeaderOverlay)(NSString * _Nullable key, NSInteger index, NSInteger section);
 @property (nonatomic, strong, nullable) UIView *headerView;
 @property (nonatomic, strong, nullable) UIView *footerView;
+@property (nonatomic) BOOL stickyHeader;
+@property (nonatomic) BOOL stickyFooter;
+/*
+ * User scrolls hide these pinned views; commands and corrections retain their hidden amount.
+ */
+@property (nonatomic) BOOL autoHideHeader;
+@property (nonatomic) BOOL autoHideFooter;
+@property (nonatomic, strong, nullable) UIView *emptyView;
+@property (nonatomic, copy, nullable) NSSet<NSString *> *nonAnchorKeys;
+@property (nonatomic, copy, nullable) NSSet<NSString *> *persistentKeys;
+@property (nonatomic, readonly, getter=isAtEnd) BOOL atEnd;
 
 @property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
 @property (nonatomic, strong, null_resettable) id<ShadowListKitItemAnimator> itemAnimator;

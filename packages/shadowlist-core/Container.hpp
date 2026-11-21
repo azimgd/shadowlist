@@ -4,6 +4,8 @@
 #include <shadowlist-core/Row.hpp>
 #include <shadowlist-core/Operation.hpp>
 #include <shadowlist-core/Revision.hpp>
+#include <shadowlist-core/TrackLayout.hpp>
+#include <shadowlist-core/TrackRanges.hpp>
 
 #include <cstdint>
 #include <functional>
@@ -57,9 +59,11 @@ struct ContainerStateUpdate {
   double contentHeight = 0.0;
 
   /*
-   * Id of the operation that moved the offset, or 0. The host sends it back so we know the write was ours.
+   * Id of the operation that moved the offset, or 0, and the revision of the published
+   * correction. The revision also identifies a size correction with no operation.
    */
   std::uint64_t commitToken = 0;
+  std::uint64_t commitRevision = 0;
 };
 
 /*
@@ -95,6 +99,12 @@ struct ViewableRule {
     return threshold == other.threshold && coverage == other.coverage;
   }
 };
+
+/*
+ * Whether one placed row meets a viewability rule at a viewport. Kept separate from the
+ * enclosing range because masonry can leave non-viewable rows between viewable ones.
+ */
+bool isRowViewable(double rowStart, double rowSize, double offset, double windowSize, const ViewableRule& rule);
 
 /*
  * Which edge of a row a snap offset lines up with the viewport.
@@ -182,10 +192,14 @@ struct ContainerState {
   bool invertedInitialized = false;
 
   /*
-   * Set when the user scrolls an inverted list up off the bottom. The bottom pin then lets go.
+   * Set when the user scrolls an inverted list up off the bottom, or the view arrives at the
+   * target of a scroll command away from the bottom. The bottom pin then lets go.
    * Without it a tall last row gets pinned again every frame and the view snaps back under the finger.
-   * Cleared only when the user scrolls back to the bottom. Content shrinking under a still reader
-   * must not turn the pin back on. Updated in update before anything is measured.
+   * Cleared when the user scrolls back to the bottom or the view arrives at the target of a scroll
+   * command on the bottom, also when it was already there. Content shrinking under a still reader
+   * must not turn the pin back on. Cleared as well when the list is emptied, when every row is
+   * replaced and when inverted flips.
+   * A gesture updates it in update before anything is measured, a command in resolveScroll.
    */
   bool invertedBottomReleased = false;
 
@@ -203,6 +217,15 @@ struct ContainerState {
    * that ignores how far the finger moved.
    */
   std::uint64_t gestureCommitToken = 0;
+
+  /*
+   * The latest published correction. Its revision changes when its token or target changes,
+   * including a size correction with no operation. The host reports the revision it applied.
+   */
+  std::uint64_t commitRevision = 0;
+  std::uint64_t publishedCommitToken = 0;
+  double publishedOffsetX = 0.0;
+  double publishedOffsetY = 0.0;
 
   /*
    * Set while an inverted list is still settling on the bottom it opened at, until the first
@@ -241,15 +264,33 @@ struct ContainerState {
   Anchor anchor = {};
 
   /*
+   * A row hold that reached a short end, kept for measurements that arrive after it settles.
+   * It requests no frames. A gesture or a new command releases it.
+   */
+  std::optional<Anchor> clampedAnchor;
+
+  /*
    * The anchor key update holds for one frame. It lives here so its buffer is reused.
    */
   std::string frameAnchorKey;
 
   /*
    * The running offset correction, if any. Its id goes to the host as the commit token.
-   * End corrections hold the end edge. Keeping content in place and scrollToRow hold a row by key.
+   * End corrections hold the end edge. Keeping content in place, scrollToRow, scrollToStart and
+   * a shrink clamp whose row is still there hold a row by key.
    */
   std::optional<Operation> operation = std::nullopt;
+
+  /*
+   * The geometry version on the running operation's previous frame, or on the frame it started.
+   * An operation that arrived on the end of a grid waits while this changes.
+   */
+  std::uint64_t operationGeometryVersion = 0;
+
+  /*
+   * How many frames the running operation has waited that way. The wait is bounded.
+   */
+  int operationEndWaitFrames = 0;
 
   /*
    * Next operation id. Starts at 1 because 0 means no operation, a report from the host.
@@ -281,6 +322,19 @@ struct ContainerState {
   double previousLayoutWindowHeight = -1.0;
   std::size_t previousLayoutNumberOfColumns = 0;
   bool previousLayoutHorizontal = false;
+
+  /*
+   * Mixed spans use a reusable per-track summary. Plain lists keep the original round-robin
+   * path, without allocating these vectors. The count permits append to keep the summary;
+   * other edits seed it from the unchanged placed prefix, never a per-row history matrix.
+   */
+  bool hasRowSpans = false;
+  bool hasRowSpanSource = false;
+  std::uint64_t rowSpansVersion = 0;
+  std::uint64_t previousLayoutRowSpansVersion = 0;
+  TrackLayout spanLayout;
+  TrackRanges spanRanges;
+  std::size_t spanLayoutRowCount = UNDEFINED_INDEX;
 
   /*
    * Set when rows moved outside a frame, like a header change in the host's layout pass. The
@@ -344,6 +398,19 @@ struct ContainerState {
    * because the host is not there yet.
    */
   double previousReportedOffset = 0.0;
+
+  /*
+   * The offset the previous frame ran on, a host report or our own write.
+   */
+  double previousFrameOffset = 0.0;
+
+  /*
+   * Where the view was at each frame that moved the offset without an operation since the
+   * previous host report. Those writes carry no token. A report that shows one of these
+   * offsets is from before the writes that followed, see Virtualizer::update. Every host
+   * report empties it.
+   */
+  std::vector<double> unreportedOffsets;
 };
 
 class Container final {
@@ -375,8 +442,9 @@ public:
   std::function<void(const std::vector<std::size_t>&)> onViewableIndicesChangeCallback;
 
   /*
-   * Called when an inverted list leaves its end because the user scrolled away from the bottom,
-   * and when it is back at the end. A list starts at its end.
+   * Called when an inverted list leaves its end because the user scrolled away from the bottom
+   * or a scroll command landed away from it, and when it is back at the end. A list starts at
+   * its end.
    */
   std::function<void(bool)> onAtEndChangeCallback;
 
@@ -582,7 +650,7 @@ public:
     double previousOffsetX,
     double previousOffsetY,
     double previousContentWidth,
-    double previousContentHeight) const;
+    double previousContentHeight);
 
   /*
    * Where the footer sits along the scroll axis, right after the content.

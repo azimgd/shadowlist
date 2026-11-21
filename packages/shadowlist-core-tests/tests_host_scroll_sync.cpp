@@ -604,3 +604,88 @@ TEST(scroll_sync_a_dragging_frame_gives_an_animated_scroll_up) {
   CHECK(!sync.isArmed());
   CHECK(sync.onScroll(frameAt(950.0)).userScrolled);
 }
+
+TEST(scroll_sync_same_token_reports_the_publication_it_applied) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  MountedScroll first = correctionState(472.0, 400.0, 6);
+  first.commitRevision = 11;
+  FrameReport earlier;
+  mountAndWrite(sync, first, live, viewAt(400.0), &earlier);
+  CHECK_EQ(earlier.patch.report.commitRevision, static_cast<std::uint64_t>(11));
+
+  // A newer state exists, but merely observing it does not acknowledge its write.
+  MountedScroll next = correctionState(400.0, 400.0, 6);
+  next.commitRevision = 12;
+  sync.beginMount(next, live);
+  CHECK_EQ(sync.livePatch(0.0, 472.0).report.commitRevision, static_cast<std::uint64_t>(11));
+  MountAction action = sync.correction(viewAt(472.0));
+  CHECK_EQ(action.commitRevision, static_cast<std::uint64_t>(12));
+  sync.willWrite(action);
+  FrameReport latest = sync.onScroll(frameAt(action.offsetY));
+  sync.didWrite(true);
+  sync.endMount();
+  CHECK_EQ(latest.patch.report.commitToken, static_cast<std::uint64_t>(6));
+  CHECK_EQ(latest.patch.report.commitRevision, static_cast<std::uint64_t>(12));
+  CHECK_EQ(earlier.patch.report.commitRevision, static_cast<std::uint64_t>(11));
+}
+
+TEST(scroll_sync_noop_write_acknowledges_its_publication) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  MountedScroll state = correctionState(300.0, 300.0, 2);
+  state.commitRevision = 9;
+  mountAndWrite(sync, state, live, viewAt(300.0));
+  CHECK(!sync.isArmed());
+  CHECK_EQ(sync.getEchoedRevision(), static_cast<std::uint64_t>(9));
+  CHECK_EQ(sync.livePatch(0.0, 300.0).report.commitRevision, static_cast<std::uint64_t>(9));
+}
+
+TEST(scroll_sync_forwarded_report_keeps_its_publication) {
+  ScrollSync sync;
+  LiveScroll::Report earlier;
+  earlier.commitToken = 6;
+  earlier.commitRevision = 11;
+  MountedScroll next = correctionState(400.0, 472.0, 6);
+  next.commitRevision = 12;
+  sync.beginMount(next, nullptr);
+  CHECK_EQ(sync.reportPatch(earlier).report.commitRevision, static_cast<std::uint64_t>(11));
+  sync.endMount();
+}
+
+TEST(scroll_sync_clamped_shift_tracks_only_the_part_applied) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  MountedScroll first = correctionState(5454.0, 5294.0, 3);
+  first.commitRevision = 1;
+  ViewMotion moving = viewAt(5328.0, 5454.0);
+  moving.moving = true;
+  CHECK_EQ(mountAndWrite(sync, first, live, moving), 5454.0);
+
+  // A delayed finger report rebases the same correction; the applied 126 must not become -34.
+  MountedScroll rebased = correctionState(5454.0, 5328.0, 3);
+  rebased.commitRevision = 2;
+  moving = viewAt(5454.0, 5454.0);
+  moving.moving = true;
+  CHECK_EQ(mountAndWrite(sync, rebased, live, moving), 5454.0);
+
+  // A larger scroll range lets the original correction apply its remaining 34.
+  first.commitRevision = 3;
+  moving = viewAt(5454.0, 6000.0);
+  moving.moving = true;
+  CHECK_EQ(mountAndWrite(sync, first, live, moving), 5488.0);
+}
+
+TEST(scroll_sync_stationary_clamp_does_not_reapply_an_unwritten_delta) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  MountedScroll state = correctionState(900.0, 50.0, 10);
+  state.commitRevision = 1;
+  CHECK_EQ(mountAndWrite(sync, state, live, viewAt(50.0, 700.0)), 700.0);
+  ViewMotion moving = viewAt(700.0, 700.0);
+  moving.moving = true;
+  CHECK_EQ(mountAndWrite(sync, state, live, moving), 700.0);
+  moving = viewAt(700.0, 1000.0);
+  moving.moving = true;
+  CHECK_EQ(mountAndWrite(sync, state, live, moving), 900.0);
+}

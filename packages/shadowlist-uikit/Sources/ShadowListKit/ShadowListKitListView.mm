@@ -20,6 +20,8 @@ __attribute__((used)) static const char *const ShadowListKitListViewCategoryLink
   &ShadowListKitListViewCommandsLink,
   &ShadowListKitListViewDataLink,
   &ShadowListKitListViewDragLink,
+  &ShadowListKitListViewDragBoardLink,
+  &ShadowListKitListViewDragBoardAccessibilityLink,
   &ShadowListKitListViewPassesLink,
   &ShadowListKitListViewSectionsLink,
   &ShadowListKitListViewSelectionLink,
@@ -65,6 +67,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 @dynamic numberOfSections;
 @dynamic selectedIndices;
 @dynamic anchorState;
+@dynamic dragBoardId, dragListId, dragListLabel;
 
 - (instancetype)initWithFrame:(CGRect)frame
 {
@@ -97,10 +100,9 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   _mountOverscan = 0.5;
   _startReachedThreshold = 1;
   _endReachedThreshold = 1;
-  _mountedLow = UNDEFINED_INDEX;
-  _mountedHigh = UNDEFINED_INDEX;
-  _mountedSticky = UNDEFINED_INDEX;
+  _measureLookaheadRows = 48;
   _needsFrame = YES;
+  _atEnd = YES;
   _allowsSelection = YES;
   _separatorColor = UIColor.separatorColor;
   _separatorInsetStart = 16;
@@ -116,15 +118,33 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
     [weakSelf reportPrefetchRows:prefetch cancel:cancel];
   });
 
-  UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
-  tap.cancelsTouchesInView = NO;
-  [self addGestureRecognizer:tap];
+  _tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
+  _tap.cancelsTouchesInView = NO;
+  [self addGestureRecognizer:_tap];
   [self installActionGestures];
+}
+
+- (void)didMoveToWindow
+{
+  [super didMoveToWindow];
+  if (self.window) { _viewabilityAttached = YES; [self updateViewability]; }
+  else { [self detachViewability]; [self clearStickyHeaderOverlay]; }
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection
+{
+  [super traitCollectionDidChange:previousTraitCollection];
+  if (![previousTraitCollection.preferredContentSizeCategory isEqualToString:self.traitCollection.preferredContentSizeCategory]) {
+    _driver.invalidateSizeSpecs();
+    [self invalidateFrame];
+  }
 }
 
 - (void)dealloc
 {
+  [self leaveDragBoard];
   [_settleLink invalidate];
+  [_viewabilityTimer invalidate];
   [_dragLink invalidate];
 }
 
@@ -137,7 +157,10 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   [super willMoveToWindow:newWindow];
   if (!newWindow) {
     [self cancelHeldRow];
+    [self leaveDragBoard];
     [self closeSwipeAnimated:NO];
+  } else {
+    [self joinDragBoard];
   }
 }
 
@@ -267,8 +290,10 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
  */
 - (void)writeOffset:(double)offset byUser:(BOOL)byUser
 {
+  [self updateStickyOffset:offset byUser:byUser];
   _previousOffset = offset;
   if (byUser) {
+    _driver.recordInteraction(CACurrentMediaTime() * 1000);
     _userScrolled = YES;
   }
   CGPoint point = [self contentOffsetAt:offset];
@@ -353,15 +378,52 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   [self invalidateFrame];
 }
 
+- (void)setEstimatedItemSize:(CGFloat)estimatedItemSize
+{
+  _estimatedItemSize = estimatedItemSize;
+  [self invalidateFrame];
+}
+
+- (void)setOverscan:(CGFloat)overscan
+{
+  _overscan = overscan;
+  [self invalidateFrame];
+}
+
+- (void)setMountOverscan:(CGFloat)mountOverscan
+{
+  _mountOverscan = mountOverscan;
+  [self invalidateFrame];
+}
+
+- (void)setStartReachedThreshold:(CGFloat)startReachedThreshold
+{
+  _startReachedThreshold = startReachedThreshold;
+  [self invalidateFrame];
+}
+
+- (void)setEndReachedThreshold:(CGFloat)endReachedThreshold
+{
+  _endReachedThreshold = endReachedThreshold;
+  [self invalidateFrame];
+}
+
 - (void)setSnapToItem:(BOOL)snapToItem
 {
   _snapToItem = snapToItem;
   [self invalidateFrame];
 }
 
+- (void)setSnapAlignment:(ShadowListKitSnapAlignment)snapAlignment
+{
+  _snapAlignment = snapAlignment;
+  [self invalidateFrame];
+}
+
 - (void)setReorderEnabled:(BOOL)reorderEnabled
 {
   _reorderEnabled = reorderEnabled;
+  if (!reorderEnabled) [self cancelHeldRow];
   [self enableDragPress:reorderEnabled];
 }
 
@@ -397,6 +459,119 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
     [self insertSubview:footerView atIndex:0];
   }
   [self invalidateFrame];
+}
+
+- (void)setStickyHeader:(BOOL)stickyHeader
+{
+  _stickyHeader = stickyHeader;
+  [self setNeedsLayout];
+}
+
+- (void)setStickyFooter:(BOOL)stickyFooter
+{
+  _stickyFooter = stickyFooter;
+  [self setNeedsLayout];
+}
+
+- (void)setAutoHideHeader:(BOOL)autoHideHeader
+{
+  _autoHideHeader = autoHideHeader;
+  [self setNeedsLayout];
+}
+
+- (void)setAutoHideFooter:(BOOL)autoHideFooter
+{
+  _autoHideFooter = autoHideFooter;
+  [self setNeedsLayout];
+}
+
+/*
+ * The empty view stays hidden until a layout pass says the list has no rows.
+ */
+- (void)setEmptyView:(UIView *)emptyView
+{
+  [_emptyView removeFromSuperview];
+  _emptyView = emptyView;
+  if (emptyView) {
+    emptyView.hidden = YES;
+    [self insertSubview:emptyView atIndex:0];
+  }
+  [self invalidateFrame];
+}
+
+- (ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+{
+  return _getItemSizeSpec;
+}
+
+- (void)setGetItemSizeSpec:(ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+{
+  _getItemSizeSpec = [getItemSizeSpec copy];
+  [self sendSizeSpecSource];
+}
+
+- (NSInteger (^)(NSInteger))getItemSpan { return _getItemSpan; }
+- (void)setGetItemSpan:(NSInteger (^)(NSInteger))getItemSpan
+{
+  _getItemSpan = [getItemSpan copy];
+  ++_rowSpansRevision;
+  [self invalidateFrame];
+}
+
+- (NSUInteger)measureLookaheadRows { return _measureLookaheadRows; }
+- (void)setMeasureLookaheadRows:(NSUInteger)measureLookaheadRows
+{
+  _measureLookaheadRows = measureLookaheadRows;
+  _driver.setMeasureLookaheadRows(measureLookaheadRows);
+  [self invalidateFrame];
+}
+
+- (UIView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))renderStickyHeaderOverlay
+{
+  return _renderStickyHeaderOverlay;
+}
+
+- (void)setRenderStickyHeaderOverlay:(UIView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))render
+{
+  [self clearStickyHeaderOverlay];
+  _renderStickyHeaderOverlay = [render copy];
+  [self invalidateFrame];
+}
+
+- (ShadowListKitViewabilityConfig *)viewabilityConfig { return _viewabilityConfig; }
+- (void)setViewabilityConfig:(ShadowListKitViewabilityConfig *)viewabilityConfig
+{
+  _viewabilityConfig = [viewabilityConfig copy];
+  [self sendViewabilityConfigs];
+}
+- (NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)viewabilityConfigCallbackPairs { return _viewabilityConfigCallbackPairs; }
+- (void)setViewabilityConfigCallbackPairs:(NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)pairs
+{
+  _viewabilityConfigCallbackPairs = [pairs copy];
+  [self sendViewabilityConfigs];
+}
+- (void (^)(ShadowListKitViewableItemsChangedInfo *))onViewableItemsChanged { return _onViewableItemsChanged; }
+- (void)setOnViewableItemsChanged:(void (^)(ShadowListKitViewableItemsChangedInfo *))callback
+{
+  _onViewableItemsChanged = [callback copy];
+  [self sendViewabilityConfigs];
+}
+
+- (void)setPersistentKeys:(NSSet<NSString *> *)persistentKeys
+{
+  _persistentKeys = [persistentKeys copy];
+  [self sendPersistentKeys];
+}
+
+- (void)setNonAnchorKeys:(NSSet<NSString *> *)nonAnchorKeys
+{
+  _nonAnchorKeys = [nonAnchorKeys copy];
+  [self sendNonAnchorKeys];
+}
+
+- (BOOL)isAtEnd
+{
+  return _atEnd;
 }
 
 - (id<ShadowListKitItemAnimator>)itemAnimator
@@ -612,10 +787,13 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 
 /*
  * The visible cell under a point in the list's own coordinates. A pinned header covers the
- * items under it.
+ * items under it, and so do a pinned header view and footer view.
  */
 - (ShadowListKitListCell *)cellAtPoint:(CGPoint)point
 {
+  if ([self isUnderPinnedTemplate:point]) {
+    return nil;
+  }
   if (_stickyCell && !_stickyCell.hidden && _stickyCell.row != NSNotFound && CGRectContainsPoint(_stickyCell.frame, point)) {
     return _stickyCell;
   }
@@ -650,7 +828,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gesture
 {
-  if (gesture == _swipePan) {
+  if (gesture == _swipePan || gesture == _longPress) {
     return [self shouldBeginActionGesture:gesture];
   }
   if (gesture == self.panGestureRecognizer) {
@@ -671,6 +849,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
  */
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+  [self trackUserScroll];
   if ([_userDelegate respondsToSelector:@selector(listViewDidScroll:)]) {
     [_userDelegate listViewDidScroll:self];
   }
@@ -678,6 +857,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
 {
+  [self recordInteraction];
   _driver.cancelLanding();
   [self dropPendingAnchor];
   [self unhighlight];

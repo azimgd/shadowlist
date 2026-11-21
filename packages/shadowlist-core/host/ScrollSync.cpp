@@ -36,6 +36,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
     action.offsetX = state.offsetX;
     action.offsetY = state.offsetY;
     action.commitToken = token;
+    action.commitRevision = state.commitRevision;
     if (token != 0) {
       shiftedToken_ = token;
       shiftedTokenDelta_ = target - base;
@@ -85,8 +86,8 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
   if (shift) {
     double delta = target - base;
     // The core resends the full correction until it is echoed. Shift only by what is left.
+    double applied = 0.0;
     if (token != 0) {
-      double applied = 0.0;
       if (token == shiftedToken_) {
         applied = shiftedTokenDelta_;
       } else if (token == writtenToken_) {
@@ -94,11 +95,14 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
       }
       double unapplied = delta - applied;
       shiftedToken_ = token;
-      shiftedTokenDelta_ = delta;
       delta = unapplied;
     }
     double shifted = std::min(std::max(along(view.shiftFromX, view.shiftFromY) + delta, view.minOffset),
       std::max(view.minOffset, view.maxOffset));
+    if (token != 0) {
+      // A clamp may apply only part of the requested correction. Keep the remainder.
+      shiftedTokenDelta_ = applied + shifted - along(view.shiftFromX, view.shiftFromY);
+    }
     offsetX = horizontal_ ? shifted : view.offsetX;
     offsetY = horizontal_ ? view.offsetY : shifted;
   } else if (token != 0) {
@@ -106,8 +110,12 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
      * The write applies the whole correction. A later mount of the same token that shifts,
      * like Android mounting the state again once the write moved the view, adds only what is left.
      */
+    double written = std::min(std::max(target, view.minOffset),
+      std::max(view.minOffset, view.maxOffset));
+    offsetX = horizontal_ ? written : view.offsetX;
+    offsetY = horizontal_ ? view.offsetY : written;
     writtenToken_ = token;
-    writtenTokenDelta_ = target - base;
+    writtenTokenDelta_ = written - base;
   }
 
   /*
@@ -120,16 +128,20 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
   action.offsetX = offsetX;
   action.offsetY = offsetY;
   action.commitToken = token;
+  action.commitRevision = state.commitRevision;
   action.shifted = shift;
   return action;
 }
 
 void ScrollSync::willWrite(const MountAction& action) {
-  arm(action.offsetX, action.offsetY, false, action.commitToken, !action.shifted && options_.exactEcho);
+  arm(action.offsetX, action.offsetY, false, action.commitToken, !action.shifted && options_.exactEcho,
+    action.commitRevision);
 }
 
 void ScrollSync::didWrite(bool moved) {
   if (!moved) {
+    echoedToken_ = armedToken_;
+    echoedRevision_ = armedRevision_;
     release();
   }
 }
@@ -161,11 +173,13 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
     if (armedAnimated_) {
       if (landed) {
         echoedToken_ = armedToken_;
+        echoedRevision_ = armedRevision_;
         result.landed = true;
         release();
       }
     } else {
       echoedToken_ = armedToken_;
+      echoedRevision_ = armedRevision_;
       if (landed && armedExact_) {
         offsetX = armedX_;
         offsetY = armedY_;
@@ -174,8 +188,8 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
     }
   }
 
-  LiveScroll::Report report =
-    writeReport(offsetX, offsetY, userScrolled, frame.scrollPhase, echoedToken_, mounted_.concealGeneration);
+  LiveScroll::Report report = writeReport(offsetX, offsetY, userScrolled, frame.scrollPhase,
+    echoedToken_, mounted_.concealGeneration, echoedRevision_);
   result.userScrolled = userScrolled;
   result.needsCommit = ourMove || reportNeedsCommit(report, frame.commitEveryFrame);
   if (result.needsCommit) {
@@ -187,13 +201,15 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
   return result;
 }
 
-void ScrollSync::arm(double offsetX, double offsetY, bool animated, std::uint64_t token, bool exact) {
+void ScrollSync::arm(double offsetX, double offsetY, bool animated, std::uint64_t token, bool exact,
+  std::uint64_t revision) {
   armed_ = true;
   armedAnimated_ = animated;
   armedExact_ = exact;
   armedX_ = offsetX;
   armedY_ = offsetY;
   armedToken_ = token;
+  armedRevision_ = revision;
 }
 
 void ScrollSync::release() {
@@ -201,6 +217,7 @@ void ScrollSync::release() {
   armedAnimated_ = false;
   armedExact_ = false;
   armedToken_ = 0;
+  armedRevision_ = 0;
 }
 
 void ScrollSync::disarm() {
@@ -232,6 +249,7 @@ bool ScrollSync::reportNeedsCommit(const LiveScroll::Report& report, bool commit
   // The gesture changed, a correction was echoed, or a hide was acknowledged.
   if (report.userScrolled != pushedReport_.userScrolled || report.scrollPhase != pushedReport_.scrollPhase ||
       report.commitToken != pushedReport_.commitToken ||
+      report.commitRevision != pushedReport_.commitRevision ||
       report.concealGenerationAck != pushedReport_.concealGenerationAck) {
     return true;
   }
@@ -249,13 +267,15 @@ LiveScroll::Report ScrollSync::writeReport(
   bool userScrolled,
   double scrollPhase,
   std::uint64_t token,
-  double concealGenerationAck) {
+  double concealGenerationAck,
+  std::uint64_t revision) {
   LiveScroll::Report report;
   report.offsetX = offsetX;
   report.offsetY = offsetY;
   report.userScrolled = userScrolled;
   report.scrollPhase = scrollPhase;
   report.commitToken = token;
+  report.commitRevision = revision;
   report.concealGenerationAck = concealGenerationAck;
   report.sequence = liveScroll_ ? liveScroll_->write(report) : 0;
   liveReport_ = report;
@@ -284,7 +304,8 @@ ScrollPatch ScrollSync::push(const LiveScroll::Report& report) {
 }
 
 ScrollPatch ScrollSync::livePatch(double offsetX, double offsetY, bool userScrolled, double scrollPhase) {
-  return push(writeReport(offsetX, offsetY, userScrolled, scrollPhase, echoedToken_, mounted_.concealGeneration));
+  return push(writeReport(offsetX, offsetY, userScrolled, scrollPhase, echoedToken_,
+    mounted_.concealGeneration, echoedRevision_));
 }
 
 ScrollPatch ScrollSync::livePatch(double offsetX, double offsetY) {
@@ -293,7 +314,7 @@ ScrollPatch ScrollSync::livePatch(double offsetX, double offsetY) {
 
 ScrollPatch ScrollSync::reportPatch(const LiveScroll::Report& report) {
   return push(writeReport(report.offsetX, report.offsetY, report.userScrolled, report.scrollPhase,
-    report.commitToken, report.concealGenerationAck));
+    report.commitToken, report.concealGenerationAck, report.commitRevision));
 }
 
 std::optional<ScrollPatch> ScrollSync::clearUserScrolled(double offsetX, double offsetY) {
@@ -336,6 +357,7 @@ std::optional<ScrollPatch> ScrollSync::land(double offsetX, double offsetY) {
   // The animation was ours to its last frame. Its end is not the user.
   if (armedAnimated_) {
     echoedToken_ = armedToken_;
+    echoedRevision_ = armedRevision_;
     release();
   }
   ScrollCommand command{commandIndex_, commandViewPosition_, commandViewOffset_, false};

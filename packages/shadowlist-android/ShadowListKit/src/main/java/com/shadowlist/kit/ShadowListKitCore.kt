@@ -11,6 +11,7 @@ import kotlin.math.max
 internal class ShadowListKitCore(
   private val measure: (row: Int, crossSize: Double) -> Double,
   private val prefetched: () -> Unit,
+  private val sizeSpecForRow: ((Int) -> ShadowListKitItemSizeSpec?)? = null,
 ) {
   companion object {
     init {
@@ -30,25 +31,81 @@ internal class ShadowListKitCore(
     const val PASS_WINDOW_CROSS = 2
     const val PASS_HEADER_SIZE = 3
     const val PASS_FOOTER_SIZE = 4
-    const val PASS_PHASE = 5
-    const val PASS_USER_SCROLLED = 6
-    const val PASS_TRACKING = 7
-    const val PASS_PREFETCH = 8
-    const val PASS_MOUNT_PAD = 9
-    const val PASS_LEADING_INSET = 10
-    const val PASS_TRAILING_INSET = 11
-    const val PASS_OUT_OFFSET = 12
-    const val PASS_OUT_CONTENT = 13
-    const val PASS_OUT_BAND_LOW = 14
-    const val PASS_OUT_BAND_HIGH = 15
-    const val PASS_OUT_SETTLING = 16
-    const val PASS_OUT_REACHED_START = 17
-    const val PASS_OUT_REACHED_END = 18
-    const val PASS_OUT_GEOMETRY = 19
-    const val PASS_OUT_MEASURED_LOW = 20
-    const val PASS_OUT_MEASURED_HIGH = 21
-    const val PASS_OUT_FOOTER_START = 22
-    const val PASS_SLOTS = 23
+    const val PASS_EMPTY_SIZE = 5
+    const val PASS_PHASE = 6
+    const val PASS_USER_SCROLLED = 7
+    const val PASS_TRACKING = 8
+    const val PASS_PREFETCH = 9
+    const val PASS_MOUNT_PAD = 10
+    const val PASS_LEADING_INSET = 11
+    const val PASS_TRAILING_INSET = 12
+    const val PASS_CLAMP_START = 13
+    const val PASS_CLAMP_END = 14
+    const val PASS_CLAMP_SLACK = 15
+    const val PASS_OUT_OFFSET = 16
+    const val PASS_OUT_CONTENT = 17
+    const val PASS_OUT_BAND_LOW = 18
+    const val PASS_OUT_BAND_HIGH = 19
+    const val PASS_OUT_SETTLING = 20
+    const val PASS_OUT_REACHED_START = 21
+    const val PASS_OUT_REACHED_END = 22
+    const val PASS_OUT_AT_END = 23
+    const val PASS_OUT_SHOWS_EMPTY = 24
+    const val PASS_OUT_GEOMETRY = 25
+    const val PASS_OUT_MEASURED_LOW = 26
+    const val PASS_OUT_MEASURED_HIGH = 27
+    const val PASS_OUT_FOOTER_START = 28
+    const val PASS_SLOTS = 29
+
+    /*
+     * Slots of a mount record, the same as MountSlot in the core's host/KitBridge.hpp. A missing
+     * row is -1.
+     */
+    const val MOUNT_LOW = 0
+    const val MOUNT_HIGH = 1
+    const val MOUNT_STICKY = 2
+    const val MOUNT_GEOMETRY = 3
+    const val MOUNT_STRUCTURE = 4
+    const val MOUNT_SHIFT = 5
+    const val MOUNT_BAND_LOW = 6
+    const val MOUNT_BAND_HIGH = 7
+    const val MOUNT_WINDOW_ALONG = 8
+    const val MOUNT_PAD = 9
+    const val MOUNT_LEADING_INSET = 10
+    const val MOUNT_TRAILING_INSET = 11
+    const val MOUNT_SLOTS = 12
+
+    const val VIEWABILITY_ITEM_PERCENT = 0
+    const val VIEWABILITY_HAS_ITEM_PERCENT = 1
+    const val VIEWABILITY_AREA_PERCENT = 2
+    const val VIEWABILITY_HAS_AREA_PERCENT = 3
+    const val VIEWABILITY_MINIMUM_VIEW_TIME = 4
+    const val VIEWABILITY_WAIT_FOR_INTERACTION = 5
+    const val VIEWABILITY_CONFIG_SLOTS = 6
+    private val EMPTY_VIEWABILITY_REPORTS = emptyArray<ShadowListKitViewabilityReport>()
+
+    /*
+     * Slots of the pinning of the list header and footer, the same as StickySlot in the core's
+     * host/KitBridge.hpp. A size of 0 is a missing header or footer.
+     */
+    const val STICKY_OFFSET = 0
+    const val STICKY_WINDOW_SIZE = 1
+    const val STICKY_CONTENT_SIZE = 2
+    const val STICKY_HEADER_SIZE = 3
+    const val STICKY_FOOTER_SIZE = 4
+    const val STICKY_FOOTER_START = 5
+    const val STICKY_HEADER = 6
+    const val STICKY_FOOTER = 7
+    const val STICKY_OUT_HEADER_TRANSLATION = 8
+    const val STICKY_OUT_FOOTER_TRANSLATION = 9
+    const val STICKY_OUT_HEADER_SPAN_START = 10
+    const val STICKY_OUT_HEADER_SPAN_END = 11
+    const val STICKY_OUT_FOOTER_SPAN_START = 12
+    const val STICKY_OUT_FOOTER_SPAN_END = 13
+    const val STICKY_AUTO_HIDE_HEADER = 14
+    const val STICKY_AUTO_HIDE_FOOTER = 15
+    const val STICKY_ACCUMULATE = 16
+    const val STICKY_SLOTS = 17
 
     /*
      * Values of PASS_PHASE, the same as the core's ScrollPhase.
@@ -107,6 +164,12 @@ internal class ShadowListKitCore(
     private const val CONSTANT_DRAG_LIFT_ELEVATION = 12
     private const val CONSTANT_SCROLL_ANIMATION_DURATION_MS = 13
     private const val CONSTANT_SCROLL_SETTLE_DURATION_MS = 14
+    private const val CONSTANT_SWIPE_ACTION_COLOR_NORMAL = 15
+    private const val CONSTANT_SWIPE_ACTION_COLOR_DESTRUCTIVE = 16
+    private const val CONSTANT_DROP_NONE = 17
+    private const val CONSTANT_DROP_MOVED = 18
+    private const val CONSTANT_DROP_REMOVED = 19
+    private const val CONSTANT_DROP_INSERTED = 20
 
     private val constants: DoubleArray by lazy { nativeConstants() }
 
@@ -117,12 +180,23 @@ internal class ShadowListKitCore(
     val SWIPE_DURATION_MS: Long get() = constants[CONSTANT_SWIPE_SETTLE_DURATION_MS].toLong()
 
     /*
+     * The core's backgrounds of a swipe action that sets none, as ARGB: gray, and red for a
+     * destructive action.
+     */
+    val SWIPE_ACTION_COLOR_NORMAL: Int get() = constants[CONSTANT_SWIPE_ACTION_COLOR_NORMAL].toLong().toInt()
+    val SWIPE_ACTION_COLOR_DESTRUCTIVE: Int get() = constants[CONSTANT_SWIPE_ACTION_COLOR_DESTRUCTIVE].toLong().toInt()
+
+    /*
      * The core's drag constants: the held row's scale and the durations of the drag.
      */
     val LIFT_SCALE: Float get() = constants[CONSTANT_DRAG_LIFT_SCALE].toFloat()
     val LIFT_DURATION_MS: Long get() = constants[CONSTANT_DRAG_LIFT_DURATION_MS].toLong()
     val SHIFT_DURATION_MS: Long get() = constants[CONSTANT_DRAG_SHIFT_DURATION_MS].toLong()
     val DROP_DURATION_MS: Long get() = constants[CONSTANT_DRAG_DROP_DURATION_MS].toLong()
+    val DROP_NONE: Int get() = constants[CONSTANT_DROP_NONE].toInt()
+    val DROP_MOVED: Int get() = constants[CONSTANT_DROP_MOVED].toInt()
+    val DROP_REMOVED: Int get() = constants[CONSTANT_DROP_REMOVED].toInt()
+    val DROP_INSERTED: Int get() = constants[CONSTANT_DROP_INSERTED].toInt()
 
     /*
      * The core's press that lifts a row: how long it holds, how far it may drift in dp, see
@@ -166,12 +240,55 @@ internal class ShadowListKitCore(
     const val CHANGE_INSERT = 1
     const val CHANGE_CARRY = 2
 
+    /*
+     * DragBoard frame slots and kinds, mirrored by the shared JNI bridge.
+     */
+    const val BOARD_FRAME_STEP = 0
+    const val BOARD_FRAME_X = 1
+    const val BOARD_FRAME_Y = 2
+    const val BOARD_FRAME_FLOATING = 3
+    const val BOARD_FRAME_HIDE_HELD = 4
+    const val BOARD_FRAME_SLOTS = 5
+    const val BOARD_STAY = 0
+    const val BOARD_HOME = 0
+    const val BOARD_CANCEL = 1
+    const val BOARD_DROP = 2
+    const val BOARD_RELEASE_INDEX = 0
+    const val BOARD_RELEASE_SLOTS = 1
+
+    @JvmStatic external fun nativeDragBoardCreate(): Long
+    @JvmStatic external fun nativeDragBoardDestroy(handle: Long)
+    @JvmStatic external fun nativeDragBoardBegin(handle: Long, home: String, key: String, x: Double, y: Double, centerX: Double, centerY: Double)
+    @JvmStatic external fun nativeDragBoardScrollDelta(handle: Long, finger: Double, touch: Double, windowSize: Double, density: Double, dtSeconds: Double): Double
+    @JvmStatic external fun nativeDragBoardFrame(handle: Long, x: Double, y: Double, centerX: Double, centerY: Double, candidate: String, nowMs: Double, out: DoubleArray)
+    @JvmStatic external fun nativeDragBoardRelease(handle: Long, index: Int, key: String, count: Int, nowMs: Double, out: DoubleArray): Int
+    @JvmStatic external fun nativeDragBoardEnd(handle: Long)
+    @JvmStatic external fun nativeDragBoardLeave(handle: Long, listId: String)
+    @JvmStatic external fun nativeDragBoardReturnOffset(handle: Long, x: Double, y: Double, nowMs: Double, out: DoubleArray)
+    @JvmStatic external fun nativeDragBoardLanded(handle: Long, listId: String, holdsKey: Boolean): Boolean
+    @JvmStatic external fun nativeDragBoardBeginOverlaySettle(handle: Long): Boolean
+    @JvmStatic external fun nativeDragBoardFlight(handle: Long): Long
+    @JvmStatic external fun nativeDragBoardIsIdle(handle: Long): Boolean
+
     @JvmStatic private external fun nativeDestroy(handle: Long)
     @JvmStatic private external fun nativeSetSettings(
       handle: Long, estimatedRowSize: Double, overscan: Double, startReachedThreshold: Double,
       endReachedThreshold: Double, numberOfColumns: Int, inverted: Boolean, followAppends: Boolean, horizontal: Boolean,
       snapToItem: Boolean, snapAlignment: Int)
     @JvmStatic private external fun nativeSetStickyIndices(handle: Long, indices: IntArray)
+    @JvmStatic private external fun nativeSetNonAnchorKeys(handle: Long, packed: CharArray, ends: IntArray)
+    @JvmStatic private external fun nativeSetPersistentKeys(handle: Long, packed: CharArray, ends: IntArray)
+    @JvmStatic private external fun nativeSetRowSpans(handle: Long, spans: IntArray)
+    @JvmStatic private external fun nativePersistentIndices(handle: Long): IntArray
+    @JvmStatic private external fun nativeStickyLayout(handle: Long, io: DoubleArray)
+    @JvmStatic private external fun nativeSetViewabilityConfigs(handle: Long, slots: DoubleArray, now: Double): IntArray
+    @JvmStatic private external fun nativeUpdateViewability(handle: Long, offset: Double, windowAlong: Double, now: Double): Array<ShadowListKitViewabilityReport>?
+    @JvmStatic private external fun nativeRecordInteraction(handle: Long, now: Double)
+    @JvmStatic private external fun nativeIsViewabilityWaiting(handle: Long): Boolean
+
+    @JvmStatic private external fun nativeSetSizeSpecsEnabled(handle: Long, enabled: Boolean)
+    @JvmStatic private external fun nativeSetMeasureLookaheadRows(handle: Long, rows: Int)
+    @JvmStatic private external fun nativeInvalidateSizeSpecs(handle: Long)
     @JvmStatic private external fun nativeMarkRemeasure(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeResetKeepingPosition(handle: Long)
     @JvmStatic private external fun nativeRowCount(handle: Long): Int
@@ -179,6 +296,7 @@ internal class ShadowListKitCore(
     @JvmStatic private external fun nativeRowRect(handle: Long, index: Int, out: DoubleArray): Boolean
     @JvmStatic private external fun nativeVisibleRange(handle: Long): Long
     @JvmStatic private external fun nativeIndexOfKey(handle: Long, key: String): Int
+    @JvmStatic private external fun nativeStickyLeading(handle: Long, row: Int, offset: Double, extent: Double): Double
     @JvmStatic private external fun nativeCopyStickyFrames(handle: Long, out: DoubleArray): Boolean
     @JvmStatic private external fun nativeScrollToRow(handle: Long, row: Int, viewPosition: Double)
     @JvmStatic private external fun nativeScrollToStart(handle: Long)
@@ -191,6 +309,11 @@ internal class ShadowListKitCore(
     @JvmStatic private external fun nativeLand(handle: Long): Boolean
     @JvmStatic private external fun nativeDragBegin(handle: Long, index: Int, touchAlong: Double, touchCross: Double)
     @JvmStatic private external fun nativeDragEnd(handle: Long)
+    @JvmStatic private external fun nativeDragSetHeldAway(handle: Long, away: Boolean)
+    @JvmStatic private external fun nativeDragBeginForeign(handle: Long, extent: Double, crossExtent: Double)
+    @JvmStatic private external fun nativeIsDragForeign(handle: Long): Boolean
+    @JvmStatic private external fun nativeDragInsertionKey(handle: Long): String
+    @JvmStatic private external fun nativeSetDropHint(handle: Long, kind: Int, key: String)
     @JvmStatic private external fun nativeHeldIndex(handle: Long): Int
     @JvmStatic private external fun nativeDragFrame(
       handle: Long, touchAlong: Double, touchCross: Double, rows: IntArray, count: Int, nowMs: Double, out: DoubleArray): Int
@@ -224,6 +347,8 @@ internal class ShadowListKitCore(
     @JvmStatic private external fun nativeInsertionIndices(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeDeletionIndices(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeConstants(): DoubleArray
+    @JvmStatic private external fun nativeShouldSkipMount(
+      previous: DoubleArray, next: DoubleArray, offset: Double, numberOfColumns: Int, holdsRow: Boolean): Boolean
     @JvmStatic private external fun nativePageScrollTarget(
       offset: Double, windowAlong: Double, maxOffset: Double, direction: Int): Double
     @JvmStatic private external fun nativeSectionIndexTitlesTop(areaHeight: Double, count: Int, scale: Double): Double
@@ -257,6 +382,14 @@ internal class ShadowListKitCore(
     fun swipeButtonSize(fitted: Double, scale: Double): Double = nativeSwipeButtonSize(fitted, scale)
 
     /*
+     * The core's shouldSkipMount over two mount records, see MOUNT_*: whether the mount pass of
+     * next covers what the pass of previous did.
+     */
+    fun shouldSkipMount(
+      previous: DoubleArray, next: DoubleArray, offset: Double, numberOfColumns: Int, holdsRow: Boolean,
+    ): Boolean = nativeShouldSkipMount(previous, next, offset, numberOfColumns, holdsRow)
+
+    /*
      * The core's pageScrollTarget: one window toward the end or the start, inside the content.
      */
     fun pageScrollTarget(offset: Double, windowAlong: Double, maxOffset: Double, direction: Int): Double =
@@ -284,7 +417,7 @@ internal class ShadowListKitCore(
   val pass = DoubleArray(PASS_SLOTS)
 
   /*
-   * Keys joined for captureChange.
+   * Keys joined for captureChange and setNonAnchorKeys.
    */
   private val packer = ShadowListKitKeyPacker()
   private val insertedPacker = ShadowListKitKeyPacker()
@@ -335,6 +468,48 @@ internal class ShadowListKitCore(
 
   fun setStickyIndices(indices: IntArray) = nativeSetStickyIndices(handle, indices)
 
+  /*
+   * Keys of rows the core never holds the visible content by.
+   */
+  fun setNonAnchorKeys(keys: List<String>) {
+    val ends = packer.pack(keys)
+    nativeSetNonAnchorKeys(handle, packer.chars, ends)
+  }
+
+  fun setViewabilityConfigs(configs: List<ShadowListKitViewabilityConfig>, now: Double): IntArray {
+    val slots = DoubleArray(configs.size * VIEWABILITY_CONFIG_SLOTS)
+    for ((index, config) in configs.withIndex()) {
+      val offset = index * VIEWABILITY_CONFIG_SLOTS
+      slots[offset + VIEWABILITY_ITEM_PERCENT] = config.itemVisiblePercentThreshold ?: 0.0
+      slots[offset + VIEWABILITY_HAS_ITEM_PERCENT] = if (config.itemVisiblePercentThreshold != null) 1.0 else 0.0
+      slots[offset + VIEWABILITY_AREA_PERCENT] = config.viewAreaCoveragePercentThreshold ?: 0.0
+      slots[offset + VIEWABILITY_HAS_AREA_PERCENT] = if (config.viewAreaCoveragePercentThreshold != null) 1.0 else 0.0
+      slots[offset + VIEWABILITY_MINIMUM_VIEW_TIME] = config.minimumViewTime
+      slots[offset + VIEWABILITY_WAIT_FOR_INTERACTION] = if (config.waitForInteraction) 1.0 else 0.0
+    }
+    return nativeSetViewabilityConfigs(handle, slots, now)
+  }
+  fun updateViewability(offset: Double, windowAlong: Double, now: Double): Array<ShadowListKitViewabilityReport> =
+    nativeUpdateViewability(handle, offset, windowAlong, now) ?: EMPTY_VIEWABILITY_REPORTS
+  fun recordInteraction(now: Double) = nativeRecordInteraction(handle, now)
+  fun isViewabilityWaiting(): Boolean = nativeIsViewabilityWaiting(handle)
+
+  fun setSizeSpecsEnabled(enabled: Boolean) {
+    nativeSetSizeSpecsEnabled(handle, enabled)
+  }
+  fun setMeasureLookaheadRows(rows: Int) = nativeSetMeasureLookaheadRows(handle, rows)
+  fun invalidateSizeSpecs() {
+    nativeInvalidateSizeSpecs(handle)
+  }
+
+  @Keep
+  @Suppress("unused")
+  private fun getItemSizeSpec(row: Int): ShadowListKitItemSizeSpec? = sizeSpecForRow?.invoke(row)
+
+  @Keep
+  @Suppress("unused")
+  private fun measureSizeSpec(spec: ShadowListKitItemSizeSpec, width: Double): Double = spec.measure(width)
+
   fun markRemeasure(indices: IntArray) = nativeMarkRemeasure(handle, indices)
 
   /*
@@ -354,6 +529,8 @@ internal class ShadowListKitCore(
   fun visibleRange(): Long = nativeVisibleRange(handle)
 
   fun indexOfKey(key: String): Int = nativeIndexOfKey(handle, key)
+  fun stickyLeading(row: Int, offset: Double, extent: Double): Double = nativeStickyLeading(handle, row, offset, extent)
+
   fun copyStickyFrames(out: DoubleArray): Boolean = nativeCopyStickyFrames(handle, out)
   fun scrollToRow(row: Int, viewPosition: Double) = nativeScrollToRow(handle, row, viewPosition)
   fun scrollToStart() = nativeScrollToStart(handle)
@@ -378,6 +555,11 @@ internal class ShadowListKitCore(
   fun dragBegin(index: Int, touchAlong: Double, touchCross: Double) =
     nativeDragBegin(handle, index, touchAlong, touchCross)
   fun dragEnd() = nativeDragEnd(handle)
+  fun dragSetHeldAway(away: Boolean) = nativeDragSetHeldAway(handle, away)
+  fun dragBeginForeign(extent: Double, crossExtent: Double) = nativeDragBeginForeign(handle, extent, crossExtent)
+  val isDragForeign: Boolean get() = nativeIsDragForeign(handle)
+  val dragInsertionKey: String get() = nativeDragInsertionKey(handle)
+  fun setDropHint(kind: Int, key: String) = nativeSetDropHint(handle, kind, key)
   val heldIndex: Int get() = nativeHeldIndex(handle)
 
   /*
@@ -418,6 +600,22 @@ internal class ShadowListKitCore(
    * Section shl ROW_KIND_BITS or a ROW_* kind, or -1 past the end.
    */
   fun placeOfRow(row: Int): Int = nativePlaceOfRow(handle, row)
+
+  /*
+   * Retained keys resolve through the shared driver, sorted and without duplicates.
+   */
+  fun setPersistentKeys(keys: List<String>) {
+    val ends = packer.pack(keys)
+    nativeSetPersistentKeys(handle, packer.chars, ends)
+  }
+
+  fun persistentIndices(): IntArray = nativePersistentIndices(handle)
+  fun setRowSpans(spans: IntArray) = nativeSetRowSpans(handle, spans)
+
+  /*
+   * The driver's persistent header/footer pinning state, from the inputs in STICKY_*.
+   */
+  fun stickyLayout(slots: DoubleArray) = nativeStickyLayout(handle, slots)
 
   /*
    * The rows that stick: the sticky items' rows and with sectionHeaders every header row,

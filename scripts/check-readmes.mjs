@@ -35,16 +35,17 @@ const capture = (file, pattern) => read(file).match(pattern)?.[1];
 const SKIPPED = new Set([]);
 
 /*
- * The tsconfig standalone `export function` examples compile with, or null for none.
+ * The tsconfig standalone `export function` examples compile with, or null for none. The fabric
+ * package's maps `shadowlist` to its source and resolves react and react-native from its
+ * dependencies.
  */
-const EXAMPLES_TSCONFIG = 'templates/shadowlist-fabric-example/tsconfig.json';
+const EXAMPLES_TSCONFIG = 'packages/shadowlist-fabric/tsconfig.json';
 
 /*
  * Each entry is a line a README must contain, built from the configuration it repeats.
  */
 function requiredLines() {
   const fabric = json('packages/shadowlist-fabric/package.json');
-  const utils = json('packages/shadowlist-utils/package.json');
   const kitBuild = 'packages/shadowlist-android/ShadowListKit/build.gradle.kts';
   const kitProperties =
     'packages/shadowlist-android/ShadowListKit/gradle.properties';
@@ -66,12 +67,6 @@ function requiredLines() {
     }));
   return [
     ...peers('packages/shadowlist-fabric/README.md'),
-    ...peers('packages/shadowlist-utils/README.md'),
-    {
-      file: 'packages/shadowlist-utils/README.md',
-      text: `| \`shadowlist\` | \`${utils.peerDependencies.shadowlist}\``,
-      what: 'shadowlist peer range',
-    },
     {
       file: 'packages/shadowlist-uikit/README.md',
       text: iosMinimum && `| iOS | ${iosMinimum} or newer |`,
@@ -129,7 +124,12 @@ const files = execFileSync(
   { cwd: root, encoding: 'utf8' }
 )
   .split('\0')
-  .filter((file) => /(^|\/)readme\.md$/i.test(file) && !SKIPPED.has(file));
+  .filter(
+    (file) =>
+      /(^|\/)readme\.md$/i.test(file) &&
+      !SKIPPED.has(file) &&
+      existsSync(path.resolve(root, file))
+  );
 const errors = [];
 const FENCE = /^```[^\n]*\n[\s\S]*?^```\s*$/gm;
 const withoutCode = (source) => source.replace(FENCE, '');

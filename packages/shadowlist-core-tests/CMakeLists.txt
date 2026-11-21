@@ -18,6 +18,10 @@ target_include_directories(shadowlist_core_tests PRIVATE
 # Keep core [SL] traces out of test output in every build type.
 target_compile_definitions(shadowlist_core_tests PRIVATE SHADOWLIST_DEBUG_LOG=0)
 
+# The vector tests replay the files in vectors/, which the jest tests replay too.
+target_compile_definitions(shadowlist_core_tests PRIVATE
+  SHADOWLIST_VECTORS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/vectors")
+
 find_package(Threads REQUIRED)
 target_link_libraries(shadowlist_core_tests PRIVATE Threads::Threads)
 

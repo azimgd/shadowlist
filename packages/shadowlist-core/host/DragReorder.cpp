@@ -1,4 +1,5 @@
 #include <shadowlist-core/host/DragReorder.hpp>
+#include <shadowlist-core/Container.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -687,6 +688,67 @@ DragOffset DragReorder::offsetFor(std::size_t index) const {
 
 void DragReorder::updateInsertion(const std::vector<DragRow>& rows) {
   updateInsertion(rows, [](const DragRow& row) -> const std::string& { return row.key; });
+}
+
+void DragReorder::updateSpanOffsets(const Container& core, const std::vector<DragRow>& mounted) {
+  if (columns_ <= 1 || !core.state.hasRowSpans) return;
+  if (!foreign_ && !originKey_.empty()) {
+    std::size_t origin = core.indexOfKey(originKey_);
+    if (origin == UNDEFINED_INDEX) {
+      end();
+      return;
+    }
+    originIndex_ = origin;
+  }
+  double cross = core.horizontal ? core.revision.windowHeight : core.revision.windowWidth;
+  double trackSize = cross / static_cast<double>(columns_);
+  // A foreign cell carries a pixel-rounded physical extent, not an app span value.
+  std::size_t incomingSpan = itemSpanFrom(trackSize > 0 ? std::round(heldResting_.crossExtent / trackSize) : 1, columns_);
+  const auto& rows = core.revision.rows;
+  if ((!foreign_ && originIndex_ >= rows.size()) || (foreign_ && insertionIndex_ > rows.size())) return;
+  std::size_t first = UNDEFINED_INDEX;
+  std::size_t last = 0;
+  for (const auto& row : mounted) {
+    if (row.index < rows.size()) {
+      first = std::min(first, row.index);
+      last = std::max(last, row.index);
+    }
+  }
+  offsets_.clear();
+  if (first == UNDEFINED_INDEX) return;
+  offsetsBase_ = first;
+  offsets_.assign(last - first + 1, {});
+  std::size_t low = foreign_ ? insertionIndex_ : heldAway_ ? originIndex_ : std::min(originIndex_, insertionIndex_);
+  if (low == UNDEFINED_INDEX) return;
+  spanLayout_.reset(columns_, core.headerSize);
+  spanLayout_.seed(low, [&](std::size_t index) {
+    const Row& row = rows[index];
+    return TrackPlacement{row.column, row.columnSpan, core.horizontal ? row.offsetX : row.offsetY,
+      core.horizontal ? row.width : row.height};
+  });
+  std::size_t count = rows.size() + (foreign_ ? 1 : 0) - (heldAway_ ? 1 : 0);
+  // Placement only depends on the prefix. Rows after the last mounted source cannot change it.
+  std::size_t lastTarget = last;
+  if (foreign_ && last >= insertionIndex_) ++lastTarget;
+  else if (heldAway_ && last > originIndex_) --lastTarget;
+  else if (!foreign_ && !heldAway_ && originIndex_ < insertionIndex_ && last > originIndex_ && last <= insertionIndex_) --lastTarget;
+  else if (!foreign_ && !heldAway_ && originIndex_ > insertionIndex_ && last >= insertionIndex_ && last < originIndex_) ++lastTarget;
+  for (std::size_t index = low; index < count && index <= lastTarget; ++index) {
+    std::size_t source = index;
+    if (foreign_) source = index == insertionIndex_ ? UNDEFINED_INDEX : index > insertionIndex_ ? index - 1 : index;
+    else if (heldAway_) source = index >= originIndex_ ? index + 1 : index;
+    else if (index == insertionIndex_) source = originIndex_;
+    else if (originIndex_ < insertionIndex_ && index >= originIndex_ && index < insertionIndex_) source = index + 1;
+    else if (originIndex_ > insertionIndex_ && index > insertionIndex_ && index <= originIndex_) source = index - 1;
+    const Row* row = source == UNDEFINED_INDEX ? nullptr : &rows[source];
+    double extent = row ? (core.horizontal ? row->width : row->height) : heldResting_.extent;
+    auto placed = spanLayout_.place(row ? row->columnSpan : incomingSpan, extent);
+    if (row && source >= first && source <= last && (foreign_ || source != originIndex_)) {
+      double leading = core.horizontal ? row->offsetX : row->offsetY;
+      double crossLeading = core.horizontal ? row->offsetY : row->offsetX;
+      offsets_[source - first] = {placed.leading - leading, placed.column * trackSize - crossLeading};
+    }
+  }
 }
 
 std::size_t DragReorder::locateInsertion(const std::vector<DragRow>& rows) {

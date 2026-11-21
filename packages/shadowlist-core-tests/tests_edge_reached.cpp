@@ -129,6 +129,87 @@ TEST(upward_fling_keeps_paging_when_a_request_lands_mid_fetch) {
 }
 
 /*
+ * An arrival is an update that ends near the edge after one that ended away from it.
+ * Rows above the reader that grow on the way push the start further off. The reader was
+ * near it, is away again, and arrives a second time over the same rows. Both arrivals fire.
+ * A consumer that loads a page per call has to drop the calls made while it loads.
+ */
+TEST(start_reached_fires_again_when_growing_rows_push_the_reader_away_and_they_come_back) {
+  std::vector<std::string> keys = keysFor(40, "m");
+  Container container;
+  int reached = 0;
+  container.onStartReachedCallback = [&]() { reached++; };
+
+  Virtualizer::update(container, chatInput(keys, 0.0));
+  measureAll(container, keys.size());
+  Virtualizer::update(container, chatInput(keys, 3000.0));
+  reached = 0;
+
+  // The drag comes within half a viewport of the start.
+  FrameInput near = chatInput(keys, 400.0);
+  near.userScrolled = true;
+  Virtualizer::update(container, near);
+  CHECK_EQ(reached, 1);
+
+  // The four rows above the screen grow. The row on screen is held, and the offset grows with them.
+  for (std::size_t index = 0; index < 4; ++index) {
+    Virtualizer::updateRowAtIndex(container, index, {WINDOW_WIDTH, 4.0 * ROW_HEIGHT});
+  }
+  CHECK_NEAR(container.revision.offsetY, 1600.0, 1.0);
+
+  // The finger keeps going toward the start, which is now further than the threshold.
+  FrameInput away = chatInput(keys, container.revision.offsetY - 200.0);
+  away.userScrolled = true;
+  Virtualizer::update(container, away);
+  CHECK_EQ(reached, 1);
+
+  FrameInput arrived = chatInput(keys, 0.0);
+  arrived.userScrolled = true;
+  Virtualizer::update(container, arrived);
+  CHECK_EQ(reached, 2);
+
+  // Resting there does not fire again.
+  Virtualizer::update(container, chatInput(keys, 0.0));
+  CHECK_EQ(reached, 2);
+}
+
+/*
+ * The same at the end. The reader comes near the end, scrolls back out, and the last rows
+ * then measure shorter. The end is near again without the reader moving, and it fires again.
+ */
+TEST(end_reached_fires_again_when_the_reader_backs_away_and_shrinking_rows_bring_the_end_near) {
+  std::vector<std::string> keys = keysFor(40, "m");
+  Container container;
+  int reached = 0;
+  container.onEndReachedCallback = [&]() { reached++; };
+
+  Virtualizer::update(container, chatInput(keys, 0.0));
+  measureAll(container, keys.size());
+  Virtualizer::update(container, chatInput(keys, 0.0));
+  CHECK_EQ(reached, 0);
+
+  // 60 from the end of 4000, inside a tenth of the viewport.
+  FrameInput near = chatInput(keys, 3100.0);
+  near.userScrolled = true;
+  Virtualizer::update(container, near);
+  CHECK_EQ(reached, 1);
+
+  FrameInput away = chatInput(keys, 3000.0);
+  away.userScrolled = true;
+  Virtualizer::update(container, away);
+  CHECK_EQ(reached, 1);
+
+  // The last two rows shrink and the end comes 120 closer.
+  Virtualizer::updateRowAtIndex(container, 38, {WINDOW_WIDTH, 40.0});
+  Virtualizer::updateRowAtIndex(container, 39, {WINDOW_WIDTH, 40.0});
+  Virtualizer::update(container, chatInput(keys, 3000.0));
+  CHECK_EQ(reached, 2);
+
+  Virtualizer::update(container, chatInput(keys, 3000.0));
+  CHECK_EQ(reached, 2);
+}
+
+/*
  * scrollToRow can place the row anywhere on screen, not only at the top. A chat jumping
  * to a quoted message wants it centered with its context around it.
  */

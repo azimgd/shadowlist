@@ -104,6 +104,7 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 {
   CGPoint offset = self.contentOffset;
   _dragTouch = CGPointMake(location.x - offset.x, location.y - offset.y);
+  [self noteDragBoardFinger:location];
 }
 
 - (void)handleDragPress:(UILongPressGestureRecognizer *)press
@@ -173,6 +174,7 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   _heldCell = cell;
   _dragFeedback.reset(_driver.getDragOriginIndex());
   [self liftCell:cell];
+  [self beginDragBoard];
   ShadowListKitDragLinkTarget *target = [ShadowListKitDragLinkTarget new];
   target.list = self;
   _dragLink = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
@@ -233,12 +235,18 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
  */
 - (void)updateDrag
 {
+  [self refreshDragBoardTouch];
   if (![self hasHeldRow]) {
     return;
   }
   std::size_t held = _driver.getHeldIndex();
   if (held == UNDEFINED_INDEX) {
     [self endDrag:NO];
+    return;
+  }
+  if ([self updateDragBoard]) {
+    _driver.dragUpdateInsertion([self mountedIndices]);
+    [self applyDragShiftsAnimated:YES];
     return;
   }
   [self placeHeldCell];
@@ -262,6 +270,9 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   DragOffset placed = _driver.placeHeld(held, [self along:touch], [self cross:touch]);
   CGAffineTransform lift = CGAffineTransformMakeScale(SHADOWLIST_KIT_LIFT_SCALE, SHADOWLIST_KIT_LIFT_SCALE);
   _heldCell.transform = CGAffineTransformConcat(lift, [self transformAlong:placed.leading cross:placed.cross]);
+  CGPoint center = [_heldCell convertPoint:CGPointMake(CGRectGetMidX(_heldCell.bounds), CGRectGetMidY(_heldCell.bounds)) toView:self.window];
+  CGPoint handoff = [self dragBoardReturnOffsetForCenter:center];
+  _heldCell.transform = CGAffineTransformConcat(_heldCell.transform, CGAffineTransformMakeTranslation(handoff.x, handoff.y));
 }
 
 - (std::vector<std::size_t>)mountedIndices
@@ -309,6 +320,11 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
  */
 - (void)dragAutoScroll:(CADisplayLink *)link
 {
+  [self refreshDragBoardTouch];
+  if ([self scrollDragBoard:link]) {
+    [self updateDrag];
+    return;
+  }
   double touch = [self along:_dragTouch] - [self leadingInset];
   double offset = [self offset];
   // The speed is per second. A ProMotion frame is shorter and scrolls less.
@@ -334,6 +350,11 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   [_dragLink invalidate];
   _dragLink = nil;
   ShadowListKitListCell *cell = _heldCell;
+  if ([self finishDragBoard:commit]) {
+    commit = NO;
+    _dragMoved = YES;
+  }
+  if (_heldCell && _heldCell != cell) return;
   std::size_t from = _driver.getDragOriginIndex();
   std::size_t to = _driver.getDragInsertionIndex();
   _heldCell = nil;
@@ -347,9 +368,9 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
     [self commitMoveOfCell:cell from:fromItem to:toItem];
   }
   [self dropCell:cell];
-  // A row lifted and let go in place shows its menu.
-  if (commit && !moves && !_dragMoved) {
-    [self showMenuForCell:cell atPoint:_dragStart];
+  // A row lifted and let go in place shows its menu, and without one the delegate hears a long press.
+  if (commit && !moves && !_dragMoved && ![self showMenuForCell:cell atPoint:_dragStart]) {
+    [self longPressCell:cell];
   }
 }
 
@@ -362,13 +383,18 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   // The drop animates the rows itself, a change the delegate applies while it moves the item too.
   BOOL animates = _animatesChanges;
   _animatesChanges = NO;
-  [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
-  for (auto& entry : _mounted) {
-    entry.second.transform = CGAffineTransformIdentity;
+  _driver.setDropHint(DropHint{DropHint::Kind::Moved, _driver.getKeyAt((std::size_t)cell.row)});
+  @try {
+    [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
+    for (auto& entry : _mounted) {
+      entry.second.transform = CGAffineTransformIdentity;
+    }
+    [self reloadData];
+    [self layoutIfNeeded];
+  } @finally {
+    _driver.setDropHint(DropHint{});
+    _animatesChanges = animates;
   }
-  [self reloadData];
-  [self layoutIfNeeded];
-  _animatesChanges = animates;
   cell.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(SHADOWLIST_KIT_LIFT_SCALE, SHADOWLIST_KIT_LIFT_SCALE),
     CGAffineTransformMakeTranslation(shown.x - cell.center.x, shown.y - cell.center.y));
 }
@@ -402,6 +428,11 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 #pragma mark - Testing
 
 @implementation ShadowListKitListView (DragTesting)
+
+- (CGFloat)shadowListKit_nearestSnapOffset:(CGFloat)offset
+{
+  return (CGFloat)_driver.nearestSnapOffset(offset);
+}
 
 - (void)shadowListKit_beginDragAtPoint:(CGPoint)point
 {

@@ -42,12 +42,14 @@ TEST(list_commit_host_scroll_fills_the_frame) {
   state.userScrolled = true;
   state.scrollPhase = SCROLL_PHASE_DRAGGING;
   state.commitToken = 4;
+  state.commitRevision = 12;
   FrameInput input;
   applyHostScroll(input, state);
   CHECK_EQ(input.offsetY, 120.0);
   CHECK(input.userScrolled);
   CHECK(input.scrollPhase == ScrollPhase::Dragging);
   CHECK_EQ(input.commitToken, static_cast<std::uint64_t>(4));
+  CHECK_EQ(input.commitRevision, static_cast<std::uint64_t>(12));
 
 }
 
@@ -59,11 +61,13 @@ TEST(list_commit_publish_keeps_the_first_base_of_a_correction) {
   update.applyOffset = true;
   update.offsetY = 300.0;
   update.commitToken = 8;
+  update.commitRevision = 19;
   CHECK(publishStateUpdate(state, update));
   CHECK_EQ(state.baseY, 200.0);
   CHECK_EQ(state.offsetY, 300.0);
   CHECK(state.offsetEnabled);
   CHECK_EQ(state.commitToken, static_cast<std::uint64_t>(8));
+  CHECK_EQ(state.commitRevision, static_cast<std::uint64_t>(19));
 
   // A host report moved the offset, then the core retargets the same token.
   state.offsetY = 260.0;
@@ -75,6 +79,7 @@ TEST(list_commit_publish_keeps_the_first_base_of_a_correction) {
   // A new token starts a new base.
   state.offsetY = 330.0;
   update.commitToken = 9;
+  update.commitRevision = 20;
   update.offsetY = 400.0;
   publishStateUpdate(state, update);
   CHECK_EQ(state.baseY, 330.0);
@@ -338,4 +343,52 @@ TEST(size_spec_queue_remeasures_after_the_layout_pass_took_the_new_width) {
   applyLayoutInputs(core, 0.0, 0.0, WINDOW_WIDTH / 2, WINDOW_HEIGHT);
   queue.run(core, source, WINDOW_WIDTH / 2, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(20));
+}
+
+TEST(late_mounted_measurements_invalidate_the_offset_band_until_the_next_frame) {
+  Container core;
+  auto keys = keysFor(80);
+  layOut(core, keys.size(), 100.0, 1500.0);
+  Virtualizer::update(core, inputFor(keys, 1500.0));
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
+
+  std::vector<std::uint64_t> firstMeasured;
+  applyMeasuredRows(core, {{5, WINDOW_WIDTH, 117.0, 5}}, false, firstMeasured);
+  CHECK(core.state.measuredRangeStale);
+  CHECK(core.computeOffsetBand().isEmpty());
+
+  Virtualizer::update(core, inputFor(keys, core.getOffset()));
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
+  firstMeasured.clear();
+  applyMeasuredRows(core, {{5, WINDOW_WIDTH, 117.0, 5}}, false, firstMeasured);
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
+}
+
+TEST(direct_row_replacement_invalidates_the_range_through_a_following_noop_size_batch) {
+  Container core;
+  auto keys = keysFor(80);
+  layOut(core, keys.size(), 100.0, 1500.0);
+  Virtualizer::update(core, inputFor(keys, 1500.0));
+  CHECK(!core.state.measuredRangeStale);
+
+  // Yoga can publish a replacement before the list collects the same mounted measurements.
+  Virtualizer::updateRowAtIndex(core, 5, {WINDOW_WIDTH, 117.0});
+  CHECK(core.state.measuredRangeStale);
+  CHECK(core.computeOffsetBand().isEmpty());
+  std::vector<std::uint64_t> firstMeasured;
+  applyMeasuredRows(core, {{5, WINDOW_WIDTH, 117.0, 5}}, false, firstMeasured);
+  CHECK(core.state.measuredRangeStale);
+
+  Virtualizer::update(core, inputFor(keys, core.getOffset()));
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
+  Virtualizer::updateRowAtIndex(core, 5, {WINDOW_WIDTH, 117.0});
+  CHECK(!core.state.measuredRangeStale);
+  firstMeasured.clear();
+  applyMeasuredRows(core, {{5, WINDOW_WIDTH, 117.0, 5}}, false, firstMeasured);
+  CHECK(!core.state.measuredRangeStale);
+  CHECK(!core.computeOffsetBand().isEmpty());
 }

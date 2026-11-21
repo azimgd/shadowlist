@@ -127,13 +127,16 @@ has full signatures and defaults. Rows marked Mac only have no UIKit counterpart
 | Data source | `numberOfItemsInListView:`, `listView:keyForItemAtIndex:`, `listView:cellForItemAtIndex:`, `listView:reconfigureCell:atIndex:payload:` | `listView:reconfigureCell:atIndex:payload:` updates a shown cell for a payload reload. Return `NO` to reload the item in full. |
 | Sizing | `listView:sizeForItemAtIndex:crossSize:` | Optional. Without it every item is measured once through its cell's `sizeThatFits:`, which fits Auto Layout constraints. |
 | Sections | `numberOfSectionsInListView:`, `listView:numberOfItemsInSection:`, `listView:keyForSection:`, `listView:titleForHeaderInSection:`, `listView:titleForFooterInSection:`, `listView:cellForHeaderInSection:`, `listView:cellForFooterInSection:`, `listView:sizeForHeaderInSection:crossSize:`, `listView:sizeForFooterInSection:crossSize:` | A title, an empty one too, gives a section a header or footer, shown in a plain cell unless a cell is given. The section key defaults to the key of its first item. |
-| Content versions | `listView:contentVersionForItemAtIndex:` | A revision or hash. `applyChanges` reloads items whose value changed. |
+| Content versions | `listView:contentVersionForItemAtIndex:` | A revision or hash. `applyChanges` reloads items whose value changed since the list read it: at `reloadData`, when the item was inserted, or at the `applyChanges` before. |
 | Delegate | `listView:willDisplayCell:atIndex:`, `listView:didEndDisplayingCell:atIndex:`, `listView:didSelectItemAtIndex:`, `listView:didDeselectItemAtIndex:`, `listView:shouldSelectItemAtIndex:`, `listView:shouldHighlightItemAtIndex:`, `listView:canMoveItemAtIndex:`, `listView:moveItemAtIndex:toIndex:`, `listViewDidReachStart:`, `listViewDidReachEnd:` | Every method is optional. |
 | Mac delegate | `listView:didActivateItemAtIndex:`, `listView:typeSelectStringForItemAtIndex:`, `listViewDidLayOut:`, `listView:didCorrectOffset:` | Mac only. A double-click, Return or Space activates. Typing selects by the string. `listViewDidLayOut:` follows every layout pass. `listView:didCorrectOffset:` is the driven mode's offset. |
 | Scroll events | `listViewDidScroll:`, `listViewWillBeginDragging:`, `listViewDidEndDragging:willDecelerate:`, `listViewDidEndDecelerating:`, `listViewDidEndScrollingAnimation:` | The same calls as the UIKit list's, on the list's own delegate. They follow `contentOffset` and `scrollPhase`. |
 | Cells | `registerClass:forCellReuseIdentifier:`, `dequeueReusableCellWithIdentifier:` | `prepareForReuse` runs before a cell is handed out again. |
 | Cell states | `highlighted`, `selected`, `editing`, `hovered`, `emphasized`, `menuTarget` | Override the `set...:animated:` setters to show them. `hovered`, `emphasized` and `menuTarget` are Mac only. |
-| Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Set `needsLayout` on the list after `headerView` or `footerView` changes size. |
+| Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `getItemSpan`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `renderStickyHeaderOverlay`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Set `needsLayout` on the list after `headerView` or `footerView` changes size. |
+| Header, footer and empty view | `stickyHeader`, `stickyFooter`, `autoHideHeader`, `autoHideFooter`, `emptyView` | `stickyHeader` pins `headerView` to the start of the viewport and `stickyFooter` pins `footerView` to its end, over the items. The footer's place pushes a pinned header off, and a pinned footer stays under the header's place. `autoHideHeader` and `autoHideFooter` slide their pinned views away on user scrolling and reveal them on reversal or near their content boundary; commands and anchor corrections retain the current hidden amount. All four flags default to false. `emptyView` shows right after the header while the list has no items and no section header or footer rows, at its own size, measured like the header's. |
+| End of an inverted list | `atEnd`, delegate `listView:didChangeAtEnd:` | Whether an inverted list is at its end. It leaves the end when the reader scrolls away from it or a scroll command lands away from it, and is back when either brings it there. Items appended while it rests there do not leave it. Always `YES` for a list that is not inverted. |
+| Anchors | `nonAnchorKeys` | Keys of items the list never holds the visible content in place by, like a typing indicator or an item that streams in. The nearest other item holds it instead. |
 | Changes | `reloadData`, `insertItemsAtIndices:`, `deleteItemsAtIndices:`, `reloadItemsAtIndices:`, `reloadItemsAtIndices:payload:`, `moveItemAtIndex:toIndex:`, `performBatchUpdates:completion:`, `applyChanges` | An insert past the end goes at the end, a delete past the end is dropped. `applyChanges` diffs every key and returns a `ShadowListKitListChanges`. |
 | Animations | `animatesChanges`, `itemAnimator` | Off by default. Inserted items fade in, deleted items fade out and items that stay slide. `ShadowListKitDefaultItemAnimator` unless replaced. |
 | Selection | `allowsSelection`, `allowsMultipleSelection`, `selectedIndices`, `clickedIndex`, `selectItemAtIndex:animated:`, `deselectItemAtIndex:animated:` | Selection follows keys. The select and deselect calls skip the delegate. See [Selection and keys](#selection-and-keys). |
@@ -151,10 +154,16 @@ has full signatures and defaults. Rows marked Mac only have no UIKit counterpart
 | Scroll engine delegate | `scrollEngine:didScrollToOffset:`, `scrollEngine:didChangePhase:`, `scrollEngineDidEndAnimation:`, `scrollEngine:restingOffsetForOffset:` | Mac only. The first is required. `scrollEngine:restingOffsetForOffset:` moves where a gesture rests, like an item edge. |
 | Scrollers | `ShadowListKitScrollerView`: `axes`, `contentSize`, `offset`, `scrollerInsets`, `showsScrollersAlways`, `flashScrollers` | Mac only. Overlay scrollers for a view that owns its scroll position. |
 | Scrollers delegate | `scrollerView:didScrollToOffset:`, `scrollerViewDidScrollForAccessibility:`, `scrollerViewWillBeginDragging:`, `scrollerViewDidEndDragging:` | Mac only. The first is required. The host moves its content to the offset. |
-| Text | `ShadowListKitTextLayout`, `ShadowListKitTextView` | Text typeset off the main thread with an `NSFont` and shown as a bitmap at the window's backing scale, the same CoreText code as the UIKit kit. |
+| Text | `ShadowListKitTextLayout` (`size`, `lineCount`, `rectForLineAtIndex:`), `ShadowListKitTextView` | Text typeset off the main thread with an `NSFont` and shown as a bitmap at the window's backing scale, the same CoreText code as the UIKit kit. `rectForLineAtIndex:` is the part of a line its text takes. |
 
-Masonry is round robin by row: row `r`, counting section header and footer rows, goes in column
-`r % numberOfColumns`, and each column stacks its own rows. Full width rows in a grid are not supported.
+Plain grids keep round-robin placement when every item spans one column. `getItemSpan` returns
+an integer span for the current public item index, on the main thread; sectioned lists use their
+existing global item indices. It is read for the entire source after a data/provider/column change,
+including offscreen items. Values are clamped to `1...numberOfColumns`; returning `numberOfColumns`
+makes an item full width. Spans occupy contiguous columns, wrapping before an item that would not
+fit. Real section header and footer rows span all columns without invoking the item callback.
+Zero-height edges align the tracks without adding space; absent edges create no row or barrier.
+Reload data when an index-dependent provider's inputs change.
 
 These combinations do nothing:
 
@@ -230,7 +239,8 @@ The list selects the way `NSTableView` does while `allowsSelection` is set, the 
   `allowsMultipleSelection` selects from the anchor, the last item clicked. A click on no item deselects all.
 - A double-click, Return and Space call the delegate's `listView:didActivateItemAtIndex:`.
 - The list takes the first responder on a click. The arrow keys move the selection, across the axis between a
-  grid's columns. Shift extends it, Command-arrows go to the ends and Option-Page keys move a page. Home, End and
+  grid's columns. Mixed-span grids choose the nearest item whose frame lies in that direction,
+  preferring overlapping tracks; full-width rows do not use a modulo index jump. Shift extends it, Command-arrows go to the ends and Option-Page keys move a page. Home, End and
   the page keys scroll without selecting. Command-A selects all and Escape deselects. The selected item scrolls
   into view at the nearest edge.
 - Typed characters within a second of each other build a prefix matched against the delegate's
@@ -330,6 +340,7 @@ Left out on the Mac:
 | `refreshEnabled`, `refreshing`, `listViewDidBeginRefreshing:` | Pull to refresh is a touch gesture. Mac apps refresh from a menu item or a button. |
 | `sectionIndexTitlesForListView:`, `listView:sectionForSectionIndexTitle:atIndex:` | AppKit has no section index. Type select reaches items by their text instead. |
 | `editing`, `setEditing:animated:` on the list | AppKit lists have no editing mode. The cell keeps its `editing` state, which the list does not set. |
+| `listView:didLongPressItemAtIndex:` | A long press is a touch gesture. On the Mac a right click or a Control-click reaches an item's menu. |
 | Keyboard insets | A Mac window has no on-screen keyboard to inset the list for. |
 | Scroll to top on a status bar tap | A Mac window has no status bar. `scrollToStartAnimated:` remains. |
 | `UIScrollViewDelegate` | The list is not a scroll view. Its delegate has the scroll calls under `listView` names. |
@@ -357,6 +368,13 @@ prefetching, measurement and separators. Each compiles once in
 each kit, and what differs sits behind `TARGET_OS_OSX`. The other categories are the UIKit kit's (`+Selection`,
 `+Accessibility`, `+Drag`, `+Actions`) on AppKit, plus `+Scrolling` for the engine and the scrollers.
 
+## Retained items
+
+`persistentKeys` keeps matching items mounted at their ordinary content positions, outside the viewport too.
+It does not pin them and does not make them part of `visibleRange`. The shared driver measures retained rows,
+and their cells follow stable keys through moves and payload updates. Missing keys keep their retention intent
+for later insertion. Remove a key from `persistentKeys` to let the normal mount range recycle its cell.
+
 ## Tests
 
 ```sh
@@ -365,7 +383,8 @@ cd packages/shadowlist-appkit && swift test
 
 `swift test` runs the kit's XCTest suites on this Mac: mounting, data changes, sections, driven mode, scrolling,
 the scroll engine and scrollers, selection, hover, menus, drag reorder, change animations, accessibility, swipe
-actions, the text layout and the models.
+actions, the pinned header and footer, the empty view, the end of an inverted list, the text layout and the
+models.
 
 [ShadowListKitListView+Testing.h](Sources/ShadowListKit/include/ShadowListKit/ShadowListKitListView+Testing.h)
 drives the list without a trackpad, a mouse or a keyboard, for tests and scripted checks. Frames run at once
@@ -385,10 +404,11 @@ instead of on the display link.
 
 ## Example app
 
-[templates/shadowlist-appkit-example](../../templates/shadowlist-appkit-example) runs the kit in a Mac app.
+`examples/shadowlist-appkit-example` in [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates) runs the
+kit in a Mac app. It builds against a checkout of this repository next to it, or the one `SHADOWLIST_ROOT` names.
 
 ```sh
-cd templates/shadowlist-appkit-example && ./build.sh mac
+cd ../shadowlist-templates/examples/shadowlist-appkit-example && ./build.sh mac
 ```
 
 `build.sh mac [Release|Debug]` generates the project with xcodegen and builds it. With
@@ -423,3 +443,32 @@ open -W build/dd-mac/Build/Products/Release/ShadowListKitAppKitExample.app --arg
 ```
 
 With `keys`, `menu`, `reorder`, `sections` or `swipe`, `-SLShot` shoots the scenario's end state.
+
+## Predictive item sizing
+
+`getItemSizeSpec` runs on the main thread with the current public item index. It returns a
+`ShadowListKitItemSizeSpec`, or nil/null to leave that item to normal sizing. The host supplies the stable key.
+Specs describe `text`, `fontSize` (14 by default), optional `fontFamily`, `fontWeight` and `fontStyle`,
+`lineHeight`, `letterSpacing`, `numberOfLines` (0 for unlimited), `insetWidth`, `insetHeight`, `widthFraction`
+(1 by default), and `fixedHeight`. Unset numeric optional fields use NaN. Lengths are logical points or dp.
+
+`measureLookaheadRows` defaults to 48 on each side of the mounted range. Retained keys join the source without
+duplicate callbacks. The shared `SizeSpecQueue` budgets 24 new text layouts per pass; cached layouts cost no new
+text work. Key/index changes, explicit item reloads, provider replacement, viewport width and font configuration
+changes invalidate predictions. Real measured sizes remain authoritative. Removing the provider drops predictions.
+
+`fixedHeight` is always a height, including in a horizontal list. It predicts core geometry; it does not override
+the native host's rendered cross size. A single horizontal row still fills the viewport height, and a single
+vertical row fills its width. Exact sizing through the data source remains the final size when the item is measured.
+
+### Viewability
+
+`viewabilityConfig` and `onViewableItemsChanged` report public item keys and indices from actual row geometry. `viewabilityConfigCallbackPairs` overrides that single callback, including an explicit empty array/list. Tokens include the public section index; unsectioned tokens use `NSNotFound` on Apple platforms and `-1` on Android. Section headers and footers are excluded.
+
+`itemVisiblePercentThreshold` and `viewAreaCoveragePercentThreshold` use percentages from 0 to 100; the area threshold takes precedence when supplied. `minimumViewTime` uses milliseconds. With `waitForInteraction`, an actual user scroll or `recordInteraction()` starts reporting; programmatic commands do not unlock it. Equal effective configurations retain their current keys and deadline when callbacks change. Pair callbacks receive immutable snapshots of one frame: a synchronous reload finishes that frame before reporting the new data, while configuration replacement or detachment cancels the remaining callbacks. Detaching the list cancels pending delivery and resets interaction for its next attachment. Without a configured callback, the list performs no viewability scan and starts no timer.
+
+### Custom sticky header overlays
+
+`renderStickyHeaderOverlay(key, index, section)` creates a native view for the active sticky item or section header. The key is the public item key or documented section key, never the internal qualified row key. Headers use `NSNotFound` on Apple platforms and `-1` on Android for the item index; unsectioned items use that sentinel for the section. An anonymous empty section supplies a null key.
+
+The view stays mounted across scrolling and width changes, sizes against the current cross axis, and uses the shared pinning rule with its own measured extent. Data updates and factory replacement refresh it. The original row stays mounted for measurement and identity while hidden from display and accessibility. Returning null, clearing the factory, changing the active row, or detaching removes the custom view and restores the original. The native Sections example uses this factory for a custom section header.

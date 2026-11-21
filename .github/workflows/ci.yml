@@ -44,12 +44,6 @@ jobs:
       - name: Run unit tests
         run: yarn workspace shadowlist run test --maxWorkers=2 --coverage
 
-      - name: Run utils unit tests
-        run: yarn workspace shadowlist-utils run test --maxWorkers=2
-
-      - name: Run shadowhash unit tests
-        run: yarn workspace shadowhash run test --maxWorkers=2
-
   test-core:
     runs-on: ubuntu-latest
     defaults:
@@ -67,11 +61,12 @@ jobs:
       - name: Run core tests
         run: ctest --test-dir build --output-on-failure
 
+      # The fuzz tests run on one thread and are left out here. The step above runs them.
       - name: Run core tests (ThreadSanitizer)
         run: |
           cmake -S . -B build-tsan -DCMAKE_CXX_FLAGS=-fsanitize=thread -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread
           cmake --build build-tsan
-          ./build-tsan/shadowlist_core_tests
+          SLT_SKIP=fuzz_ ./build-tsan/shadowlist_core_tests
 
   test-wasm:
     runs-on: ubuntu-latest
@@ -116,10 +111,6 @@ jobs:
             echo "tests or build output in the package"
             exit 1
           fi
-
-      # Its declarations build against the fabric package's lib/typescript output.
-      - name: Build utils package
-        run: yarn workspace shadowlist-utils run build
 
   build-android-kit:
     runs-on: ubuntu-latest
@@ -170,17 +161,31 @@ jobs:
           -destination 'generic/platform=iOS'
           CODE_SIGNING_ALLOWED=NO build
 
+  # The example apps live in the templates repository. The app jobs check out the engine and
+  # the templates side by side, the layout both repositories default to. SHADOWLIST_ROOT tells
+  # the templates where the engine is. The apps build the engine from its sources: Metro takes
+  # the source entry, the podspec copies the core itself and Android compiles the canonical
+  # core. They need neither the engine's dependencies nor its lib/ build.
   build-android:
     runs-on: ubuntu-latest
+    env:
+      SHADOWLIST_ROOT: ${{ github.workspace }}/shadowlist
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: shadowlist
 
-      - name: Setup
-        uses: ./.github/actions/setup
+      - name: Checkout templates
+        uses: actions/checkout@v4
+        with:
+          repository: komplete-io/shadowlist-templates
+          path: shadowlist-templates
 
-      - name: Build the library
-        run: yarn workspace shadowlist run prepare
+      - name: Setup templates
+        uses: ./shadowlist/.github/actions/setup
+        with:
+          working-directory: shadowlist-templates
 
       - name: Install JDK
         uses: actions/setup-java@v4
@@ -198,26 +203,36 @@ jobs:
           path: |
             ~/.gradle/wrapper
             ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('templates/shadowlist-fabric-example/android/gradle/wrapper/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('shadowlist-templates/examples/shadowlist-fabric-example/android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
       - name: Build example for Android
+        working-directory: shadowlist-templates
         env:
           JAVA_OPTS: '-XX:MaxHeapSize=6g'
         run: yarn workspace shadowlist-example run build:android
 
   build-ios:
     runs-on: macos-15
+    env:
+      SHADOWLIST_ROOT: ${{ github.workspace }}/shadowlist
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: shadowlist
 
-      - name: Setup
-        uses: ./.github/actions/setup
+      - name: Checkout templates
+        uses: actions/checkout@v4
+        with:
+          repository: komplete-io/shadowlist-templates
+          path: shadowlist-templates
 
-      - name: Build the library
-        run: yarn workspace shadowlist run prepare
+      - name: Setup templates
+        uses: ./shadowlist/.github/actions/setup
+        with:
+          working-directory: shadowlist-templates
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -229,28 +244,41 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: templates/shadowlist-fabric-example
+          working-directory: shadowlist-templates/examples/shadowlist-fabric-example
 
       - name: Cache cocoapods
         uses: actions/cache@v4
         with:
           path: |
-            templates/shadowlist-fabric-example/ios/Pods
-          key: ${{ runner.os }}-cocoapods-${{ hashFiles('templates/shadowlist-fabric-example/ios/Podfile.lock') }}
+            shadowlist-templates/examples/shadowlist-fabric-example/ios/Pods
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('shadowlist-templates/examples/shadowlist-fabric-example/ios/Podfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-cocoapods-
 
       - name: Build example for iOS
+        working-directory: shadowlist-templates
         run: yarn workspace shadowlist-example run build:ios --force-pods
 
   build-macos:
     runs-on: macos-15
+    env:
+      SHADOWLIST_ROOT: ${{ github.workspace }}/shadowlist
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: shadowlist
 
-      - name: Setup
-        uses: ./.github/actions/setup
+      - name: Checkout templates
+        uses: actions/checkout@v4
+        with:
+          repository: komplete-io/shadowlist-templates
+          path: shadowlist-templates
+
+      - name: Setup templates
+        uses: ./shadowlist/.github/actions/setup
+        with:
+          working-directory: shadowlist-templates
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -262,16 +290,16 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: templates/shadowlist-fabric-example
+          working-directory: shadowlist-templates/examples/shadowlist-fabric-example
 
       - name: Install macOS pods
-        working-directory: templates/shadowlist-macos-example/macos
+        working-directory: shadowlist-templates/examples/shadowlist-macos-example/macos
         env:
           BUNDLE_GEMFILE: ../../shadowlist-fabric-example/Gemfile
         run: bundle exec pod install --deployment
 
       - name: Build macOS example
-        working-directory: templates/shadowlist-macos-example/macos
+        working-directory: shadowlist-templates/examples/shadowlist-macos-example/macos
         run: >-
           xcodebuild -workspace ShadowListMacOS.xcworkspace
           -scheme ShadowListMacOS-macOS -configuration Release

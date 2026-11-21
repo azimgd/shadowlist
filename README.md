@@ -10,7 +10,6 @@ column is held still. Right-to-left layout is not supported: leading is always t
 ## React Native
 
 ShadowList is the React Native Fabric package: the ShadowList, SectionList, TreeList and DraggableList components.
-ShadowListUtils (`shadowlist-utils` on npm) adds hooks and prebuilt list kits.
 
 ```sh
 yarn add shadowlist
@@ -32,7 +31,14 @@ const listRef = useRef<ShadowListCommands>(null);
 listRef.current?.scrollToIndex({ index: 42, viewPosition: 0.5 });
 ```
 
-See more: [ShadowList](packages/shadowlist-fabric/README.md), [ShadowListUtils](packages/shadowlist-utils/README.md)
+See more: [ShadowList](packages/shadowlist-fabric/README.md)
+
+## Templates and example apps
+
+The list templates, visual components and example apps live in
+[shadowlist-templates](https://github.com/komplete-io/shadowlist-templates): `shadowlist-utils` (hooks and list kits for
+React Native), ShadowListUtils for UIKit and Android views, the template logic in C++ and the example apps for every
+kit. They build against a checkout of this repository.
 
 ## UIKit
 
@@ -160,7 +166,7 @@ list.reloadData();
 
 | Path | Contents |
 | --- | --- |
-| `packages/shadowlist-core` | Shared C++ core |
+| `packages/shadowlist-core` | Shared C++ core: the list engine and `host/` for what the platforms' lists share |
 | `packages/shadowlist-core-tests` | Core integration and perf tests |
 | `packages/shadowlist-core-bench` | Core microbenchmarks, device metrics |
 | `packages/shadowlist-fabric` | React Native Fabric package |
@@ -168,30 +174,14 @@ list.reloadData();
 | `packages/shadowlist-appkit` | AppKit list |
 | `packages/shadowlist-android` | Android list |
 | `packages/shadowlist-wasm` | Web list, on the core in WebAssembly |
-| `packages/shadowlist-utils` | List helpers, hooks and React Native list kits |
-| `packages/shadowhash` | Compact, size independent placeholders for text and posts |
-| `templates/shadowlist-fabric-example` | React Native example app for iOS and Android |
-| `templates/shadowlist-macos-example` | React Native macOS example app |
-| `templates/shadowlist-uikit-example` | UIKit example app |
-| `templates/shadowlist-appkit-example` | AppKit example app |
-| `templates/shadowlist-android-example` | Android example app |
-| `templates/shadowlist-web-example` | Web example app |
 | `docs` | Code style |
 
 ## Example apps
 
-The JS packages are workspaces of the repo root, and the apps build against the library sources in `packages/`.
-Run `yarn install` at the repo root first.
-
-| App | Command |
-| --- | --- |
-| React Native iOS | `yarn workspace shadowlist-example ios` |
-| React Native Android | `yarn workspace shadowlist-example android` |
-| React Native macOS | `yarn workspace shadowlist-macos-example pods && yarn workspace shadowlist-macos-example macos` |
-| UIKit | `cd templates/shadowlist-uikit-example && ./build.sh sim <simulator-udid>` (or `./build.sh device any`) |
-| AppKit | `cd templates/shadowlist-appkit-example && ./build.sh mac` |
-| Android | `cd templates/shadowlist-android-example && ./gradlew :app:assembleRelease` |
-| Web | `cd templates/shadowlist-web-example && npm run build && npm start` |
+The example apps are in the `examples/` folder of [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates).
+Clone it next to this repository, or set `SHADOWLIST_ROOT` to this checkout. Its README gives the build commands for
+each app. The scripts here that drive an app find the templates checkout at `SHADOWLIST_TEMPLATES_ROOT`, by default
+`../shadowlist-templates`.
 
 ## Debug log
 
@@ -201,8 +191,8 @@ The C++ core can log every layout pass with an `[SL]` prefix. It is off by defau
 | --- | --- |
 | React Native iOS and macOS | `SHADOWLIST_DEBUG_LOG=1 pod install`, then rebuild. The lines show in the Xcode console. |
 | React Native Android | `arguments "-DSHADOWLIST_DEBUG_LOG=1"` in the app's `externalNativeBuild.cmake` block, then rebuild. |
-| UIKit | The example's `build.sh` with `SHADOWLIST_DEBUG_LOG=1`. |
-| AppKit | The example's `build.sh` with `SHADOWLIST_DEBUG_LOG=1`. |
+| UIKit | The shadowlist-templates example's `build.sh` with `SHADOWLIST_DEBUG_LOG=1`. |
+| AppKit | The shadowlist-templates example's `build.sh` with `SHADOWLIST_DEBUG_LOG=1`. |
 | Android | Build the module with `-PshadowlistDebugLog`. |
 
 On Android read it with `adb logcat -s SL`.
@@ -210,7 +200,7 @@ On Android read it with `adb logcat -s SL`.
 ## Benchmarks
 
 `packages/shadowlist-core-bench` holds the core microbenchmarks. The UIKit and Android packages ship a scroll
-benchmark in `Bench/`: `Bench/bench.sh` drives the example at a constant speed, and `Bench/summarize.py` reads the
+benchmark in `Bench/`: `Bench/bench.sh` drives the example app from shadowlist-templates at a constant speed, and `Bench/summarize.py` reads the
 results. The React Native example turns on React Native feature flags that are off in a stock app, and every run
 records their state. On iOS `ENGINE_FLAGS=0` turns them off. On Android the build takes
 `-PshadowlistEngineFlags=false`.
@@ -222,8 +212,8 @@ The web example documents its flags in [its package README](packages/shadowlist-
 | Command | What it does |
 | --- | --- |
 | `yarn lint` | ESLint over the repo |
-| `yarn typecheck` | TypeScript for the library, the utils, the example apps and `shadowlist-wasm` |
-| `yarn test` | Jest for `shadowlist`, `shadowlist-utils` and `shadowhash` |
+| `yarn typecheck` | TypeScript for the library and `shadowlist-wasm` |
+| `yarn test` | Jest for `shadowlist` |
 | `yarn test:core` | Builds `packages/shadowlist-core-tests` with CMake and runs it with ctest |
 | `yarn build:wasm` | Builds `shadowlist-wasm` into its `dist/` with Emscripten |
 | `yarn test:wasm` | Node tests for `shadowlist-wasm`, after `yarn build:wasm` |
@@ -232,8 +222,43 @@ The web example documents its flags in [its package README](packages/shadowlist-
 | `yarn format` | Prettier over the repo. `format:check` only checks. |
 | `yarn docs:check` | Checks README links, headings, compact tables, requirements and examples |
 
+The core tests in `packages/shadowlist-core-tests` read their environment. A variable they do not know, or a value
+they cannot read, stops the run with a message and exit status 2 before any test runs.
+
+| Variable | What it does |
+| --- | --- |
+| `SLT_ONLY=<text>` | Runs only the tests whose name contains the text |
+| `SLT_SKIP=<text>` | Leaves out the tests whose name contains the text. CI passes `SLT_SKIP=fuzz_` to the ThreadSanitizer run |
+| `SLT_FUZZ_TRACE=<seed>` | Prints every frame of that seed |
+| `SLT_FUZZ_SEEDS=<count>` | Runs that many seeds per fuzz test, in place of each test's own count |
+| `SLT_FUZZ_FIRST_SEED=<seed>` | Starts at that seed, in place of 1 |
+| `SLT_FUZZ_DEFAULT_MIX=1` | Keeps a campaign to the tests, actions and checks of a default run |
+
+The fuzz tests are the ones named `fuzz_`: `tests_fuzz.cpp`, `tests_fuzz_axis.cpp` and `tests_fuzz_faults.cpp` for the
+core, `tests_host_fuzz.cpp` and `tests_host_mount_driver.cpp` for the host layer, and one each in
+`tests_host_selection.cpp`, `tests_host_swipe.cpp`, `tests_host_drag_board.cpp` and `tests_host_row_keys.cpp`. A seed is the same episode on every platform.
+
+`SLT_FUZZ_SEEDS` or `SLT_FUZZ_FIRST_SEED` turns the run into a campaign. A campaign keeps going past a failing seed
+and runs every seed twice to check that both runs see the same frames. It ends with a summary: per test the seeds run,
+the seeds that failed and a digest of the run, then per kind of failure its first seed, how many seeds hit it, its
+message and the command that replays that seed alone with the trace on. It also lists how often each action and each
+core operation was reached.
+
+Every registered fuzz test runs by default. A Release build keeps a long campaign short:
+
+```sh
+cmake -S packages/shadowlist-core-tests -B packages/shadowlist-core-tests/build/campaign -DCMAKE_BUILD_TYPE=Release
+cmake --build packages/shadowlist-core-tests/build/campaign
+SLT_ONLY=fuzz_ SLT_FUZZ_SEEDS=20000 packages/shadowlist-core-tests/build/campaign/shadowlist_core_tests
+```
+
+The files in `packages/shadowlist-core-tests/vectors` hold cases that a function of the core's `host/` and its twin in
+TypeScript must answer alike. `yarn test:core` replays them through the C++, and `yarn test` through the TypeScript. `UPDATE_VECTORS=1 yarn test` writes the outputs from the TypeScript, after a change both sides make. A file
+without a replay on either side fails that side's tests.
+
 Lefthook runs ESLint and Prettier on staged files before a commit and `yarn typecheck` before a push. CI runs lint,
-formatting, typecheck, the README checks, jest, the core tests, the WebAssembly tests and the native builds.
+formatting, typecheck, the README checks, jest, the core tests, the WebAssembly tests and the native builds. The
+example app builds check out shadowlist-templates next to this repository.
 
 ## Docs
 

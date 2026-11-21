@@ -64,10 +64,11 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `scrollIndex` |  | Scrolls to this row whenever it changes. It wins over `initialScrollIndex`. |
 | `extraData` |  | Rebuilds the mounted rows when it changes. |
 | `inverted` | false | Chat style list that opens at the end. Appended rows keep the visible content still. |
-| `followAppends` | false | An inverted list resting at its end keeps it in view as rows are appended or grow in place, like a streaming reply. Scrolling away pauses it and coming back resumes it. |
-| `onAtEndChange(atEnd)` |  | Called when an inverted list leaves its end because the user scrolled away, and when it is back. Show a jump to the latest row while `atEnd` is false. |
+| `followAppends` | false | An inverted list resting at its end keeps it in view as rows are appended or grow in place, like a streaming reply. Scrolling away pauses it, and so does a scroll command that lands away from the end. Scrolling back resumes it, and so does a scroll command that lands on the end. |
+| `onAtEndChange(atEnd)` |  | Called when an inverted list leaves its end because the user scrolled away or a scroll command landed away from it, and when it is back. Show a jump to the latest row while `atEnd` is false. |
 | `horizontal` | false | Scroll along the x axis. With `style={{ height: 'auto' }}` the list takes the height of its tallest mounted row and drops its default `flex: 1`. |
-| `numberOfColumns`, `columnWrapperStyle` | 1 | Grid columns. Rows go round robin, row `i` in column `i % numberOfColumns`. `columnWrapperStyle` takes `gap`, `columnGap` and horizontal padding. Each column keeps the same width. |
+| `numberOfColumns`, `columnWrapperStyle` | 1 | Equal-width grid tracks. Items span one track and go round robin by default. `columnWrapperStyle` takes `gap`, `columnGap` and horizontal padding. |
+| `getItemSpan(item, index)` |  | Returns the number of contiguous tracks an item occupies. Finite values truncate and clamp to `1...numberOfColumns`; other values use 1. Return `numberOfColumns` for a full-width item. |
 | `ItemSeparatorComponent` |  | A component gets `highlighted`, `leadingItem` and `trailingItem`. A React element, or a function without parameters, renders once for every row. |
 | `ListHeaderComponent`, `ListFooterComponent`, `ListEmptyComponent` |  | An element or a function that returns one. The empty component shows while `data` is empty. |
 | `ListHeaderComponentStyle`, `ListFooterComponentStyle` |  | Style for the header and footer. |
@@ -97,6 +98,13 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `style`, `testID`, `accessible`, `accessibilityLabel`, `accessibilityRole`, `accessibilityHint` |  | Passed to the list view. |
 | `refreshing`, `onRefresh` |  | Pull to refresh. On a vertical list that is not inverted, data that changes while refreshing shows once the spinner has settled. |
 | `refreshColor`, `progressViewOffset` |  | Tint and offset of the pull to refresh spinner. |
+
+`getItemSpan` reads the complete source, including offscreen items, after its inputs change.
+An item wraps before a span that does not fit the remaining tracks. Items start after the tallest
+covered track. `SectionList` calls it with the section-local item index and section; real section
+headers and footers span every track without invoking it. Zero-height edges align tracks without
+adding space, and absent edges create no barrier. `TreeList` passes the visible index and depth.
+Use immutable data or change `extraData` when a provider's model inputs change.
 
 ### Keyboard
 
@@ -178,8 +186,8 @@ drag on macOS.
   in a window. It moves the row to that list's end through the same `onMoveItemToList` a drop sends. The action names
   the list by `dragListLabel`, then `accessibilityLabel`, then `dragListId`.
 
-[ShadowListUtils' `Board.List`](../shadowlist-utils/README.md#board-drag-between-columns) names its board and lists
-itself and takes one `onMoveItem` for the whole board.
+The `Board.List` of ShadowListUtils, in [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates), names its
+board and lists itself and takes one `onMoveItem` for the whole board.
 
 ### Prefetching and saved position
 

@@ -456,13 +456,18 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   // The drop animates the rows itself, a change the delegate applies while it moves the item too.
   BOOL animates = _animatesChanges;
   _animatesChanges = NO;
-  [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
-  for (auto& entry : _mounted) {
-    ShadowListKitSetTransform(entry.second.layer, CATransform3DIdentity, 0);
+  _driver.setDropHint(DropHint{DropHint::Kind::Moved, _driver.getKeyAt((std::size_t)cell.row)});
+  @try {
+    [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
+    for (auto& entry : _mounted) {
+      ShadowListKitSetTransform(entry.second.layer, CATransform3DIdentity, 0);
+    }
+    [self reloadData];
+    [self layoutSubtreeIfNeeded];
+  } @finally {
+    _driver.setDropHint(DropHint{});
+    _animatesChanges = animates;
   }
-  [self reloadData];
-  [self layoutSubtreeIfNeeded];
-  _animatesChanges = animates;
   CGRect resting = cell.layer.frame;
   CATransform3D transform = [self dragTransformOfCell:cell x:CGRectGetMidX(shown) - CGRectGetMidX(resting)
                                                     y:CGRectGetMidY(shown) - CGRectGetMidY(resting)

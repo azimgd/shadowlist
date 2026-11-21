@@ -8,11 +8,14 @@ import { viewableRulesFor, viewableTimingsFor } from './viewability';
 
 interface UseViewabilityOptions<ItemT> {
   source: RowSource<ItemT>;
+  rowSpansVersion?: number;
+  numberOfColumns?: number;
   pairs: ReadonlyArray<ViewabilityConfigCallbackPair<ItemT>>;
 }
 
 interface UseViewabilityResult {
   activeStickyIndex: number;
+  getRowColumn: (key: string, index: number) => number | undefined;
   viewableRules: number[];
   viewableTimings: number[];
   viewabilityInteracted: boolean;
@@ -33,6 +36,8 @@ interface UseViewabilityResult {
 export function useViewability<ItemT>({
   source,
   pairs,
+  rowSpansVersion = -1,
+  numberOfColumns = 1,
 }: UseViewabilityOptions<ItemT>): UseViewabilityResult {
   const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
 
@@ -55,8 +60,26 @@ export function useViewability<ItemT>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configsSignature]);
 
-  const latestRef = useRef({ source, pairs });
-  latestRef.current = { source, pairs };
+  const latestRef = useRef({ source, pairs, rowSpansVersion, numberOfColumns });
+  latestRef.current = { source, pairs, rowSpansVersion, numberOfColumns };
+  const [rowColumns, setRowColumns] = useState<{
+    rowSpansVersion: number;
+    numberOfColumns: number;
+    entries: Map<string, { index: number; column: number }>;
+  } | null>(null);
+  const getRowColumn = useCallback(
+    (key: string, index: number) => {
+      if (
+        rowColumns?.rowSpansVersion !== rowSpansVersion ||
+        rowColumns.numberOfColumns !== numberOfColumns ||
+        source.keyAt(index) !== key
+      )
+        return undefined;
+      const entry = rowColumns.entries.get(key);
+      return entry?.index === index ? entry.column : undefined;
+    },
+    [rowColumns, rowSpansVersion, numberOfColumns, source]
+  );
 
   /*
    * The keys native holds viewable for each config, and the tokens each config reported last,
@@ -93,7 +116,33 @@ export function useViewability<ItemT>({
     setActiveStickyIndex((previous) =>
       previous === active ? previous : active
     );
-    const currentSource = latestRef.current.source;
+    const current = latestRef.current;
+    const currentSource = current.source;
+    const geometry = event.nativeEvent;
+    if (
+      geometry.rowColumns &&
+      geometry.rowSpansVersion === current.rowSpansVersion &&
+      geometry.numberOfColumns === current.numberOfColumns
+    ) {
+      const entries = new Map<string, { index: number; column: number }>();
+      for (const row of geometry.rowColumns) {
+        if (
+          Number.isInteger(row.index) &&
+          row.index >= 0 &&
+          Number.isInteger(row.column) &&
+          row.column >= 0 &&
+          row.column < current.numberOfColumns &&
+          currentSource.keyAt(row.index) === row.key
+        ) {
+          entries.set(row.key, { index: row.index, column: row.column });
+        }
+      }
+      setRowColumns({
+        rowSpansVersion: current.rowSpansVersion,
+        numberOfColumns: current.numberOfColumns,
+        entries,
+      });
+    }
     for (const change of changes) {
       const pair = latestRef.current.pairs[change.config];
       if (!pair) continue;
@@ -149,6 +198,7 @@ export function useViewability<ItemT>({
 
   return {
     activeStickyIndex,
+    getRowColumn,
     viewableRules,
     viewableTimings,
     viewabilityInteracted,

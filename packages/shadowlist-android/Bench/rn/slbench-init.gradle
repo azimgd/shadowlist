@@ -2,8 +2,8 @@
  * Gradle init script that adds ShadowListKitBench to the React Native example's release build without
  * touching the example project:
  *
- *   cd templates/shadowlist-fabric-example/android
- *   ./gradlew --init-script ../../../packages/shadowlist-android/Bench/rn/slbench-init.gradle \
+ *   cd "${SHADOWLIST_TEMPLATES_ROOT:-<engine root>/../shadowlist-templates}/examples/shadowlist-fabric-example/android"
+ *   ./gradlew --init-script <engine root>/packages/shadowlist-android/Bench/rn/slbench-init.gradle \
  *     app:assembleRelease -PreactNativeArchitectures=arm64-v8a
  */
 def benchRoot = new File(initscript.sourceFile.parentFile, "..").canonicalFile

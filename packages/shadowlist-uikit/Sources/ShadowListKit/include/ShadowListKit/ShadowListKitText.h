@@ -15,11 +15,35 @@ NS_ASSUME_NONNULL_BEGIN
  * row's layout can be computed off the main thread, and the main thread only draws the lines.
  * Every line is lineHeight tall, like a label with a fixed minimum and maximum line height.
  * size is the width of the widest line, rounded up, and lineCount lines of lineHeight.
- * drawAtPoint:inContext:color: draws with the top left corner at point, in a context with
- * flipped coordinates like UIKit's or a flipped view's.
+ * rectForLineAtIndex: is the part of a line its text takes, without the space a line ends in,
+ * from the layout's top left corner: lineHeight tall, and as wide as nothing for a blank line.
+ * CGRectNull for an index past the lines. drawAtPoint:inContext:color: draws with the top left
+ * corner at point, in a context with flipped coordinates like UIKit's or a flipped view's.
  */
 NS_SWIFT_SENDABLE
 @interface ShadowListKitTextLayout : NSObject
+
+/*
+ * The same fixed-line layout with per-run fonts, kern and colors. Unspecified attributes use
+ * font and kern; runs without a color use the draw call's color, as a plain string does.
+ */
+#if TARGET_OS_OSX
++ (instancetype)layoutWithAttributedString:(NSAttributedString *)string
+                                      font:(NSFont *)font
+                                lineHeight:(CGFloat)lineHeight
+                                      kern:(CGFloat)kern
+                                     width:(CGFloat)width
+                              maximumLines:(NSUInteger)maximumLines
+                                 alignment:(NSTextAlignment)alignment;
+#else
++ (instancetype)layoutWithAttributedString:(NSAttributedString *)string
+                                      font:(UIFont *)font
+                                lineHeight:(CGFloat)lineHeight
+                                      kern:(CGFloat)kern
+                                     width:(CGFloat)width
+                              maximumLines:(NSUInteger)maximumLines
+                                 alignment:(NSTextAlignment)alignment;
+#endif
 
 #if TARGET_OS_OSX
 + (instancetype)layoutWithString:(NSString *)string
@@ -42,6 +66,8 @@ NS_SWIFT_SENDABLE
 @property (nonatomic, readonly) CGSize size;
 @property (nonatomic, readonly) NSUInteger lineCount;
 
+- (CGRect)rectForLineAtIndex:(NSUInteger)index NS_SWIFT_NAME(rectForLine(at:));
+- (NSUInteger)characterIndexAtPoint:(CGPoint)point NS_SWIFT_NAME(characterIndex(at:));
 - (void)drawAtPoint:(CGPoint)point inContext:(CGContextRef)context color:(CGColorRef)color;
 
 @end

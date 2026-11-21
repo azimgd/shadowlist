@@ -2,6 +2,7 @@
  * The wasm core through ShadowListKitCore, without a browser. Run ./build.sh first.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { before, test } from 'node:test';
 
 import {
@@ -386,4 +387,162 @@ test('runPasses with prefetch on reports rows before it measures them', () => {
     assert.ok(measured < 0 || events.indexOf(event) < measured);
   }
   core.destroy();
+});
+
+/*
+ * The members of an enum in the core's host/KitBridge.hpp, in order: each is its position.
+ */
+function bridgeSlots(name: string): string[] {
+  const header = readFileSync(
+    new URL('../../shadowlist-core/host/KitBridge.hpp', import.meta.url),
+    'utf8'
+  );
+  const body = new RegExp(`enum ${name} : int \\{([^}]+)\\}`).exec(header);
+  assert.ok(body, `${name} is in KitBridge.hpp`);
+  return body[1]!
+    .split(',')
+    .map((member) => member.split('=')[0]!.trim())
+    .filter((member) => member.length > 0);
+}
+
+test("the pass, mount and sticky slots are the core's here and on Android", () => {
+  const kotlin = readFileSync(
+    new URL(
+      '../../shadowlist-android/ShadowListKit/src/main/java/com/shadowlist/kit/ShadowListKitCore.kt',
+      import.meta.url
+    ),
+    'utf8'
+  );
+  const mirrored = ShadowListKitCore as unknown as Record<string, number>;
+  for (const name of ['PassSlot', 'MountSlot', 'StickySlot']) {
+    const slots = bridgeSlots(name);
+    assert.ok(slots.length > 8, name);
+    slots.forEach((slot, position) => {
+      assert.equal(mirrored[slot], position, `${slot} in ShadowListKitCore.ts`);
+      const constant = new RegExp(`const val ${slot} = (\\d+)\\b`).exec(kotlin);
+      assert.equal(
+        Number(constant?.[1]),
+        position,
+        `${slot} in ShadowListKitCore.kt`
+      );
+    });
+  }
+});
+
+test('mount records keep unsigned versions and decode invalid slots as unset', () => {
+  const previous = new Float64Array(ShadowListKitCore.MOUNT_SLOTS);
+  const next = new Float64Array(previous);
+  previous[ShadowListKitCore.MOUNT_GEOMETRY] = 2 ** 63;
+  next[ShadowListKitCore.MOUNT_GEOMETRY] = 2 ** 63;
+  assert.equal(
+    ShadowListKitCore.shouldSkipMount(previous, next, 0, 1, false),
+    true
+  );
+  next[ShadowListKitCore.MOUNT_GEOMETRY] = 2 ** 63 + 2048;
+  assert.equal(
+    ShadowListKitCore.shouldSkipMount(previous, next, 0, 1, false),
+    false
+  );
+  for (const slot of [
+    ShadowListKitCore.MOUNT_GEOMETRY,
+    ShadowListKitCore.MOUNT_STRUCTURE,
+    ShadowListKitCore.MOUNT_LOW,
+    ShadowListKitCore.MOUNT_HIGH,
+    ShadowListKitCore.MOUNT_STICKY,
+  ]) {
+    previous.fill(0);
+    next.fill(0);
+    previous[slot] = -1;
+    for (const invalid of [-0.5, 0.5, NaN, Infinity, -Infinity, 2 ** 64]) {
+      next[slot] = invalid;
+      assert.equal(
+        ShadowListKitCore.shouldSkipMount(previous, next, 0, 1, false),
+        true,
+        `slot ${slot} with ${invalid}`
+      );
+    }
+  }
+});
+
+test('a pass says whether an inverted list is at its end', () => {
+  const { core } = laidOutCore(100, 0, { inverted: true });
+  let pass = runPasses(core, core.pass[ShadowListKitCore.PASS_OUT_OFFSET]!);
+  const end = pass[ShadowListKitCore.PASS_OUT_CONTENT]! - WINDOW;
+  assert.equal(pass[ShadowListKitCore.PASS_OUT_AT_END], 1);
+  // The reader scrolls away from the newest row.
+  core.pass[ShadowListKitCore.PASS_USER_SCROLLED] = 1;
+  core.pass[ShadowListKitCore.PASS_OFFSET] = end - 400;
+  core.pass[ShadowListKitCore.PASS_PHASE] = ShadowListKitCore.PHASE_DRAGGING;
+  core.runPasses();
+  core.pass[ShadowListKitCore.PASS_USER_SCROLLED] = 0;
+  pass = runPasses(core, core.pass[ShadowListKitCore.PASS_OUT_OFFSET]!);
+  assert.equal(pass[ShadowListKitCore.PASS_OUT_AT_END], 0);
+  core.scrollToEnd();
+  pass = runPasses(core, pass[ShadowListKitCore.PASS_OUT_OFFSET]!);
+  assert.equal(pass[ShadowListKitCore.PASS_OUT_AT_END], 1);
+  core.destroy();
+});
+
+test('a list without rows counts its empty view with the header', () => {
+  const { core, rows, state } = laidOutCore(0);
+  core.pass[ShadowListKitCore.PASS_HEADER_SIZE] = 30;
+  core.pass[ShadowListKitCore.PASS_FOOTER_SIZE] = 20;
+  core.pass[ShadowListKitCore.PASS_EMPTY_SIZE] = 200;
+  let pass = runPasses(core, 0);
+  assert.equal(pass[ShadowListKitCore.PASS_OUT_SHOWS_EMPTY], 1);
+  assert.equal(pass[ShadowListKitCore.PASS_OUT_FOOTER_START], 230);
+  assert.equal(pass[ShadowListKitCore.PASS_OUT_CONTENT], 250);
+  commit(state, core, rows, keys(2));
+  pass = runPasses(core, 0);
+  assert.equal(pass[ShadowListKitCore.PASS_OUT_SHOWS_EMPTY], 0);
+  assert.equal(
+    pass[ShadowListKitCore.PASS_OUT_FOOTER_START],
+    30 + 2 * ROW_SIZE
+  );
+  core.destroy();
+});
+
+test('a non anchor key never holds the visible rows', () => {
+  for (const nonAnchor of [false, true]) {
+    const sizes = new Map<number, number>();
+    const core = new ShadowListKitCore((row) => sizes.get(row) ?? ROW_SIZE);
+    core.setSettings(100, 1, 1, 1, 1, false, false, false, false, 0);
+    const state = new ShadowListKitListState();
+    commit(state, core, [], keys(100));
+    if (nonAnchor) core.setNonAnchorKeys(['row-10']);
+    runPasses(core, 0);
+    runPasses(core, 10 * ROW_SIZE);
+    // The row at the viewport start grows by 40.
+    sizes.set(10, ROW_SIZE + 40);
+    core.markRemeasure([10]);
+    const pass = runPasses(core, 10 * ROW_SIZE);
+    assert.equal(
+      pass[ShadowListKitCore.PASS_OUT_OFFSET],
+      10 * ROW_SIZE + (nonAnchor ? 40 : 0)
+    );
+    core.destroy();
+  }
+});
+
+test('the sticky layout pins the header and the footer inside their spans', () => {
+  const slots = new Float64Array(ShadowListKitCore.STICKY_SLOTS);
+  slots[ShadowListKitCore.STICKY_OFFSET] = 300;
+  slots[ShadowListKitCore.STICKY_WINDOW_SIZE] = 600;
+  slots[ShadowListKitCore.STICKY_CONTENT_SIZE] = 2000;
+  slots[ShadowListKitCore.STICKY_HEADER_SIZE] = 50;
+  slots[ShadowListKitCore.STICKY_FOOTER_SIZE] = 40;
+  slots[ShadowListKitCore.STICKY_FOOTER_START] = 1960;
+  slots[ShadowListKitCore.STICKY_HEADER] = 1;
+  slots[ShadowListKitCore.STICKY_FOOTER] = 1;
+  ShadowListKitCore.stickyLayout(slots);
+  assert.equal(slots[ShadowListKitCore.STICKY_OUT_HEADER_TRANSLATION], 300);
+  assert.equal(
+    slots[ShadowListKitCore.STICKY_OUT_FOOTER_TRANSLATION],
+    300 + 600 - 40 - 1960
+  );
+  assert.equal(slots[ShadowListKitCore.STICKY_OUT_HEADER_SPAN_START], 0);
+  assert.equal(slots[ShadowListKitCore.STICKY_OUT_HEADER_SPAN_END], 1960);
+  assert.equal(slots[ShadowListKitCore.STICKY_OUT_FOOTER_SPAN_START], 50);
+  assert.equal(slots[ShadowListKitCore.STICKY_OUT_FOOTER_SPAN_END], 2000);
+  assert.equal(slots[ShadowListKitCore.STICKY_OFFSET], 300);
 });

@@ -90,6 +90,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     _scrollToTopJumpPending = YES;
     _scrollToTopJumpY = jumpY;
     _scrollToTopJumpToken = 0;
+    _scrollToTopJumpRevision = 0;
     /*
      * The live report says the view is at the target too. A commit for another reason
      * renders the same rows. It keeps the mounted ack, since the jump reports when it lands.
@@ -166,7 +167,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
    * core knows its correction arrived and does not shift again.
    */
   if (_scrollToTopJumpToken != 0) {
-    _scrollSync.arm(target.x, target.y, false, _scrollToTopJumpToken);
+    _scrollSync.arm(target.x, target.y, false, _scrollToTopJumpToken, false, _scrollToTopJumpRevision);
   }
   SLF_TRACE("ev=stt-land %.1f->%.1f waitedTooLong=%d", before.y, target.y, waitedTooLong ? 1 : 0);
   _scrollView.contentOffset = target;
@@ -174,6 +175,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     _scrollSync.disarm();
   }
   _scrollToTopJumpToken = 0;
+  _scrollToTopJumpRevision = 0;
   _scrollToTopProgress = 0.0;
   _scrollToTopStartTime = CACurrentMediaTime();
 }
@@ -239,6 +241,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   _scrollingToTop = NO;
   _scrollToTopJumpPending = NO;
   _scrollToTopJumpToken = 0;
+  _scrollToTopJumpRevision = 0;
   return YES;
 }
 

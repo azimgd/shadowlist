@@ -3,21 +3,13 @@ package com.shadowlist.kit
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
-import android.content.Context
-import android.graphics.Color
-import android.graphics.Rect
-import android.graphics.drawable.ColorDrawable
-import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
 import android.view.ViewConfiguration
-import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
-import android.widget.TextView
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /*
  * Swipe actions. A move across the scroll axis on a row with actions moves the row and shows
@@ -25,8 +17,13 @@ import kotlin.math.roundToInt
  * follows and where it rests. A touch anywhere else closes an open row, and a drag from there
  * still scrolls.
  */
-internal class ShadowListKitSwipeController(private val list: ShadowListKitListView) {
-  private val touchSlop = ViewConfiguration.get(list.context).scaledTouchSlop
+internal class ShadowListKitSwipeController(private val host: ShadowListKitSwipeHost) {
+  constructor(list: ShadowListKitListView) : this(ShadowListKitListSwipeHost(list))
+
+  private val view get() = host.view
+  private fun cross(x: Float, y: Float): Float = if (host.horizontal) y else x
+  private fun along(x: Float, y: Float): Float = if (host.horizontal) x else y
+  private val touchSlop = ViewConfiguration.get(view.context).scaledTouchSlop
   private val reveal = ShadowListKitSwipeReveal()
   private var velocityTracker: VelocityTracker? = null
   private var animator: ValueAnimator? = null
@@ -86,14 +83,14 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     velocityTracker?.clear()
     track(event)
     val open = cell ?: return false
-    if (actionsView?.hasButtonAt(event.x + list.scrollX, event.y + list.scrollY) == true) {
+    if (actionsView?.hasButtonAt(event.x + view.scrollX, event.y + view.scrollY) == true) {
       buttonTouch = true
       return false
     }
-    if (list.itemCellAt(event.x, event.y) !== open) {
+    if (host.itemCellAt(event.x, event.y) !== open) {
       close(true)
       closingTouch = true
-      list.selection.cancelHighlight()
+      host.cancelHighlight()
     }
     return false
   }
@@ -103,17 +100,16 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     if (buttonTouch) return false
     track(event)
     if (!tracking) {
-      val crossDelta = list.cross(event.x, event.y) - list.cross(downX, downY)
-      val alongDelta = list.along(event.x, event.y) - list.along(downX, downY)
+      val crossDelta = cross(event.x, event.y) - cross(downX, downY)
+      val alongDelta = along(event.x, event.y) - along(downX, downY)
       // A list already scrolling under the finger keeps the touch.
-      if (list.gesture.isTracking) return false
+      if (host.isScrolling) return false
       if (abs(crossDelta) <= touchSlop || abs(crossDelta) <= abs(alongDelta) || !begin(crossDelta)) return false
       tracking = true
-      list.abandonScrollGesture()
-      list.cancelChildTouches()
+      host.beginSwipe()
       startOffset = offset
     }
-    val translation = list.cross(event.x, event.y) - list.cross(downX, downY)
+    val translation = cross(event.x, event.y) - cross(downX, downY)
     val wasPast = pastFull
     if (cell == null) return true
     reveal.move(startOffset.toDouble(), translation.toDouble(), crossSize())
@@ -135,14 +131,14 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
       track(event)
       val tracker = velocityTracker
       tracker?.computeCurrentVelocity(1000)
-      val velocity = if (tracker == null) 0f else if (list.horizontal) tracker.yVelocity else tracker.xVelocity
+      val velocity = if (tracker == null) 0f else if (host.horizontal) tracker.yVelocity else tracker.xVelocity
       settle(velocity)
       return true
     }
     // A tap on the open row closes it.
     val open = cell
     if (open != null && !buttonTouch && event.actionMasked == MotionEvent.ACTION_UP &&
-      list.itemCellAt(event.x, event.y) === open) {
+      host.itemCellAt(event.x, event.y) === open) {
       close(true)
       return true
     }
@@ -156,21 +152,25 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
 
   private fun crossSize(): Double {
     val view = actionsView ?: return 0.0
-    return (if (list.horizontal) view.height else view.width).toDouble()
+    return (if (host.horizontal) view.height else view.width).toDouble()
   }
 
   /*
    * Start swiping the row under the touch's start toward a side that has actions.
    */
   private fun begin(crossDelta: Float): Boolean {
-    if (list.editing || list.hasHeldRow) return false
-    val target = list.itemCellAt(downX, downY) ?: return false
+    if (!host.allowsSwipe) return false
+    val target = host.itemCellAt(downX, downY) ?: return false
+    val isCurrent = currentContent(target)
+    if (!isCurrent()) return false
     if (target === cell) {
       stopAnimator()
       return true
     }
     val leading = actions(target, leadingSide = true)
+    if (!isCurrent()) return false
     val trailing = actions(target, leadingSide = false)
+    if (!isCurrent()) return false
     if ((if (crossDelta > 0) leading else trailing) == null) return false
     close(false)
     open(target, leading, trailing)
@@ -178,21 +178,31 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
   }
 
   private fun actions(target: ShadowListKitListCell, leadingSide: Boolean): ShadowListKitSwipeActionsConfiguration? {
-    val delegate = list.delegate ?: return null
-    val configuration = if (leadingSide) delegate.leadingSwipeActionsForItem(list, target.index)
-      else delegate.trailingSwipeActionsForItem(list, target.index)
+    val configuration = host.actions(target, leadingSide)
     return configuration?.takeIf { it.actions.isNotEmpty() }
   }
 
+  /* Existing mounted identity survives no provider callback unless all of it still matches. */
+  private fun currentContent(target: ShadowListKitListCell): () -> Boolean {
+    val row = target.row
+    val index = target.index
+    val generation = target.mountGeneration
+    val key = host.keyForCell(target)
+    return {
+      host.allowsSwipe && host.isValid(target) && target.row == row && target.index == index &&
+        target.mountGeneration == generation && host.keyForCell(target) == key
+    }
+  }
+
   private fun open(target: ShadowListKitListCell, leading: ShadowListKitSwipeActionsConfiguration?, trailing: ShadowListKitSwipeActionsConfiguration?) {
-    val view = ShadowListKitSwipeActionsView(list.context, leading, trailing, list.horizontal, list.density) { perform(it) }
-    list.addSwipeActionsView(view)
+    val view = ShadowListKitSwipeActionsView(view.context, leading, trailing, host.horizontal, host.density) { perform(it) }
+    host.addActionsView(view)
     view.measure(
       View.MeasureSpec.makeMeasureSpec(target.width, View.MeasureSpec.EXACTLY),
       View.MeasureSpec.makeMeasureSpec(target.height, View.MeasureSpec.EXACTLY))
     view.layout(target.left, target.top, target.right, target.bottom)
     reveal.begin(view.leadingSizes, view.trailingSizes, leading?.performsFirstActionWithFullSwipe == true,
-      trailing?.performsFirstActionWithFullSwipe == true, (if (list.horizontal) target.height else target.width).toDouble())
+      trailing?.performsFirstActionWithFullSwipe == true, (if (host.horizontal) target.height else target.width).toDouble())
     cell = target
     actionsView = view
     offset = 0f
@@ -218,12 +228,12 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     offset = values[ShadowListKitSwipeReveal.OUT_OFFSET].toFloat()
     pastFull = values[ShadowListKitSwipeReveal.OUT_PAST_FULL] != 0.0
     val target = cell ?: return
-    if (list.horizontal) target.translationY = offset else target.translationX = offset
+    if (host.horizontal) target.translationY = offset else target.translationX = offset
     actionsView?.layoutFor(offset, values)
   }
 
   private fun settle(velocity: Float) {
-    reveal.settle(offset.toDouble(), velocity.toDouble(), ShadowListKitCore.SWIPE_FLING_VELOCITY_DP * list.density)
+    reveal.settle(offset.toDouble(), velocity.toDouble(), ShadowListKitCore.SWIPE_FLING_VELOCITY_DP * host.density)
     val side = reveal.restSide
     val full = reveal.restFull
     animateTo(reveal.restOffset.toFloat())
@@ -271,8 +281,30 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
   private fun perform(action: ShadowListKitSwipeAction) {
     val view = actionsView ?: return
     action.handler(action) { _ ->
-      list.post { if (actionsView === view) close(true) }
+      view.post { if (actionsView === view) close(true) }
     }
+  }
+
+  /* Accessibility invokes the current configuration without first opening a visual swipe. */
+  fun accessibilityActions(target: ShadowListKitListCell): List<ShadowListKitSwipeAction> {
+    val isCurrent = currentContent(target)
+    if (!isCurrent()) return emptyList()
+    val leading = actions(target, true)?.actions.orEmpty()
+    if (!isCurrent()) return emptyList()
+    val trailing = actions(target, false)?.actions.orEmpty()
+    if (!isCurrent()) return emptyList()
+    return leading + trailing
+  }
+
+  fun performAccessibilityAction(target: ShadowListKitListCell, index: Int): Boolean {
+    val isCurrent = currentContent(target)
+    val action = accessibilityActions(target).getOrNull(index) ?: return false
+    if (!isCurrent()) return false
+    val session = actionsView
+    action.handler(action) { _ ->
+      view.post { if (cell === target && actionsView === session && host.isValid(target)) close(true) }
+    }
+    return true
   }
 
   fun close(animated: Boolean) {
@@ -288,10 +320,10 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
 
   private fun tearDown() {
     stopAnimator()
-    actionsView?.let { list.removeSwipeActionsView(it) }
+    actionsView?.let { host.removeActionsView(it) }
     actionsView = null
     cell?.let {
-      if (list.horizontal) it.translationY = 0f else it.translationX = 0f
+      if (host.horizontal) it.translationY = 0f else it.translationX = 0f
     }
     cell = null
     offset = 0f
@@ -328,7 +360,7 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
   fun layout() {
     val swiped = cell ?: return
     val view = actionsView ?: return
-    if (swiped.visibility != View.VISIBLE || swiped.row < 0) {
+    if (!host.isValid(swiped)) {
       tearDown()
       return
     }
@@ -340,99 +372,5 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
       reveal.show(offset.toDouble(), crossSize())
       view.layoutFor(offset, reveal.out)
     }
-  }
-}
-
-/*
- * The buttons behind a swiped row, for both sides. It sits under the row's cell with the
- * cell's frame. The side being revealed shows its buttons stretched over the gap the row
- * leaves. Past the full swipe point the first button fills all of it.
- */
-internal class ShadowListKitSwipeActionsView(
-  context: Context,
-  val leading: ShadowListKitSwipeActionsConfiguration?,
-  val trailing: ShadowListKitSwipeActionsConfiguration?,
-  private val horizontal: Boolean,
-  density: Float,
-  private val onAction: (ShadowListKitSwipeAction) -> Unit,
-) : ViewGroup(context) {
-  private val leadingButtons = buttons(leading)
-  private val trailingButtons = buttons(trailing)
-  val leadingSizes = sizes(leadingButtons, density)
-  val trailingSizes = sizes(trailingButtons, density)
-  private val clip = Rect()
-
-  private fun buttons(configuration: ShadowListKitSwipeActionsConfiguration?): List<TextView> =
-    configuration?.actions?.map { action ->
-      TextView(context).apply {
-        text = action.title
-        setTextColor(Color.WHITE)
-        textSize = 15f
-        gravity = Gravity.CENTER
-        maxLines = 1
-        setBackgroundColor(action.shownColor)
-        action.image?.let { setCompoundDrawablesWithIntrinsicBounds(null, it, null, null) }
-        contentDescription = action.title
-        setOnClickListener { onAction(action) }
-        addView(this)
-      }
-    } ?: emptyList()
-
-  private fun sizes(buttons: List<TextView>, density: Float): DoubleArray = DoubleArray(buttons.size) {
-    val button = buttons[it]
-    button.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED)
-    val fitted = if (horizontal) button.measuredHeight else button.measuredWidth
-    ShadowListKitCore.swipeButtonSize(fitted.toDouble(), density.toDouble())
-  }
-
-  override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-    setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
-  }
-
-  override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {}
-
-  /*
-   * Place the buttons for a row moved offset across the axis, at the spans the core wrote into
-   * values, see ShadowListKitSwipeReveal.OUT_*.
-   */
-  fun layoutFor(offset: Float, values: DoubleArray) {
-    val leadingSide = offset > 0
-    val shown = if (leadingSide) leadingButtons else trailingButtons
-    val other = if (leadingSide) trailingButtons else leadingButtons
-    for (button in other) button.visibility = INVISIBLE
-    val alongSize = if (horizontal) width else height
-    for ((at, button) in shown.withIndex()) {
-      // Each edge is rounded on its own, which keeps the buttons touching.
-      val span = ShadowListKitSwipeReveal.OUT_SPANS + at * 2
-      val start = values[span].roundToInt()
-      val end = (values[span] + values[span + 1]).roundToInt()
-      val size = end - start
-      button.visibility = if (size > 0) VISIBLE else INVISIBLE
-      if (size > 0) {
-        val w = if (horizontal) alongSize else size
-        val h = if (horizontal) size else alongSize
-        button.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
-        if (horizontal) button.layout(0, start, alongSize, end) else button.layout(start, 0, end, alongSize)
-      }
-    }
-    shown.firstOrNull()?.let { setBackgroundColor((it.background as? ColorDrawable)?.color ?: 0) }
-    // Only the gap shows the buttons' color.
-    val gapStart = values[ShadowListKitSwipeReveal.OUT_REVEALED_START].roundToInt()
-    val gapEnd = (values[ShadowListKitSwipeReveal.OUT_REVEALED_START] + values[ShadowListKitSwipeReveal.OUT_REVEALED_SIZE]).roundToInt()
-    if (horizontal) clip.set(0, gapStart, alongSize, gapEnd) else clip.set(gapStart, 0, gapEnd, alongSize)
-    clipBounds = clip
-  }
-
-  /*
-   * Whether a point in the list's scrolled coordinates hits a shown button.
-   */
-  fun hasButtonAt(x: Float, y: Float): Boolean {
-    val localX = (x - left).toInt()
-    val localY = (y - top).toInt()
-    for (button in leadingButtons + trailingButtons) {
-      if (button.visibility == VISIBLE && localX >= button.left && localX < button.right &&
-        localY >= button.top && localY < button.bottom) return true
-    }
-    return false
   }
 }

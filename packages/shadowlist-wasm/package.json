@@ -11,6 +11,10 @@
       "default": "./dist/index.js"
     },
     "./shadowlistkit.wasm": "./dist/shadowlistkit.wasm",
+    "./loader": {
+      "types": "./dist/ShadowListWasmLoader.d.ts",
+      "default": "./dist/ShadowListWasmLoader.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

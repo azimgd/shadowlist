@@ -1,5 +1,5 @@
 #include "TestFramework.hpp"
 
-int main() {
-  return slt::run();
+int main(int, char** argv) {
+  return slt::run(argv[0]);
 }

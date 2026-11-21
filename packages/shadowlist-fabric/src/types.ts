@@ -231,6 +231,7 @@ export interface ShadowListProps<ItemT> {
   stickyIndices?: ReadonlyArray<number>;
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
   numberOfColumns?: number;
+  getItemSpan?: (item: ItemT, index: number) => number;
   overscan?: number;
   mountOverscanRows?: number;
   mountOverscanRowsLeading?: number;
@@ -346,6 +347,7 @@ export type ShadowListForwardedProps = Omit<
   | 'renderItem'
   | 'keyExtractor'
   | 'getItemSizeSpec'
+  | 'getItemSpan'
   | 'stickyIndices'
   | 'renderStickyHeaderOverlay'
   | 'reorderEnabled'
@@ -426,6 +428,11 @@ export interface SectionListProps<ItemT, SectionT = object> extends Omit<
     index: number,
     section: SectionListData<ItemT, SectionT>
   ) => ItemSizeSpec | null | undefined;
+  getItemSpan?: (
+    item: ItemT,
+    index: number,
+    section: SectionListData<ItemT, SectionT>
+  ) => number;
   nonAnchorKeys?: ReadonlyArray<string>;
   persistentKeys?: ReadonlyArray<string>;
 }
@@ -465,6 +472,7 @@ export interface TreeListProps<ItemT> extends ShadowListForwardedProps {
     index: number,
     depth: number
   ) => ItemSizeSpec | null | undefined;
+  getItemSpan?: (item: ItemT, index: number, depth: number) => number;
   ItemSeparatorComponent?:
     ReactElement | ComponentType<ItemSeparatorProps<ItemT>> | null;
 }

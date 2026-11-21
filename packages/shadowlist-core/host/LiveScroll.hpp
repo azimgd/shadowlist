@@ -30,6 +30,10 @@ public:
     bool userScrolled = false;
     double scrollPhase = SCROLL_PHASE_IDLE;
     std::uint64_t commitToken = 0;
+    /*
+     * The correction publication the host actually applied; 0 means unknown.
+     */
+    std::uint64_t commitRevision = 0;
     double concealGenerationAck = 0.0;
 
     /*

@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <shadowlist-core/host/ChangeAnimation.hpp>
+#include <shadowlist-core/host/DragBoard.hpp>
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/KitBridge.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
@@ -46,17 +47,46 @@ struct Peer {
   jobject target = nullptr;
   jmethodID measureRows = nullptr;
   jmethodID prefetchRows = nullptr;
+  jmethodID getItemSizeSpec = nullptr;
+  jmethodID measureSizeSpec = nullptr;
+  jclass sizeSpecClass = nullptr;
+  jmethodID sizeSpecConstructor = nullptr;
+  jclass viewabilityReportClass = nullptr;
+  jmethodID viewabilityReportConstructor = nullptr;
+  jfieldID sizeSpecStrings[4]{};
+  jfieldID sizeSpecDoubles[7]{};
+  jfieldID sizeSpecLines = nullptr;
   std::vector<jint> dragInts;
   std::vector<std::size_t> dragRows;
   std::vector<jdouble> dragOut;
   std::vector<std::size_t> prefetchFound;
   std::vector<std::size_t> cancelFound;
   std::vector<jint> prefetchPacked;
+
+  /*
+   * The edges a run reached whose measure threw. The next run hands them over.
+   */
+  bool reachedStart = false;
+  bool reachedEnd = false;
 };
+
+/*
+ * Stop a prediction callback immediately while its original Java exception stays pending.
+ */
+struct SizeSpecCallbackException {};
 
 Peer* peerOf(jlong handle) {
   return reinterpret_cast<Peer*>(handle);
 }
+
+struct DragBoardPeer {
+  sl::DragBoard core;
+  sl::DragBoardScroll scroll;
+};
+
+static_assert(static_cast<int>(sl::DragBoardStep::Kind::Stay) == 0);
+static_assert(static_cast<int>(sl::DragBoardRelease::Kind::Home) == 0 &&
+  static_cast<int>(sl::DragBoardRelease::Kind::Cancel) == 1 && static_cast<int>(sl::DragBoardRelease::Kind::Drop) == 2);
 
 std::vector<jint> readInts(JNIEnv* env, jintArray array) {
   if (array == nullptr) {
@@ -255,6 +285,12 @@ enum ConstantSlot {
   CONSTANT_DRAG_LIFT_ELEVATION,
   CONSTANT_SCROLL_ANIMATION_DURATION_MS,
   CONSTANT_SCROLL_SETTLE_DURATION_MS,
+  CONSTANT_SWIPE_ACTION_COLOR_NORMAL,
+  CONSTANT_SWIPE_ACTION_COLOR_DESTRUCTIVE,
+  CONSTANT_DROP_NONE,
+  CONSTANT_DROP_MOVED,
+  CONSTANT_DROP_REMOVED,
+  CONSTANT_DROP_INSERTED,
   CONSTANT_SLOTS,
 };
 
@@ -316,6 +352,23 @@ JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject th
   jclass clazz = env->GetObjectClass(thiz);
   peer->measureRows = env->GetMethodID(clazz, "measureRows", "([I[D[D)V");
   peer->prefetchRows = env->GetMethodID(clazz, "prefetchRows", "(I)V");
+  peer->getItemSizeSpec = env->GetMethodID(clazz, "getItemSizeSpec", "(I)Lcom/shadowlist/kit/ShadowListKitItemSizeSpec;");
+  peer->measureSizeSpec = env->GetMethodID(clazz, "measureSizeSpec", "(Lcom/shadowlist/kit/ShadowListKitItemSizeSpec;D)D");
+  jclass specClass = env->FindClass("com/shadowlist/kit/ShadowListKitItemSizeSpec");
+  peer->sizeSpecClass = static_cast<jclass>(env->NewGlobalRef(specClass));
+  peer->sizeSpecConstructor = env->GetMethodID(specClass, "<init>",
+    "(Ljava/lang/String;DLjava/lang/String;Ljava/lang/String;Ljava/lang/String;DDIDDDD)V");
+  const char* strings[] = {"text", "fontFamily", "fontWeight", "fontStyle"};
+  const char* doubles[] = {"fontSize", "lineHeight", "letterSpacing", "insetWidth", "insetHeight", "widthFraction", "fixedHeight"};
+  for (int index = 0; index < 4; ++index) peer->sizeSpecStrings[index] = env->GetFieldID(specClass, strings[index], "Ljava/lang/String;");
+  for (int index = 0; index < 7; ++index) peer->sizeSpecDoubles[index] = env->GetFieldID(specClass, doubles[index], "D");
+  peer->sizeSpecLines = env->GetFieldID(specClass, "numberOfLines", "I");
+  env->DeleteLocalRef(specClass);
+  jclass reportClass = env->FindClass("com/shadowlist/kit/ShadowListKitViewabilityReport");
+  peer->viewabilityReportClass = static_cast<jclass>(env->NewGlobalRef(reportClass));
+  peer->viewabilityReportConstructor = env->GetMethodID(reportClass, "<init>",
+    "(I[Ljava/lang/String;[Ljava/lang/String;[Ljava/lang/String;)V");
+  env->DeleteLocalRef(reportClass);
   env->DeleteLocalRef(clazz);
   /*
    * One upcall measures every row a pass needs, as the wasm bridge does, instead of one JNI
@@ -355,8 +408,11 @@ JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject th
   return reinterpret_cast<jlong>(peer);
 }
 
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDestroy)(JNIEnv*, jclass, jlong handle) {
-  delete peerOf(handle);
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDestroy)(JNIEnv* env, jclass, jlong handle) {
+  Peer* peer = peerOf(handle);
+  if (peer->sizeSpecClass) env->DeleteGlobalRef(peer->sizeSpecClass);
+  if (peer->viewabilityReportClass) env->DeleteGlobalRef(peer->viewabilityReportClass);
+  delete peer;
 }
 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetSettings)(JNIEnv*, jclass, jlong handle, jdouble estimatedRowSize,
@@ -370,6 +426,144 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetStickyIndices)(JNIEnv* env, j
   peerOf(handle)->driver.setStickyIndices(readIndices(env, indices));
 }
 
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetPersistentKeys)(
+  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends) {
+  peerOf(handle)->driver.setPersistentKeys(readPackedKeys(env, packed, ends));
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetRowSpans)(
+  JNIEnv* env, jclass, jlong handle, jintArray input) {
+  auto values = readInts(env, input);
+  std::vector<std::size_t> spans;
+  spans.reserve(values.size());
+  for (jint value : values) spans.push_back(value > 0 ? static_cast<std::size_t>(value) : 1);
+  peerOf(handle)->driver.setRowSpans(std::move(spans));
+}
+
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativePersistentIndices)(JNIEnv* env, jclass, jlong handle) {
+  const auto indices = peerOf(handle)->driver.getPersistentIndices();
+  std::vector<jint> values(indices.begin(), indices.end());
+  jintArray result = env->NewIntArray(static_cast<jsize>(values.size()));
+  if (!values.empty()) env->SetIntArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
+  return result;
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetNonAnchorKeys)(
+  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends) {
+  peerOf(handle)->driver.setNonAnchorKeys(readPackedKeys(env, packed, ends));
+}
+
+/*
+ * Where a pinned list header and footer go, see StickySlot: the inputs are read from io and the
+ * translations and spans written back.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeStickyLayout)(JNIEnv* env, jclass, jlong handle, jdoubleArray io) {
+  jdouble slots[STICKY_SLOTS];
+  env->GetDoubleArrayRegion(io, 0, STICKY_SLOTS, slots);
+  writeStickyLayout(slots, peerOf(handle)->driver);
+  env->SetDoubleArrayRegion(io, STICKY_OUT_HEADER_TRANSLATION, STICKY_SLOTS - STICKY_OUT_HEADER_TRANSLATION,
+    slots + STICKY_OUT_HEADER_TRANSLATION);
+}
+
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativeSetViewabilityConfigs)(
+  JNIEnv* env, jclass, jlong handle, jdoubleArray source, jdouble now) {
+  jsize count = env->GetArrayLength(source);
+  std::vector<double> slots(static_cast<std::size_t>(count));
+  if (count) env->GetDoubleArrayRegion(source, 0, count, slots.data());
+  auto changed = peerOf(handle)->driver.setViewabilityConfigs(readViewabilityConfigs(slots), now);
+  std::vector<jint> values(changed.begin(), changed.end());
+  jintArray result = env->NewIntArray(static_cast<jsize>(values.size()));
+  if (!values.empty()) env->SetIntArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
+  return result;
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeRecordInteraction)(JNIEnv*, jclass, jlong handle, jdouble now) {
+  peerOf(handle)->driver.recordInteraction(now);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeIsViewabilityWaiting)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->driver.isViewabilityWaiting();
+}
+
+JNIEXPORT jobjectArray JNICALL SHADOWLIST_KIT_JNI(nativeUpdateViewability)(
+  JNIEnv* env, jclass, jlong handle, jdouble offset, jdouble windowAlong, jdouble now) {
+  Peer* peer = peerOf(handle);
+  auto reports = peer->driver.updateViewability(offset, windowAlong, now, &peer->sections);
+  if (reports.empty()) return nullptr;
+  jobjectArray result = env->NewObjectArray(static_cast<jsize>(reports.size()), peer->viewabilityReportClass, nullptr);
+  for (std::size_t index = 0; index < reports.size(); ++index) {
+    const auto& entry = reports[index];
+    jobjectArray viewable = makeStringArray(env, entry.second.viewable);
+    jobjectArray added = makeStringArray(env, entry.second.changes.added);
+    jobjectArray removed = makeStringArray(env, entry.second.changes.removed);
+    jobject value = env->NewObject(peer->viewabilityReportClass, peer->viewabilityReportConstructor,
+      static_cast<jint>(entry.first), viewable, added, removed);
+    env->SetObjectArrayElement(result, static_cast<jsize>(index), value);
+    env->DeleteLocalRef(value);
+    env->DeleteLocalRef(viewable);
+    env->DeleteLocalRef(added);
+    env->DeleteLocalRef(removed);
+  }
+  return result;
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetSizeSpecsEnabled)(JNIEnv*, jclass, jlong handle, jboolean enabled) {
+  Peer* peer = peerOf(handle);
+  if (!enabled) {
+    peer->driver.setGetItemSizeSpec({}, {});
+    return;
+  }
+  peer->driver.setGetItemSizeSpec([peer](std::size_t index, const std::string&) -> std::optional<sl::RowSizeSpec> {
+    JNIEnv* env = peer->env;
+    if (!env || !peer->target || env->ExceptionCheck()) return std::nullopt;
+    jobject value = env->CallObjectMethod(peer->target, peer->getItemSizeSpec, static_cast<jint>(index));
+    if (env->ExceptionCheck()) {
+      if (value) env->DeleteLocalRef(value);
+      throw SizeSpecCallbackException{};
+    }
+    if (!value) return std::nullopt;
+    sl::RowSizeSpec spec;
+    std::string* strings[] = {&spec.text, &spec.fontFamily, &spec.fontWeight, &spec.fontStyle};
+    double* doubles[] = {&spec.fontSize, &spec.lineHeight, &spec.letterSpacing, &spec.insetWidth, &spec.insetHeight, &spec.widthFraction, &spec.fixedHeight};
+    for (int at = 0; at < 4; ++at) {
+      auto text = static_cast<jstring>(env->GetObjectField(value, peer->sizeSpecStrings[at]));
+      *strings[at] = readString(env, text);
+      if (text) env->DeleteLocalRef(text);
+    }
+    for (int at = 0; at < 7; ++at) *doubles[at] = env->GetDoubleField(value, peer->sizeSpecDoubles[at]);
+    spec.numberOfLines = env->GetIntField(value, peer->sizeSpecLines);
+    env->DeleteLocalRef(value);
+    return spec;
+  }, [peer](const sl::RowSizeSpec& spec, double width) {
+    JNIEnv* env = peer->env;
+    if (!env || !peer->target || env->ExceptionCheck()) return sl::Size{width, 0.0};
+    jstring text = env->NewStringUTF(spec.text.c_str());
+    jstring family = env->NewStringUTF(spec.fontFamily.c_str());
+    jstring weight = env->NewStringUTF(spec.fontWeight.c_str());
+    jstring style = env->NewStringUTF(spec.fontStyle.c_str());
+    jobject value = env->NewObject(peer->sizeSpecClass, peer->sizeSpecConstructor, text, spec.fontSize,
+      family, weight, style, spec.lineHeight, spec.letterSpacing, static_cast<jint>(spec.numberOfLines),
+      spec.insetWidth, spec.insetHeight, spec.widthFraction, spec.fixedHeight);
+    double height = value && !env->ExceptionCheck() ?
+      env->CallDoubleMethod(peer->target, peer->measureSizeSpec, value, width) : 0.0;
+    if (value) env->DeleteLocalRef(value);
+    env->DeleteLocalRef(text);
+    env->DeleteLocalRef(family);
+    env->DeleteLocalRef(weight);
+    env->DeleteLocalRef(style);
+    if (env->ExceptionCheck()) throw SizeSpecCallbackException{};
+    return sl::Size{width, height};
+  });
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetMeasureLookaheadRows)(JNIEnv*, jclass, jlong handle, jint rows) {
+  peerOf(handle)->driver.setMeasureLookaheadRows(static_cast<std::size_t>(std::max(0, rows)));
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeInvalidateSizeSpecs)(JNIEnv*, jclass, jlong handle) {
+  peerOf(handle)->driver.invalidateSizeSpecs();
+}
+
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeMarkRemeasure)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
   peerOf(handle)->driver.markRemeasure(readIndices(env, indices));
 }
@@ -380,10 +574,26 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeRunPasses)(JNIEnv* env, jobject 
   env->GetDoubleArrayRegion(io, 0, PASS_SLOTS, slots);
   peer->env = env;
   peer->target = thiz;
-  sl::PassResult result = peer->driver.runPasses(readPassInput(slots));
+  sl::PassResult result;
+  try {
+    result = peer->driver.runPasses(readPassInput(slots));
+  } catch (const SizeSpecCallbackException&) {
+    peer->driver.invalidateSizeSpecs();
+    peer->env = nullptr;
+    peer->target = nullptr;
+    return;
+  }
+  if (env->ExceptionCheck()) peer->driver.invalidateSizeSpecs();
   peer->env = nullptr;
   peer->target = nullptr;
-  // The exception thrown by a measure reaches Kotlin with the outputs left as they were.
+  result.reachedStart = result.reachedStart || peer->reachedStart;
+  result.reachedEnd = result.reachedEnd || peer->reachedEnd;
+  /*
+   * The exception thrown by a measure reaches Kotlin with the outputs left as they were. The
+   * driver hands an edge over once, and the ones this run reached wait here for the next.
+   */
+  peer->reachedStart = env->ExceptionCheck() && result.reachedStart;
+  peer->reachedEnd = env->ExceptionCheck() && result.reachedEnd;
   if (env->ExceptionCheck()) {
     return;
   }
@@ -439,6 +649,11 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeIndexOfKey)(JNIEnv* env, jclass,
 /*
  * Leading edge and extent of every sticky row, two values each. Returns false when out is too short.
  */
+JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeStickyLeading)(
+  JNIEnv*, jclass, jlong handle, jint row, jdouble offset, jdouble extent) {
+  return peerOf(handle)->driver.stickyLeading(indexFromJint(row), offset, extent);
+}
+
 JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeCopyStickyFrames)(JNIEnv* env, jclass, jlong handle, jdoubleArray out) {
   std::vector<double> frames;
   peerOf(handle)->driver.stickyFrames(frames);
@@ -509,6 +724,15 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragEnd)(JNIEnv*, jclass, jlong 
   peerOf(handle)->driver.dragEnd();
 }
 
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetDropHint)(
+  JNIEnv* env, jclass, jlong handle, jint kind, jstring key) {
+  sl::DropHint hint;
+  if (kind >= static_cast<jint>(sl::DropHint::Kind::Moved) && kind <= static_cast<jint>(sl::DropHint::Kind::Inserted)) {
+    hint = {static_cast<sl::DropHint::Kind>(kind), readString(env, key)};
+  }
+  peerOf(handle)->driver.setDropHint(std::move(hint));
+}
+
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeHeldIndex)(JNIEnv*, jclass, jlong handle) {
   return jintFromIndex(peerOf(handle)->driver.getHeldIndex());
 }
@@ -524,10 +748,16 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragFrame)(JNIEnv* env, jclass, 
   Peer* peer = peerOf(handle);
   sl::ListDriver& driver = peer->driver;
   std::size_t held = driver.getHeldIndex();
-  if (held == sl::UNDEFINED_INDEX || held >= driver.getRowCount()) {
+  bool foreign = driver.isDragForeign();
+  if (!foreign && (held == sl::UNDEFINED_INDEX || held >= driver.getRowCount())) {
     return -1;
   }
-  sl::DragOffset placed = driver.placeHeld(held, touchAlong, touchCross);
+  sl::DragOffset placed;
+  if (foreign) {
+    driver.dragPlaceForeignCenter(touchAlong, touchCross);
+  } else {
+    placed = driver.placeHeld(held, touchAlong, touchCross);
+  }
   std::size_t insertion = driver.getDragInsertionIndex();
   jsize given = std::clamp(count, 0, env->GetArrayLength(rows));
   std::vector<jint>& ints = peer->dragInts;
@@ -555,7 +785,106 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragFrame)(JNIEnv* env, jclass, 
   }
   jsize length = std::min(env->GetArrayLength(out), static_cast<jsize>(values.size()));
   env->SetDoubleArrayRegion(out, 0, length, values.data());
-  return static_cast<jint>(held);
+  return jintFromIndex(held);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragSetHeldAway)(JNIEnv*, jclass, jlong handle, jboolean away) {
+  peerOf(handle)->driver.dragSetHeldAway(away);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBeginForeign)(JNIEnv*, jclass, jlong handle, jdouble extent, jdouble crossExtent) {
+  peerOf(handle)->driver.dragBeginForeign(extent, crossExtent);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeIsDragForeign)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->driver.isDragForeign();
+}
+
+JNIEXPORT jstring JNICALL SHADOWLIST_KIT_JNI(nativeDragInsertionKey)(JNIEnv* env, jclass, jlong handle) {
+  return env->NewStringUTF(peerOf(handle)->driver.getDragInsertionKey().c_str());
+}
+
+/*
+ * The board's phase and flight stay in the shared DragBoard. The Android picture and weak
+ * list membership never decide a second target or landing state.
+ */
+JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardCreate)(JNIEnv*, jclass) {
+  return reinterpret_cast<jlong>(new DragBoardPeer());
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardDestroy)(JNIEnv*, jclass, jlong handle) {
+  delete reinterpret_cast<DragBoardPeer*>(handle);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardBegin)(JNIEnv* env, jclass, jlong handle, jstring home, jstring key,
+  jdouble x, jdouble y, jdouble centerX, jdouble centerY) {
+  reinterpret_cast<DragBoardPeer*>(handle)->core.begin(readString(env, home), readString(env, key), {x, y}, {centerX, centerY});
+  reinterpret_cast<DragBoardPeer*>(handle)->scroll.begin(x);
+}
+
+JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardScrollDelta)(JNIEnv*, jclass, jlong handle,
+  jdouble finger, jdouble touch, jdouble windowSize, jdouble density, jdouble dtSeconds) {
+  sl::DragAutoScrollConfig config{sl::DRAG_BOARD_SCROLL_ANDROID.edge * density, sl::DRAG_BOARD_SCROLL_ANDROID.maxSpeed * density};
+  return reinterpret_cast<DragBoardPeer*>(handle)->scroll.delta(config, sl::DRAG_BOARD_SCROLL_ARM_ANDROID * density,
+    finger, touch, windowSize, dtSeconds);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardFrame)(JNIEnv* env, jclass, jlong handle, jdouble x, jdouble y,
+  jdouble centerX, jdouble centerY, jstring candidate, jdouble nowMs, jdoubleArray out) {
+  enum BoardFrameSlot { BOARD_FRAME_STEP, BOARD_FRAME_X, BOARD_FRAME_Y, BOARD_FRAME_FLOATING, BOARD_FRAME_HIDE_HELD, BOARD_FRAME_SLOTS };
+  if (env->GetArrayLength(out) < BOARD_FRAME_SLOTS) return;
+  sl::DragBoardFrame frame = reinterpret_cast<DragBoardPeer*>(handle)->core.frame({x, y}, {centerX, centerY}, {readString(env, candidate)}, nowMs);
+  jdouble values[BOARD_FRAME_SLOTS];
+  values[BOARD_FRAME_STEP] = static_cast<int>(frame.step.kind);
+  values[BOARD_FRAME_X] = frame.overlayCenter.x;
+  values[BOARD_FRAME_Y] = frame.overlayCenter.y;
+  values[BOARD_FRAME_FLOATING] = frame.floating;
+  values[BOARD_FRAME_HIDE_HELD] = frame.hideHeld;
+  env->SetDoubleArrayRegion(out, 0, BOARD_FRAME_SLOTS, values);
+}
+
+JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardRelease)(JNIEnv* env, jclass, jlong handle, jint index, jstring key,
+  jint count, jdouble nowMs, jdoubleArray out) {
+  enum BoardReleaseSlot { BOARD_RELEASE_INDEX, BOARD_RELEASE_SLOTS };
+  sl::DragBoardRelease released = reinterpret_cast<DragBoardPeer*>(handle)->core.release(indexFromJint(index), readString(env, key), indexFromJint(count), nowMs);
+  jdouble values[BOARD_RELEASE_SLOTS];
+  values[BOARD_RELEASE_INDEX] = static_cast<double>(jintFromIndex(released.index));
+  if (env->GetArrayLength(out) >= BOARD_RELEASE_SLOTS) env->SetDoubleArrayRegion(out, 0, BOARD_RELEASE_SLOTS, values);
+  return static_cast<jint>(released.kind);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardEnd)(JNIEnv*, jclass, jlong handle) {
+  reinterpret_cast<DragBoardPeer*>(handle)->core.endFlight();
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardLeave)(JNIEnv* env, jclass, jlong handle, jstring listId) {
+  reinterpret_cast<DragBoardPeer*>(handle)->core.leave(readString(env, listId));
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardReturnOffset)(JNIEnv* env, jclass, jlong handle, jdouble x, jdouble y,
+  jdouble nowMs, jdoubleArray out) {
+  enum PointSlot { POINT_X, POINT_Y, POINT_SLOTS };
+  sl::DragPoint offset = reinterpret_cast<DragBoardPeer*>(handle)->core.returnOffset({x, y}, nowMs);
+  jdouble values[POINT_SLOTS];
+  values[POINT_X] = offset.x;
+  values[POINT_Y] = offset.y;
+  if (env->GetArrayLength(out) >= POINT_SLOTS) env->SetDoubleArrayRegion(out, 0, POINT_SLOTS, values);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardLanded)(JNIEnv* env, jclass, jlong handle, jstring listId, jboolean holdsKey) {
+  return reinterpret_cast<DragBoardPeer*>(handle)->core.landed(readString(env, listId), holdsKey);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardBeginOverlaySettle)(JNIEnv*, jclass, jlong handle) {
+  return reinterpret_cast<DragBoardPeer*>(handle)->core.beginOverlaySettle();
+}
+
+JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardFlight)(JNIEnv*, jclass, jlong handle) {
+  return static_cast<jlong>(reinterpret_cast<DragBoardPeer*>(handle)->core.getFlight());
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeDragBoardIsIdle)(JNIEnv*, jclass, jlong handle) {
+  return reinterpret_cast<DragBoardPeer*>(handle)->core.getPhase() == sl::DragBoardPhase::Idle;
 }
 
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragOriginIndex)(JNIEnv*, jclass, jlong handle) {
@@ -859,11 +1188,28 @@ JNIEXPORT jdoubleArray JNICALL SHADOWLIST_KIT_JNI(nativeConstants)(JNIEnv* env, 
   values[CONSTANT_DRAG_LIFT_ELEVATION] = sl::DRAG_LIFT_ELEVATION;
   values[CONSTANT_SCROLL_ANIMATION_DURATION_MS] = sl::SCROLL_ANIMATION_DURATION_MS;
   values[CONSTANT_SCROLL_SETTLE_DURATION_MS] = sl::SCROLL_SETTLE_DURATION_MS;
+  values[CONSTANT_SWIPE_ACTION_COLOR_NORMAL] = sl::SWIPE_ACTION_COLOR_NORMAL;
+  values[CONSTANT_SWIPE_ACTION_COLOR_DESTRUCTIVE] = sl::SWIPE_ACTION_COLOR_DESTRUCTIVE;
+  values[CONSTANT_DROP_NONE] = static_cast<double>(sl::DropHint::Kind::None);
+  values[CONSTANT_DROP_MOVED] = static_cast<double>(sl::DropHint::Kind::Moved);
+  values[CONSTANT_DROP_REMOVED] = static_cast<double>(sl::DropHint::Kind::Removed);
+  values[CONSTANT_DROP_INSERTED] = static_cast<double>(sl::DropHint::Kind::Inserted);
   jdoubleArray array = env->NewDoubleArray(CONSTANT_SLOTS);
   if (array != nullptr) {
     env->SetDoubleArrayRegion(array, 0, CONSTANT_SLOTS, values);
   }
   return array;
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeShouldSkipMount)(
+  JNIEnv* env, jclass, jdoubleArray previous, jdoubleArray next, jdouble offset, jint numberOfColumns, jboolean holdsRow) {
+  jdouble previousSlots[MOUNT_SLOTS];
+  jdouble nextSlots[MOUNT_SLOTS];
+  env->GetDoubleArrayRegion(previous, 0, MOUNT_SLOTS, previousSlots);
+  env->GetDoubleArrayRegion(next, 0, MOUNT_SLOTS, nextSlots);
+  bool skips = sl::shouldSkipMount(readMountRecord(previousSlots), readMountRecord(nextSlots), offset,
+    static_cast<std::size_t>(std::max(numberOfColumns, 1)), holdsRow == JNI_TRUE);
+  return skips ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativePageScrollTarget)(
@@ -1159,6 +1505,16 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeInsertRows)(
     live->driver.insertKeys(kept, keptKeys);
   }
   statePeerOf(handle)->keys.insertRows(kept, std::move(keptKeys));
+}
+
+/*
+ * The content versions of items a change inserted, at their positions among the items held. The
+ * versions of the other items stay as they are.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeInsertVersions)(
+  JNIEnv* env, jclass, jlong handle, jintArray items, jlongArray versions) {
+  StatePeer* peer = statePeerOf(handle);
+  peer->versions.insert(peer->keys.items(), readIndices(env, items), readLongs(env, versions));
 }
 
 /*

@@ -21,11 +21,14 @@ inline constexpr double WINDOW_HEIGHT = 840.0;
  */
 inline constexpr double ESTIMATED_ROW_HEIGHT = 120.0;
 
-inline std::vector<std::string> keysFor(std::size_t count, const std::string& prefix = "k") {
+/*
+ * count keys numbered from first on: k0, k1 and so on.
+ */
+inline std::vector<std::string> keysFor(std::size_t count, const std::string& prefix = "k", std::size_t first = 0) {
   std::vector<std::string> keys;
   keys.reserve(count);
   for (std::size_t index = 0; index < count; ++index) {
-    keys.push_back(prefix + std::to_string(index));
+    keys.push_back(prefix + std::to_string(first + index));
   }
   return keys;
 }

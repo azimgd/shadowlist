@@ -28,6 +28,7 @@ void applyHostScroll(FrameInput& input, const ListScrollState& state) {
   input.scrollPhase = scrollPhaseFromReport(state.scrollPhase);
   // The token the host echoed back. The core uses it to spot its own write. 0 if none.
   input.commitToken = state.commitToken;
+  input.commitRevision = state.commitRevision;
 }
 
 bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& update) {
@@ -47,6 +48,7 @@ bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& upda
   state.offsetEnabled = update.applyOffset;
   // 0 when no offset was written.
   state.commitToken = update.commitToken;
+  state.commitRevision = update.commitRevision;
   return true;
 }
 

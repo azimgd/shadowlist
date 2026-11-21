@@ -69,7 +69,7 @@ void Container::endRevision() {
   previousReachedEnd_ = reachedEnd;
   previousReachedStart_ = reachedStart;
 
-  // Only a scroll away from the bottom leaves the end. Content growth never does.
+  // Only a scroll or a scroll command that ends away from the bottom leaves the end. Content growth never does.
   bool atEnd = !state.invertedBottomReleased;
   if (atEnd != previousAtEnd_) {
     previousAtEnd_ = atEnd;
@@ -85,6 +85,7 @@ void Container::endRevision() {
  * The newest scroll command wins. Each one replaces any command still pending.
  */
 void Container::scrollToRow(std::size_t index, double viewPosition, double viewOffset) {
+  state.clampedAnchor.reset();
   state.scrollToRowTarget = index;
   state.scrollToRowViewPosition = viewPosition;
   state.scrollToRowViewOffset = viewOffset;
@@ -93,12 +94,14 @@ void Container::scrollToRow(std::size_t index, double viewPosition, double viewO
 }
 
 void Container::scrollToEnd() {
+  state.clampedAnchor.reset();
   state.pendingScrollToEnd = true;
   state.pendingScrollToStart = false;
   state.scrollToRowTarget = UNDEFINED_INDEX;
 }
 
 void Container::scrollToStart() {
+  state.clampedAnchor.reset();
   state.pendingScrollToStart = true;
   state.pendingScrollToEnd = false;
   state.scrollToRowTarget = UNDEFINED_INDEX;
@@ -174,7 +177,8 @@ ContainerStateUpdate Container::resolveStateUpdate(
   double previousOffsetX,
   double previousOffsetY,
   double previousContentWidth,
-  double previousContentHeight) const {
+  double previousContentHeight) {
+  std::lock_guard<std::recursive_mutex> lock(coreMutex);
   ContainerStateUpdate update;
 
   bool corrected = state.offsetCorrected;
@@ -202,6 +206,16 @@ ContainerStateUpdate Container::resolveStateUpdate(
    * Offset changes without an operation send 0.
    */
   update.commitToken = (corrected && state.operation) ? state.operation->commitToken : 0;
+  if (update.applyOffset) {
+    if (state.commitRevision == 0 || state.publishedCommitToken != update.commitToken ||
+        state.publishedOffsetX != update.offsetX || state.publishedOffsetY != update.offsetY) {
+      ++state.commitRevision;
+      state.publishedCommitToken = update.commitToken;
+      state.publishedOffsetX = update.offsetX;
+      state.publishedOffsetY = update.offsetY;
+    }
+    update.commitRevision = state.commitRevision;
+  }
 
   return update;
 }
@@ -318,6 +332,9 @@ bool Container::isAnchorable(const std::string& key) const {
 
 const Anchor* Container::getCompensationAnchor() const {
   if (!state.operation) {
+    if (state.clampedAnchor) {
+      return &*state.clampedAnchor;
+    }
     return &state.anchor;
   }
   return state.operation->target.mode == AnchorMode::Row ? &state.operation->target : nullptr;
@@ -450,8 +467,9 @@ OffsetBand Container::computeOffsetBand() const {
   double overscanSize = windowSize * overscan;
   std::size_t columnCount = numberOfColumns > 0 ? numberOfColumns : 1;
   std::size_t reach = 2 * columnCount + 2;
-  std::size_t fromIndex = measuredLow > reach ? measuredLow - reach : 0;
-  std::size_t toIndex = std::min(rowCount - 1, measuredHigh + reach);
+  // Mixed spans can leave a track unused far outside the nearby row indices.
+  std::size_t fromIndex = state.hasRowSpans ? 0 : (measuredLow > reach ? measuredLow - reach : 0);
+  std::size_t toIndex = state.hasRowSpans ? rowCount - 1 : std::min(rowCount - 1, measuredHigh + reach);
   for (std::size_t index = fromIndex; index <= toIndex; ++index) {
     const Row& row = rows[index];
     double rowStart = horizontal ? row.offsetX : row.offsetY;
@@ -509,42 +527,31 @@ IndexRange Container::getMeasuredRange() const {
   return {revision.measuredLow, revision.measuredHigh};
 }
 
+bool isRowViewable(double rowStart, double rowSize, double offset, double windowSize, const ViewableRule& rule) {
+  if (!(rowSize > 0.0) || !(windowSize > 0.0)) {
+    return false;
+  }
+  double visible = std::min(rowStart + rowSize, offset + windowSize) - std::max(rowStart, offset);
+  // A row taller than the viewport can qualify when its visible viewport share meets the rule.
+  double referenceSize = rule.coverage ? windowSize : std::min(rowSize, windowSize);
+  bool fullyVisible = rule.coverage && visible >= rowSize;
+  return visible > 0.0 && (fullyVisible || visible / referenceSize >= rule.threshold);
+}
+
 IndexRange Container::getViewableIndices(const ViewableRule& rule) const {
   IndexRange measured = getMeasuredRange();
   if (measured.isEmpty()) {
     return {};
   }
-
-  double viewportStart = getOffset();
-  double windowSize = getWindowSize();
-  double viewportEnd = viewportStart + windowSize;
-
   IndexRange viewable;
-  for (std::size_t nextRowIndex = measured.low; nextRowIndex <= measured.high && nextRowIndex < revision.rows.size(); ++nextRowIndex) {
-    const Row& nextRow = revision.rows[nextRowIndex];
-    double rowStart = horizontal ? nextRow.offsetX : nextRow.offsetY;
-    double rowSize = horizontal ? nextRow.width : nextRow.height;
-    if (rowSize <= 0.0) {
-      continue;
-    }
-    double rowEnd = rowStart + rowSize;
-
-    double overlapStart = rowStart > viewportStart ? rowStart : viewportStart;
-    double overlapEnd = rowEnd < viewportEnd ? rowEnd : viewportEnd;
-    double visible = overlapEnd - overlapStart;
-
-    /*
-     * Compare against the smaller of row and viewport. A row taller than the screen
-     * can still count as fully visible. Coverage compares against the viewport, and a row
-     * fully on screen always counts.
-     */
-    double referenceSize = rule.coverage ? windowSize : (rowSize < windowSize ? rowSize : windowSize);
-    bool fullyVisible = rule.coverage && visible >= rowSize;
-    if (visible > 0.0 && referenceSize > 0.0 && (fullyVisible || (visible / referenceSize) >= rule.threshold)) {
+  for (std::size_t index = measured.low; index <= measured.high && index < revision.rows.size(); ++index) {
+    const Row& row = revision.rows[index];
+    if (isRowViewable(horizontal ? row.offsetX : row.offsetY, horizontal ? row.width : row.height,
+          getOffset(), getWindowSize(), rule)) {
       if (viewable.low == UNDEFINED_INDEX) {
-        viewable.low = nextRowIndex;
+        viewable.low = index;
       }
-      viewable.high = nextRowIndex;
+      viewable.high = index;
     }
   }
   return viewable;

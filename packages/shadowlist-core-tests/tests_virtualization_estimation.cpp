@@ -293,6 +293,25 @@ TEST(unmeasured_rows_track_the_current_fallback_size) {
   CHECK_NEAR(offsetOf(container, 499), lastOffsetBefore, 0.001);
 }
 
+TEST(the_measured_range_is_picked_after_a_new_fallback_size_moves_the_rows) {
+  Fixture fixture;
+  fixture.estimatedHeight = 120.0;
+
+  std::vector<std::string> keys = keysFor(500);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+
+  // A layout pass measures the first rows at a third of the estimate, and the average is the fallback.
+  IndexRange first = container.getMeasuredRange();
+  layoutRows(container, first.low, std::vector<double>(first.high - first.low + 1, 40.0));
+  CHECK_NEAR(container.revision.averageRowHeight, 40.0, 0.001);
+
+  // The frame that shrinks the rows past them to the average takes in the rows that moved up.
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK_NEAR(sizeOf(container, 400), 40.0, 0.001);
+  checkNoRowLost(container, "after the average froze");
+}
+
 TEST(the_frozen_average_is_a_whole_size_and_corrections_stay_whole) {
   Fixture fixture;
   fixture.estimatedHeight = 120.0;
@@ -923,4 +942,35 @@ TEST(first_measurement_of_a_straddling_anchor_row_keeps_the_rows_below_in_place)
   Virtualizer::updateRowAtIndex(container, 5, {WINDOW_WIDTH, 60.0});
   CHECK(container.state.offsetCorrected);
   CHECK_NEAR(offsetOf(container, 6) - container.revision.offsetY, belowOnScreen, 0.5);
+}
+
+TEST(viewability_predicate_keeps_masonry_gaps_out_of_item_tokens) {
+  // Two lanes: row 0 ends at 100, row 1 at 60, then row 2 starts at 100 in lane 0.
+  // At offset 50 only rows 0 and 2 meet the 50-percent rule, although their enclosing range
+  // is 0..2. Row 1 overlaps the viewport but shows only 10 of its 60 points.
+  ViewableRule rule{0.5, false};
+  CHECK(isRowViewable(0.0, 100.0, 50.0, 100.0, rule));
+  CHECK(!isRowViewable(0.0, 60.0, 50.0, 100.0, rule));
+  CHECK(isRowViewable(100.0, 50.0, 50.0, 100.0, rule));
+  CHECK(!isRowViewable(100.0, 0.0, 50.0, 100.0, rule));
+  CHECK(!isRowViewable(100.0, 50.0, 50.0, 0.0, rule));
+  CHECK(isRowViewable(100.0, 50.0, 50.0, 100.0, ViewableRule{0.9, true}));
+}
+
+TEST(horizontal_prediction_keeps_literal_width_and_fixed_height_before_host_cross_fill) {
+  Fixture fixture;
+  auto keys = keysFor(100);
+  Container container;
+  FrameInput input = inputFor(keys, 0.0, fixture);
+  input.horizontal = true;
+  input.windowWidth = 320.0;
+  input.windowHeight = 400.0;
+  input.estimatedRowSize = {40.0, 400.0};
+  Virtualizer::update(container, input);
+  container.setPredictedSize(keys[40], {320.0, 180.0});
+  Virtualizer::update(container, input);
+  const Row& row = container.getRowAtIndex(40);
+  CHECK_EQ(row.width, 320.0);
+  CHECK_EQ(row.height, 180.0);
+  CHECK(row.predicted);
 }

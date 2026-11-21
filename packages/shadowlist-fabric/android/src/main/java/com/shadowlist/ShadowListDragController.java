@@ -521,7 +521,10 @@ final class ShadowListDragController {
     view.setTranslationY(translationY);
 
     collectRows();
-    mDrag.updateInsertion(mRowIndices, mRowKeys, mRowFrames, mRowCount);
+    if (!mDrag.updateInsertion(mView.getMountHandle(), mRowIndices, mRowKeys, mRowFrames, mRowCount)) {
+      cancel();
+      return;
+    }
     tickDropSpot();
     shuffleCollectedRows(boardShiftsSlide());
     // A row that came home on this frame's board update slid its neighbors back once.
@@ -598,7 +601,10 @@ final class ShadowListDragController {
       return;
     }
     collectRows();
-    mDrag.updateInsertion(mRowIndices, mRowKeys, mRowFrames, mRowCount);
+    if (!mDrag.updateInsertion(mView.getMountHandle(), mRowIndices, mRowKeys, mRowFrames, mRowCount)) {
+      cancel();
+      return;
+    }
     shuffleCollectedRows(boardShiftsSlide());
   }
 
@@ -1110,7 +1116,10 @@ final class ShadowListDragController {
     board.moveOverlayCenterTo(centerX, centerY);
     // The rows after the held one close its gap.
     collectRows();
-    mDrag.updateInsertion(mRowIndices, mRowKeys, mRowFrames, mRowCount);
+    if (!mDrag.updateInsertion(mView.getMountHandle(), mRowIndices, mRowKeys, mRowFrames, mRowCount)) {
+      cancel();
+      return false;
+    }
     shuffleCollectedRows(true);
     ShadowListDragController target = board.getTarget();
     if (target != null) {
@@ -1403,7 +1412,10 @@ final class ShadowListDragController {
     boolean horizontal = mView.isHorizontal();
     mDrag.placeForeignCenter(horizontal ? x : y, horizontal ? y : x);
     collectRows();
-    mDrag.updateInsertion(mRowIndices, mRowKeys, mRowFrames, mRowCount);
+    if (!mDrag.updateInsertion(mView.getMountHandle(), mRowIndices, mRowKeys, mRowFrames, mRowCount)) {
+      cancel();
+      return;
+    }
     tickDropSpot();
     shuffleCollectedRows(true);
   }

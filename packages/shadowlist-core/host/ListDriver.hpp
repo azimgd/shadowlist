@@ -7,7 +7,11 @@
 #include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/MountedRange.hpp>
 #include <shadowlist-core/host/Prefetch.hpp>
+#include <shadowlist-core/host/RowSizeSpec.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
+#include <shadowlist-core/host/StickyLayout.hpp>
+#include <shadowlist-core/host/Viewability.hpp>
+#include <shadowlist-core/host/ListSections.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -15,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -22,8 +27,8 @@
 namespace azimgd::shadowlist {
 
 /*
- * Core passes per layout. Each pass measures the rows its measured range brought in or settles a
- * correction.
+ * Core passes per layout that settle a correction and measure no row. A pass that measures the
+ * rows its measured range brought in does not count.
  */
 constexpr int MAX_CORE_PASSES_PER_LAYOUT = 4;
 
@@ -76,6 +81,13 @@ struct PassInput {
   double windowCross = 0.0;
   double headerSize = 0.0;
   double footerSize = 0.0;
+
+  /*
+   * The size of the view a host shows while the list has no rows, 0 without one. It sits right
+   * after the header. While it shows, the core counts it with the header: the footer goes after
+   * it and the content size holds it.
+   */
+  double emptySize = 0.0;
   ScrollPhase phase = ScrollPhase::Idle;
   bool userScrolled = false;
   bool tracking = false;
@@ -88,12 +100,25 @@ struct PassInput {
   double mountPad = 0.0;
   double leadingInset = 0.0;
   double trailingInset = 0.0;
+
+  /*
+   * Whether runPasses brings a list left before the start or past the end of its content back to
+   * that end and runs again there. Content that shrank leaves a resting list past the new end,
+   * and the core leaves an inverted list there. A host turns an end off while its scroll view
+   * holds the list past it on its own, like a bounce. tracking turns both off. clampSlack is how
+   * far outside the content the host's scroll view rests on its own, like the device pixel it
+   * rounds to.
+   */
+  bool clampStart = false;
+  bool clampEnd = false;
+  double clampSlack = 0.0;
 };
 
 /*
  * What the host applies after a layout: the content size first, then the offset.
- * With settling set, a correction waits for one more report on the next frame. The footer
- * starts at footerStart along the axis.
+ * With settling set, a correction waits for one more report on the next frame, or the list was
+ * brought back to an end the rows measured there moved again. The footer starts at footerStart
+ * along the axis. atEnd is the driver's isAtEnd after the passes, and showsEmpty its showsEmpty.
  */
 struct PassResult {
   double offset = 0.0;
@@ -103,6 +128,8 @@ struct PassResult {
   bool settling = false;
   bool reachedStart = false;
   bool reachedEnd = false;
+  bool atEnd = true;
+  bool showsEmpty = true;
 };
 
 /*
@@ -129,6 +156,57 @@ struct MountPlan {
   double viewHigh = 0.0;
   OffsetBand band;
 };
+
+/*
+ * What a mount plan is made with besides the offset, the values planMount takes.
+ */
+struct MountInputs {
+  double windowAlong = 0.0;
+  double pad = 0.0;
+  double leadingInset = 0.0;
+  double trailingInset = 0.0;
+
+  friend bool operator==(const MountInputs& a, const MountInputs& b) {
+    return a.windowAlong == b.windowAlong && a.pad == b.pad && a.leadingInset == b.leadingInset &&
+      a.trailingInset == b.trailingInset;
+  }
+
+  friend bool operator!=(const MountInputs& a, const MountInputs& b) {
+    return !(a == b);
+  }
+};
+
+/*
+ * What a host's mount pass covers. low, high and sticky are its plan's rows. geometry is the
+ * driver's geometry version, structure the host's count of data changes and shift how far the
+ * host draws the rows off their frames, like the part of a device pixel its offset is rounded
+ * by. band and inputs are the plan's band and what the plan was made with. A host makes one
+ * for every plan, asks shouldSkipMount with the one before and keeps it, mounted or not.
+ */
+struct MountRecord {
+  std::size_t low = UNDEFINED_INDEX;
+  std::size_t high = UNDEFINED_INDEX;
+  std::size_t sticky = UNDEFINED_INDEX;
+  std::uint64_t geometry = 0;
+  std::uint64_t structure = 0;
+  double shift = 0.0;
+  OffsetBand band;
+  MountInputs inputs;
+};
+
+/*
+ * Whether a host skips the mount pass of next: nothing the pass before covered changed. That is
+ * the plan's rows, the pinned header, the geometry, the data and the shift. With more than one
+ * column a row between the same ends can come into view. The pass is then skipped only while the
+ * offset stays inside the band of the plan before, made with the same inputs. A host that holds
+ * a row for a drag mounts every pass.
+ */
+bool shouldSkipMount(
+  const MountRecord& previous,
+  const MountRecord& next,
+  double offset,
+  std::size_t numberOfColumns,
+  bool holdsRow);
 
 /*
  * Where an animated scroll command lands when its animation ends. The animation only goes to
@@ -173,6 +251,9 @@ public:
   using PrefetchRows =
     std::function<void(const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel)>;
 
+  using GetItemSizeSpec = std::function<std::optional<RowSizeSpec>(std::size_t index, const std::string& key)>;
+  using MeasureSizeSpec = std::function<Size(const RowSizeSpec& spec, double width)>;
+
   ListDriver();
 
   /*
@@ -197,6 +278,34 @@ public:
    */
   void setStickyIndices(std::vector<std::size_t> sticky);
   bool hasSticky() const { return !sticky_.empty(); }
+
+  /* Requested spans in source order, including section edges. Empty preserves the plain grid. */
+  void setRowSpans(std::vector<std::size_t> spans);
+
+  /*
+   * Keys of rows the core never holds the visible content by, like a typing indicator or a row
+   * that streams in. The nearest other row holds it instead.
+   */
+  void setNonAnchorKeys(std::vector<std::string> keys);
+
+  /* Changed config positions start a new observation; equal configs keep their reports. */
+  std::vector<std::size_t> setViewabilityConfigs(std::vector<ViewabilityConfig> configs, double now = 0.0);
+  std::vector<std::pair<std::size_t, ViewabilityReport>> updateViewability(
+    double offset, double windowAlong, double now, const ListSections* sections = nullptr);
+  void recordInteraction(double now);
+  void resetViewability();
+  bool isViewabilityWaiting() const;
+
+  void setGetItemSizeSpec(GetItemSizeSpec getItemSizeSpec, MeasureSizeSpec measureSizeSpec);
+  void setMeasureLookaheadRows(std::size_t rows);
+  void invalidateSizeSpecs();
+
+  /*
+   * Rows kept mounted at their ordinary content positions, even outside the measured range.
+   * Keys absent from the current data retain their intent for a later key update.
+   */
+  void setPersistentKeys(std::vector<std::string> keys);
+  std::vector<std::size_t> getPersistentIndices() const;
 
   void setKeys(std::vector<std::string> keys);
 
@@ -240,9 +349,17 @@ public:
   const std::string& getKeyAt(std::size_t index) const { return keys_[index]; }
 
   /*
-   * Run the core until the measured range is measured and any correction landed.
+   * Run the core until the measured range is measured and any correction landed. A list left
+   * outside its content comes back to the end the input's clampStart and clampEnd name, and the
+   * core runs again there before the host draws.
    */
   PassResult runPasses(const PassInput& input);
+
+  /*
+   * Keep auto hide intent across frames. Report genuine user offsets before core correction,
+   * then rebase the final layout with accumulate false. Property changes retain the state.
+   */
+  StickyTranslations stickyTranslations(const StickyInput& input);
 
   /*
    * Drop all sizes after a cross size change and hold the first visible row.
@@ -257,6 +374,18 @@ public:
   double getContentAlong() const;
 
   /*
+   * Whether an inverted list rests at its end. It leaves the end when the user scrolls away from
+   * it or a scroll command lands away from it, and is back when either brings it there. Content
+   * that grows never leaves it. A list that is not inverted is always at its end.
+   */
+  bool isAtEnd() const;
+
+  /*
+   * Whether the host shows its empty view: the list has no rows.
+   */
+  bool showsEmpty() const { return keys_.empty(); }
+
+  /*
    * The rows the core keeps measured, or nothing before the first layout.
    */
   std::optional<MountedRange> getMeasuredRange() const;
@@ -267,6 +396,7 @@ public:
   std::optional<MountedRange> getVisibleRange() const;
 
   RowRect getRowRect(std::size_t index) const;
+  bool hasRowSpans() const { return core_->state.hasRowSpans; }
   double getLeadingAt(std::size_t index) const;
   double getExtentAt(std::size_t index) const;
   double getFooterStart(double footerSize) const;
@@ -302,8 +432,10 @@ public:
 
   /*
    * Where the pinned header's leading edge goes for an offset, pushed up by the next header.
+   * The explicit extent is the measured custom overlay size; otherwise the row's extent is used.
    */
   double stickyLeading(std::size_t active, double offset) const;
+  double stickyLeading(std::size_t active, double offset, double extent) const;
 
   /*
    * Leading edge and extent of every sticky row, two values each, for a host that pins
@@ -368,6 +500,22 @@ public:
   bool isDragging() const { return !heldKey_.empty(); }
 
   /*
+   * The home row can hover another list, which opens a foreign session there. Both use the
+   * same shared drag and insertion math as a normal reorder; dragEnd ends either session.
+   */
+  void dragSetHeldAway(bool away) { drag_.setHeldAway(away); }
+  bool isDragHeldAway() const { return drag_.isHeldAway(); }
+  void dragBeginForeign(double extent, double crossExtent);
+  void dragPlaceForeignCenter(double center, double crossCenter) { drag_.placeForeignCenter(center, crossCenter); }
+  bool isDragForeign() const { return drag_.isForeign(); }
+
+  /*
+   * The key change a drop's synchronous data update is expected to make. The next pass sends
+   * it once. An empty hint clears it and any unused hint in the core when that update ends.
+   */
+  void setDropHint(DropHint hint);
+
+  /*
    * Where the held row is in the data now, or UNDEFINED_INDEX without a drag or when its key is gone.
    */
   std::size_t getHeldIndex() const;
@@ -387,25 +535,31 @@ public:
   DragOffset dragShiftFor(std::size_t index) const { return drag_.offsetFor(index); }
   std::size_t getDragOriginIndex() const { return drag_.getOriginIndex(); }
   std::size_t getDragInsertionIndex() const { return drag_.getInsertionIndex(); }
+  const std::string& getDragInsertionKey() const { return drag_.getInsertionKey(); }
 
 private:
   void installCallbacks();
   void recordEdit(KeyEdit edit);
   void insertKeysInPlace(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
   void insertKeysRebuilding(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
-  FrameInput makeFrameInput(const PassInput& input, double offset, bool firstPass) const;
+  FrameInput makeFrameInput(const PassInput& input, double offset, bool userScrolled) const;
   bool measureRange(double offset, const PassInput& input);
-  bool measureSpan(std::size_t low, std::size_t high, std::size_t extra);
+  bool measureSpan(std::size_t low, std::size_t high, std::size_t pinned, std::size_t aimed);
   void measureIndex(std::size_t index, SizeBatch& batch);
   bool needsMeasure(std::size_t index);
   double crossSizeOf(std::size_t index) const;
   void collectIndex(std::size_t index);
+  double runCore(const PassInput& input, double offset, bool userScrolled);
+  bool updateSizeSpecs(double offset, const PassInput& input);
   PassResult finishPasses(double offset, const PassInput& input);
   double clampOffset(double target, const PassInput& input) const;
+  double restingOffset(double offset, const PassInput& input) const;
   bool overlaps(std::size_t index, double viewLow, double viewHigh) const;
   DragRow dragRowAt(std::size_t index) const;
+  void aimAtRow(std::size_t index, double viewPosition, double viewOffset);
 
   std::unique_ptr<Container> core_;
+  StickyState stickyState_;
   MeasureRow measureRow_;
   MeasureRows measureRows_;
 
@@ -418,6 +572,33 @@ private:
   ListSettings settings_;
   std::vector<std::string> keys_;
   std::vector<std::size_t> sticky_;
+  std::vector<std::size_t> rowSpans_;
+  bool rowSpansChanged_ = false;
+  std::vector<std::string> nonAnchorKeys_;
+  std::vector<std::string> persistentKeys_;
+  GetItemSizeSpec getItemSizeSpec_;
+  MeasureSizeSpec measureSizeSpec_;
+  std::size_t measureLookaheadRows_ = 48;
+  SizeSpecQueue sizeSpecs_;
+  std::shared_ptr<const std::vector<RowSizeSpec>> sizeSpecsSource_;
+  std::optional<MountedRange> sizeSpecsRange_;
+  std::vector<ViewabilityConfig> viewabilityConfigs_;
+  std::vector<ViewabilityTracker> viewabilityTrackers_;
+  bool viewabilityInteracted_ = false;
+  bool sizeSpecsRan_ = false;
+  double sizeSpecsWidth_ = 0.0;
+  struct CachedSizeSpec {
+    std::size_t index = UNDEFINED_INDEX;
+    std::optional<RowSizeSpec> spec;
+    double width = -1.0;
+    Size size{0.0, 0.0};
+  };
+  std::unordered_map<std::string, CachedSizeSpec> sizeSpecsCache_;
+
+  /*
+   * Whether the core has yet to take nonAnchorKeys_.
+   */
+  bool nonAnchorKeysChanged_ = false;
   std::unordered_set<std::string> remeasureKeys_;
   PrefetchTracker prefetch_;
 
@@ -432,6 +613,16 @@ private:
   std::vector<std::size_t> prefetchFound_;
   std::vector<std::size_t> cancelFound_;
   ScrollLanding landing_;
+
+  /*
+   * The row a scroll command aims at, by key, until the passes land on it. See runPasses.
+   */
+  struct RowAim {
+    std::string key;
+    double viewPosition = 0.0;
+    double viewOffset = 0.0;
+  };
+  std::optional<RowAim> rowAim_;
   DragReorder drag_;
 
   /*
@@ -439,7 +630,9 @@ private:
    */
   std::vector<DragRow> dragRows_;
   std::string heldKey_;
+  DropHint dropHint_;
   std::uint64_t echoToken_ = 0;
+  std::uint64_t echoRevision_ = 0;
   double windowCross_ = 0.0;
   bool keysChanged_ = true;
 

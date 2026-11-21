@@ -16,15 +16,13 @@ std::size_t dragBoardDropIndex(std::size_t insertionIndex, const std::string& in
 }
 
 void DragBoard::begin(std::string homeId, std::string heldKey, DragPoint finger, DragPoint heldCenter) {
+  // A pickup over a flight that has not ended takes nothing from it.
+  reset();
   phase_ = DragBoardPhase::AtHome;
   homeId_ = std::move(homeId);
   heldKey_ = std::move(heldKey);
-  targetId_.clear();
   flight_ += 1;
   grab_ = {heldCenter.x - finger.x, heldCenter.y - finger.y};
-  liftPending_ = false;
-  returnPending_ = false;
-  landDeadlineMs_ = 0.0;
 }
 
 DragBoardStep DragBoard::hover(const std::vector<std::string>& candidates) {

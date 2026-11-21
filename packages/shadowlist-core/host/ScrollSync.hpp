@@ -54,6 +54,10 @@ struct MountedScroll {
   double baseX = 0.0;
   double baseY = 0.0;
   std::uint64_t commitToken = 0;
+  /*
+   * The correction publication to acknowledge when applied; 0 means unknown.
+   */
+  std::uint64_t commitRevision = 0;
   bool userScrolled = false;
   double scrollPhase = SCROLL_PHASE_IDLE;
   double concealGeneration = 0.0;
@@ -130,6 +134,10 @@ struct MountAction {
   double offsetX = 0.0;
   double offsetY = 0.0;
   std::uint64_t commitToken = 0;
+  /*
+   * The correction publication to acknowledge when applied; 0 means unknown.
+   */
+  std::uint64_t commitRevision = 0;
 
   /*
    * The correction was added to the live offset instead of written as is.
@@ -223,12 +231,12 @@ public:
   MountAction correction(const ViewMotion& view);
 
   /*
-   * Right before a Write. Its scroll frame is our own move and echoes the token.
+   * Right before a Write. Its scroll frame echoes the token and the publication being applied.
    */
   void willWrite(const MountAction& action);
 
   /*
-   * After a Write. A write that moved nothing fires no scroll frame and disarms.
+   * After a Write. A write that moved nothing acknowledges its publication and disarms.
    */
   void didWrite(bool moved);
 
@@ -249,7 +257,8 @@ public:
    * user. An animated one lasts until it lands on the target, or until a frame in the
    * Dragging phase shows a finger took over.
    */
-  void arm(double offsetX, double offsetY, bool animated, std::uint64_t token = 0, bool exact = false);
+  void arm(double offsetX, double offsetY, bool animated, std::uint64_t token = 0, bool exact = false,
+    std::uint64_t revision = 0);
 
   /*
    * A finger took over. A scroll of ours still waiting for its frame is the user's now.
@@ -322,6 +331,10 @@ public:
   bool isCurrentUserScrolled() const;
   double getCurrentScrollPhase() const;
 
+  std::uint64_t getEchoedRevision() const {
+    return echoedRevision_;
+  }
+
   std::uint64_t getEchoedToken() const {
     return echoedToken_;
   }
@@ -333,7 +346,8 @@ private:
     bool userScrolled,
     double scrollPhase,
     std::uint64_t token,
-    double concealGenerationAck);
+    double concealGenerationAck,
+    std::uint64_t revision);
   ScrollPatch push(const LiveScroll::Report& report);
 
   /*
@@ -370,12 +384,14 @@ private:
   double armedX_ = 0.0;
   double armedY_ = 0.0;
   std::uint64_t armedToken_ = 0;
+  std::uint64_t armedRevision_ = 0;
 
   /*
    * Token of the newest correction reported back. Later reports keep sending it, since updates
    * merge and the next frame could replace the echo before the core sees it.
    */
   std::uint64_t echoedToken_ = 0;
+  std::uint64_t echoedRevision_ = 0;
 
   /*
    * The newest correction added to the live offset and how much of it is applied.

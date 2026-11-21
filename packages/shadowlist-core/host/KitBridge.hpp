@@ -2,16 +2,19 @@
 
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
+#include <shadowlist-core/host/StickyLayout.hpp>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <vector>
 
 /*
  * What the kits' JNI bridge (shadowlist-android) and wasm bridge (shadowlist-wasm) share: the
- * pass slots, the commit flags and the conversions of their numbers into the driver's types.
- * Both bridges only marshal arrays in and out of these. ShadowListKitCore.kt and
+ * pass slots, the mount slots, the commit flags and the conversions of their numbers into the
+ * driver's types. Both bridges only marshal arrays in and out of these. ShadowListKitCore.kt and
  * ShadowListKitCore.ts mirror the slot numbers.
  */
 namespace azimgd::shadowlist::kit {
@@ -25,6 +28,7 @@ enum PassSlot : int {
   PASS_WINDOW_CROSS,
   PASS_HEADER_SIZE,
   PASS_FOOTER_SIZE,
+  PASS_EMPTY_SIZE,
   PASS_PHASE,
   PASS_USER_SCROLLED,
   PASS_TRACKING,
@@ -32,6 +36,9 @@ enum PassSlot : int {
   PASS_MOUNT_PAD,
   PASS_LEADING_INSET,
   PASS_TRAILING_INSET,
+  PASS_CLAMP_START,
+  PASS_CLAMP_END,
+  PASS_CLAMP_SLACK,
   PASS_OUT_OFFSET,
   PASS_OUT_CONTENT,
   PASS_OUT_BAND_LOW,
@@ -39,6 +46,8 @@ enum PassSlot : int {
   PASS_OUT_SETTLING,
   PASS_OUT_REACHED_START,
   PASS_OUT_REACHED_END,
+  PASS_OUT_AT_END,
+  PASS_OUT_SHOWS_EMPTY,
   PASS_OUT_GEOMETRY,
   PASS_OUT_MEASURED_LOW,
   PASS_OUT_MEASURED_HIGH,
@@ -46,7 +55,82 @@ enum PassSlot : int {
   PASS_SLOTS,
 };
 
-static_assert(PASS_SLOTS == 23, "ShadowListKitCore.kt and ShadowListKitCore.ts mirror the pass slots");
+static_assert(PASS_SLOTS == 29, "ShadowListKitCore.kt and ShadowListKitCore.ts mirror the pass slots");
+
+/*
+ * Slots of a mount record, see MountRecord. A missing row is -1.
+ */
+enum MountSlot : int {
+  MOUNT_LOW = 0,
+  MOUNT_HIGH,
+  MOUNT_STICKY,
+  MOUNT_GEOMETRY,
+  MOUNT_STRUCTURE,
+  MOUNT_SHIFT,
+  MOUNT_BAND_LOW,
+  MOUNT_BAND_HIGH,
+  MOUNT_WINDOW_ALONG,
+  MOUNT_PAD,
+  MOUNT_LEADING_INSET,
+  MOUNT_TRAILING_INSET,
+  MOUNT_SLOTS,
+};
+
+static_assert(MOUNT_SLOTS == 12, "ShadowListKitCore.kt and ShadowListKitCore.ts mirror the mount slots");
+
+/*
+ * Presence flags preserve unset and explicit non-finite percentage thresholds across JNI.
+ */
+enum ViewabilityConfigSlot : int {
+  VIEWABILITY_ITEM_PERCENT = 0,
+  VIEWABILITY_HAS_ITEM_PERCENT,
+  VIEWABILITY_AREA_PERCENT,
+  VIEWABILITY_HAS_AREA_PERCENT,
+  VIEWABILITY_MINIMUM_VIEW_TIME,
+  VIEWABILITY_WAIT_FOR_INTERACTION,
+  VIEWABILITY_CONFIG_SLOTS,
+};
+
+inline std::vector<ViewabilityConfig> readViewabilityConfigs(const std::vector<double>& slots) {
+  std::vector<ViewabilityConfig> configs;
+  for (std::size_t offset = 0; offset + VIEWABILITY_CONFIG_SLOTS <= slots.size(); offset += VIEWABILITY_CONFIG_SLOTS) {
+    ViewabilityConfig config;
+    if (slots[offset + VIEWABILITY_HAS_ITEM_PERCENT] != 0) config.itemVisiblePercentThreshold = slots[offset + VIEWABILITY_ITEM_PERCENT];
+    if (slots[offset + VIEWABILITY_HAS_AREA_PERCENT] != 0) config.viewAreaCoveragePercentThreshold = slots[offset + VIEWABILITY_AREA_PERCENT];
+    config.minimumViewTime = slots[offset + VIEWABILITY_MINIMUM_VIEW_TIME];
+    config.waitForInteraction = slots[offset + VIEWABILITY_WAIT_FOR_INTERACTION] != 0;
+    configs.push_back(config);
+  }
+  return configs;
+}
+
+/*
+ * Slots of the pinning of the list header and footer, see StickyInput. The first block is what
+ * the view reports. The translations are what a view that pins by moving applies, on every
+ * frame. The spans are for a view whose platform pins inside a span on its own.
+ */
+enum StickySlot : int {
+  STICKY_OFFSET = 0,
+  STICKY_WINDOW_SIZE,
+  STICKY_CONTENT_SIZE,
+  STICKY_HEADER_SIZE,
+  STICKY_FOOTER_SIZE,
+  STICKY_FOOTER_START,
+  STICKY_HEADER,
+  STICKY_FOOTER,
+  STICKY_OUT_HEADER_TRANSLATION,
+  STICKY_OUT_FOOTER_TRANSLATION,
+  STICKY_OUT_HEADER_SPAN_START,
+  STICKY_OUT_HEADER_SPAN_END,
+  STICKY_OUT_FOOTER_SPAN_START,
+  STICKY_OUT_FOOTER_SPAN_END,
+  STICKY_AUTO_HIDE_HEADER,
+  STICKY_AUTO_HIDE_FOOTER,
+  STICKY_ACCUMULATE,
+  STICKY_SLOTS,
+};
+
+static_assert(STICKY_SLOTS == 17, "ShadowListKitCore.kt and ShadowListKitCore.ts mirror the sticky slots");
 
 /*
  * Bits of a key commit's flags: whether it diffs the items, records their content versions or
@@ -69,17 +153,21 @@ static_assert(static_cast<int>(SnapAlignment::Start) == 0 && static_cast<int>(Sn
   static_cast<int>(SnapAlignment::End) == 2);
 
 /*
- * A bridge's index as the core's: a negative one is UNDEFINED_INDEX.
+ * A bridge's index as the core's: negative or unrepresentable values are UNDEFINED_INDEX.
  */
 inline std::size_t indexFrom(std::int64_t value) {
-  return value < 0 ? UNDEFINED_INDEX : static_cast<std::size_t>(value);
+  return value < 0 || static_cast<std::uint64_t>(value) >= UNDEFINED_INDEX
+    ? UNDEFINED_INDEX
+    : static_cast<std::size_t>(value);
 }
 
 /*
- * The core's index as a bridge's: UNDEFINED_INDEX is -1.
+ * The core's index as a bridge's: a missing or unrepresentable index is -1.
  */
 inline std::int32_t intFrom(std::size_t index) {
-  return index == UNDEFINED_INDEX ? -1 : static_cast<std::int32_t>(index);
+  return index > static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max())
+    ? -1
+    : static_cast<std::int32_t>(index);
 }
 
 /*
@@ -151,6 +239,7 @@ inline PassInput readPassInput(const double* slots) {
   input.windowCross = slots[PASS_WINDOW_CROSS];
   input.headerSize = slots[PASS_HEADER_SIZE];
   input.footerSize = slots[PASS_FOOTER_SIZE];
+  input.emptySize = slots[PASS_EMPTY_SIZE];
   input.phase = scrollPhaseFrom(slots[PASS_PHASE]);
   input.userScrolled = slots[PASS_USER_SCROLLED] != 0.0;
   input.tracking = slots[PASS_TRACKING] != 0.0;
@@ -158,7 +247,48 @@ inline PassInput readPassInput(const double* slots) {
   input.mountPad = slots[PASS_MOUNT_PAD];
   input.leadingInset = slots[PASS_LEADING_INSET];
   input.trailingInset = slots[PASS_TRAILING_INSET];
+  input.clampStart = slots[PASS_CLAMP_START] != 0.0;
+  input.clampEnd = slots[PASS_CLAMP_END] != 0.0;
+  input.clampSlack = slots[PASS_CLAMP_SLACK];
   return input;
+}
+
+/*
+ * A version a bridge carries in a double slot. A finite whole number in [0, 2^64) keeps its
+ * unsigned value. Missing (-1), fractional and out of range values become the unset sentinel.
+ */
+inline std::uint64_t versionFrom(double value) {
+  if (!std::isfinite(value) || value < 0.0 || value >= std::ldexp(1.0, 64) || std::trunc(value) != value) {
+    return std::numeric_limits<std::uint64_t>::max();
+  }
+  return static_cast<std::uint64_t>(value);
+}
+
+/*
+ * An index carried in a double slot. Only finite whole numbers below UNDEFINED_INDEX name rows.
+ */
+inline std::size_t indexFromSlot(double value) {
+  if (!std::isfinite(value) || value < 0.0 || value >= static_cast<double>(UNDEFINED_INDEX) ||
+      std::trunc(value) != value) {
+    return UNDEFINED_INDEX;
+  }
+  return static_cast<std::size_t>(value);
+}
+
+inline MountRecord readMountRecord(const double* slots) {
+  MountRecord record;
+  record.low = indexFromSlot(slots[MOUNT_LOW]);
+  record.high = indexFromSlot(slots[MOUNT_HIGH]);
+  record.sticky = indexFromSlot(slots[MOUNT_STICKY]);
+  record.geometry = versionFrom(slots[MOUNT_GEOMETRY]);
+  record.structure = versionFrom(slots[MOUNT_STRUCTURE]);
+  record.shift = slots[MOUNT_SHIFT];
+  record.band = {slots[MOUNT_BAND_LOW], slots[MOUNT_BAND_HIGH]};
+  record.inputs.windowAlong = slots[MOUNT_WINDOW_ALONG];
+  record.inputs.pad = slots[MOUNT_PAD];
+  record.inputs.leadingInset = slots[MOUNT_LEADING_INSET];
+  record.inputs.trailingInset = slots[MOUNT_TRAILING_INSET];
+  return record;
 }
 
 inline void writePassResult(const ListDriver& driver, const PassResult& result, double* slots) {
@@ -169,11 +299,59 @@ inline void writePassResult(const ListDriver& driver, const PassResult& result, 
   slots[PASS_OUT_SETTLING] = result.settling ? 1.0 : 0.0;
   slots[PASS_OUT_REACHED_START] = result.reachedStart ? 1.0 : 0.0;
   slots[PASS_OUT_REACHED_END] = result.reachedEnd ? 1.0 : 0.0;
+  slots[PASS_OUT_AT_END] = result.atEnd ? 1.0 : 0.0;
+  slots[PASS_OUT_SHOWS_EMPTY] = result.showsEmpty ? 1.0 : 0.0;
   slots[PASS_OUT_GEOMETRY] = static_cast<double>(driver.getGeometryVersion());
   std::optional<MountedRange> measured = driver.getMeasuredRange();
   slots[PASS_OUT_MEASURED_LOW] = measured ? static_cast<double>(measured->low) : -1.0;
   slots[PASS_OUT_MEASURED_HIGH] = measured ? static_cast<double>(measured->high) : -1.0;
   slots[PASS_OUT_FOOTER_START] = result.footerStart;
+}
+
+/*
+ * The pinning of a list header and footer from a view's slots. A size of 0 is a missing header
+ * or footer.
+ */
+inline StickyInput readStickyInput(const double* slots) {
+  StickyInput input;
+  input.offset = slots[STICKY_OFFSET];
+  input.windowSize = slots[STICKY_WINDOW_SIZE];
+  input.contentSize = slots[STICKY_CONTENT_SIZE];
+  input.headerSize = slots[STICKY_HEADER_SIZE];
+  input.hasHeader = input.headerSize > 0.0;
+  input.stickyHeader = slots[STICKY_HEADER] != 0.0;
+  input.footerSize = slots[STICKY_FOOTER_SIZE];
+  input.hasFooter = input.footerSize > 0.0;
+  input.footerStart = slots[STICKY_FOOTER_START];
+  input.stickyFooter = slots[STICKY_FOOTER] != 0.0;
+  input.autoHideHeader = slots[STICKY_AUTO_HIDE_HEADER] != 0.0;
+  input.autoHideFooter = slots[STICKY_AUTO_HIDE_FOOTER] != 0.0;
+  input.accumulate = slots[STICKY_ACCUMULATE] != 0.0;
+  return input;
+}
+
+/*
+ * Write the translations and the spans of the pinning the slots describe.
+ */
+inline void writeStickyLayout(double* slots, const StickyInput& input, const StickyTranslations& translations) {
+  StickySpans spans = stickySpans(input);
+  slots[STICKY_OUT_HEADER_TRANSLATION] = translations.header;
+  slots[STICKY_OUT_FOOTER_TRANSLATION] = translations.footer;
+  slots[STICKY_OUT_HEADER_SPAN_START] = spans.header.start;
+  slots[STICKY_OUT_HEADER_SPAN_END] = spans.header.end;
+  slots[STICKY_OUT_FOOTER_SPAN_START] = spans.footer.start;
+  slots[STICKY_OUT_FOOTER_SPAN_END] = spans.footer.end;
+}
+
+inline void writeStickyLayout(double* slots) {
+  StickyInput input = readStickyInput(slots);
+  StickyState state;
+  writeStickyLayout(slots, input, stickyTranslations(input, state));
+}
+
+inline void writeStickyLayout(double* slots, ListDriver& driver) {
+  StickyInput input = readStickyInput(slots);
+  writeStickyLayout(slots, input, driver.stickyTranslations(input));
 }
 
 inline bool validRow(const ListDriver& driver, std::int64_t index) {

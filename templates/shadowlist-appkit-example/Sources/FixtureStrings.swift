@@ -1,1 +1,0 @@
-../../shadowlist-uikit-example/Sources/FixtureStrings.swift

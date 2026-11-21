@@ -3,6 +3,7 @@
 #include <shadowlist-core/host/StickyLayout.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <string_view>
 #include <unordered_set>
 
@@ -15,6 +16,35 @@ namespace {
  */
 std::size_t subtractClamped(std::size_t value, std::size_t amount) {
   return value > amount ? value - amount : 0;
+}
+
+/*
+ * A row count as a double for signed arithmetic, and a row index back from one. An index below
+ * zero has no row.
+ */
+double asNumber(std::size_t count) {
+  return static_cast<double>(count);
+}
+
+std::size_t asIndex(double index) {
+  return index >= 0.0 ? static_cast<std::size_t>(index) : UNDEFINED_INDEX;
+}
+
+/*
+ * value rounded to the nearest whole number, a half going up, as JS Math.round does.
+ */
+double roundHalfUp(double value) {
+  double floor = std::floor(value);
+  return value - floor >= 0.5 ? floor + 1.0 : floor;
+}
+
+void appendRange(std::vector<std::size_t>& indices, const MountedRange& range) {
+  if (range.isEmpty()) {
+    return;
+  }
+  for (std::size_t index = range.low; index <= range.high; ++index) {
+    indices.push_back(index);
+  }
 }
 
 }
@@ -108,6 +138,82 @@ ViewableChanges viewableChanges(const std::vector<std::string>& previous, const 
     }
   }
   return changes;
+}
+
+MountedRange initialMountedRange(
+  std::size_t size,
+  std::size_t initialCount,
+  bool inverted,
+  std::size_t target,
+  std::size_t overscanRows,
+  double viewPosition) {
+  if (size == 0) {
+    return {};
+  }
+  double last = asNumber(size - 1);
+  double initial = asNumber(initialCount);
+  if (target != UNDEFINED_INDEX) {
+    double row = std::min(asNumber(target), last);
+    double before = roundHalfUp(viewPosition * initial);
+    double low = std::max(0.0, row - asNumber(overscanRows) - before);
+    double high = std::min(last, row + (initial - before));
+    // A view position outside 0 to 1 can push the range off the rows.
+    if (!(low <= high)) {
+      return {};
+    }
+    return {asIndex(low), asIndex(high)};
+  }
+  if (inverted) {
+    return {asIndex(std::max(0.0, asNumber(size) - initial)), size - 1};
+  }
+  return {0, std::min(initialCount, size - 1)};
+}
+
+MountedRange grownMountedRange(
+  const MountedRange& edges,
+  bool lowAtStart,
+  bool highAtEnd,
+  std::size_t size,
+  std::size_t overscanRowsLeading,
+  bool followTail) {
+  if (edges.low == UNDEFINED_INDEX || edges.high == UNDEFINED_INDEX || size == 0) {
+    return {};
+  }
+  std::size_t low = std::min(edges.low, edges.high);
+  std::size_t high = std::max(edges.low, edges.high);
+  std::size_t grownLow = lowAtStart ? low - std::min(low, overscanRowsLeading) : low;
+  if (followTail && highAtEnd) {
+    std::size_t tailHigh = size - 1;
+    std::size_t tailLength = high - low + MAX_FOLLOWED_APPEND;
+    std::size_t tailLow = tailHigh - std::min(tailHigh, tailLength);
+    return {std::max(grownLow, tailLow), tailHigh};
+  }
+  if (!highAtEnd || high >= size - 1) {
+    return {grownLow, highAtEnd ? size - 1 : high};
+  }
+  return {grownLow, high + std::min(size - 1 - high, overscanRowsLeading)};
+}
+
+std::vector<std::size_t> unionRangeIndices(const MountedRange& first, const MountedRange& second) {
+  std::vector<std::size_t> indices;
+  if (first.isEmpty() || second.isEmpty()) {
+    appendRange(indices, first);
+    appendRange(indices, second);
+    return indices;
+  }
+  const MountedRange& lower = first.low <= second.low ? first : second;
+  const MountedRange& upper = first.low <= second.low ? second : first;
+  if (upper.low <= lower.high + 1) {
+    appendRange(indices, {lower.low, std::max(lower.high, upper.high)});
+    return indices;
+  }
+  appendRange(indices, lower);
+  appendRange(indices, upper);
+  return indices;
+}
+
+bool shouldReseedFromIndex(std::size_t previousIndex, std::size_t nextIndex) {
+  return nextIndex != previousIndex && nextIndex != UNDEFINED_INDEX;
 }
 
 }

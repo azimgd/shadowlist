@@ -1,5 +1,11 @@
 name: Setup
-description: Setup Node.js and install workspace dependencies from the repo root
+description: Setup Node.js and install workspace dependencies from the root of a yarn project
+
+inputs:
+  working-directory:
+    description: The yarn project root, relative to the workspace. The app builds pass the templates checkout.
+    required: false
+    default: '.'
 
 runs:
   using: composite
@@ -7,20 +13,21 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version-file: .nvmrc
+        node-version-file: ${{ inputs.working-directory }}/.nvmrc
 
     - name: Cache dependencies
       id: yarn-cache
       uses: actions/cache@v4
       with:
         path: |
-          **/node_modules
-          .yarn/install-state.gz
-        key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
+          ${{ inputs.working-directory }}/**/node_modules
+          ${{ inputs.working-directory }}/.yarn/install-state.gz
+        key: ${{ runner.os }}-yarn-${{ inputs.working-directory }}-${{ hashFiles(format('{0}/yarn.lock', inputs.working-directory)) }}
         restore-keys: |
-          ${{ runner.os }}-yarn-
+          ${{ runner.os }}-yarn-${{ inputs.working-directory }}-
 
     - name: Install dependencies
       if: steps.yarn-cache.outputs.cache-hit != 'true'
       run: yarn install --immutable
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
