@@ -144,3 +144,12 @@ vertical row fills its width. Exact sizing through the data source remains the f
 `renderStickyHeaderOverlay(key, index, section)` creates a native view for the active sticky item or section header. The key is the public item key or documented section key, never the internal qualified row key. Headers use `NSNotFound` on Apple platforms and `-1` on Android for the item index; unsectioned items use that sentinel for the section. An anonymous empty section supplies a null key.
 
 The view stays mounted across scrolling and width changes, sizes against the current cross axis, and uses the shared pinning rule with its own measured extent. Data updates and factory replacement refresh it. The original row stays mounted for measurement and identity while hidden from display and accessibility. Returning null, clearing the factory, changing the active row, or detaching removes the custom view and restores the original. The native Sections example uses this factory for a custom section header.
+
+## Tests
+
+```sh
+cd packages/shadowlist-uikit
+xcodebuild test -scheme ShadowListKitTests-Package -destination 'platform=iOS Simulator,name=<simulator>'
+```
+
+The kit's XCTest suites run on a simulator: swipe actions and their configuration, editing menus, list actions, item spans, auto hide, retained items, predictive sizing, the section rotor, viewability, custom sticky header overlays and the text layout. The AppKit kit shares the swipe action configuration tests by a symlink.
