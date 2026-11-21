@@ -20,7 +20,7 @@ set -euo pipefail
 #     -SLEngineFlags NO. Android's switch is the build property -PshadowlistEngineFlags=false, and
 #     the script only checks it. Each run writes the state the app logged to <screen>-<run>.flags)
 #   iOS: UDID, IOS_FLING_SPEED=5000 (pt/s at the start of each in-app fling).  Android: ADB="adb -s emulator-5570", SHOT_COUNT=40,
-#            EMULATOR_AVD=sl_perf_android, OTHER_EMU_MAX=30 (other emulators' CPU %)
+#            EMULATOR_AVD=<avd name>, OTHER_EMU_MAX=30 (other emulators' CPU %)
 
 PLATFORM="${1:?usage: scroll-bench.sh <ios|android> <label>}"
 LABEL="${2:?usage: scroll-bench.sh <ios|android> <label>}"
@@ -160,9 +160,9 @@ LOAD_MAX="${LOAD_MAX:-10}"
 # Other emulators share the host GPU. Their CPU (a proxy for their rendering) counts too.
 OTHER_EMU_MAX="${OTHER_EMU_MAX:-30}"
 # The AVD running the benchmark, left out of the other emulators' CPU.
-EMULATOR_AVD="${EMULATOR_AVD:-sl_perf_android}"
+EMULATOR_AVD="${EMULATOR_AVD:-}"
 other_emulators_cpu() {
-  ps -Ao pcpu=,args= | awk '/qemu-system/ && !/$EMULATOR_AVD/ && !/awk/ {s += $1} END {print int(s)}'
+  ps -Ao pcpu=,args= | awk -v avd="$EMULATOR_AVD" '/qemu-system/ && !/awk/ && (avd == "" || index($0, avd) == 0) {s += $1} END {print int(s)}'
 }
 wait_quiet() {
   while (( $(sysctl -n vm.loadavg | awk '{print int($2)}') >= LOAD_MAX )) ||

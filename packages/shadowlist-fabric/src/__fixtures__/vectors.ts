@@ -3,11 +3,11 @@ import { readFileSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 /*
- * One case of a vector file in packages/shadowlist-core-tests/vectors. The files are the
- * contract between a function in TypeScript and its twin in packages/shadowlist-core: jest
- * replays them through the TypeScript and the core tests replay them through the C++. function
- * names which one a case is for, in a file that holds more than one. The jest tests of
- * shadowlist and shadowlist-utils both replay through this loader.
+ * One case of a vector file in packages/shadowlist-core-tests/vectors, the list engine's
+ * folder. The files are the contract between a function in TypeScript and its twin in
+ * packages/shadowlist-core: jest replays them through the TypeScript and the core tests replay
+ * them through the C++. function names which one a case is for, in a file that holds more than
+ * one. The template libraries of the shadowlist-templates repository keep their own files.
  */
 export interface VectorCase {
   name: string;
@@ -19,27 +19,10 @@ export interface VectorCase {
 const VECTORS_DIR = join(__dirname, '../../../shadowlist-core-tests/vectors');
 
 /*
- * Which package's vectors.test replays each file. A file in the folder that is not here fails
- * both packages' tests, and so does a file here that its package does not replay.
+ * The files vectors.test replays. A file in the folder that is not here fails the test, and so
+ * does a file here that the test does not replay.
  */
-const VECTOR_FILES = {
-  'shadowlist': ['mounted-range.json'],
-  'shadowlist-utils': [
-    'assistant-steps.json',
-    'avatar-initials.json',
-    'avatar.json',
-    'board-layout.json',
-    'board-move.json',
-    'chat-layout.json',
-    'feed-layout.json',
-    'group-into-sections.json',
-    'markdown.json',
-    'poll.json',
-    'progress.json',
-    'relative-time.json',
-    'theme.json',
-  ],
-} as const;
+const VECTOR_FILES = ['mounted-range.json'] as const;
 
 const replayedFiles = new Set<string>();
 
@@ -96,35 +79,14 @@ export function replayVectors(
 }
 
 /*
- * The function a case is for, in a file that holds more than one. A case that names none of
- * names fails.
+ * Checks that the folder holds the files in VECTOR_FILES and that the test file calling this
+ * replayed every one of them. Call it after the replays ran.
  */
-export function functionOf<Name extends string>(
-  vector: VectorCase,
-  names: ReadonlyArray<Name>
-): Name {
-  const found = names.find((name) => name === vector.function);
-  if (found === undefined) {
-    throw new Error(
-      `${vector.name} names the function ${String(vector.function)}, which has no replay`
-    );
-  }
-  return found;
-}
-
-/*
- * Checks that every file in the folder belongs to one package's replay, and that the test
- * file calling this replayed every file of its package. Call it after the replays ran.
- */
-export function expectEveryVectorFileReplayed(
-  owner: keyof typeof VECTOR_FILES
-): void {
-  const known = Object.values(VECTOR_FILES).flat().sort();
+export function expectEveryVectorFileReplayed(): void {
+  const known = [...VECTOR_FILES].sort();
   const inFolder = readdirSync(VECTORS_DIR)
     .filter((name) => name.endsWith('.json'))
     .sort();
   expect(inFolder).toStrictEqual(known);
-  expect([...replayedFiles].sort()).toStrictEqual(
-    [...VECTOR_FILES[owner]].sort()
-  );
+  expect([...replayedFiles].sort()).toStrictEqual(known);
 }

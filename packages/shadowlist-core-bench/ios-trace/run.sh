@@ -20,7 +20,7 @@ set -euo pipefail
 # {FLINGS}, {BACK} and {HALF} in a step are replaced by $FLINGS (default 12), $BACK
 # (default 3/4 of it) and half of it.
 #
-# Environment: UDID and DEVICE pick the simulator and its agent-device name, default sl-iosfix.
+# Environment: UDID and DEVICE, both required, pick the simulator and its agent-device name.
 # Also SESSION, OUT_DIR, AD for the agent-device command, LOG for the log path, and
 # LAUNCH_ARGS for extra launch arguments, e.g. "-SLCount 1000".
 # Prints the analyzer summary. The raw log is $OUT_DIR/<label>.<scenario>.log.
@@ -28,8 +28,8 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCENARIO="${1:?usage: run.sh <scenario> [label]}"
 LABEL="${2:-run}"
-UDID="${UDID:-3631E904-E223-4D1A-BDE7-2C11261920C0}"
-DEVICE="${DEVICE:-sl-iosfix}"
+UDID="${UDID:?set UDID to the simulator's simctl identifier}"
+DEVICE="${DEVICE:?set DEVICE to the simulator's agent-device name}"
 SESSION="${SESSION:-sltrace-${DEVICE}}"
 OUT_DIR="${OUT_DIR:-$HERE/../results/ios-trace}"
 AD="${AD:-agent-device}"

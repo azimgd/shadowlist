@@ -1,25 +1,31 @@
 /*
  * The list in headless Chrome, driven over the DevTools protocol through test/fixture.html.
  * Skipped when no Chrome is found. CHROME_PATH picks the binary. Run ./build.sh first.
+ * The route test opens the web example of the shadowlist-templates repository, found at
+ * SHADOWLIST_TEMPLATES_ROOT (default ../shadowlist-templates next to this repository). It is
+ * skipped when that example or its build is missing.
  */
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, normalize, resolve as resolvePath } from 'node:path';
 import { after, before, test } from 'node:test';
 
 const ROOT = new URL('..', import.meta.url).pathname;
-const EXAMPLE = new URL(
-  '../../../templates/shadowlist-web-example/dist/',
-  import.meta.url
-).pathname;
-
-const WEB_EXAMPLE = new URL(
-  '../../../templates/shadowlist-web-example/',
-  import.meta.url
-).pathname;
+const TEMPLATES_ROOT = resolvePath(
+  process.env.SHADOWLIST_TEMPLATES_ROOT ||
+    new URL('../../../../shadowlist-templates', import.meta.url).pathname
+);
+const WEB_EXAMPLE = `${join(TEMPLATES_ROOT, 'examples/shadowlist-web-example')}/`;
+// The packages of the templates repository, which the web example imports beside this one.
+const TEMPLATES_PACKAGES = `${join(TEMPLATES_ROOT, 'packages')}/`;
+const WEB_EXAMPLE_SKIP = !existsSync(WEB_EXAMPLE)
+  ? `no web example at ${WEB_EXAMPLE}, set SHADOWLIST_TEMPLATES_ROOT to the shadowlist-templates checkout`
+  : !existsSync(join(WEB_EXAMPLE, 'dist/main.js'))
+    ? `the web example at ${WEB_EXAMPLE} is not built`
+    : false;
 let serverPort = 0;
 let browserPort = 0;
 
@@ -146,16 +152,20 @@ function serve(): Promise<number> {
     const pathname = decodeURIComponent(
       new URL(request.url!, 'http://x').pathname
     );
-    const example = pathname.startsWith('/example/');
     const web = pathname.startsWith('/web/');
     const packageAsset = pathname.startsWith('/packages/shadowlist-wasm/');
-    const root = web ? WEB_EXAMPLE : example ? EXAMPLE : ROOT;
+    const templatesPackage = !packageAsset && pathname.startsWith('/packages/');
+    const root = web
+      ? WEB_EXAMPLE
+      : templatesPackage
+        ? TEMPLATES_PACKAGES
+        : ROOT;
     let relative = web
       ? pathname.slice('/web/'.length)
-      : example
-        ? pathname.slice('/example/'.length)
-        : packageAsset
-          ? pathname.slice('/packages/shadowlist-wasm/'.length)
+      : packageAsset
+        ? pathname.slice('/packages/shadowlist-wasm/'.length)
+        : templatesPackage
+          ? pathname.slice('/packages/'.length)
           : pathname;
     if (web && relative === '') relative = 'index.html';
     const path = normalize(join(root, relative));
@@ -886,65 +896,9 @@ browserTest('a non anchor item never holds the visible items', async (tab) => {
   }
 });
 
-browserTest(
-  'actual web Feed and controlled Poll use the optional utility binary',
-  async (tab) => {
-    const result = await tab.evaluate<{
-      initials: string;
-      time: string;
-      before: string;
-      after: string;
-      switched: string;
-      reset: string;
-      selected: string[];
-      independent: boolean;
-    }>(`(async () => {
-    const kit = await import('../dist/ShadowListKitCore.js');
-    const utils = await import('../dist/utils/index.js');
-    const independent = kit.isShadowListKitLoaded() && !utils.isShadowListUtilsLoaded() && !performance.getEntriesByType('resource').some(entry => entry.name.endsWith('shadowlistutils.wasm'));
-    await utils.loadShadowListUtils();
-    const { feedScreen, pollScreen } = await import('/example/Screens.js');
-    const { FeedPost, feedTime } = await import('/example/Fixtures.js');
-    const feedBody = document.createElement('div');
-    document.body.replaceChildren(feedBody);
-    const feed = feedScreen(feedBody);
-    await frames(4);
-    const initials = feedBody.querySelector('.avatar')?.textContent;
-    const time = feedTime(new FeedPost(3).createdAtMs);
-    feed.remove();
-    const body = document.createElement('div');
-    document.body.replaceChildren(body);
-    const poll = pollScreen(body);
-    await frames(4);
-    const summary = () => body.querySelector('.banner').textContent;
-    const option = (index) => poll.cellForItem(index).view.querySelector('button');
-    const before = summary();
-    option(1).click();
-    await frames(4);
-    const after = summary();
-    const selected = [0, 1, 2].map(option).filter(button => button.getAttribute('aria-pressed') === 'true').map(button => button.textContent);
-    option(2).click();
-    await frames(4);
-    const switched = summary();
-    body.querySelector('.toolbar button').click();
-    await frames(4);
-    const reset = summary();
-    return { initials, time, before, after, switched, reset, selected, independent };
-  })()`);
-    assert.equal(result.independent, true);
-    assert.ok(result.initials?.length > 0);
-    assert.equal(result.time, '3h');
-    assert.match(result.before, /16 votes$/);
-    assert.match(result.after, /17 votes$/);
-    assert.match(result.switched, /17 votes$/);
-    assert.match(result.reset, /0 votes$/);
-    assert.deepEqual(result.selected, ['Coast · 35% · 6 votes']);
-    assert.deepEqual(tab.errors, []);
-  }
-);
-
-browserTest(
-  'actual web routes load utilities only for their helper consumers',
+test(
+  'actual web routes mount their cells',
+  { skip: CHROME ? WEB_EXAMPLE_SKIP : 'no Chrome found' },
   async () => {
     for (const route of [
       'Chat',
@@ -961,21 +915,13 @@ browserTest(
       );
       try {
         const result = await tab.evaluate<{
-          loaded: boolean;
           mounted: number;
-          errors: string[];
         }>(`(async () => {
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         return {
-          loaded: performance.getEntriesByType('resource').some(entry => entry.name.endsWith('shadowlistutils.wasm')),
           mounted: window.list.visibleCells.length,
         };
       })()`);
-        assert.equal(
-          result.loaded,
-          ['Feed', 'Poll', 'Sticky'].includes(route),
-          route
-        );
         assert.ok(result.mounted > 0, `${route} mounted its actual cells`);
         assert.deepEqual(tab.errors, [], route);
       } finally {

@@ -8,9 +8,10 @@ set -uo pipefail
 #   ENGINES="sl recycler recycler-auto sl-auto rn"
 #     An engine name can carry options after a plus: sl+late shows every row 300 ms after it
 #     is bound, a self-test whose result must report blank above 0 (selfTest pass).
-#     rn is the React Native example (shadowlist.example) built with ShadowListKitBench in it:
-#     cd templates/shadowlist-fabric-example/android && ./gradlew \
-#       --init-script ../../../packages/shadowlist-android/Bench/rn/slbench-init.gradle \
+#     rn is the React Native example (shadowlist.example) built with ShadowListKitBench in it.
+#     The example is in the shadowlist-templates checkout, by default next to this repository:
+#     cd "${SHADOWLIST_TEMPLATES_ROOT:-<engine root>/../shadowlist-templates}/examples/shadowlist-fabric-example/android"
+#     ./gradlew --init-script <engine root>/packages/shadowlist-android/Bench/rn/slbench-init.gradle \
 #       app:assembleRelease -PreactNativeArchitectures=arm64-v8a
 #     then adb install -r app/build/outputs/apk/release/app-release.apk
 #     The example turns on React Native feature flags beyond the stable defaults (see

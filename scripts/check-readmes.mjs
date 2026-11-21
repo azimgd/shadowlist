@@ -35,16 +35,17 @@ const capture = (file, pattern) => read(file).match(pattern)?.[1];
 const SKIPPED = new Set([]);
 
 /*
- * The tsconfig standalone `export function` examples compile with, or null for none.
+ * The tsconfig standalone `export function` examples compile with, or null for none. The fabric
+ * package's maps `shadowlist` to its source and resolves react and react-native from its
+ * dependencies.
  */
-const EXAMPLES_TSCONFIG = 'templates/shadowlist-fabric-example/tsconfig.json';
+const EXAMPLES_TSCONFIG = 'packages/shadowlist-fabric/tsconfig.json';
 
 /*
  * Each entry is a line a README must contain, built from the configuration it repeats.
  */
 function requiredLines() {
   const fabric = json('packages/shadowlist-fabric/package.json');
-  const utils = json('packages/shadowlist-utils/package.json');
   const kitBuild = 'packages/shadowlist-android/ShadowListKit/build.gradle.kts';
   const kitProperties =
     'packages/shadowlist-android/ShadowListKit/gradle.properties';
@@ -52,26 +53,12 @@ function requiredLines() {
   const macMinimum = capture('Package.swift', /\.macOS\(\.v(\d+)\)/);
   const podIosMinimum = capture('ShadowListKit.podspec', /:ios => "(\d+)\.0"/);
   const podMacMinimum = capture('ShadowListKit.podspec', /:osx => "(\d+)\.0"/);
-  const utilsPodIosMinimum = capture(
-    'ShadowListUtils.podspec',
-    /:ios => "(\d+)\.0"/
-  );
   const androidMinimum = capture(kitBuild, /minSdk = (\d+)/);
   const javaMinimum = capture(
     kitBuild,
     /sourceCompatibility = JavaVersion.VERSION_(\d+)/
   );
   const mavenVersion = capture(kitProperties, /^VERSION_NAME=(.+)$/m);
-  const utilsBuild =
-    'packages/shadowlist-android-utils/ShadowListUtils/build.gradle.kts';
-  const utilsProperties =
-    'packages/shadowlist-android-utils/ShadowListUtils/gradle.properties';
-  const utilsAndroidMinimum = capture(utilsBuild, /minSdk = (\d+)/);
-  const utilsJavaMinimum = capture(
-    utilsBuild,
-    /sourceCompatibility = JavaVersion.VERSION_(\d+)/
-  );
-  const utilsMavenVersion = capture(utilsProperties, /^VERSION_NAME=(.+)$/m);
   const peers = (file) =>
     ['react', 'react-native'].map((name) => ({
       file,
@@ -80,12 +67,6 @@ function requiredLines() {
     }));
   return [
     ...peers('packages/shadowlist-fabric/README.md'),
-    ...peers('packages/shadowlist-utils/README.md'),
-    {
-      file: 'packages/shadowlist-utils/README.md',
-      text: `| \`shadowlist\` | \`${utils.peerDependencies.shadowlist}\``,
-      what: 'shadowlist peer range',
-    },
     {
       file: 'packages/shadowlist-uikit/README.md',
       text: iosMinimum && `| iOS | ${iosMinimum} or newer |`,
@@ -130,40 +111,6 @@ function requiredLines() {
       file: 'packages/shadowlist-android/README.md',
       text: mavenVersion && `io.github.azimgd:shadowlist-kit:${mavenVersion}`,
       what: `Maven install version (${kitProperties})`,
-    },
-    {
-      file: 'packages/shadowlist-uikit-utils/README.md',
-      text: iosMinimum && `| iOS | ${iosMinimum} or newer |`,
-      what: 'iOS requirement (Package.swift)',
-    },
-    {
-      file: 'packages/shadowlist-uikit-utils/README.md',
-      text: `from: "${fabric.version}"`,
-      what: 'SwiftPM install version',
-    },
-    {
-      file: 'packages/shadowlist-uikit-utils/README.md',
-      text: utilsPodIosMinimum && `| iOS | ${utilsPodIosMinimum} or newer |`,
-      what: 'iOS requirement (ShadowListUtils.podspec)',
-    },
-    {
-      file: 'packages/shadowlist-android-utils/README.md',
-      text:
-        utilsAndroidMinimum &&
-        `| Android | API ${utilsAndroidMinimum} or newer |`,
-      what: `Android requirement (${utilsBuild})`,
-    },
-    {
-      file: 'packages/shadowlist-android-utils/README.md',
-      text: utilsJavaMinimum && `| Java | ${utilsJavaMinimum} or newer |`,
-      what: `Java requirement (${utilsBuild})`,
-    },
-    {
-      file: 'packages/shadowlist-android-utils/README.md',
-      text:
-        utilsMavenVersion &&
-        `io.github.azimgd:shadowlist-utils:${utilsMavenVersion}`,
-      what: `Maven install version (${utilsProperties})`,
     },
   ];
 }

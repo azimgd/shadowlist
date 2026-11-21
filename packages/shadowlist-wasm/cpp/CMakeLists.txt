@@ -39,21 +39,3 @@ target_link_options(shadowlistkit PRIVATE
 if(SHADOWLIST_DEBUG_LOG)
   target_compile_definitions(shadowlistkit PRIVATE SHADOWLIST_DEBUG_LOG=1)
 endif()
-
-# Utilities stay in their own optional binary; the list target does not link them.
-add_executable(shadowlistutils ShadowListUtilsCoreWasm.cpp ${SHADOWLIST_UTILS_SOURCES})
-set_target_properties(shadowlistutils PROPERTIES SUFFIX ".mjs")
-target_include_directories(shadowlistutils PRIVATE ${SHADOWLIST_KIT_CORE_PARENT_DIR})
-target_compile_options(shadowlistutils PRIVATE -fno-rtti $<$<NOT:$<CONFIG:Debug>>:-O3>)
-target_link_options(shadowlistutils PRIVATE
-  -fno-rtti
-  $<$<NOT:$<CONFIG:Debug>>:-O3>
-  -sMODULARIZE=1
-  -sEXPORT_ES6=1
-  -sEXPORT_NAME=createShadowListUtilsModule
-  -sENVIRONMENT=web,node
-  -sALLOW_MEMORY_GROWTH=1
-  -sFILESYSTEM=0
-  -sEXPORTED_FUNCTIONS=_malloc,_free
-  -sEXPORTED_RUNTIME_METHODS=HEAPF64,HEAPU8
-)

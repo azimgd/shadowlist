@@ -3,7 +3,6 @@
 #include "TestFramework.hpp"
 
 #include <shadowlist-core/Constants.hpp>
-#include <shadowlist-core/utils/Text.hpp>
 
 #include <cstddef>
 #include <cstdlib>
@@ -17,12 +16,40 @@
 #include <vector>
 
 /*
- * The vector files in vectors/, and a reader for their JSON. A vector file is the contract
- * between a function of the core and its twin in TypeScript: an array of cases, each with a
- * name, an input and the output both sides must give. The jest tests of the package that owns
- * the TypeScript replay the same files, and write the outputs when run with UPDATE_VECTORS=1.
+ * The vector files, and a reader for their JSON. A vector file is the contract between a
+ * function of the core and its twin in TypeScript: an array of cases, each with a name, an
+ * input and the output both sides must give. The jest tests of the package that owns the
+ * TypeScript replay the same files, and write the outputs when run with UPDATE_VECTORS=1.
+ * vectors/ holds the files of the list engine, which VECTOR_TEST replays. The template
+ * libraries of the shadowlist-templates repository keep their own vector files.
  */
 namespace slt {
+
+/*
+ * Appends codePoint to text as UTF-8, with half a surrogate pair and a value past U+10FFFF
+ * written as U+FFFD. It matches appendUtf8 of Text.hpp in the shadowlist-templates
+ * repository, which the list engine's tests do not include.
+ */
+inline void appendJsonUtf8(std::string& text, char32_t codePoint) {
+  if ((codePoint >= 0xD800 && codePoint <= 0xDFFF) || codePoint > 0x10FFFF) {
+    codePoint = 0xFFFD;
+  }
+  if (codePoint < 0x80) {
+    text.push_back(static_cast<char>(codePoint));
+  } else if (codePoint < 0x800) {
+    text.push_back(static_cast<char>(0xC0 | (codePoint >> 6)));
+    text.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+  } else if (codePoint < 0x10000) {
+    text.push_back(static_cast<char>(0xE0 | (codePoint >> 12)));
+    text.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F)));
+    text.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+  } else {
+    text.push_back(static_cast<char>(0xF0 | (codePoint >> 18)));
+    text.push_back(static_cast<char>(0x80 | ((codePoint >> 12) & 0x3F)));
+    text.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F)));
+    text.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+  }
+}
 
 /*
  * One JSON value: an object, an array, a string, a number, a boolean or null. Strings are UTF-8.
@@ -219,7 +246,7 @@ struct JsonReader {
           if (codePoint >= 0xD800 && codePoint <= 0xDBFF && take("\\u")) {
             codePoint = 0x10000 + ((codePoint - 0xD800) << 10) + (readHexUnit() - 0xDC00);
           }
-          azimgd::shadowlist::appendUtf8(text, codePoint);
+          appendJsonUtf8(text, codePoint);
           break;
         }
         default:
@@ -291,10 +318,11 @@ struct JsonReader {
 };
 
 /*
- * The cases of vectors/<file>. The build passes the folder as SHADOWLIST_VECTORS_DIR.
+ * The cases of <folder>/<file>. The build passes the list engine's folder as
+ * SHADOWLIST_VECTORS_DIR.
  */
-inline Json loadVectors(const std::string& file) {
-  std::string path = std::string(SHADOWLIST_VECTORS_DIR) + "/" + file;
+inline Json loadVectors(const std::string& folder, const std::string& file) {
+  std::string path = folder + "/" + file;
   std::ifstream in(path, std::ios::binary);
   std::stringstream buffer;
   buffer << in.rdbuf();
@@ -317,8 +345,8 @@ inline Json loadVectors(const std::string& file) {
  * many cases ran.
  */
 template <typename Replay>
-std::size_t forEachVector(const std::string& file, const Replay& replay) {
-  Json cases = loadVectors(file);
+std::size_t forEachVector(const std::string& folder, const std::string& file, const Replay& replay) {
+  Json cases = loadVectors(folder, file);
   for (const Json& vector : cases.items) {
     try {
       replay(vector);
@@ -334,25 +362,25 @@ std::size_t forEachVector(const std::string& file, const Replay& replay) {
 }
 
 /*
- * The files VECTOR_TEST replays, gathered before any test runs.
+ * The files each folder's vector tests replay, by folder, gathered before any test runs.
  */
-inline std::set<std::string>& replayedVectorFiles() {
-  static std::set<std::string> files;
+inline std::map<std::string, std::set<std::string>>& replayedVectorFiles() {
+  static std::map<std::string, std::set<std::string>> files;
   return files;
 }
 
 struct VectorFile {
-  explicit VectorFile(const char* file) {
-    replayedVectorFiles().insert(file);
+  VectorFile(const char* folder, const char* file) {
+    replayedVectorFiles()[folder].insert(file);
   }
 };
 
 /*
- * The .json files in vectors/, by name.
+ * The .json files in folder, by name.
  */
-inline std::set<std::string> vectorFilesInFolder() {
+inline std::set<std::string> vectorFilesInFolder(const std::string& folder) {
   std::set<std::string> files;
-  for (const auto& entry : std::filesystem::directory_iterator(SHADOWLIST_VECTORS_DIR)) {
+  for (const auto& entry : std::filesystem::directory_iterator(folder)) {
     if (entry.path().extension() == ".json") {
       files.insert(entry.path().filename().string());
     }
@@ -367,16 +395,33 @@ inline bool isVectorFor(const Json& vector, const std::string& name) {
   return vector["function"].text == name;
 }
 
+/*
+ * Fails for every .json file in folder that no vector test of that folder replays.
+ */
+inline void checkEveryVectorFileReplayed(const std::string& folder, const std::string& label) {
+  const std::set<std::string>& replayed = replayedVectorFiles()[folder];
+  for (const std::string& file : vectorFilesInFolder(folder)) {
+    if (replayed.count(file) == 0) {
+      fail(label + "/" + file + " has no vector test");
+    }
+  }
+}
+
 }
 
 /*
- * A test that replays one vector file. Its body takes each case as const Json& vector. The
- * file counts as replayed, see every_vector_file_has_a_replay.
+ * A test that replays one vector file of folder. Its body takes each case as const Json&
+ * vector. The file counts as replayed in that folder, see checkEveryVectorFileReplayed.
  */
-#define VECTOR_TEST(name, file)                                      \
-  static void slt_replay_##name(const ::slt::Json& vector);          \
-  static const ::slt::VectorFile slt_vector_file_##name{file};       \
-  TEST(name) {                                                       \
-    ::slt::forEachVector(file, slt_replay_##name);                   \
-  }                                                                  \
+#define SLT_FOLDER_VECTOR_TEST(name, folder, file)                     \
+  static void slt_replay_##name(const ::slt::Json& vector);            \
+  static const ::slt::VectorFile slt_vector_file_##name{folder, file}; \
+  TEST(name) {                                                         \
+    ::slt::forEachVector(folder, file, slt_replay_##name);             \
+  }                                                                    \
   static void slt_replay_##name(const ::slt::Json& vector)
+
+/*
+ * A test that replays one vector file of vectors/, the list engine's folder.
+ */
+#define VECTOR_TEST(name, file) SLT_FOLDER_VECTOR_TEST(name, SHADOWLIST_VECTORS_DIR, file)

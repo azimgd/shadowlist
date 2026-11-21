@@ -8,15 +8,17 @@ mounted views.
 
 Use macOS with Xcode and an installed iOS simulator runtime, Node from [`.nvmrc`](../../../.nvmrc), the repo's Yarn,
 Ruby/Bundler, Python 3 and `agent-device` on `PATH`. The scripts launch the installed React Native example
-(`shadowlist.example`); they do not build or install it.
+(`shadowlist.example`); they do not build or install it. The example lives in the
+[shadowlist-templates](https://github.com/komplete-io/shadowlist-templates) checkout, by default next to this repository.
 
 ## Build and install
 
-From the repo root, install dependencies and select an available simulator:
+From the repo root, move to the shadowlist-templates checkout, install its dependencies and select an available simulator:
 
 ```sh
+cd "${SHADOWLIST_TEMPLATES_ROOT:-../shadowlist-templates}"
 yarn install
-cd templates/shadowlist-fabric-example
+cd examples/shadowlist-fabric-example
 bundle install
 cd ios
 bundle exec pod install
@@ -28,10 +30,10 @@ xcrun simctl bootstatus "$UDID" -b
 ```
 
 Choose the same simulator in both lists. Step coordinates assume an iPhone 16 Pro (402×874pt); adapt them for other
-sizes. Export `UDID` and `DEVICE` in each terminal used for tracing. The default values in `run.sh` (`sl-iosfix`)
-and `perf-suite.sh` (`sl-bench`) name simulators your machine may not have.
+sizes. Export `UDID` and `DEVICE` in each terminal used for tracing. `run.sh` and `perf-suite.sh` stop when either
+is missing.
 
-Still in `templates/shadowlist-fabric-example/ios`, build Release with tracing compiled in and install it:
+Still in `examples/shadowlist-fabric-example/ios` of shadowlist-templates, build Release with tracing compiled in and install it:
 
 ```sh
 xcodebuild -workspace ShadowListExample.xcworkspace -scheme ShadowListExample \
@@ -43,7 +45,8 @@ xcrun simctl install "$UDID" build/dd-release/Build/Products/Release-iphonesimul
 
 Release bundles JavaScript and keeps `[SLF]`, `[SLJ]` and `[SLC]`. Rebuild and reinstall after JS changes; use Release
 for timing comparisons. For Debug, use `-configuration Debug`, a separate DerivedData directory and its
-`Debug-iphonesimulator` app, then keep `yarn workspace shadowlist-example start` running from the repo root.
+`Debug-iphonesimulator` app, then keep `yarn workspace shadowlist-example start` running from the shadowlist-templates
+root.
 
 ## Run one
 

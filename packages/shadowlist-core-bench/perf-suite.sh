@@ -23,7 +23,7 @@ set -euo pipefail
 #                      own flags: iOS passes -SLEngineFlags NO, Android only checks, since its switch
 #                      is the build property -PshadowlistEngineFlags=false. Every run records the
 #                      state the app logged in <run>.flags and the summary lists it.
-#   iOS:     UDID, DEVICE (agent-device name), default sl-bench. Build must have the trace
+#   iOS:     UDID and DEVICE (agent-device name), both required. Build must have the trace
 #            (Debug, or Release with SHADOWLIST_FRAME_TRACE_COMPILED=1); Debug needs Metro.
 #   Android: ADB="adb -s emulator-5554" (or ANDROID_SERIAL), SHOT_COUNT=60, BACKGROUND=000000.
 #            [SLC] needs a debug build or a release built with -PshadowlistFrameTrace.
@@ -276,8 +276,8 @@ run_android() {
 
 case "$PLATFORM" in
   ios)
-    UDID="${UDID:-DEDB0C9F-6F48-4813-A2AA-41949887265C}"
-    DEVICE="${DEVICE:-sl-bench}"
+    UDID="${UDID:?set UDID to the simulator's simctl identifier}"
+    DEVICE="${DEVICE:?set DEVICE to the simulator's agent-device name}"
     xcrun simctl boot "$UDID" 2>/dev/null || true
     ;;
   android)

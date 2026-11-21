@@ -9,7 +9,7 @@ file(GLOB TEST_SRCS CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/tests_*.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 
-add_executable(shadowlist_core_tests ${SHADOWLIST_CORE_SOURCES} ${SHADOWLIST_UTILS_SOURCES} ${TEST_SRCS})
+add_executable(shadowlist_core_tests ${SHADOWLIST_CORE_SOURCES} ${TEST_SRCS})
 
 target_include_directories(shadowlist_core_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/..   # for shadowlist-core includes

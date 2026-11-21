@@ -6,12 +6,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
-for (const name of ['Kit', 'Utils'] as const) {
-  const stem = name === 'Kit' ? 'shadowlistkit' : 'shadowlistutils';
-  const path =
-    name === 'Kit'
-      ? '../dist/ShadowListKitCore.js'
-      : '../dist/utils/ShadowListUtilsCore.js';
+for (const name of ['Kit'] as const) {
+  const stem = 'shadowlistkit';
+  const path = '../dist/ShadowListKitCore.js';
   for (const mode of ['bytes', 'locateFile'] as const) {
     test(`${name} loader accepts ${mode} and shares one in-flight promise`, async () => {
       const module = await import(`${path}?${mode}`);

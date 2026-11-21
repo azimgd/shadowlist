@@ -58,38 +58,6 @@ struct DragPoint {
 std::size_t dragBoardDropIndex(std::size_t insertionIndex, const std::string& insertionKey, std::size_t rowCount);
 
 /*
- * A card's move on a board. The host takes the card out of every column that holds its key,
- * then puts it into destinationColumn at destinationIndex, an index into that column without
- * the card. sourceColumn and sourceIndex are where the card first sits now, UNDEFINED_INDEX for
- * a card that is on no column yet. An empty plan changes nothing.
- */
-struct BoardMovePlan {
-  std::size_t sourceColumn = UNDEFINED_INDEX;
-  std::size_t sourceIndex = UNDEFINED_INDEX;
-  std::size_t destinationColumn = UNDEFINED_INDEX;
-  std::size_t destinationIndex = UNDEFINED_INDEX;
-
-  bool isEmpty() const {
-    return destinationColumn == UNDEFINED_INDEX;
-  }
-};
-
-/*
- * Where a card lands when it moves on a board. columns are each column's item keys in order.
- * The card goes into destinationColumn before destinationKey, at the end for an empty key, or
- * at destinationIndex when the key is gone. dragBoardDropIndex keeps the index inside the
- * column. The plan is empty when the key is gone and destinationIndex is UNDEFINED_INDEX, which
- * is no drop spot, when the card already sits there and nowhere else, or when destinationColumn
- * is not on the board.
- */
-BoardMovePlan planBoardMove(
-  const std::vector<std::vector<std::string>>& columns,
-  const std::string& itemKey,
-  std::size_t destinationColumn,
-  const std::string& destinationKey,
-  std::size_t destinationIndex);
-
-/*
  * Where the held row is in a board drag. AtHome is over its home list, where the normal drag
  * goes on. Floating is lifted out over the board, with the last list it hovered as the
  * target. Landing is after a drop into the target, until the row shows up in the target's

@@ -57,37 +57,25 @@ list.reloadData();
 
 ## Optional utilities
 
-`shadowlist-wasm/utils` loads a separate utility binary. The root list entry point neither imports it nor
-loads `shadowlistutils.wasm`. The build packages both binaries; a list-only application only fetches the kit.
-The web Feed and Poll examples use the same C++ avatar, relative-time and poll helpers as the native templates.
+The avatar, relative-time and poll helpers live in the `shadowlist-wasm-utils` package of [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates).
+
+## Loader
+
+`shadowlist-wasm/loader` exports `ShadowListWasmLoader`, the loader behind `loadShadowListKit`, with its
+`ShadowListWasmLoadOptions` and `ShadowListWasmModuleOptions` types. A package with its own Emscripten binary,
+such as `shadowlist-wasm-utils`, uses it to get the same `source` and `locateFile` options, one shared in-flight
+load and retries after a failed load. It imports no binary.
 
 ```ts
-import {
-  loadShadowListUtils,
-  avatarInitials,
-  relativeTime,
-  pollTally,
-  pollPercent,
-} from 'shadowlist-wasm/utils';
+import { ShadowListWasmLoader } from 'shadowlist-wasm/loader';
+import createModule from './mymodule.mjs';
 
-await loadShadowListUtils();
-const initials = avatarInitials('Ada Lovelace').toLocaleUpperCase();
-const time = relativeTime(createdAtMs, Date.now());
-const tally = pollTally([8, 5, 3]);
-const percent = pollPercent(8, tally.totalVotes);
+let wasmModule = null;
+const loader = new ShadowListWasmLoader(createModule, (loaded) => {
+  wasmModule = loaded;
+});
+await loader.load({ locateFile: (file) => `/assets/${file}` });
 ```
-
-`loadShadowListUtils` accepts the same `source` and `locateFile` options as `loadShadowListKit`, shares in-flight
-calls and permits retries after a failed load. Serve `shadowlistutils.wasm` beside `shadowlistutils.mjs`, or use
-the exported `shadowlist-wasm/shadowlistutils.wasm` asset. `isShadowListUtilsLoaded` reports completion.
-
-`avatarColorIndex(name, paletteSize)` selects a palette slot using the shared UTF-16 hash; an empty palette
-returns 0. `avatarInitials(name)` returns the first code point of the first and last words. The host applies
-uppercase and locale rules. `relativeTime(dateMs, nowMs)` returns `{unit, count}` with `unit` one of `now`,
-`minutes`, `hours`, `days` or `date`; the host supplies labels and calendar formatting.
-`relativeTimeHasDate(dateMs)` rejects nonfinite dates before formatting. `pollTally(votes)` returns
-`{totalVotes, leadingIndex}` with -1 for no options, the first index for tied leaders, including all-zero votes.
-`pollPercent(votes, totalVotes)` returns the shared whole percentage, with halves rounded up.
 
 ## API
 
@@ -157,16 +145,8 @@ separators, change animations or text layout. A cell's own listeners hear presse
 
 ## Example app
 
-The example app lives in [`templates/shadowlist-web-example`](../../templates/shadowlist-web-example). From the
-repo root:
-
-```sh
-cd templates/shadowlist-web-example
-npm run build   # or: ../../packages/shadowlist-wasm/build.sh && ../../node_modules/.bin/tsc -b
-npm start       # serves the repo root on http://localhost:8080
-```
-
-Then open `http://localhost:8080/templates/shadowlist-web-example/?SLRoute=Chat&SLCount=1000`. `SLRoute` takes
+The example app is `examples/shadowlist-web-example` in [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates),
+which builds against a checkout of this repository. Its README gives the build and serve commands. `SLRoute` takes
 `Feed`, `Poll`, `Chat`, `Masonry`, `Horizontal` and `Sticky`. The page puts the list on `window.list` for the console.
 
 ## Tests
@@ -175,10 +155,10 @@ Then open `http://localhost:8080/templates/shadowlist-web-example/?SLRoute=Chat&
 in Node 22 or newer. `ShadowListKitCore.test.ts` and `load.test.ts` need no browser. The first also holds the slot
 numbers here and in the Android kit to the core's `host/KitBridge.hpp`. `browser.test.ts` drives the list
 in headless Chrome through `test/fixture.html` and is skipped when no Chrome is found. `CHROME_PATH` picks the
-binary. `utils.test.ts` replays the shared avatar, relative-time and poll vectors through the real optional binary;
-`loader-contract.test.ts` checks each loader's byte source, asset location and concurrent calls. The browser
-suite also drives the actual web Feed and controlled Poll, including switching and resetting votes.
-Run `yarn build:wasm` first.
+binary. `loader-contract.test.ts` checks the loader's byte source, asset location and concurrent calls. The
+browser suite also opens each route of the web example in shadowlist-templates, found at
+`$SHADOWLIST_TEMPLATES_ROOT/examples/shadowlist-web-example` (default `../shadowlist-templates` next to this
+repository). That test is skipped when the example or its `dist/` build is missing. Run `yarn build:wasm` first.
 
 ## Export names
 
@@ -198,7 +178,6 @@ console on every pass.
 | --- | --- |
 | `packages/shadowlist-core/host/ListDriver.{hpp,cpp}` | The core driven for a native list: layout passes, measurement, keys, sticky math, drag. |
 | `cpp/ShadowListKitCoreWasm.cpp` | Thin wasm hops into the driver through a reused scratch area of the heap. |
-| `cpp/ShadowListUtilsCoreWasm.cpp`, `src/utils/` | Optional avatar, relative-time and poll helpers through their own binary. |
 | `src/ShadowListWasmLoader.ts` | Shared module source, retry and concurrent-load handling. |
 | `src/ShadowListKitCore.ts` | Loads the module and wraps the wasm calls, the same shape as Android's `ShadowListKitCore`. |
 | `src/ShadowListKitListView.ts` | Public API, layout pass, mounting, scroll commands. |

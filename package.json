@@ -2,21 +2,18 @@
   "name": "shadowlist-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "ShadowList monorepo — native (Fabric) virtualization, list templates and example apps.",
+  "description": "ShadowList monorepo — the shared C++ list engine and its React Native, UIKit, AppKit, Android and web kits.",
   "license": "MIT",
   "packageManager": "yarn@4.11.0",
   "workspaces": [
     "packages/shadowlist-fabric",
-    "packages/shadowlist-wasm",
-    "packages/shadowlist-utils",
-    "templates/shadowlist-fabric-example",
-    "templates/shadowlist-macos-example"
+    "packages/shadowlist-wasm"
   ],
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p templates/shadowlist-fabric-example/tsconfig.json && tsc -p packages/shadowlist-utils/tsconfig.json && tsc -p templates/shadowlist-macos-example/tsconfig.json --noEmit && tsc -b templates/shadowlist-web-example",
-    "test": "yarn workspace shadowlist run test && yarn workspace shadowlist-utils run test",
+    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p packages/shadowlist-wasm/tsconfig.json --noEmit",
+    "test": "yarn workspace shadowlist run test",
     "test:wasm": "yarn workspace shadowlist-wasm run test",
     "build:wasm": "yarn workspace shadowlist-wasm run build",
     "test:core": "cmake -S packages/shadowlist-core-tests -B packages/shadowlist-core-tests/build && cmake --build packages/shadowlist-core-tests/build && ctest --test-dir packages/shadowlist-core-tests/build --output-on-failure",
@@ -25,8 +22,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "docs:check": "node scripts/check-readmes.mjs",
-    "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish",
-    "release:utils": "yarn workspace shadowlist-utils npm publish --tolerate-republish"
+    "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.3",
@@ -39,8 +35,5 @@
     "eslint-plugin-prettier": "^5.5.5",
     "prettier": "^3.9.9",
     "typescript": "^6.0.2"
-  },
-  "resolutions": {
-    "on-headers": "^1.1.0"
   }
 }

@@ -16,10 +16,9 @@ jobs:
           TAG="${GITHUB_REF_NAME#v}"
           NPM=$(node -p "require('./packages/shadowlist-fabric/package.json').version")
           GRADLE=$(sed -n 's/^VERSION_NAME=//p' packages/shadowlist-android/ShadowListKit/gradle.properties)
-          UTILS=$(sed -n 's/^VERSION_NAME=//p' packages/shadowlist-android-utils/ShadowListUtils/gradle.properties)
-          echo "tag $TAG, npm $NPM, gradle $GRADLE, utils $UTILS"
-          if [ "$TAG" != "$NPM" ] || [ "$TAG" != "$GRADLE" ] || [ "$TAG" != "$UTILS" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match package.json ($NPM) and VERSION_NAME ($GRADLE, utils $UTILS)"
+          echo "tag $TAG, npm $NPM, gradle $GRADLE"
+          if [ "$TAG" != "$NPM" ] || [ "$TAG" != "$GRADLE" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json ($NPM) and VERSION_NAME ($GRADLE)"
             exit 1
           fi
 
@@ -43,17 +42,8 @@ jobs:
           -destination 'generic/platform=iOS'
           CODE_SIGNING_ALLOWED=NO build
 
-      - name: Build ShadowListUtils with SwiftPM
-        run: >-
-          xcodebuild -scheme ShadowListUtils
-          -destination 'generic/platform=iOS'
-          CODE_SIGNING_ALLOWED=NO build
-
       - name: Lint the podspec
         run: pod lib lint ShadowListKit.podspec --allow-warnings
-
-      - name: Lint the templates podspec
-        run: pod lib lint ShadowListUtils.podspec --allow-warnings --include-podspecs=ShadowListKit.podspec
 
       - name: Push to CocoaPods trunk
         run: |
@@ -62,7 +52,6 @@ jobs:
             exit 0
           fi
           pod trunk push ShadowListKit.podspec --allow-warnings
-          pod trunk push ShadowListUtils.podspec --allow-warnings --synchronous
 
   android:
     needs: check-version
@@ -93,10 +82,6 @@ jobs:
       - name: Build ShadowListKit
         run: ./gradlew --no-daemon --console=plain :ShadowListKit:assembleRelease
 
-      - name: Build ShadowListUtils
-        working-directory: packages/shadowlist-android-utils
-        run: ./gradlew --no-daemon --console=plain :ShadowListUtils:assembleRelease
-
       - name: Publish to Maven Central
         run: |
           if [ -z "$MAVEN_CENTRAL_USERNAME" ] || [ -z "$MAVEN_CENTRAL_PASSWORD" ] || [ -z "$SIGNING_KEY" ]; then
@@ -109,6 +94,3 @@ jobs:
           if [ -n "$SIGNING_KEY_ID" ]; then export ORG_GRADLE_PROJECT_signingInMemoryKeyId="$SIGNING_KEY_ID"; fi
           if [ -n "$SIGNING_KEY_PASSWORD" ]; then export ORG_GRADLE_PROJECT_signingInMemoryKeyPassword="$SIGNING_KEY_PASSWORD"; fi
           ./gradlew --no-daemon --console=plain :ShadowListKit:publishAndReleaseToMavenCentral
-          # The templates depend on the kit by its coordinates and publish after it.
-          cd ../shadowlist-android-utils
-          ./gradlew --no-daemon --console=plain :ShadowListUtils:publishAndReleaseToMavenCentral

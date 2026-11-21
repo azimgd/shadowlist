@@ -404,10 +404,11 @@ instead of on the display link.
 
 ## Example app
 
-[templates/shadowlist-appkit-example](../../templates/shadowlist-appkit-example) runs the kit in a Mac app.
+`examples/shadowlist-appkit-example` in [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates) runs the
+kit in a Mac app. It builds against a checkout of this repository next to it, or the one `SHADOWLIST_ROOT` names.
 
 ```sh
-cd templates/shadowlist-appkit-example && ./build.sh mac
+cd ../shadowlist-templates/examples/shadowlist-appkit-example && ./build.sh mac
 ```
 
 `build.sh mac [Release|Debug]` generates the project with xcodegen and builds it. With

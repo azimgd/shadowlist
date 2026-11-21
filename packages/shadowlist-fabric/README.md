@@ -186,8 +186,8 @@ drag on macOS.
   in a window. It moves the row to that list's end through the same `onMoveItemToList` a drop sends. The action names
   the list by `dragListLabel`, then `accessibilityLabel`, then `dragListId`.
 
-[ShadowListUtils' `Board.List`](../shadowlist-utils/README.md#board-drag-between-columns) names its board and lists
-itself and takes one `onMoveItem` for the whole board.
+The `Board.List` of ShadowListUtils, in [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates), names its
+board and lists itself and takes one `onMoveItem` for the whole board.
 
 ### Prefetching and saved position
 

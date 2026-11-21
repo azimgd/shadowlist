@@ -21,7 +21,6 @@ DEBUG_LOG=OFF
 STATUS=$?
 if [[ $STATUS == 0 ]]; then
   cp "$HERE/build/$CONFIG/shadowlistkit.mjs" "$HERE/build/$CONFIG/shadowlistkit.wasm" "$HERE/src/shadowlistkit.d.mts" "$HERE/dist/"
-  cp "$HERE/build/$CONFIG/shadowlistutils.mjs" "$HERE/build/$CONFIG/shadowlistutils.wasm" "$HERE/src/shadowlistutils.d.mts" "$HERE/dist/"
   "$HERE/../../node_modules/.bin/tsc" -b "$HERE/tsconfig.json" >> "$HERE/build/log.txt" 2>&1
   STATUS=$?
 fi
