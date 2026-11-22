@@ -3,7 +3,7 @@ description: Setup Node.js and install workspace dependencies from the root of a
 
 inputs:
   working-directory:
-    description: The yarn project root, relative to the workspace. The app builds pass the templates checkout.
+    description: The yarn project root, relative to the workspace. This repository passes packages; the app builds pass the templates checkout.
     required: false
     default: '.'
 

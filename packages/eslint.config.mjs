@@ -113,7 +113,7 @@ export default defineConfig([
       '**/react-native.config.js',
       'scripts/**/*.mjs',
       'eslint.config.mjs',
-      'packages/shadowlist-fabric/scripts/',
+      'shadowlist-fabric/scripts/',
     ],
   },
 ]);

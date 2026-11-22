@@ -151,7 +151,7 @@ Codegen specs, the same in shadowlist and shadowgrid:
 - Every change in `packages/shadowlist-core` comes with a test in `packages/shadowlist-core-tests`.
 - Test names are sentences in `snake_case` that state the behavior: `TEST(a_prediction_for_a_live_row_reflows_the_rows_after_it)`.
 - Put the test in the `tests_*.cpp` file of its area. Host layer tests go in `tests_host_*.cpp`. The template logic's tests live in shadowlist-templates.
-- A core function with a twin in TypeScript shares a vector file with it: an array of cases, each a `name`, an `input` and the `output` both sides must give, with a `function` where a file holds more than one. Files of `host/` live in `packages/shadowlist-core-tests/vectors`. `tests_host_vectors.cpp` replays them through the C++ in a `VECTOR_TEST`, and `packages/shadowlist-fabric/src/__fixtures__/vectors.ts` loads them for shadowlist's `vectors.test.ts`. A file in the folder without a replay fails on both sides, as does a case that names a function without one and, in C++, an output field no check reads. `UPDATE_VECTORS=1 yarn test` writes the outputs from the TypeScript, after a change both sides make, and then replays them.
+- A core function with a twin in TypeScript shares a vector file with it: an array of cases, each a `name`, an `input` and the `output` both sides must give, with a `function` where a file holds more than one. Files of `host/` live in `packages/shadowlist-core-tests/vectors`. `tests_host_vectors.cpp` replays them through the C++ in a `VECTOR_TEST`, and `packages/shadowlist-fabric/src/__fixtures__/vectors.ts` loads them for shadowlist's `vectors.test.ts`. A file in the folder without a replay fails on both sides, as does a case that names a function without one and, in C++, an output field no check reads. `UPDATE_VECTORS=1 make test` writes the outputs from the TypeScript, after a change both sides make, and then replays them.
 - A fuzz test is named `fuzz_...` and runs its seeds through `forEachFuzzSeed` from `FuzzHelpers.hpp`. It draws through `pickInt`, `pickSize`, `chance` and the other picks there, never through a distribution of `<random>`. It reports each action its generator picks with `episode.reach`, lists those kinds in its `FuzzKinds` in lower case words, and folds what a host could see into `episode.observe`. A test it runs by default passes a campaign of 20,000 seeds. A test, an action or a check with an open failure goes into the campaign mix, through `forEachCampaignSeed` or `episode.campaignMix`, under a comment that starts with `Campaign mix only` and gives the reason in one sentence. The [README](../README.md#development) has the environment variables.
 - Helpers shared by test files live in `<Area>Helpers.hpp`: `TestHelpers.hpp`, `VirtualizationHelpers.hpp`, `FuzzHelpers.hpp`, `SimHostHelpers.hpp` and `AxisHostHelpers.hpp` for the core fuzz hosts, `KitHostHelpers.hpp` and `KitFuzzHelpers.hpp` for the kit fuzz host, `VectorHelpers.hpp` for the vector files.
 
@@ -218,7 +218,7 @@ Comments are short narration of what happens, not explanations of how. A comment
 
 ## Structure
 
-New code follows the file and siblings it lives next to: include and import order, initializer style, file layout and export style. TypeScript imports come in this order: `react`, `react-native`, other packages, then relative imports, with one import statement per module. `local/import-order` and `no-duplicate-imports` in `eslint.config.mjs` check it. Shared logic goes in `packages/shadowlist-core/host`, and the iOS, Android and Fabric adapters call it rather than copying it. Logic only the templates share, like a chat bubble's insets, an avatar's color or the Markdown of a reply, belongs to shadowlist-templates, not to the core. Unused code is deleted, not commented out.
+New code follows the file and siblings it lives next to: include and import order, initializer style, file layout and export style. TypeScript imports come in this order: `react`, `react-native`, other packages, then relative imports, with one import statement per module. `local/import-order` and `no-duplicate-imports` in `packages/eslint.config.mjs` check it. Shared logic goes in `packages/shadowlist-core/host`, and the iOS, Android and Fabric adapters call it rather than copying it. Logic only the templates share, like a chat bubble's insets, an avatar's color or the Markdown of a reply, belongs to shadowlist-templates, not to the core. Unused code is deleted, not commented out.
 
 The template libraries in shadowlist-templates call the core's `host/`, such as `TreeSource`, `TreeRows` and `DragBoard`, through the kits or their own bridges. The mounted range seed functions in `host/` (`initialMountedRange`, `grownMountedRange`, `unionRangeIndices`, `shouldReseedFromIndex`) have no caller outside the core tests yet. They stay, with their vectors, for the templates that move to them. The swipe action colors in `host/SwipeReveal.hpp` are what the Android kit and Fabric's Android cells fall back to. The Apple kits fall back to the system's red and gray, which follow the appearance.
 
@@ -232,12 +232,12 @@ Use named constants, never bare numbers for event types or slots. Enums mirrored
 
 ## Checklist before you finish
 
-- Core changed: a new test, and `yarn test:core` passes. CI runs the core tests under ThreadSanitizer too, without the fuzz tests.
+- Core changed: a new test, and `make test-core` passes. CI runs the core tests under ThreadSanitizer too, without the fuzz tests.
 - Kit changed: the other kit has the same change, and both kit example apps in shadowlist-templates build.
-- Wasm changed: `yarn build:wasm` and `yarn test:wasm` pass.
-- Fabric or JS changed: `yarn typecheck`, `yarn test` and `yarn lint` pass.
+- Wasm changed: `make build-wasm` and `make test-wasm` pass.
+- Fabric or JS changed: `make typecheck`, `make test` and `make lint` pass.
 - `coreConstants.test.ts` checks every slot and commit flag in `host/KitBridge.hpp` against its Kotlin and TypeScript declarations, including extra declarations. The web kit has no viewability configuration bridge; adding one fails its explicit absence check until the mapping is extended. Native bridge tests and wasm tests check numeric decoding behavior separately.
-- Always: `yarn format:check` and `yarn docs:check` pass, as CI checks both.
+- Always: `make format-check` and `make docs-check` pass, as CI checks both.
 - A new or renamed public word has its row in the Public API words table.
 - Comments follow the block rules and no `@interface` or TS `interface` / `type` body has one.
 - No "X, so Y" and no `--` asides in new comments, docs or commit messages.

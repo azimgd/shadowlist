@@ -4,36 +4,36 @@
   "private": true,
   "description": "ShadowList monorepo — the shared C++ list engine and its React Native, UIKit, AppKit, Android and web kits.",
   "license": "MIT",
-  "packageManager": "yarn@4.11.0",
+  "packageManager": "yarn@4.19.0",
   "workspaces": [
-    "packages/shadowlist-fabric",
-    "packages/shadowlist-wasm"
+    "shadowlist-fabric",
+    "shadowlist-wasm"
   ],
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p packages/shadowlist-wasm/tsconfig.json --noEmit",
+    "typecheck": "tsc -p shadowlist-fabric/tsconfig.json && tsc -p shadowlist-wasm/tsconfig.json --noEmit",
     "test": "yarn workspace shadowlist run test",
     "test:wasm": "yarn workspace shadowlist-wasm run test",
     "build:wasm": "yarn workspace shadowlist-wasm run build",
-    "test:core": "cmake -S packages/shadowlist-core-tests -B packages/shadowlist-core-tests/build && cmake --build packages/shadowlist-core-tests/build && ctest --test-dir packages/shadowlist-core-tests/build --output-on-failure",
     "build": "yarn workspace shadowlist run prepare",
     "clean": "yarn workspace shadowlist run clean",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "prettier --write --config .prettierrc --ignore-path ../.gitignore --ignore-path .prettierignore ..",
+    "format:check": "prettier --check --config .prettierrc --ignore-path ../.gitignore --ignore-path .prettierignore ..",
     "docs:check": "node scripts/check-readmes.mjs",
     "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish"
   },
   "devDependencies": {
-    "@eslint/compat": "^2.0.3",
-    "@eslint/eslintrc": "^3.3.5",
+    "@eslint/compat": "^2.1.1",
+    "@eslint/eslintrc": "^3.3.7",
     "@eslint/js": "^10.0.1",
-    "@evilmartians/lefthook": "^1.12.3",
-    "@react-native/eslint-config": "0.85.0",
-    "eslint": "^9.39.5",
+    "@evilmartians/lefthook": "^2.2.2",
+    "@react-native/eslint-config": "0.88.1",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.5",
-    "prettier": "^3.9.9",
-    "typescript": "^6.0.2"
+    "eslint-plugin-prettier": "^5.5.7",
+    "prettier": "^3.10.1",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }

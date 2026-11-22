@@ -151,14 +151,14 @@ which builds against a checkout of this repository. Its README gives the build a
 
 ## Tests
 
-`yarn test:wasm` at the repo root (`yarn workspace shadowlist-wasm run test`) runs `test/*.test.ts` against `dist/`
+`make test-wasm` at the repo root (`yarn workspace shadowlist-wasm run test` in `packages/`) runs `test/*.test.ts` against `dist/`
 in Node 22 or newer. `ShadowListKitCore.test.ts` and `load.test.ts` need no browser. The first also holds the slot
 numbers here and in the Android kit to the core's `host/KitBridge.hpp`. `browser.test.ts` drives the list
 in headless Chrome through `test/fixture.html` and is skipped when no Chrome is found. `CHROME_PATH` picks the
 binary. `loader-contract.test.ts` checks the loader's byte source, asset location and concurrent calls. The
 browser suite also opens each route of the web example in shadowlist-templates, found at
 `$SHADOWLIST_TEMPLATES_ROOT/examples/shadowlist-web-example` (default `../shadowlist-templates` next to this
-repository). That test is skipped when the example or its `dist/` build is missing. Run `yarn build:wasm` first.
+repository). That test is skipped when the example or its `dist/` build is missing. Run `make build-wasm` first.
 
 ## Export names
 

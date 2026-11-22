@@ -209,18 +209,24 @@ The web example documents its flags in [its package README](packages/shadowlist-
 
 ## Development
 
+The `Makefile` at the root is the entry point. The JS tooling lives in `packages/`, the yarn workspace root with
+`package.json`, `yarn.lock` and the ESLint, Prettier and TypeScript configuration. `make install` installs it, and
+each JS target runs the yarn script of the same name there.
+
 | Command | What it does |
 | --- | --- |
-| `yarn lint` | ESLint over the repo |
-| `yarn typecheck` | TypeScript for the library and `shadowlist-wasm` |
-| `yarn test` | Jest for `shadowlist` |
-| `yarn test:core` | Builds `packages/shadowlist-core-tests` with CMake and runs it with ctest |
-| `yarn build:wasm` | Builds `shadowlist-wasm` into its `dist/` with Emscripten |
-| `yarn test:wasm` | Node tests for `shadowlist-wasm`, after `yarn build:wasm` |
-| `yarn build` | Vendors the core into the package and builds it with bob |
-| `yarn clean` | Removes the package's build output |
-| `yarn format` | Prettier over the repo. `format:check` only checks. |
-| `yarn docs:check` | Checks README links, headings, compact tables, requirements and examples |
+| `make install` | `yarn install` in `packages/` |
+| `make lint` | ESLint over the JS packages |
+| `make typecheck` | TypeScript for the library and `shadowlist-wasm` |
+| `make test` | Jest for `shadowlist` |
+| `make test-core` | Builds `packages/shadowlist-core-tests` with CMake and runs it with ctest |
+| `make build-wasm` | Builds `shadowlist-wasm` into its `dist/` with Emscripten |
+| `make test-wasm` | Node tests for `shadowlist-wasm`, after `make build-wasm` |
+| `make build` | Vendors the core into the package and builds it with bob |
+| `make clean` | Removes the package's build output |
+| `make format` | Prettier over the repo, `docs/` and `.github/` included. `make format-check` only checks. |
+| `make docs-check` | Checks README links, headings, compact tables, requirements and examples |
+| `make check` | Lint, format check, typecheck, README check and jest |
 
 The core tests in `packages/shadowlist-core-tests` read their environment. A variable they do not know, or a value
 they cannot read, stops the run with a message and exit status 2 before any test runs.
@@ -253,10 +259,10 @@ SLT_ONLY=fuzz_ SLT_FUZZ_SEEDS=20000 packages/shadowlist-core-tests/build/campaig
 ```
 
 The files in `packages/shadowlist-core-tests/vectors` hold cases that a function of the core's `host/` and its twin in
-TypeScript must answer alike. `yarn test:core` replays them through the C++, and `yarn test` through the TypeScript. `UPDATE_VECTORS=1 yarn test` writes the outputs from the TypeScript, after a change both sides make. A file
+TypeScript must answer alike. `make test-core` replays them through the C++, and `make test` through the TypeScript. `UPDATE_VECTORS=1 make test` writes the outputs from the TypeScript, after a change both sides make. A file
 without a replay on either side fails that side's tests.
 
-Lefthook runs ESLint and Prettier on staged files before a commit and `yarn typecheck` before a push. CI runs lint,
+Lefthook runs ESLint and Prettier on staged files before a commit and `make typecheck` before a push. CI runs lint,
 formatting, typecheck, the README checks, jest, the core tests, the WebAssembly tests and the native builds. The
 example app builds check out shadowlist-templates next to this repository.
 
