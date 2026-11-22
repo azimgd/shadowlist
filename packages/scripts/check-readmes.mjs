@@ -5,19 +5,23 @@
  * repeats from the build configuration (requirements and install versions), and compiles the
  * standalone examples.
  *
- *   node scripts/check-readmes.mjs
+ *   yarn docs:check
  *
  * `--fix` rewrites the tables compact before it checks.
  *
  * Other repos keep copies of this script. Only the configuration block differs between them;
- * change the rest in every copy.
+ * change the rest in every copy. The script sits in the yarn root's scripts/ folder, and paths
+ * in the configuration are relative to the git repository root.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = fileURLToPath(new URL('../', import.meta.url));
+const root = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+  cwd: path.dirname(fileURLToPath(import.meta.url)),
+  encoding: 'utf8',
+}).trim();
 const read = (file) => readFileSync(path.resolve(root, file), 'utf8');
 const json = (file) => JSON.parse(read(file));
 

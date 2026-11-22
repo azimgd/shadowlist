@@ -6,7 +6,7 @@ mounted views.
 
 ## Requirements
 
-Use macOS with Xcode and an installed iOS simulator runtime, Node from [`.nvmrc`](../../../.nvmrc), the repo's Yarn,
+Use macOS with Xcode and an installed iOS simulator runtime, Node from [`packages/.nvmrc`](../../.nvmrc), the repo's Yarn,
 Ruby/Bundler, Python 3 and `agent-device` on `PATH`. The scripts launch the installed React Native example
 (`shadowlist.example`); they do not build or install it. The example lives in the
 [shadowlist-templates](https://github.com/komplete-io/shadowlist-templates) checkout, by default next to this repository.

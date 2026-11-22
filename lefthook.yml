@@ -1,14 +1,19 @@
+# The yarn workspace root is packages/. Jobs with root: packages/ run there and get staged
+# paths relative to it. The format job runs from the repo root because it also checks docs/,
+# .github/ and root files.
 pre-commit:
   parallel: true
-  commands:
-    lint:
+  jobs:
+    - name: lint
+      root: packages/
       glob: '*.{js,cjs,mjs,ts,tsx}'
       run: yarn eslint --no-warn-ignored --max-warnings 0 {staged_files}
-    format:
+    - name: format
       glob: '*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}'
-      run: yarn prettier --check {staged_files}
+      run: packages/node_modules/.bin/prettier --check --config packages/.prettierrc --ignore-path .gitignore --ignore-path packages/.prettierignore {staged_files}
 
 pre-push:
-  commands:
-    typecheck:
+  jobs:
+    - name: typecheck
+      root: packages/
       run: yarn typecheck

@@ -19,18 +19,20 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          working-directory: packages
 
       - name: Lint files
-        run: yarn lint
+        run: make lint
 
       - name: Check formatting
-        run: yarn format:check
+        run: make format-check
 
       - name: Typecheck files
-        run: yarn typecheck
+        run: make typecheck
 
       - name: Check README links, requirements and examples
-        run: yarn docs:check
+        run: make docs-check
 
   test:
     runs-on: ubuntu-latest
@@ -40,8 +42,11 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          working-directory: packages
 
       - name: Run unit tests
+        working-directory: packages
         run: yarn workspace shadowlist run test --maxWorkers=2 --coverage
 
   test-core:
@@ -76,6 +81,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          working-directory: packages
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
@@ -83,10 +90,10 @@ jobs:
           version: 5.0.7
 
       - name: Build wasm package
-        run: yarn build:wasm
+        run: make build-wasm
 
       - name: Run wasm tests
-        run: yarn test:wasm
+        run: make test-wasm
 
   build-library:
     runs-on: ubuntu-latest
@@ -96,9 +103,11 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          working-directory: packages
 
       - name: Build package
-        run: yarn workspace shadowlist run prepare
+        run: make build
 
       - name: Check package contents
         working-directory: packages/shadowlist-fabric

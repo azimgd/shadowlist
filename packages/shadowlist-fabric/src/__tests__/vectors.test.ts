@@ -15,7 +15,7 @@ import {
  * The vector files of packages/shadowlist-core-tests/vectors, replayed through the functions
  * here. tests_host_vectors.cpp replays the same files through packages/shadowlist-core.
  * A change of behavior on either side fails its replay. After a change that is meant, on both
- * sides, UPDATE_VECTORS=1 yarn test writes the new outputs.
+ * sides, UPDATE_VECTORS=1 make test writes the new outputs.
  */
 describe('vectors', () => {
   it('mounted-range.json', () => {
