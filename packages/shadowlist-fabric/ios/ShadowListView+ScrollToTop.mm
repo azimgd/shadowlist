@@ -256,6 +256,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   // JS hears the end of the motion, as after an animated scroll command.
   [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
   if (!_state) {
+    [self checkRefreshSettle];
     return;
   }
   ShadowListLiveScroll::Report report;
@@ -263,6 +264,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   report.offsetY = _scrollView.contentOffset.y;
   report.concealGenerationAck = _state->getData().concealGenerationAck_;
   [self commitStatePatch:_scrollSync.reportPatch(report)];
+  [self checkRefreshSettle];
 }
 
 @end

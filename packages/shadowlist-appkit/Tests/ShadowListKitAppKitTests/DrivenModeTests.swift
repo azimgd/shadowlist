@@ -198,6 +198,18 @@ final class DrivenModeTests: XCTestCase {
   /*
    * A list that is not driven runs a pass for every move, as before.
    */
+  /*
+   * A driven list at rest places the views for a move, as a list that is not driven does.
+   */
+  func testAMoveOfADrivenListAtRestPlacesTheViews() {
+    let harness = makeDriven()
+    let list = harness.list
+    list.contentOffset = CGPoint(x: 0, y: 700)
+    harness.layout()
+    XCTAssertFalse(list.shadowListKit_viewsBehind)
+    XCTAssertTrue(CATransform3DIsIdentity(list.subviews.first?.layer?.sublayerTransform ?? CATransform3DIdentity))
+  }
+
   func testAListThatIsNotDrivenLaysOutEveryMove() {
     let harness = ListHarness(source: SizedTestSource(count: 600))
     let list = harness.list
@@ -213,7 +225,8 @@ final class DrivenModeTests: XCTestCase {
 
   /*
    * While the host moves it, the list moves the content and its cells by their layers, which
-   * changes no view geometry. Once it rests the views take the layers' geometry.
+   * changes no view geometry. When the host's phase goes idle the views take the layers'
+   * geometry, and a pause in the drag leaves them where they are.
    */
   func testTheViewsCatchUpWithTheLayersOnceTheListRests() throws {
     let harness = makeDriven()
@@ -236,6 +249,8 @@ final class DrivenModeTests: XCTestCase {
     }
 
     harness.rest()
+    XCTAssertTrue(list.shadowListKit_viewsBehind)
+    list.scrollPhase = .idle
     XCTAssertFalse(list.shadowListKit_viewsBehind)
     XCTAssertEqual(content.bounds.origin.y, 900, accuracy: 0.01)
     XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(content.layer?.sublayerTransform)))
@@ -267,6 +282,7 @@ final class DrivenModeTests: XCTestCase {
     harness.layout()
     harness.rest()
     let content = try XCTUnwrap(list.subviews.first)
+    list.scrollPhase = .dragging
     var y: CGFloat = 0
     for _ in 0..<5 {
       y += 200
@@ -317,4 +333,26 @@ final class DrivenModeTests: XCTestCase {
     XCTAssertEqual(hit.key, harness.source.keys[index])
     XCTAssertTrue(list.shadowListKit_viewsBehind)
   }
+
+  func testReadingCellsCatchesUpWithoutEndingTheScrollPhase() throws {
+    let harness = makeDriven()
+    let list = harness.list
+    list.scrollPhase = .dragging
+    XCTAssertFalse(list.shadowListKit_viewsBehind)
+
+    drag(harness, to: 900, step: 60)
+    XCTAssertTrue(list.shadowListKit_viewsBehind)
+    let first = list.visibleRange.location
+    XCTAssertNotNil(list.cellForItem(at: first))
+    XCTAssertEqual(list.scrollPhase, .dragging)
+    XCTAssertFalse(list.shadowListKit_viewsBehind)
+
+    drag(harness, to: 960, step: 60)
+    XCTAssertTrue(list.shadowListKit_viewsBehind)
+    list.scrollPhase = .settling
+    XCTAssertTrue(list.shadowListKit_viewsBehind)
+    list.scrollPhase = .idle
+    XCTAssertFalse(list.shadowListKit_viewsBehind)
+  }
+
 }

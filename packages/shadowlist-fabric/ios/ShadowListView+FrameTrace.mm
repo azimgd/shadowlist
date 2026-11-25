@@ -98,7 +98,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef, CFRunLoopActivity, void *
     horizontal ? @"h" : @"v", inverted ? 1 : 0, offset,
     horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height,
     viewport, horizontal ? _scrollView.adjustedContentInset.left : _scrollView.adjustedContentInset.top, phase,
-    _refreshing ? 1 : 0, header ? leading(header.frame) - offset : -1.0, header ? extent(header.frame) : 0.0,
+    [self refreshInProgress] ? 1 : 0, header ? leading(header.frame) - offset : -1.0, header ? extent(header.frame) : 0.0,
     footer ? leading(footer.frame) - offset : -1.0, footer ? extent(footer.frame) : 0.0,
     overlayVisible ? leading(overlay.frame) - offset : -1.0, overlayVisible ? extent(overlay.frame) : 0.0,
     _scrollingToTop ? 1 : 0, _scrollToTopJumpPending ? 1 : 0, rowsDescription];

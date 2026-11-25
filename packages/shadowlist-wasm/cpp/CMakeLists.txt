@@ -19,12 +19,13 @@ set_target_properties(shadowlistkit PROPERTIES SUFFIX ".mjs")
 # Core headers include each other as <shadowlist-core/...>, which the parent directory resolves.
 target_include_directories(shadowlistkit PRIVATE ${SHADOWLIST_KIT_CORE_PARENT_DIR})
 
-# The layout pass runs on every scroll frame. Optimized builds use -O3.
-target_compile_options(shadowlistkit PRIVATE -fno-rtti $<$<NOT:$<CONFIG:Debug>>:-O3>)
+# Optimized builds use -Os. It keeps the compiled module and V8's tiered code small, and the layout
+# pass that runs on every scroll frame measured as a tie per frame against -O3.
+target_compile_options(shadowlistkit PRIVATE -fno-rtti $<$<NOT:$<CONFIG:Debug>>:-Os>)
 
 target_link_options(shadowlistkit PRIVATE
   -fno-rtti
-  $<$<NOT:$<CONFIG:Debug>>:-O3>
+  $<$<NOT:$<CONFIG:Debug>>:-Os>
   -sMODULARIZE=1
   -sEXPORT_ES6=1
   -sEXPORT_NAME=createShadowListKitModule

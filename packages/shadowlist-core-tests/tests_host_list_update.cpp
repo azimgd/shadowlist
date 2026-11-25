@@ -145,6 +145,31 @@ TEST(content_versions_report_items_whose_version_changed) {
 }
 
 /*
+ * An update finds the items around a change where the last update left them, and the items in
+ * the change by their keys. Both report the same items a lookup of every key reports.
+ */
+TEST(content_versions_report_changes_around_inserts_deletes_and_moves) {
+  ContentVersions versions;
+  versions.record({"a", "b", "c", "d", "e"}, {1, 1, 1, 1, 1});
+  // Two items in the middle, b changed before them and d after them.
+  CHECK(versions.update({"a", "b", "x", "y", "c", "d", "e"}, {1, 2, 1, 1, 1, 3, 1}) == (Indices{1, 5}));
+  // y changed, and the middle items left again.
+  CHECK(versions.update({"a", "b", "y", "c", "d", "e"}, {1, 2, 4, 1, 3, 1}) == (Indices{2}));
+  // A prepend shifts every item: e changed at the end.
+  CHECK(versions.update({"n", "a", "b", "y", "c", "d", "e"}, {1, 1, 2, 4, 1, 3, 5}) == (Indices{6}));
+  // A delete at the front and a move of e to the front, with a changed.
+  CHECK(versions.update({"e", "a", "b", "y", "c", "d"}, {5, 6, 2, 4, 1, 3}) == (Indices{1}));
+  // A key twice at the front and in the middle keeps its first version.
+  CHECK(versions.update({"e", "e", "b", "y", "c", "d"}, {5, 9, 2, 4, 1, 3}).empty());
+  CHECK(versions.update({"e", "b", "e", "c", "d"}, {5, 2, 9, 1, 3}).empty());
+  // Fewer versions than keys compare only the items they cover, and a copy compares the same.
+  CHECK(versions.update({"e", "b", "c", "d"}, {5, 2, 7}) == (Indices{2}));
+  ContentVersions copied = versions;
+  CHECK(copied.update({"e", "b", "c", "d"}, {6, 2, 7, 3}) == (Indices{0}));
+  CHECK(versions.update({"e", "b", "c", "d"}, {5, 2, 7, 3}).empty());
+}
+
+/*
  * insertItems and a batch on every kit. The inserted items get a version to compare against, and
  * a change of another item still waits for the next update.
  */

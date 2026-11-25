@@ -147,22 +147,45 @@ void ContentVersions::keep(
   std::size_t count = std::min(itemKeys.size(), versions.size());
   std::size_t seen = 0;
   versions_.reserve(count);
+  // The items before and after the changed middle sit where the last round left their keys.
+  std::size_t previous = positions_.size();
+  std::size_t front = 0;
+  while (front < count && front < previous && itemKeys[front] == positions_[front]->first) {
+    ++front;
+  }
+  std::size_t back = 0;
+  while (back < count - front && back < previous - front &&
+         itemKeys[count - 1 - back] == positions_[previous - 1 - back]->first) {
+    ++back;
+  }
+  nextPositions_.resize(count);
   for (std::size_t item = 0; item < count; ++item) {
-    auto [entry, inserted] = versions_.try_emplace(itemKeys[item], Entry{versions[item], round});
-    if (inserted) {
-      ++seen;
-      continue;
+    Kept* kept = item < front           ? positions_[item]
+                 : item >= count - back ? positions_[previous - (count - item)]
+                                        : nullptr;
+    if (!kept) {
+      auto [entry, inserted] = versions_.try_emplace(itemKeys[item], Entry{versions[item], round});
+      kept = &*entry;
+      nextPositions_[item] = kept;
+      if (inserted) {
+        ++seen;
+        continue;
+      }
     }
+    nextPositions_[item] = kept;
+    Entry& entry = kept->second;
     // A key named twice keeps its first version.
-    if (entry->second.round == round) {
+    if (entry.round == round) {
       continue;
     }
     ++seen;
-    if (entry->second.version != versions[item]) {
+    if (entry.version != versions[item]) {
       changed(item);
     }
-    entry->second = {versions[item], round};
+    entry = {versions[item], round};
   }
+  // Every entry of this round's positions was seen in it and outlives the sweep.
+  positions_.swap(nextPositions_);
   if (seen == versions_.size()) {
     return;
   }

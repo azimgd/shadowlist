@@ -30,6 +30,36 @@ static const double SHADOWLIST_KIT_END_SLACK = 0.5;
  */
 extern "C" const char ShadowListKitListViewPassesLink = 0;
 
+/*
+ * The rates the viewability display link asks for. A minimum view time counts in display frames,
+ * and 30 to 60 a second is fine enough for it without waking a ProMotion screen's every frame.
+ */
+static const float SHADOWLIST_KIT_VIEWABILITY_MIN_FRAME_RATE = 30;
+static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
+
+/*
+ * The viewability display link's target. It holds the list weakly, which lets the list go away
+ * while the link exists, and reads viewability again on every frame the link runs.
+ */
+@interface ShadowListKitViewabilityLinkTarget : NSObject
+@property (nonatomic, weak) ShadowListKitListView *list;
+- (void)tick:(CADisplayLink *)link;
+@end
+
+@implementation ShadowListKitViewabilityLinkTarget
+
+- (void)tick:(CADisplayLink *)link
+{
+  ShadowListKitListView *list = _list;
+  if (!list) {
+    [link invalidate];
+    return;
+  }
+  [list viewabilityFrame];
+}
+
+@end
+
 // The class interface in ShadowListKitListView.h declares the public members implemented here.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"
@@ -299,10 +329,9 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 - (void)scheduleSettleFrame
 {
   _needsFrame = YES;
-  if (_settleScheduled) {
+  if (_settleLink && !_settleLink.paused) {
     return;
   }
-  _settleScheduled = YES;
   if (!_settleLink) {
     ShadowListKitSettleLinkTarget *target = [ShadowListKitSettleLinkTarget new];
     target.list = self;
@@ -315,7 +344,6 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 - (void)settleFrame
 {
   _settleLink.paused = YES;
-  _settleScheduled = NO;
   ShadowListKitSetNeedsLayout(self);
   ShadowListKitLayoutNow(self);
 }
@@ -345,7 +373,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   _inLayoutPass = YES;
   ++_layoutPasses;
 #if TARGET_OS_OSX
-  if (_viewsBehind && ![self placesByLayer]) {
+  if (![self placesByLayer]) {
     [self catchUpViews];
   }
 #endif
@@ -550,9 +578,8 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 - (void)sendViewabilityConfigs
 {
-  [_viewabilityTimer invalidate];
-  _viewabilityTimer = nil;
-  ++_viewabilityGeneration;
+  [self pauseViewabilityTicks];
+  [self transitionViewabilityTo:ShadowListKitViewabilityPhase::Invalidated];
   if (_viewabilityConfigCallbackPairs) {
     _viewabilityCallbacks = [_viewabilityConfigCallbackPairs copy];
   } else if (_onViewableItemsChanged) {
@@ -582,21 +609,34 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 
 - (void)detachViewability
 {
-  _viewabilityAttached = NO;
-  ++_viewabilityGeneration;
-  [_viewabilityTimer invalidate];
-  _viewabilityTimer = nil;
+  [self transitionViewabilityTo:ShadowListKitViewabilityPhase::Invalidated];
+  [self pauseViewabilityTicks];
   _driver.resetViewability();
   for (NSMutableDictionary *tokens in _viewabilityTokens) [tokens removeAllObjects];
 }
 
+/*
+ * A reentrant request cannot undo invalidation. Outside delivery there are no reports to
+ * invalidate, so configuration and attachment changes leave the next update ready to start.
+ */
+- (void)transitionViewabilityTo:(ShadowListKitViewabilityPhase)phase
+{
+  if (phase == ShadowListKitViewabilityPhase::Invalidated &&
+      _viewabilityPhase == ShadowListKitViewabilityPhase::Idle) return;
+  if (phase == ShadowListKitViewabilityPhase::UpdatePending &&
+      _viewabilityPhase == ShadowListKitViewabilityPhase::Invalidated) return;
+  _viewabilityPhase = phase;
+}
+
 - (void)updateViewability
 {
-  if (_viewabilityUpdating) { _viewabilityNeedsUpdate = YES; return; }
-  if (!_viewabilityAttached || !self.window || _viewabilityCallbacks.count == 0) return;
-  _viewabilityUpdating = YES;
-  _viewabilityNeedsUpdate = NO;
-  NSUInteger generation = _viewabilityGeneration;
+  if (_viewabilityPhase != ShadowListKitViewabilityPhase::Idle) {
+    [self transitionViewabilityTo:ShadowListKitViewabilityPhase::UpdatePending];
+    return;
+  }
+  if (!self.window || _viewabilityCallbacks.count == 0) return;
+  [self transitionViewabilityTo:ShadowListKitViewabilityPhase::Updating];
+  ShadowListKitViewabilityPhase finished = ShadowListKitViewabilityPhase::Idle;
   @try {
     auto reports = _driver.updateViewability([self offset], _windowAlong, CACurrentMediaTime() * 1000, &_sections);
     NSMutableDictionary<NSNumber *, ShadowListKitViewableItemsChangedInfo *> *events = [NSMutableDictionary new];
@@ -636,7 +676,7 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
       }
     }
     for (const auto& entry : reports) {
-      if (generation != _viewabilityGeneration || !_viewabilityAttached) break;
+      if (_viewabilityPhase == ShadowListKitViewabilityPhase::Invalidated || !self.window) break;
       NSUInteger config = entry.first;
       ShadowListKitViewableItemsChangedInfo *info = events[@(config)];
       if (!info || config >= _viewabilityCallbacks.count) continue;
@@ -644,20 +684,67 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
       if (callback) callback(info);
     }
   } @finally {
-    _viewabilityUpdating = NO;
+    finished = _viewabilityPhase;
+    [self transitionViewabilityTo:ShadowListKitViewabilityPhase::Idle];
   }
-  if (_viewabilityNeedsUpdate || generation != _viewabilityGeneration) {
+  if (finished == ShadowListKitViewabilityPhase::UpdatePending || finished == ShadowListKitViewabilityPhase::Invalidated) {
     [self updateViewability];
-  } else if (_driver.isViewabilityWaiting() && !_viewabilityTimer && _viewabilityAttached) {
-    __weak ShadowListKitListView *weakSelf = self;
-    _viewabilityTimer = [NSTimer timerWithTimeInterval:0.016 repeats:NO block:^(NSTimer *timer) {
-      ShadowListKitListView *list = weakSelf;
-      if (!list) return;
-      list->_viewabilityTimer = nil;
-      [list updateViewability];
-    }];
-    [NSRunLoop.mainRunLoop addTimer:_viewabilityTimer forMode:NSRunLoopCommonModes];
+  } else if (_driver.isViewabilityWaiting() && self.window) {
+    [self resumeViewabilityTicks];
+  } else {
+    [self pauseViewabilityTicks];
   }
+}
+
+/*
+ * An item waits out its minimum view time. Viewability is read again on every display frame
+ * until nothing waits. On the Mac a display link stops while the display sleeps or the window is
+ * on no screen, and view time counts there too: a timer at the display rate reads it instead.
+ */
+- (void)resumeViewabilityTicks
+{
+#if TARGET_OS_OSX
+  if (_viewabilityTimer) {
+    return;
+  }
+  __weak ShadowListKitListView *weakSelf = self;
+  _viewabilityTimer = [NSTimer timerWithTimeInterval:1.0 / SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE repeats:YES block:^(NSTimer *timer) {
+    ShadowListKitListView *list = weakSelf;
+    if (!list) {
+      [timer invalidate];
+      return;
+    }
+    [list viewabilityFrame];
+  }];
+  [NSRunLoop.mainRunLoop addTimer:_viewabilityTimer forMode:NSRunLoopCommonModes];
+#else
+  if (!_viewabilityLink) {
+    ShadowListKitViewabilityLinkTarget *target = [ShadowListKitViewabilityLinkTarget new];
+    target.list = self;
+    _viewabilityLink = ShadowListKitDisplayLink(self, target, @selector(tick:));
+    _viewabilityLink.preferredFrameRateRange =
+      CAFrameRateRangeMake(SHADOWLIST_KIT_VIEWABILITY_MIN_FRAME_RATE, SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE,
+      SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE);
+    [_viewabilityLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+  }
+  _viewabilityLink.paused = NO;
+#endif
+}
+
+- (void)pauseViewabilityTicks
+{
+#if TARGET_OS_OSX
+  [_viewabilityTimer invalidate];
+  _viewabilityTimer = nil;
+#else
+  _viewabilityLink.paused = YES;
+#endif
+}
+
+- (void)viewabilityFrame
+{
+  [self pauseViewabilityTicks];
+  [self updateViewability];
 }
 
 #pragma mark - Sticky
@@ -844,6 +931,18 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
 }
 
 /*
+ * A viewport-only mount does not cover the cached full plan. Invalidate that record so even
+ * another jump to the same row runs a mount before the overscan can be considered complete.
+ */
+- (void)transitionMountTo:(ShadowListKitMountPhase)phase
+{
+  _mountPhase = phase;
+  if (phase == ShadowListKitMountPhase::OverscanPending) {
+    _mountRecord = MountRecord();
+  }
+}
+
+/*
  * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
  * which keeps the content of a cell that only moved. Rows under the insets, like translucent
  * bars, show and are mounted too.
@@ -869,16 +968,36 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   if (skipped) {
     return;
   }
-  [self mountPlan:plan];
+  // After a jump only the rows on screen get new cells. A cell mounted before keeps its row while
+  // the row lies within the overscan of the new viewport. The next frame mounts the rest.
+  if (_mountPhase == ShadowListKitMountPhase::ViewportPending) {
+    [self transitionMountTo:ShadowListKitMountPhase::OverscanPending];
+    MountPlan viewport = _driver.planMount(offset, inputs.windowAlong, 0, inputs.leadingInset, inputs.trailingInset);
+    [self mountPlan:plan newRowsFrom:viewport.low through:viewport.high keepingFrom:offset - inputs.pad
+            through:offset + inputs.windowAlong + inputs.pad];
+    [self scheduleSettleFrame];
+    return;
+  }
+  [self transitionMountTo:ShadowListKitMountPhase::FullRange];
+  [self mountPlan:plan newRowsFrom:plan.low through:plan.high keepingFrom:0 through:-1];
   [self prefetchAround:plan];
 }
 
 - (void)mountPlan:(const MountPlan&)plan
+     newRowsFrom:(std::size_t)low
+         through:(std::size_t)high
+     keepingFrom:(double)keepStart
+         through:(double)keepEnd
 {
   ++_mountPasses;
   NSUInteger generation = ++_mountGeneration;
   for (std::size_t index = plan.low; plan.low != UNDEFINED_INDEX && index <= plan.high; ++index) {
-    if (_driver.shouldMount(plan, index)) {
+    if (!_driver.shouldMount(plan, index)) {
+      continue;
+    }
+    // A row outside low through high mounts only when its cell is mounted already.
+    BOOL inside = low != UNDEFINED_INDEX && index >= low && index <= high;
+    if (inside || (index < _driver.getKeyCount() && _mounted.count(_driver.getKeyAt(index)) > 0)) {
       [self mountRow:index generation:generation];
     }
   }
@@ -892,6 +1011,29 @@ extern "C" const char ShadowListKitListViewPassesLink = 0;
   std::size_t held = _driver.getHeldIndex();
   if (held != UNDEFINED_INDEX) {
     [self mountRow:held generation:generation];
+  }
+  // Cells the plan left out keep their rows while those lie between keepStart and keepEnd.
+  if (keepEnd > keepStart) {
+    std::vector<std::size_t> kept;
+    for (auto& entry : _mounted) {
+      ShadowListKitListCell *cell = entry.second;
+      if (cell.mountGeneration == generation || cell.mountGeneration == 0 || cell.row == NSNotFound) {
+        continue;
+      }
+      std::size_t row = (std::size_t)cell.row;
+      if (row >= _driver.getRowCount() || row >= _driver.getKeyCount() || _driver.getKeyAt(row) != entry.first) {
+        continue;
+      }
+      RowRect rect = _driver.getRowRect(row);
+      double start = _horizontal ? rect.x : rect.y;
+      double end = start + (_horizontal ? rect.width : rect.height);
+      if (end > keepStart && start < keepEnd) {
+        kept.push_back(row);
+      }
+    }
+    for (std::size_t row : kept) {
+      [self mountRow:row generation:generation];
+    }
   }
   [self recycleStaleCells:generation];
 }

@@ -433,6 +433,54 @@ browserTest(
 );
 
 browserTest(
+  'a touch scroll rests at its scrollend without the wheel wait',
+  async (tab) => {
+    await makeList(tab, '{ sized: true }', 'middle');
+    await tab.evaluate(`(() => {
+    list.snapToItem = true;
+    window.waits = 0;
+    window.rests = 0;
+    const plain = window.setTimeout.bind(window);
+    window.plainSetTimeout ??= plain;
+    window.setTimeout = (work, delay, ...rest) => {
+      if (delay > 0) ++window.waits;
+      return window.plainSetTimeout(work, delay, ...rest);
+    };
+    list.delegate = { ...list.delegate, didEndDecelerating: () => ++window.rests };
+  })()`);
+    await tab.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+    const touch = (type: string, y: number) =>
+      tab.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: type === 'touchEnd' ? [] : [{ x: 200, y }],
+      });
+    await touch('touchStart', 500);
+    for (let step = 1; step <= 12; ++step) {
+      await touch('touchMove', 500 - step * 23);
+      await tab.evaluate('frames(1)');
+    }
+    await touch('touchEnd', 224);
+    const result = await tab.evaluate<{
+      waits: number;
+      rests: number;
+      snapped: boolean;
+      idle: boolean;
+    }>(`(async () => {
+    for (let frame = 0; frame < 120 && window.rests === 0; ++frame) await frames(1);
+    window.setTimeout = window.plainSetTimeout;
+    return {
+      waits: window.waits,
+      rests: window.rests,
+      snapped: Math.abs(list.liveCore.nearestSnapOffset(list.scrollTop) - list.scrollTop) < 1,
+      idle: !list.gesture.isSettling && !list.gesture.isTracking,
+    };
+  })()`);
+    await tab.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+    assert.deepEqual(result, { waits: 0, rests: 1, snapped: true, idle: true });
+  }
+);
+
+browserTest(
   'scroll commands land on their rows without blanks',
   async (tab) => {
     for (const layout of ['{}', '{ inverted: true }', '{ horizontal: true }']) {

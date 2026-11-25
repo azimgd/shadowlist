@@ -78,6 +78,79 @@ static BOOL ShadowListKitListHandles(SEL selector)
   return ShadowListKitListHandles(selector) || [_target respondsToSelector:selector];
 }
 
+/*
+ * The scroll calls the list handles go to the list and then to the delegate as plain messages.
+ * UIScrollView sends scrollViewDidScroll: on every frame of a scroll, where building an
+ * invocation each time costs more than the list's own work. Every other call goes straight to
+ * the delegate.
+ */
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView
+{
+  id<UIScrollViewDelegate> list = (id<UIScrollViewDelegate>)_list;
+  id<UIScrollViewDelegate> target = _target;
+  [list scrollViewDidScroll:scrollView];
+  if ([target respondsToSelector:@selector(scrollViewDidScroll:)]) {
+    [target scrollViewDidScroll:scrollView];
+  }
+}
+
+- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
+{
+  id<UIScrollViewDelegate> list = (id<UIScrollViewDelegate>)_list;
+  id<UIScrollViewDelegate> target = _target;
+  [list scrollViewWillBeginDragging:scrollView];
+  if ([target respondsToSelector:@selector(scrollViewWillBeginDragging:)]) {
+    [target scrollViewWillBeginDragging:scrollView];
+  }
+}
+
+- (void)scrollViewWillEndDragging:(UIScrollView *)scrollView
+                     withVelocity:(CGPoint)velocity
+              targetContentOffset:(inout CGPoint *)targetContentOffset
+{
+  id<UIScrollViewDelegate> list = (id<UIScrollViewDelegate>)_list;
+  id<UIScrollViewDelegate> target = _target;
+  [list scrollViewWillEndDragging:scrollView withVelocity:velocity targetContentOffset:targetContentOffset];
+  if ([target respondsToSelector:@selector(scrollViewWillEndDragging:withVelocity:targetContentOffset:)]) {
+    [target scrollViewWillEndDragging:scrollView withVelocity:velocity targetContentOffset:targetContentOffset];
+  }
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
+{
+  id<UIScrollViewDelegate> list = (id<UIScrollViewDelegate>)_list;
+  id<UIScrollViewDelegate> target = _target;
+  [list scrollViewDidEndDragging:scrollView willDecelerate:decelerate];
+  if ([target respondsToSelector:@selector(scrollViewDidEndDragging:willDecelerate:)]) {
+    [target scrollViewDidEndDragging:scrollView willDecelerate:decelerate];
+  }
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
+{
+  id<UIScrollViewDelegate> list = (id<UIScrollViewDelegate>)_list;
+  id<UIScrollViewDelegate> target = _target;
+  [list scrollViewDidEndDecelerating:scrollView];
+  if ([target respondsToSelector:@selector(scrollViewDidEndDecelerating:)]) {
+    [target scrollViewDidEndDecelerating:scrollView];
+  }
+}
+
+- (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView
+{
+  id<UIScrollViewDelegate> list = (id<UIScrollViewDelegate>)_list;
+  id<UIScrollViewDelegate> target = _target;
+  [list scrollViewDidEndScrollingAnimation:scrollView];
+  if ([target respondsToSelector:@selector(scrollViewDidEndScrollingAnimation:)]) {
+    [target scrollViewDidEndScrollingAnimation:scrollView];
+  }
+}
+
+- (id)forwardingTargetForSelector:(SEL)selector
+{
+  return ShadowListKitListHandles(selector) ? nil : _target;
+}
+
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)selector
 {
   id target = ShadowListKitListHandles(selector) ? (id)_list : (id)_target;

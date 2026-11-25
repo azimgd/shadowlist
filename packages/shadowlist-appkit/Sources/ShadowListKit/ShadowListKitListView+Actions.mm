@@ -501,7 +501,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
  */
 - (NSView *)hitTest:(NSPoint)point
 {
-  if (_viewsBehind) {
+  if ([self viewsBehind]) {
     return [self hitTestThroughLayers:point];
   }
   NSView *hit = [super hitTest:point];

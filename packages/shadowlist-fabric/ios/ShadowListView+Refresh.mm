@@ -7,11 +7,6 @@ using namespace facebook::react;
 
 #if !TARGET_OS_OSX
 /*
- * How long the spinner must stay still before onRefreshSettle fires.
- */
-static const NSTimeInterval SL_REFRESH_SETTLE_DELAY = 0.25;
-
-/*
  * How far a refresh started from code scrolls when the control has no height yet.
  */
 static const CGFloat SL_REFRESH_REVEAL_FALLBACK = 60.0;
@@ -58,22 +53,14 @@ static const CGFloat SL_REFRESH_REVEAL_FALLBACK = 60.0;
   }
   [self applyRefreshProgressOffset];
 
-  if (refreshing == _refreshing) {
+  if (refreshing == [self refreshInProgress]) {
     return;
   }
   SLF_TRACE("ev=refresh-prop refreshing=%d off=%.1f", refreshing ? 1 : 0, _scrollView.contentOffset.y);
-  _refreshing = refreshing;
-
-  if (!refreshing) {
-    /*
-     * Refresh ended. Fire onRefreshSettle once the spinner has retracted. JS can then
-     * apply a held prepend while nothing is moving. See scheduleRefreshSettle.
-     */
-    _refreshAwaitingSettle = YES;
-    [self scheduleRefreshSettle];
-  }
+  [self transitionRefresh:refreshing ? SLRefreshEvent::Begin : SLRefreshEvent::End];
 
   if (!_refreshControl) {
+    [self checkRefreshSettle];
     return;
   }
 
@@ -90,7 +77,22 @@ static const CGFloat SL_REFRESH_REVEAL_FALLBACK = 60.0;
       }
     }
   } else {
+    /*
+     * The spinner retracts in an animation of this transaction. Its completion is the moment
+     * the spinner is gone, see checkRefreshSettle.
+     */
+    UIRefreshControl *control = _refreshControl;
+    __weak ShadowListView *weakSelf = self;
+    [CATransaction begin];
+    [CATransaction setCompletionBlock:^{
+      ShadowListView *strongSelf = weakSelf;
+      if (strongSelf && strongSelf->_refreshControl == control) {
+        [strongSelf transitionRefresh:SLRefreshEvent::Retracted];
+        [strongSelf checkRefreshSettle];
+      }
+    }];
     [_refreshControl endRefreshing];
+    [CATransaction commit];
   }
 }
 
@@ -116,36 +118,78 @@ static const CGFloat SL_REFRESH_REVEAL_FALLBACK = 60.0;
 }
 
 /*
- * Each call bumps the token and schedules a check, and only the latest one fires. It
- * lands a short while after the spinner stops moving. It waits again while a finger is
- * down or the offset is still past the top.
+ * The phase owns the refreshing prop, pending request and retract completion. The control
+ * can refresh before JS receives the pull, so its isRefreshing cannot replace the prop.
  */
-- (void)scheduleRefreshSettle
+- (BOOL)refreshInProgress
 {
-  _refreshSettleToken += 1;
-  NSInteger token = _refreshSettleToken;
-  __weak ShadowListView *weakSelf = self;
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_REFRESH_SETTLE_DELAY * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-    ShadowListView *strongSelf = weakSelf;
-    if (!strongSelf) {
-      return;
-    }
-    // A newer call took over.
-    if (token != strongSelf->_refreshSettleToken) {
-      return;
-    }
-    if (!strongSelf->_refreshAwaitingSettle || strongSelf->_refreshing) {
-      return;
-    }
-    // Still moving, or a finger is down. Keep waiting.
-    if (strongSelf->_scrollView.isDragging || strongSelf->_scrollView.isTracking ||
-        strongSelf->_scrollView.contentOffset.y < -1.0) {
-      [strongSelf scheduleRefreshSettle];
-      return;
-    }
-    strongSelf->_refreshAwaitingSettle = NO;
-    [strongSelf emitRefreshSettle];
-  });
+  return _refreshPhase == SLRefreshPhase::Refreshing ||
+    _refreshPhase == SLRefreshPhase::RefreshingAwaiting;
+}
+
+- (BOOL)refreshSettleRequested
+{
+  return _refreshPhase == SLRefreshPhase::RefreshingAwaiting ||
+    _refreshPhase == SLRefreshPhase::RetractingAwaiting ||
+    _refreshPhase == SLRefreshPhase::Awaiting;
+}
+
+- (void)transitionRefresh:(SLRefreshEvent)event
+{
+  switch (event) {
+    case SLRefreshEvent::Begin:
+      _refreshPhase = [self refreshSettleRequested]
+        ? SLRefreshPhase::RefreshingAwaiting : SLRefreshPhase::Refreshing;
+      break;
+    case SLRefreshEvent::End:
+      if (_refreshControl) {
+        _refreshPhase = [self refreshSettleRequested]
+          ? SLRefreshPhase::RetractingAwaiting : SLRefreshPhase::Retracting;
+      } else {
+        _refreshPhase = [self refreshSettleRequested]
+          ? SLRefreshPhase::Awaiting : SLRefreshPhase::Rest;
+      }
+      break;
+    case SLRefreshEvent::Await:
+      if ([self refreshInProgress]) {
+        _refreshPhase = SLRefreshPhase::RefreshingAwaiting;
+      } else if (_refreshPhase == SLRefreshPhase::Retracting) {
+        _refreshPhase = SLRefreshPhase::RetractingAwaiting;
+      } else if (_refreshPhase != SLRefreshPhase::RetractingAwaiting) {
+        _refreshPhase = SLRefreshPhase::Awaiting;
+      }
+      break;
+    case SLRefreshEvent::Retracted:
+      if (_refreshPhase == SLRefreshPhase::RetractingAwaiting) {
+        _refreshPhase = SLRefreshPhase::Awaiting;
+      } else if (_refreshPhase == SLRefreshPhase::Retracting) {
+        _refreshPhase = SLRefreshPhase::Rest;
+      }
+      break;
+    case SLRefreshEvent::Check:
+      if (_refreshPhase == SLRefreshPhase::Awaiting &&
+          !_scrollSync.isLanding() && !_scrollSync.isArmedAnimated() && _landCommandSequence == 0 &&
+          !_scrollingToTop && !_scrollToTopJumpPending &&
+          !_scrollView.isDragging && !_scrollView.isTracking && !_scrollView.isDecelerating &&
+          _scrollView.contentOffset.y >= -1.0) {
+        _refreshPhase = SLRefreshPhase::Sent;
+        [self emitRefreshSettle];
+      }
+      break;
+    case SLRefreshEvent::Reset:
+      _refreshPhase = SLRefreshPhase::Rest;
+      break;
+  }
+}
+
+/*
+ * Scroll callbacks also check: UIKit can return from a pull after the retract transaction
+ * without another drag or scroll animation end. Gesture flags do not cover programmatic
+ * motion, so the transition also waits for the existing command and scroll-to-top state.
+ */
+- (void)checkRefreshSettle
+{
+  [self transitionRefresh:SLRefreshEvent::Check];
 }
 
 /*

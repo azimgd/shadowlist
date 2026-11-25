@@ -291,10 +291,10 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _horizontal = NO;
   _snapToItem = NO;
   _snapOffsets.clear();
-  _refreshing = NO;
+  [self transitionAnchorRequest:SLAnchorEvent::Reset];
   _refreshEnabled = NO;
-  _refreshAwaitingSettle = NO;
 #if !TARGET_OS_OSX
+  [self transitionRefresh:SLRefreshEvent::Reset];
   _refreshColor = nil;
   if (_refreshControl) {
     [_refreshControl endRefreshing];
@@ -326,8 +326,6 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _macDragEnded = NO;
   _macMomentum = NO;
 #endif
-  // A refresh settle still waiting belongs to the list before the recycle.
-  _refreshSettleToken += 1;
   _pageAnnouncementPending = NO;
   _pageKeyIndicesProps.reset();
   _pageKeyIndices.clear();
@@ -637,7 +635,11 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
       !nextStateData.commandPending_) {
     _landCommandSequence = 0;
     [self emitMomentumEndAfterLand];
+#if !TARGET_OS_OSX
+    [self checkRefreshSettle];
+#endif
   }
+  [self transitionAnchorRequest:SLAnchorEvent::Ready];
   [self pokeMountDriver];
 }
 
@@ -687,19 +689,12 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 
 - (void)scrollViewDidScroll:(RCTUIScrollView *)scrollView
 {
+#if !TARGET_OS_OSX
+  [self checkRefreshSettle];
+#endif
   if (!_state) {
     return;
   }
-
-#if !TARGET_OS_OSX
-  /*
-   * The spinner retracting fires this every frame. Push the settle back each time so it
-   * fires only after it stops. See scheduleRefreshSettle.
-   */
-  if (_refreshAwaitingSettle) {
-    [self scheduleRefreshSettle];
-  }
-#endif
 
   /*
    * Pull to refresh offsets are reported like any other. Rows prepended while the spinner
@@ -716,7 +711,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 #if !TARGET_OS_OSX
   frame.scrollPhase = [self currentScrollPhase];
   // Pull to refresh, scroll to top and drag to reorder all lean on every frame.
-  frame.commitEveryFrame = _refreshing || _refreshAwaitingSettle ||
+  frame.commitEveryFrame = [self refreshInProgress] || [self refreshSettleRequested] ||
     (_refreshControl && _refreshControl.isRefreshing) || _scrollingToTop || _scrollToTopJumpPending ||
     [self dragOwnsScrollOffset];
 #else
@@ -1099,6 +1094,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _endDragVelocity = CGPointZero;
   if (!decelerate) {
     [self clearUserScrolled];
+#if !TARGET_OS_OSX
+    [self checkRefreshSettle];
+#endif
   }
 }
 
@@ -1112,6 +1110,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 {
   SLF_TRACE("ev=decel-end off=%.1f,%.1f", scrollView.contentOffset.x, scrollView.contentOffset.y);
   [self clearUserScrolled];
+#if !TARGET_OS_OSX
+  [self checkRefreshSettle];
+#endif
   if (!_momentumRunning) {
     return;
   }
@@ -1139,6 +1140,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 - (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView
 {
   [self landAnimatedCommand];
+#if !TARGET_OS_OSX
+  [self checkRefreshSettle];
+#endif
   // JS hears the offset the command lands on, not the estimate the animation ended at.
   if (_landCommandSequence > 0) {
     _momentumEndAfterLand = YES;

@@ -192,7 +192,7 @@ static void ShadowListKitTextViewsCountBlank(UIView *view, UIScrollView *scrollV
       [layout drawAtPoint:CGPointZero inContext:context.CGContext color:color];
     }];
     CGColorRelease(color);
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_block_t show = ^{
       ShadowListKitTextView *view = weakSelf;
       if (view && view->_generation == generation) {
         view.layer.contentsScale = scale;
@@ -203,7 +203,13 @@ static void ShadowListKitTextViewsCountBlank(UIView *view, UIScrollView *scrollV
         }
         [view endPendingRender];
       }
-    });
+    };
+    // The bitmap shows as soon as it is drawn. Only the bench's self-test holds it back.
+    if (delay > 0) {
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), show);
+    } else {
+      dispatch_async(dispatch_get_main_queue(), show);
+    }
   });
 }
 

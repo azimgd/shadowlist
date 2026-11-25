@@ -21,6 +21,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+enum class SLRefreshPhase {
+  Rest, Refreshing, RefreshingAwaiting, Retracting, RetractingAwaiting, Awaiting, Sent
+};
+enum class SLRefreshEvent { Begin, End, Await, Retracted, Check, Reset };
+enum class SLAnchorRequest { Idle, Parked };
+enum class SLAnchorEvent { Request, Ready, Reset };
+
 @class ShadowListDragBoard;
 
 /*
@@ -239,9 +246,11 @@ static inline BOOL SLFrameTraceEnabled(void)
   RCTUIView *_contentView;
 
   BOOL _refreshEnabled;
-  BOOL _refreshing;
-  BOOL _refreshAwaitingSettle;
-  NSInteger _refreshSettleToken;
+  SLRefreshPhase _refreshPhase;
+  /*
+   * getAnchorState came before the first state. It is sent once the state arrives.
+   */
+  SLAnchorRequest _anchorRequest;
 #if !TARGET_OS_OSX
   UIRefreshControl *_refreshControl;
   UIColor *_refreshColor;
@@ -435,6 +444,8 @@ static inline BOOL SLFrameTraceEnabled(void)
 
 @interface ShadowListView (Commands) <RCTShadowListViewViewProtocol>
 
+- (void)transitionAnchorRequest:(SLAnchorEvent)event;
+
 - (void)animateCommandTo:(CGPoint)target;
 - (void)landAnimatedCommand;
 - (void)reportConcealedRowsMounted;
@@ -452,8 +463,11 @@ static inline BOOL SLFrameTraceEnabled(void)
 #if !TARGET_OS_OSX
 @interface ShadowListView (Refresh)
 
+- (void)checkRefreshSettle;
+- (void)transitionRefresh:(SLRefreshEvent)event;
+- (BOOL)refreshInProgress;
+- (BOOL)refreshSettleRequested;
 - (void)applyRefreshState:(BOOL)enabled refreshing:(BOOL)refreshing color:(nullable UIColor *)color;
-- (void)scheduleRefreshSettle;
 - (void)applyRefreshProgressOffset;
 
 @end

@@ -331,6 +331,7 @@ function ShadowListBaseInner<ItemT>(
     onRefresh,
     inverted,
     horizontal,
+    viewRef: shadowlistViewRef,
   });
   const rowCount = source.count;
   const { rowSpans, rowSpansVersion } = useRowSpans(

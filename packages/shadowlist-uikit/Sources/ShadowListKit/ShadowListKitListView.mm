@@ -127,7 +127,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 - (void)didMoveToWindow
 {
   [super didMoveToWindow];
-  if (self.window) { _viewabilityAttached = YES; [self updateViewability]; }
+  if (self.window) { [self updateViewability]; }
   else { [self detachViewability]; [self clearStickyHeaderOverlay]; }
 }
 
@@ -144,7 +144,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 {
   [self leaveDragBoard];
   [_settleLink invalidate];
-  [_viewabilityTimer invalidate];
+  [_viewabilityLink invalidate];
   [_dragLink invalidate];
 }
 

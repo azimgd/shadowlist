@@ -317,7 +317,7 @@ final class AnimationTests: XCTestCase {
     spin { fading.isHidden }
     XCTAssertTrue(fading.isHidden)
 
-    // A custom animator's animations are not waited for.
+    // A custom animator that starts no animations completes on the next main queue turn.
     list.itemAnimator = RecordingAnimator()
     finishedAt = nil
     let customStart = CACurrentMediaTime()
@@ -327,6 +327,67 @@ final class AnimationTests: XCTestCase {
     }) { _ in finishedAt = CACurrentMediaTime() }
     spin { finishedAt != nil }
     XCTAssertLessThan(try XCTUnwrap(finishedAt) - customStart, duration)
+  }
+
+  func testANestedBatchWaitsForTheAnimationsStartedByTheOuterCommit() throws {
+    for completesOuter in [false, true] {
+      let harness = makeHarness()
+      let list = harness.list
+      let rows = harness.source
+      let fading = try XCTUnwrap(list.cellForItem(at: 2))
+      let duration = try XCTUnwrap(list.itemAnimator as? ShadowListKitDefaultItemAnimator).duration
+      let start = CACurrentMediaTime()
+      var calls = 0
+      let completion: (Bool) -> Void = { finished in
+        XCTAssertTrue(finished)
+        XCTAssertTrue(fading.isHidden)
+        XCTAssertGreaterThanOrEqual(CACurrentMediaTime() - start, duration - 0.02)
+        calls += 1
+      }
+      list.performBatchUpdates({
+        list.performBatchUpdates({
+          rows.keys.remove(at: 2)
+          list.deleteItems(at: IndexSet(integer: 2))
+        }, completion: completion)
+        rows.keys.insert("new", at: 4)
+        list.insertItems(at: IndexSet(integer: 4))
+      }, completion: completesOuter ? completion : nil)
+      XCTAssertEqual(calls, 0)
+      let expected = completesOuter ? 2 : 1
+      spin { calls >= expected }
+      XCTAssertEqual(calls, expected)
+    }
+  }
+
+  func testUnrelatedAnimationsDoNotHoldTheBatchCompletion() throws {
+    let harness = makeHarness()
+    let list = harness.list
+    let before = try XCTUnwrap(list.cellForItem(at: 0)?.layer)
+    let after = try XCTUnwrap(list.cellForItem(at: 1)?.layer)
+    let unrelated = CABasicAnimation(keyPath: "opacity")
+    unrelated.fromValue = 1
+    unrelated.toValue = 0.5
+    unrelated.duration = 1
+    unrelated.repeatCount = .infinity
+    before.add(unrelated, forKey: "unrelated")
+    defer {
+      before.removeAnimation(forKey: "unrelated")
+      after.removeAnimation(forKey: "unrelated")
+    }
+    var calls = 0
+    list.performBatchUpdates({
+      harness.source.keys.remove(at: 2)
+      list.deleteItems(at: IndexSet(integer: 2))
+    }) { finished in
+      XCTAssertTrue(finished)
+      calls += 1
+    }
+    after.add(unrelated, forKey: "unrelated")
+    XCTAssertEqual(calls, 0)
+    spin { calls != 0 }
+    XCTAssertEqual(calls, 1)
+    XCTAssertNotNil(before.animation(forKey: "unrelated"))
+    XCTAssertNotNil(after.animation(forKey: "unrelated"))
   }
 
   func testADropAnimatesItselfAndAHeldRowStopsChangeAnimations() throws {

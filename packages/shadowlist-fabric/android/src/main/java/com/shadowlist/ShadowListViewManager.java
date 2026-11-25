@@ -472,6 +472,11 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
+  public void awaitRefreshSettle(ShadowListView view) {
+    view.awaitRefreshSettle();
+  }
+
+  @Override
   public void closeSwipeActions(ShadowListView view) {
     view.closeSwipeActions();
   }

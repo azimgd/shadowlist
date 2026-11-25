@@ -14,6 +14,7 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
+#include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/RowKeyStore.hpp>
 
 #include <algorithm>
@@ -306,6 +307,35 @@ void benchKeyStoreSplice(const std::vector<std::string>& keys, std::size_t rows,
       std::vector<std::string> inserted{"message-0123456789abcdef-0123456789abcdef-new-" + std::to_string(op)};
       store->spliceKeys(version + 1, version, start, deleted, std::move(inserted));
       store->adopted(++version);
+    });
+  record(label, rows, timing);
+}
+
+/*
+ * applyChanges after a change of the data, the way every kit compares content versions: the
+ * whole item list and its versions after count items were inserted at where, then after they
+ * were deleted again, alternately. A count of 0 is the same data again.
+ */
+void benchContentVersions(
+  const std::vector<std::string>& keys,
+  std::size_t rows,
+  const char* label,
+  std::size_t count,
+  int where) {
+  std::vector<std::string> grown = keys;
+  std::size_t start = where < 0 ? 0 : where > 0 ? keys.size() : keys.size() / 2;
+  for (std::size_t at = 0; at < count; ++at) {
+    grown.insert(grown.begin() + static_cast<std::ptrdiff_t>(start + at), "inserted-0123456789abcdef-0123456789abcdef-" + std::to_string(at));
+  }
+  std::vector<std::int64_t> keysVersions(keys.size(), 1);
+  std::vector<std::int64_t> grownVersions(grown.size(), 1);
+  ContentVersions versions;
+  Timing timing = measure(
+    25, 7,
+    [&] { versions.record(keys, keysVersions); },
+    [&](std::size_t op) {
+      bool grow = op % 2 == 0;
+      doNotOptimize(versions.update(grow ? grown : keys, grow ? grownVersions : keysVersions));
     });
   record(label, rows, timing);
 }
@@ -800,6 +830,9 @@ int main(int argc, char** argv) {
     benchKeyStoreSplice(longKeys, rows, "key store prepend one key (long keys)", -1);
     benchKeyStoreSplice(longKeys, rows, "key store replace a middle key (long keys)", 0);
     benchKeyStoreTree(longKeys, rows);
+    benchContentVersions(longKeys, rows, "content versions, same data again (long keys)", 0, 0);
+    benchContentVersions(longKeys, rows, "content versions after 100 items in and out mid list (long keys)", 100, 0);
+    benchContentVersions(longKeys, rows, "content versions after 100 items in and out at start (long keys)", 100, -1);
 
     benchSnapOffsets(shortKeys, rows, true, "build snap offsets after a geometry change");
     benchSnapOffsets(shortKeys, rows, false, "reuse cached snap offsets");

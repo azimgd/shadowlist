@@ -37,3 +37,37 @@ for (const name of ['Kit'] as const) {
     });
   }
 }
+
+/*
+ * Emscripten 7 reads no wasmBinary unless a build asks for it, and a module that ignored the
+ * bytes would load its own file instead. Bytes reach the module through instantiateWasm.
+ */
+test('bytes instantiate through instantiateWasm, which every Emscripten reads', async () => {
+  const { ShadowListWasmLoader } =
+    await import('../dist/ShadowListWasmLoader.js');
+  const bytes = await readFile(
+    new URL('../dist/shadowlistkit.wasm', import.meta.url)
+  );
+  const seen: object[] = [];
+  const loader = new ShadowListWasmLoader(
+    (options: Record<string, unknown>) => {
+      seen.push(options);
+      return new Promise((resolve) => {
+        const instantiate = options.instantiateWasm as (
+          imports: WebAssembly.Imports,
+          done: (instance: WebAssembly.Instance) => void
+        ) => object;
+        // A module with imports the core does not need fails to link, which is enough here.
+        instantiate({}, () => resolve('linked'));
+      });
+    },
+    () => {}
+  );
+  await assert.rejects(loader.load({ source: bytes }));
+  assert.equal(seen.length, 1);
+  assert.equal('wasmBinary' in seen[0]!, false);
+  assert.equal(
+    typeof (seen[0] as { instantiateWasm?: unknown }).instantiateWasm,
+    'function'
+  );
+});

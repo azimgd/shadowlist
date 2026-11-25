@@ -5,6 +5,8 @@
 #import <mach/mach.h>
 #import <sys/resource.h>
 
+NSNotificationName const ShadowListKitBenchReadyNotification = @"ShadowListKitBenchReady";
+
 static thread_act_t ShadowListKitBenchMainThread;
 
 /*
@@ -89,6 +91,20 @@ static double ShadowListKitBenchFootprintMB(void)
     return;
   }
   static ShadowListKitBench *bench;
+  // An app that says when its list shows content starts the run on that signal.
+  if ([[NSUserDefaults standardUserDefaults] boolForKey:@"SLBenchOnReady"]) {
+    [[NSNotificationCenter defaultCenter] addObserverForName:ShadowListKitBenchReadyNotification
+                                                      object:nil
+                                                       queue:NSOperationQueue.mainQueue
+                                                  usingBlock:^(NSNotification *note) {
+                                                    if (bench) {
+                                                      return;
+                                                    }
+                                                    bench = [ShadowListKitBench new];
+                                                    [bench start];
+                                                  }];
+    return;
+  }
   [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                     object:nil
                                                      queue:NSOperationQueue.mainQueue
@@ -612,8 +628,9 @@ static double ShadowListKitBenchFootprintMB(void)
     });
     return;
   }
+  // The result is written and flushed already. Quit once this display frame's work returns.
   if ([[NSUserDefaults standardUserDefaults] boolForKey:@"SLBenchExit"]) {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_async(dispatch_get_main_queue(), ^{
       exit(0);
     });
   }

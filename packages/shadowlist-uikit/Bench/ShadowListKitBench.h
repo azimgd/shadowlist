@@ -18,6 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
  *   -SLBenchSpeed 4000     points per second, on each driven axis
  *   -SLBenchSeconds 6      seconds per leg, the run goes away from where it opened and back
  *   -SLBenchDelay 3        seconds to wait for the list to load first
+ *   -SLBenchOnReady 1      start when the app posts ShadowListKitBenchReadyNotification, the
+ *                          signal that its list shows content, in place of the delay
  *   -SLBenchLabel name     copied into the result
  *   -SLBenchExit 1         quit when done, for a script waiting on the process
  *   -SLBenchDrawDelay 0.3  self-test: hold every ShadowListKitTextView bitmap back this many
@@ -25,6 +27,11 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @interface ShadowListKitBench : NSObject
 @end
+
+/*
+ * Posted on the main thread by an app whose list shows its first content, for -SLBenchOnReady.
+ */
+extern NSNotificationName const ShadowListKitBenchReadyNotification;
 
 /*
  * A view that draws its content after its rows show, like tiles drawn in the background, can

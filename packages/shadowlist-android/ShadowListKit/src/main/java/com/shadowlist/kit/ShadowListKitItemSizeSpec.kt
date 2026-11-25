@@ -40,7 +40,12 @@ data class ShadowListKitItemSizeSpec(
     val italic = fontStyle == "italic"
     val family = Typeface.create(fontFamily, Typeface.NORMAL)
     paint.typeface = if (Build.VERSION.SDK_INT >= 28) Typeface.create(family, weight.coerceIn(1, 1000), italic)
-      else Typeface.create(family, (if (weight >= 600) Typeface.BOLD else 0) or (if (italic) Typeface.ITALIC else 0))
+      else Typeface.create(family, when {
+        weight >= 600 && italic -> Typeface.BOLD_ITALIC
+        weight >= 600 -> Typeface.BOLD
+        italic -> Typeface.ITALIC
+        else -> Typeface.NORMAL
+      })
     if (letterSpacing.isFinite()) paint.letterSpacing = (letterSpacing / paint.textSize).toFloat()
     val content = if (lineHeight.isFinite() && lineHeight > 0 && text.isNotEmpty()) {
       SpannableString(text).apply {

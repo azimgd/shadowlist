@@ -265,4 +265,25 @@ final class ViewabilityTests: XCTestCase {
     withExtendedLifetime((window, source)) {}
   }
 
+  func testDetachAndReattachInsideACallbackDiscardsTheOldReports() throws {
+    let source = Source()
+    let (list, window) = fixture(source)
+    let container = try XCTUnwrap(list.superview)
+    let config = ShadowListKitViewabilityConfig(itemVisiblePercentThreshold: 50,
+      viewAreaCoveragePercentThreshold: nil, minimumViewTime: 0, waitForInteraction: false)
+    var events: [String] = []
+    list.viewabilityConfigCallbackPairs = [
+      ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config) { _ in
+        events.append("first")
+        if events.count == 1 {
+          list.removeFromSuperview()
+          container.addSubview(list)
+        }
+      },
+      ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config) { _ in events.append("second") }
+    ]
+    XCTAssertEqual(events, ["first", "first", "second"])
+    withExtendedLifetime((window, source)) {}
+  }
+
 }

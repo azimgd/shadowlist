@@ -117,6 +117,8 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   }
   [self stopScrolling];
   _driver.scrollToRow(row, viewPosition);
+  // The jump mounts the rows it shows. The rows past the viewport follow on the next frame.
+  [self transitionMountTo:ShadowListKitMountPhase::ViewportPending];
   [self runCommandNow];
   [self endCommandAnimated:animated];
 }

@@ -297,11 +297,39 @@ using namespace facebook::react;
 /*
  * Ask the core for the row at the viewport start. The answer comes back as onAnchorState.
  */
+/*
+ * JS holds data that came during a refresh until the refresh ended and the list is at rest.
+ * It asks once refreshing turned false. A command, not the prop, since a refresh shorter than
+ * a mount never reaches native as a prop. See checkRefreshSettle.
+ */
+- (void)awaitRefreshSettle
+{
+#if !TARGET_OS_OSX
+  // macOS has no pull to refresh, and JS holds no data there.
+  [self transitionRefresh:SLRefreshEvent::Await];
+  [self checkRefreshSettle];
+#endif
+}
+
 - (void)requestAnchorState
 {
-  if (!_state) {
+  [self transitionAnchorRequest:SLAnchorEvent::Request];
+}
+
+- (void)transitionAnchorRequest:(SLAnchorEvent)event
+{
+  if (event == SLAnchorEvent::Reset) {
+    _anchorRequest = SLAnchorRequest::Idle;
     return;
   }
+  if (event == SLAnchorEvent::Ready && _anchorRequest != SLAnchorRequest::Parked) {
+    return;
+  }
+  if (!_state) {
+    _anchorRequest = SLAnchorRequest::Parked;
+    return;
+  }
+  _anchorRequest = SLAnchorRequest::Idle;
   [self commitStatePatch:_scrollSync.requestAnchor(_scrollView.contentOffset.x, _scrollView.contentOffset.y)];
 }
 

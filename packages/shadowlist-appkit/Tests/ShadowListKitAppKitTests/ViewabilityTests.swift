@@ -27,4 +27,25 @@ final class ViewabilityTests: XCTestCase {
     RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
     XCTAssertEqual(calls, 1)
   }
+
+  func testDetachAndReattachInsideACallbackDiscardsTheOldReports() throws {
+    let harness = ListHarness(source: SizedTestSource(count: 100))
+    let list = harness.list
+    let container = try XCTUnwrap(list.superview)
+    let config = ShadowListKitViewabilityConfig(itemVisiblePercentThreshold: 50,
+      viewAreaCoveragePercentThreshold: nil, minimumViewTime: 0, waitForInteraction: false)
+    var events: [String] = []
+    list.viewabilityConfigCallbackPairs = [
+      ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config) { _ in
+        events.append("first")
+        if events.count == 1 {
+          list.removeFromSuperview()
+          container.addSubview(list)
+        }
+      },
+      ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config) { _ in events.append("second") }
+    ]
+    XCTAssertEqual(events, ["first", "first", "second"])
+  }
+
 }

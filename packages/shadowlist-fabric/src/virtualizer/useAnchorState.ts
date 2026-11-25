@@ -6,11 +6,6 @@ import ShadowListView, {
 import type { AnchorState } from '../types';
 import { keysIdentityOf, type RowSource } from './rowSource';
 
-/*
- * Longest wait for native to answer getAnchorState.
- */
-const ANCHOR_STATE_TIMEOUT_MS = 1000;
-
 interface UseAnchorStateOptions {
   viewRef: { current: ComponentRef<typeof ShadowListView> | null };
   source: RowSource<unknown>;
@@ -45,6 +40,10 @@ export function useAnchorState({
   );
   const pendingAnchorRef = useRef<AnchorState | null>(null);
 
+  /*
+   * Native answers every request with onAnchorState, also one sent before its first state,
+   * once that state arrives. A list that unmounts first answers null.
+   */
   const requestAnchorState = () =>
     new Promise<AnchorState | null>((resolve) => {
       const view = viewRef.current;
@@ -52,18 +51,21 @@ export function useAnchorState({
         resolve(null);
         return;
       }
-      let settled = false;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const finish = (state: AnchorState | null) => {
-        if (settled) return;
-        settled = true;
-        if (timer !== undefined) clearTimeout(timer);
-        resolve(state);
-      };
-      anchorWaitersRef.current.push(finish);
-      timer = setTimeout(() => finish(null), ANCHOR_STATE_TIMEOUT_MS);
+      anchorWaitersRef.current.push(resolve);
+      /*
+       * Each call sends again so a later request can recover an earlier dropped command.
+       */
       Commands.requestAnchorState(view);
     });
+
+  useEffect(
+    () => () => {
+      const waiters = anchorWaitersRef.current;
+      anchorWaitersRef.current = [];
+      waiters.forEach((resolve) => resolve(null));
+    },
+    []
+  );
 
   const restoreAnchorState = (state: AnchorState) => {
     const index = source.indexOfKey(state.key);

@@ -35,13 +35,13 @@ interface ShadowListKitBenchProbe {
  * logs one JSON line per axis with frame intervals, janky frames, UI thread, RenderThread and
  * process CPU, memory, and how much of the viewport no row covers. The same metrics as the iOS
  * ShadowListKitBench. Extras: SLBench 1, SLBenchAxes (y, x or xy, comma separated, default y),
- * SLBenchSpeed (dp/s), SLBenchSeconds per leg, SLBenchDelay, SLBenchLabel, SLBenchExit 1.
+ * SLBenchSpeed (dp/s), SLBenchSpeeds (dp/s, comma separated, one run each per axis, in place of
+ * SLBenchSpeed), SLBenchSeconds per leg, SLBenchDelay, SLBenchLabel, SLBenchExit 1.
  * An axis without a scroll view logs a line with skipped set.
  */
 class ShadowListKitBench private constructor(private val activity: Activity, intent: Intent) : Choreographer.FrameCallback {
   companion object {
     private const val TAG = "SLBENCH"
-    private const val EXIT_DELAY_MS = 300L
 
     /*
      * Pause between two axis runs, which lets the previous run's work settle.
@@ -57,7 +57,10 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
     private fun Intent.double(name: String, fallback: Double) = getStringExtra(name)?.toDoubleOrNull() ?: fallback
   }
 
-  private val speed = intent.double("SLBenchSpeed", 4000.0) * activity.resources.displayMetrics.density
+  private val speeds = (intent.getStringExtra("SLBenchSpeeds") ?: intent.getStringExtra("SLBenchSpeed") ?: "4000").split(',')
+    .mapNotNull { it.trim().toDoubleOrNull()?.takeIf { speed -> speed > 0 } }.ifEmpty { listOf(4000.0) }
+    .map { it * activity.resources.displayMetrics.density }
+  private var speed = speeds[0]
   private val legSeconds = intent.double("SLBenchSeconds", 6.0)
   private val delay = intent.double("SLBenchDelay", 3.0)
   private val label = intent.getStringExtra("SLBenchLabel") ?: ""
@@ -104,8 +107,14 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
     return display?.refreshRate?.takeIf { it > 0f } ?: 60f
   }
 
+  /*
+   * Every speed runs on every axis, the speeds of one axis one after another.
+   */
+  private val runCount get() = axes.size * speeds.size
+
   private fun startRun() {
-    axis = axes[run]
+    axis = axes[run / speeds.size]
+    speed = speeds[run % speeds.size]
     val root = activity.window.decorView
     vertical = if ('y' in axis) findScrollView(root, alongX = false) else null
     horizontal = if ('x' in axis) findScrollView(root, alongX = true) else null
@@ -254,6 +263,8 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
       put("mainCpuUsPerFrame", if (intervals.isEmpty()) 0.0 else uiCpu * 1000 / intervals.size)
       put("peakMB", peakMB)
       put("pssMB", MemorySampler.pssMB())
+      put("javaHeapMB", MemorySampler.javaMB())
+      put("nativeHeapMB", MemorySampler.nativeMB())
       probe?.let { put("probe", it.javaClass.simpleName) }
       blank.write(this)
       frameMetrics.write(this, nominal)
@@ -283,11 +294,12 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
   private fun nextRun() {
     ++run
     val handler = Handler(Looper.getMainLooper())
-    if (run < axes.size) {
+    if (run < runCount) {
       handler.postDelayed({ startRun() }, RUN_GAP_MS)
       return
     }
-    if (exit) handler.postDelayed({ activity.finishAndRemoveTask(); Process.killProcess(Process.myPid()) }, EXIT_DELAY_MS)
+    // The result is in the log and the file before emit returns.
+    if (exit) handler.post { activity.finishAndRemoveTask(); Process.killProcess(Process.myPid()) }
   }
 }
 
@@ -463,6 +475,10 @@ private object MemorySampler {
   }
 
   fun pssMB(): Double = Debug.getPss() / 1024.0
+
+  fun javaMB(): Double = Runtime.getRuntime().let { it.totalMemory() - it.freeMemory() } / 1048576.0
+
+  fun nativeMB(): Double = Debug.getNativeHeapAllocatedSize() / 1048576.0
 }
 
 /*

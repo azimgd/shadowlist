@@ -82,6 +82,18 @@ struct ShadowListKitPassGeometry {
 };
 
 /*
+ * A jump can wait for usable geometry before mounting its viewport. The following mount fills
+ * the overscan, and ordinary mounts then use the full range.
+ */
+enum class ShadowListKitMountPhase { FullRange, ViewportPending, OverscanPending };
+
+/*
+ * Callbacks may request another update or invalidate the reports being delivered. Invalidation
+ * stops the remaining callbacks; a plain update request finishes the current immutable report.
+ */
+enum class ShadowListKitViewabilityPhase { Idle, Updating, UpdatePending, Invalidated };
+
+/*
  * State and helpers the list shares with its categories. Both kits compile this header, and
  * each kit's own state follows the shared state.
  * _mounted holds the mounted cells by key. A cell follows its key across inserts above it.
@@ -97,7 +109,7 @@ struct ShadowListKitPassGeometry {
  * are the settings the core runs with, sent again only when one changed. _previousOffset is the
  * last offset seen, which tells the user's scrolling from the list's own writes, and
  * _userScrolled says the user moved it since the last pass. A settle frame waits on _settleLink
- * for the next display frame, at most one at a time while _settleScheduled. _reachedStart and _reachedEnd wait to be told
+ * for the next display frame, at most one at a time while the link is running. _reachedStart and _reachedEnd wait to be told
  * to the delegate after the pass. _atEnd is whether the core says the list is at its end, and
  * _atEndChanged a change of it that waits the same way.
  * _sections maps the rows the core places to items, section headers and footers.
@@ -107,7 +119,9 @@ struct ShadowListKitPassGeometry {
  * scroll, counts as the user's scrolling. A driven Mac list reports the offset to its delegate
  * instead. recycleCell: hides a cell and puts it back in its reuse pool. itemCellAtPoint: is the
  * shown item cell under a point in the list's own coordinates. settleFrame runs the layout pass
- * the settle display link waited for. On the Mac, catchUpViews gives every view that lags behind
+ * the settle display link waited for. _mountPhase makes the next mount pass after a jump make new
+ * cells for the viewport alone and keep the overscan cells whose rows still lie within it. A
+ * jump sets it, and the rest of the overscan mounts one frame later. On the Mac, catchUpViews gives every view that lags behind
  * its layer the layer's geometry, contentPointAt: is the content point shown at a point in the
  * list, through _contentShift, and hitTestThroughLayers: hit tests the views where their layers
  * show them while they lag.
@@ -129,7 +143,8 @@ struct ShadowListKitPassGeometry {
  * reached callbacks, runs in the layout already pending. _sizesFromDataSource is whether the
  * data source gives sizes, read again on every reload. _batch holds the changes
  * performBatchUpdates:completion: collects until its block returns, and _batchPayload the
- * payload of the last reload in it. _contentVersions is the content version of every item the
+ * payload of the last reload in it. _batchCompletions follows the outermost commit's animations.
+ * _contentVersions is the content version of every item the
  * list read, by key, which applyChanges compares against.
  * _selection holds the selected keys, on the Mac with the anchor of a range, and
  * _highlightedCell the row a finger rests on or the item the mouse presses.
@@ -150,8 +165,8 @@ struct ShadowListKitPassGeometry {
  * Mac: _contentView holds the cells and the header and footer views. Its bounds origin is the
  * content offset. A driven list moves the content by _contentShift in its layer's sublayer
  * transform instead while nothing holds its cells, and moves and hides cells by their layers.
- * _viewsBehind is set while any view lags behind its layer, and _catchUpTimer gives the views
- * their layers' geometry once the list rests. _changes exists only while
+ * viewsBehind reads the content shift and the cells placed by their layers. catchUpViews gives
+ * the views their layers' geometry once the list rests. _changes exists only while
  * animatesChanges is set, which leaves a list without animations no work for them. _engine
  * scrolls the list and _scrollers shows where it is, both unused while the list is driven.
  * _hoveredCell is the item under _hoverPoint, the pointer in the list's coordinates while
@@ -209,7 +224,7 @@ struct ShadowListKitPassGeometry {
   BOOL _hasSentSettings;
   double _previousOffset;
   BOOL _userScrolled;
-  BOOL _settleScheduled;
+  ShadowListKitMountPhase _mountPhase;
   CADisplayLink *_settleLink;
   BOOL _reachedStart;
   BOOL _reachedEnd;
@@ -252,11 +267,11 @@ struct ShadowListKitPassGeometry {
   void (^_onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *);
   NSArray<ShadowListKitViewabilityConfigCallbackPair *> *_viewabilityCallbacks;
   NSMutableArray<NSMutableDictionary<NSString *, ShadowListKitViewToken *> *> *_viewabilityTokens;
+  CADisplayLink *_viewabilityLink;
+#if TARGET_OS_OSX
   NSTimer *_viewabilityTimer;
-  BOOL _viewabilityUpdating;
-  BOOL _viewabilityNeedsUpdate;
-  BOOL _viewabilityAttached;
-  NSUInteger _viewabilityGeneration;
+#endif
+  ShadowListKitViewabilityPhase _viewabilityPhase;
 
   BOOL _animatesChanges;
   ShadowListKitChangeAnimator *_changes;
@@ -272,6 +287,7 @@ struct ShadowListKitPassGeometry {
   BOOL _sizesFromDataSource;
   azimgd::shadowlist::BatchCollector _batch;
   id _batchPayload;
+  NSMutableArray<void (^)(BOOL)> *_batchCompletions;
   azimgd::shadowlist::ContentVersions _contentVersions;
 
   BOOL _allowsSelection;
@@ -308,8 +324,6 @@ struct ShadowListKitPassGeometry {
 #if TARGET_OS_OSX
   NSView *_contentView;
   CGFloat _contentShift;
-  BOOL _viewsBehind;
-  NSTimer *_catchUpTimer;
   ShadowListKitScrollEngine *_engine;
   ShadowListKitScrollerView *_scrollers;
 
@@ -393,6 +407,7 @@ struct ShadowListKitPassGeometry {
 - (void)readPassGeometry;
 #if TARGET_OS_OSX
 - (BOOL)placesByLayer;
+- (BOOL)viewsBehind;
 - (void)placeContentView;
 - (void)catchUpViews;
 - (CGPoint)contentPointAt:(CGPoint)point;
@@ -441,6 +456,7 @@ struct ShadowListKitPassGeometry {
 - (void)resetKeepingPosition;
 - (ShadowListKitListCell *)makeCellAtRow:(NSInteger)row;
 - (CGRect)displayRect:(double)x y:(double)y width:(double)width height:(double)height;
+- (void)transitionMountTo:(ShadowListKitMountPhase)phase;
 - (void)mountCells;
 - (void)unmountAll;
 - (void)reportPrefetchRows:(const std::vector<std::size_t>&)rows cancel:(const std::vector<std::size_t>&)cancelRows;
@@ -452,7 +468,11 @@ struct ShadowListKitPassGeometry {
 - (void)sendPersistentKeys;
 - (void)sendSizeSpecSource;
 - (void)sendViewabilityConfigs;
+- (void)transitionViewabilityTo:(ShadowListKitViewabilityPhase)phase;
 - (void)updateViewability;
+- (void)viewabilityFrame;
+- (void)resumeViewabilityTicks;
+- (void)pauseViewabilityTicks;
 - (void)detachViewability;
 
 @end

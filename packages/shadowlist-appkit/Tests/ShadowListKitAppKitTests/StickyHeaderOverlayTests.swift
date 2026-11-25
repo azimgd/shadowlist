@@ -57,6 +57,8 @@ final class StickyHeaderOverlayTests: XCTestCase {
     let list = harness.list
     // Query before moving: cellForItem itself catches up the views on AppKit.
     let original = list.cellForItem(at: 0)!
+    // The host drags: the list places the cells by their layers until the phase goes idle.
+    list.scrollPhase = .dragging
     list.contentOffset.y = 20
     harness.layout()
     XCTAssertEqual(original.value(forKey: "placedByLayer") as? Bool, true)
@@ -65,7 +67,7 @@ final class StickyHeaderOverlayTests: XCTestCase {
     XCTAssertTrue(original.isHidden)
     XCTAssertEqual(original.layer?.isHidden, true)
     XCTAssertEqual(original.value(forKey: "shown") as? Bool, false)
-    harness.rest()
+    list.scrollPhase = .idle
     XCTAssertTrue(original.isHidden)
     XCTAssertEqual(original.layer?.isHidden, true)
     XCTAssertEqual(original.value(forKey: "shown") as? Bool, false)

@@ -2699,6 +2699,34 @@ open class ShadowListKitListView @JvmOverloads constructor(
     if (isLaidOut && !isLayoutRequested) layoutPass() else requestLayout()
   }
 
+  /* Apply a committed batch to the current bounds before returning to its caller. */
+  internal fun layoutBatch(action: () -> Unit) {
+    needsFrame = true
+    if (isLaidOut && !inLayoutPass) {
+      layoutPass()
+      action()
+    } else {
+      runCommandNow()
+      afterLayout(action)
+    }
+  }
+
+  /*
+   * Run action after the layout pass a request is waiting for, or now when none waits.
+   */
+  internal fun afterLayout(action: () -> Unit) {
+    if (!isLayoutRequested && !inLayoutPass) {
+      action()
+      return
+    }
+    viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
+      override fun onGlobalLayout() {
+        viewTreeObserver.removeOnGlobalLayoutListener(this)
+        action()
+      }
+    })
+  }
+
   // endregion
 
   // region Drag

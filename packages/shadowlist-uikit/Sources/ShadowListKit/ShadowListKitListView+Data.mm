@@ -290,23 +290,42 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   if (updates) {
     updates();
   }
-  if (_batch.end()) {
-    [self commitBatch];
+  if (completion) {
+    if (!_batchCompletions) {
+      _batchCompletions = [NSMutableArray new];
+    }
+    [_batchCompletions addObject:[completion copy]];
   }
-  if (!completion) {
+  if (!_batch.end()) {
     return;
   }
-  // The change animation runs after the next layout. Completion follows it.
-  NSTimeInterval wait = 0;
-  if (_animatesChanges && self.window && [_itemAnimator isKindOfClass:[ShadowListKitDefaultItemAnimator class]]) {
-    wait = ((ShadowListKitDefaultItemAnimator *)_itemAnimator).duration;
+  /*
+   * Nested completions follow the commit that starts their animations, even when the outer
+   * call has no completion. Detach the collection before layout can start another batch.
+   * The main queue keeps completion asynchronous when nothing animates.
+   */
+  NSArray<void (^)(BOOL)> *completions = _batchCompletions;
+  _batchCompletions = nil;
+  if (completions.count) {
+    [CATransaction begin];
+    [CATransaction setCompletionBlock:^{
+      dispatch_async(dispatch_get_main_queue(), ^{
+        for (void (^callback)(BOOL) in completions) {
+          callback(YES);
+        }
+      });
+    }];
   }
-  if (self.window) {
-    ShadowListKitLayoutNow(self);
+  @try {
+    [self commitBatch];
+    if (completions.count && self.window) {
+      ShadowListKitLayoutNow(self);
+    }
+  } @finally {
+    if (completions.count) {
+      [CATransaction commit];
+    }
   }
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-    completion(YES);
-  });
 }
 
 /*

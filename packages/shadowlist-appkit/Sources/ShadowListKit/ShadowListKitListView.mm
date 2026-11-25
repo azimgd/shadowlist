@@ -19,11 +19,6 @@ static_assert(static_cast<int>(ShadowListKitScrollPhaseIdle) == static_cast<int>
   "ShadowListKitScrollPhase mirrors the core's ScrollPhase");
 
 /*
- * How long after the last move of a driven list its views take their layers' geometry.
- */
-static const NSTimeInterval SHADOWLIST_KIT_VIEW_CATCH_UP_DELAY = 0.1;
-
-/*
  * Keeps every category file linked into apps that link the kit as a static library without -ObjC.
  */
 __attribute__((used)) static const char *const ShadowListKitListViewCategoryLinks[] = {
@@ -127,9 +122,8 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
 
 - (void)dealloc
 {
-  [_catchUpTimer invalidate];
   [_settleLink invalidate];
-  [_viewabilityTimer invalidate];
+  [_viewabilityLink invalidate];
   [_dragLink invalidate];
   [_swipeLink invalidate];
   if (_dragKeyMonitor) {
@@ -397,38 +391,37 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
     _contentShift = shift;
     _contentView.layer.sublayerTransform =
       _horizontal ? CATransform3DMakeTranslation(shift, 0, 0) : CATransform3DMakeTranslation(0, shift, 0);
-    if (shift != 0) {
-      [self noteViewsBehind];
-    }
   }
   [CATransaction commit];
 }
 
 /*
- * Whether a driven list moves its content and cells by their layers now. A held row, an open
- * swipe and change animations read and move the views, which then place them.
+ * Whether a driven list moves its content and cells by their layers now: while the host drags
+ * or settles it. A move at rest, a held row, an open swipe and change animations read and move
+ * the views, which then place them.
  */
 - (BOOL)placesByLayer
 {
-  return _scrollDriven && !_changes && !_swipeCell && ![self hasHeldRow];
+  return _scrollDriven && _scrollPhase != ShadowListKitScrollPhaseIdle && !_changes && !_swipeCell &&
+         ![self hasHeldRow];
 }
 
 /*
- * A view lags behind its layer. Once the list rests the views take the layers' geometry.
+ * Read the geometry owners instead of remembering which placement path last ran. A cell can
+ * catch up on its own when resized or recycled before the host's scroll phase goes idle.
  */
-- (void)noteViewsBehind
+- (BOOL)viewsBehind
 {
-  _viewsBehind = YES;
-  NSDate *rest = [NSDate dateWithTimeIntervalSinceNow:SHADOWLIST_KIT_VIEW_CATCH_UP_DELAY];
-  if (_catchUpTimer.valid) {
-    _catchUpTimer.fireDate = rest;
-    return;
+  if (_contentShift != 0) {
+    return YES;
   }
-  __weak ShadowListKitListView *weakSelf = self;
-  _catchUpTimer = [[NSTimer alloc] initWithFireDate:rest interval:0 repeats:NO block:^(NSTimer *timer) {
-    [weakSelf catchUpViews];
-  }];
-  [NSRunLoop.mainRunLoop addTimer:_catchUpTimer forMode:NSDefaultRunLoopMode];
+  for (NSView *view in _contentView.subviews) {
+    if ([view isKindOfClass:[ShadowListKitListCell class]] &&
+        ((ShadowListKitListCell *)view).placedByLayer) {
+      return YES;
+    }
+  }
+  return NO;
 }
 
 /*
@@ -436,10 +429,9 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
  */
 - (void)catchUpViews
 {
-  if (!_viewsBehind) {
+  if (![self viewsBehind]) {
     return;
   }
-  _viewsBehind = NO;
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
   for (NSView *view in _contentView.subviews) {
@@ -890,7 +882,6 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   if ([self placesByLayerCell:cell] && NSEqualSizes(cell.frame.size, frame.size)) {
     if (!NSEqualPoints(cell.shownFrame.origin, frame.origin)) {
       [cell placeLayerAtOrigin:frame.origin];
-      [self noteViewsBehind];
     }
     return;
   }
@@ -908,7 +899,6 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   if ([self placesByLayerCell:cell] && (hidden || !cell.isHidden)) {
     if (cell.shown == hidden) {
       [cell setLayerHidden:hidden];
-      [self noteViewsBehind];
     }
     return;
   }
@@ -1064,6 +1054,9 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   }
   if (previous == ShadowListKitScrollPhaseDragging && [_userDelegate respondsToSelector:@selector(listViewDidEndDragging:willDecelerate:)]) {
     [_userDelegate listViewDidEndDragging:self willDecelerate:scrollPhase == ShadowListKitScrollPhaseSettling];
+  }
+  if (scrollPhase == ShadowListKitScrollPhaseIdle) {
+    [self catchUpViews];
   }
   if (previous == ShadowListKitScrollPhaseSettling && scrollPhase == ShadowListKitScrollPhaseIdle &&
       [_userDelegate respondsToSelector:@selector(listViewDidEndDecelerating:)]) {

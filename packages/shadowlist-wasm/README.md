@@ -128,7 +128,8 @@ with `completion(finished)`, `applyChanges`. Queries and commands: `itemCount`, 
 The view's own behavior:
 
 - The browser scrolls the list. Touches and a mouse press on the scrollbar count as dragging, momentum and keyboard
-  scrolling as settling. The list rests on `scrollend`, or after 150 ms without a scroll event.
+  scrolling as settling. The list rests on `scrollend`. A wheel has no end event, and a wheel scroll, or any scroll
+  in a browser without `scrollend`, rests after 150 ms without a scroll event.
 - The browser's scroll anchoring is off on the list (`overflow-anchor: none`). The core keeps the content in place.
 - Sticky rows stick with CSS `position: sticky`. Each mounted sticky row sits in a section element that runs to
   the next sticky row, which pushes it away. The browser pins it on the thread that scrolls. A pinned header or

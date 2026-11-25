@@ -1,5 +1,6 @@
 package com.shadowlist.kit
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.RectF
@@ -40,6 +41,10 @@ class ShadowListKitTextLayout private constructor(val layout: StaticLayout) {
   }
 
   companion object {
+    /*
+     * Layout's break strategies are the LineBreaker constants lint asks for, which need API 29.
+     */
+    @SuppressLint("WrongConstant")
     fun make(
       text: CharSequence,
       paint: TextPaint,

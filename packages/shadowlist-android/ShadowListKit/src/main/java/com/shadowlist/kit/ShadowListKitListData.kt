@@ -61,6 +61,9 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   private val state get() = list.state
   private var batchPayload: Any? = null
 
+  /* Inner batches keep collecting animations until the outer commit has laid out. */
+  private val batchAnimations = ArrayList<Pair<ShadowListKitDefaultItemAnimator, ShadowListKitDefaultItemAnimator.Batch>>()
+
   /*
    * Read the sections and every key into next and return the item keys. A list with sections
    * gets its header and footer rows there, with keys from the core's ListSections.
@@ -286,14 +289,48 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     state.beginBatch()
     try {
       updates()
-    } finally {
-      // A block that threw changed the data as far as it got. Its batch commits too.
-      if (state.endBatch()) commitBatch()
+    } catch (error: Throwable) {
+      /* A block that threw changed the data as far as it got. Its batch commits too. */
+      try {
+        if (state.endBatch()) commitBatch()
+      } finally {
+        finishBatchAnimations()
+      }
+      throw error
     }
-    if (completion == null) return
-    val wait = if (list.animatesChanges && list.isAttachedToWindow) (list.itemAnimator as? ShadowListKitDefaultItemAnimator)?.durationMs ?: 0L else 0L
-    list.runCommandNow()
-    list.postDelayed({ completion(true) }, wait)
+    val animator = if (completion != null && list.animatesChanges && list.isAttachedToWindow) {
+      list.itemAnimator as? ShadowListKitDefaultItemAnimator
+    } else null
+    val batch = animator?.beginBatch(list) { completion?.invoke(true) }
+    if (animator != null && batch != null) batchAnimations.add(animator to batch)
+    try {
+      if (state.endBatch()) commitBatch()
+      finishBatchAnimations(layout = completion != null)
+      if (completion != null && batch == null) list.post { completion(true) }
+    } catch (error: Throwable) {
+      if (animator != null && batch != null) {
+        batchAnimations.removeAll { it.second === batch }
+        animator.discardBatch(batch)
+      }
+      throw error
+    }
+  }
+
+  /* Close registration after the outer commit's layout, without deferring that layout. */
+  private fun finishBatchAnimations(layout: Boolean = false) {
+    if (state.isBatching || (!layout && batchAnimations.isEmpty())) return
+    val animations = ArrayList(batchAnimations)
+    batchAnimations.clear()
+    try {
+      list.layoutBatch {
+        /* A direct completion can start another batch. Close every registration first. */
+        for ((animator, batch) in animations) animator.stopCollecting(batch)
+        for ((animator, batch) in animations) animator.endBatch(batch)
+      }
+    } catch (error: Throwable) {
+      for ((animator, batch) in animations) animator.discardBatch(batch)
+      throw error
+    }
   }
 
   /*

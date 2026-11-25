@@ -27,15 +27,15 @@ Pod::Spec.new do |s|
   s.private_header_files = ["ios/**/*.{h,hpp}", "cpp/**/*.{h,hpp}"]
 
   # Release builds optimize the C++ for speed, not size.
-  s.pod_target_xcconfig = {
+  pod_target_xcconfig = {
     'HEADER_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)',
     'GCC_OPTIMIZATION_LEVEL[config=Release]' => '3',
   }
-
   # The core's [SL] debug log is off by default. SHADOWLIST_DEBUG_LOG=1 pod install compiles it in.
   if ENV['SHADOWLIST_DEBUG_LOG'] == '1'
-    s.pod_target_xcconfig['GCC_PREPROCESSOR_DEFINITIONS'] = '$(inherited) SHADOWLIST_DEBUG_LOG=1'
+    pod_target_xcconfig['GCC_PREPROCESSOR_DEFINITIONS'] = '$(inherited) SHADOWLIST_DEBUG_LOG=1'
   end
+  s.pod_target_xcconfig = pod_target_xcconfig
 
   s.user_target_xcconfig = {
     'HEADER_SEARCH_PATHS' => '$(PODS_ROOT)/ShadowList'
