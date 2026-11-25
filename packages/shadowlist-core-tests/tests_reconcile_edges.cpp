@@ -254,12 +254,17 @@ TEST(reconcile_random_edits_match_a_plain_model) {
         if (kind == 0 && !nextKeys.empty()) {
           nextKeys.erase(nextKeys.begin() + next(static_cast<unsigned>(nextKeys.size())));
         } else if (kind == 1 && nextKeys.size() > 2) {
-          std::swap(nextKeys[next(static_cast<unsigned>(nextKeys.size()))], nextKeys[next(static_cast<unsigned>(nextKeys.size()))]);
+          std::swap(
+            nextKeys[next(static_cast<unsigned>(nextKeys.size()))],
+            nextKeys[next(static_cast<unsigned>(nextKeys.size()))]);
         } else if (kind == 2 && !nextKeys.empty() && list % 3 == 0) {
           // A duplicate of an existing key.
-          nextKeys.insert(nextKeys.begin() + next(static_cast<unsigned>(nextKeys.size())), nextKeys[next(static_cast<unsigned>(nextKeys.size()))]);
+          nextKeys.insert(
+            nextKeys.begin() + next(static_cast<unsigned>(nextKeys.size())),
+            nextKeys[next(static_cast<unsigned>(nextKeys.size()))]);
         } else {
-          nextKeys.insert(nextKeys.begin() + next(static_cast<unsigned>(nextKeys.size() + 1)), "n" + std::to_string(fresh++));
+          nextKeys.insert(
+            nextKeys.begin() + next(static_cast<unsigned>(nextKeys.size() + 1)), "n" + std::to_string(fresh++));
         }
       }
       if (nextKeys.empty()) {
@@ -274,7 +279,9 @@ TEST(reconcile_random_edits_match_a_plain_model) {
       Virtualizer::reconcileRows(container, nextKeys);
 
       std::unordered_map<std::string, std::size_t> firstIndex;
-      for (std::size_t index = 0; index < nextKeys.size(); ++index) firstIndex.emplace(nextKeys[index], index);
+      for (std::size_t index = 0; index < nextKeys.size(); ++index) {
+        firstIndex.emplace(nextKeys[index], index);
+      }
       CHECK_EQ(container.revision.rows.size(), nextKeys.size());
       for (std::size_t index = 0; index < nextKeys.size(); ++index) {
         const Row& row = container.revision.rows[index];

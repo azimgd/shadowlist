@@ -63,9 +63,10 @@ double clampOffset(double offset, double maxOffset) {
  * end of a grid starts over with it.
  */
 std::uint64_t operationId(Container& container, OperationType type, AnchorMode mode, const std::string& key) {
-  if (container.state.operation && container.state.operation->type == type &&
-      container.state.operation->target.mode == mode &&
-      (mode != AnchorMode::Row || container.state.operation->target.key == key)) {
+  if (
+    container.state.operation && container.state.operation->type == type &&
+    container.state.operation->target.mode == mode &&
+    (mode != AnchorMode::Row || container.state.operation->target.key == key)) {
     return container.state.operation->commitToken;
   }
   container.state.operationGeometryVersion = container.state.geometryVersion;
@@ -79,7 +80,8 @@ std::uint64_t operationId(Container& container, OperationType type, AnchorMode m
 void requestFixed(Container& container, OperationType type) {
   container.state.clampedAnchor.reset();
   if (container.state.operation && container.state.operation->type != type) {
-    SHADOWLIST_LOG("  op replaced: type=%d key=%s -> type=%d", static_cast<int>(container.state.operation->type),
+    SHADOWLIST_LOG(
+      "  op replaced: type=%d key=%s -> type=%d", static_cast<int>(container.state.operation->type),
       container.state.operation->target.key.c_str(), static_cast<int>(type));
   }
   container.state.operation =
@@ -100,12 +102,13 @@ void requestAnchor(
   container.state.clampedAnchor.reset();
   const std::optional<Operation>& running = container.state.operation;
   if (running && (running->type != type || running->target.key != key)) {
-    SHADOWLIST_LOG("  op replaced: type=%d key=%s -> type=%d key=%s", static_cast<int>(running->type),
-      running->target.key.c_str(), static_cast<int>(type), key.c_str());
+    SHADOWLIST_LOG(
+      "  op replaced: type=%d key=%s -> type=%d key=%s", static_cast<int>(running->type), running->target.key.c_str(),
+      static_cast<int>(type), key.c_str());
   }
-  container.state.operation =
-    Operation{operationId(container, type, AnchorMode::Row, key), type, Anchor{key, delta, AnchorMode::Row},
-      viewPosition, viewOffset};
+  container.state.operation = Operation{
+    operationId(container, type, AnchorMode::Row, key), type, Anchor{key, delta, AnchorMode::Row}, viewPosition,
+    viewOffset};
 }
 
 /*
@@ -128,16 +131,17 @@ void requestShrinkClamp(
   double anchorDelta,
   bool hadRowsBefore,
   bool reportedBeforeWrite) {
-  if (!reportedBeforeWrite && !container.inverted && frame.rowCount > 0 &&
-      frame.currentOffset > frame.maxOffset + OFFSET_MOVED_THRESHOLD &&
-      frame.totalSize < frame.previousTotalForScrollToEnd) {
+  if (
+    !reportedBeforeWrite && !container.inverted && frame.rowCount > 0 &&
+    frame.currentOffset > frame.maxOffset + OFFSET_MOVED_THRESHOLD &&
+    frame.totalSize < frame.previousTotalForScrollToEnd) {
     /*
      * Only when no anchor will place the view. The shrink is often above the viewport, and
      * the row on screen moved up with it. Steps 3 and 4 follow that row and clamp when
      * needed. Jumping to the end would show rows further down instead.
      */
-    bool anchorSurvived = !container.state.operation && hadRowsBefore && !anchorKey.empty() &&
-      anchorIndex != UNDEFINED_INDEX;
+    bool anchorSurvived =
+      !container.state.operation && hadRowsBefore && !anchorKey.empty() && anchorIndex != UNDEFINED_INDEX;
     bool anchorPlacesView = false;
     if (container.state.operation && container.state.operation->target.mode == AnchorMode::Row) {
       anchorPlacesView = container.indexOfKey(container.state.operation->target.key) != UNDEFINED_INDEX;
@@ -168,7 +172,8 @@ bool requestScrollToRow(Container& container, const ScrollFrame& frame) {
        */
       const std::string targetKey = container.getRowAtIndex(container.state.scrollToRowTarget).key;
       // The view position travels with the operation and is applied again each frame.
-      requestAnchor(container, OperationType::ScrollToKey, targetKey, 0.0, container.state.scrollToRowViewPosition,
+      requestAnchor(
+        container, OperationType::ScrollToKey, targetKey, 0.0, container.state.scrollToRowViewPosition,
         container.state.scrollToRowViewOffset);
       requested = true;
       // This replaces the bottom pin, but only for an index in range.
@@ -195,9 +200,7 @@ bool requestScrollToStart(Container& container, const ScrollFrame& frame) {
         leading = frame.rowCount - 1;
       }
       requestAnchor(
-        container,
-        OperationType::ScrollToStart,
-        container.getRowAtIndex(leading).key,
+        container, OperationType::ScrollToStart, container.getRowAtIndex(leading).key,
         -container.getRowOffset(leading));
       requested = true;
       container.state.invertedInitialized = true;
@@ -221,10 +224,9 @@ void requestOpeningBottomPin(Container& container, const ScrollFrame& frame, boo
      * offset that equals the bottom of the new rows' estimates by chance. That bottom moves
      * once they are measured.
      */
-    if (offsetConfirmed &&
-        frame.totalSize > frame.windowSize &&
-        hasTrustedEnd(container) &&
-        std::fabs(frame.currentOffset - frame.maxOffset) < OFFSET_ARRIVED_THRESHOLD) {
+    if (
+      offsetConfirmed && frame.totalSize > frame.windowSize && hasTrustedEnd(container) &&
+      std::fabs(frame.currentOffset - frame.maxOffset) < OFFSET_ARRIVED_THRESHOLD) {
       container.state.invertedInitialized = true;
     }
   }
@@ -255,11 +257,8 @@ void requestScrollToEnd(Container& container, const ScrollFrame& frame) {
  * Step 3. Keep driving the running operation until the view gets there. The target is
  * worked out again each frame. It ends when its row is gone or the view arrives.
  */
-ScrollStep driveOperation(
-  Container& container,
-  const ScrollFrame& frame,
-  bool offsetConfirmed,
-  bool commandRequestedThisFrame) {
+ScrollStep
+driveOperation(Container& container, const ScrollFrame& frame, bool offsetConfirmed, bool commandRequestedThisFrame) {
   if (container.state.operation) {
     double rawTarget = 0.0;
     if (!resolveAnchorOffset(container, *container.state.operation, frame.maxOffset, rawTarget)) {
@@ -272,8 +271,8 @@ ScrollStep driveOperation(
        * and republishes on every commit, about 500 times for one streaming reply.
        */
       bool reportedAtTarget = std::fabs(container.state.previousReportedOffset - target) < OFFSET_ARRIVED_THRESHOLD;
-      bool arrived = (offsetConfirmed || reportedAtTarget) &&
-        std::fabs(frame.currentOffset - target) < OFFSET_ARRIVED_THRESHOLD;
+      bool arrived =
+        (offsetConfirmed || reportedAtTarget) && std::fabs(frame.currentOffset - target) < OFFSET_ARRIVED_THRESHOLD;
       /*
        * Grid tracks move apart as rows get measured. An operation that rests on the end holds
        * no row at the top of the viewport, and once it is done the anchor holds one track only.
@@ -284,8 +283,9 @@ ScrollStep driveOperation(
        */
       bool geometryChanged = container.state.operationGeometryVersion != container.state.geometryVersion;
       container.state.operationGeometryVersion = container.state.geometryVersion;
-      if (arrived && container.numberOfColumns > 1 && rawTarget >= frame.maxOffset && geometryChanged &&
-          container.state.operationEndWaitFrames < GRID_END_WAIT_FRAMES) {
+      if (
+        arrived && container.numberOfColumns > 1 && rawTarget >= frame.maxOffset && geometryChanged &&
+        container.state.operationEndWaitFrames < GRID_END_WAIT_FRAMES) {
         ++container.state.operationEndWaitFrames;
         arrived = false;
       }
@@ -298,7 +298,7 @@ ScrollStep driveOperation(
        */
       OperationType type = container.state.operation->type;
       bool holdsRow = container.state.operation->target.mode == AnchorMode::Row &&
-        (type == OperationType::MaintainAnchor || type == OperationType::ShrinkClamp);
+                      (type == OperationType::MaintainAnchor || type == OperationType::ShrinkClamp);
       if (arrived && holdsRow && rawTarget >= frame.maxOffset && !hasTrustedEnd(container)) {
         arrived = false;
       }
@@ -311,19 +311,22 @@ ScrollStep driveOperation(
         if (holdsRow && rawTarget > frame.maxOffset + OFFSET_MOVED_THRESHOLD) {
           container.state.clampedAnchor = container.state.operation->target;
         }
-        SHADOWLIST_LOG("  op arrived: type=%d key=%s index=%zd target=%.1f",
-          static_cast<int>(container.state.operation->type),
+        SHADOWLIST_LOG(
+          "  op arrived: type=%d key=%s index=%zd target=%.1f", static_cast<int>(container.state.operation->type),
           container.state.operation->target.key.c_str(),
-          static_cast<std::ptrdiff_t>(container.state.operation->target.mode == AnchorMode::Row
-            ? container.indexOfKey(container.state.operation->target.key) : UNDEFINED_INDEX),
+          static_cast<std::ptrdiff_t>(
+            container.state.operation->target.mode == AnchorMode::Row
+              ? container.indexOfKey(container.state.operation->target.key)
+              : UNDEFINED_INDEX),
           target);
         /*
          * One offset holds one track of a grid. Hold the track of the row the operation landed
          * on, not the one the capture picked.
          */
         const std::string& landedKey = container.state.operation->target.key;
-        if (container.numberOfColumns > 1 && container.state.operation->target.mode == AnchorMode::Row &&
-            container.isAnchorable(landedKey)) {
+        if (
+          container.numberOfColumns > 1 && container.state.operation->target.mode == AnchorMode::Row &&
+          container.isAnchorable(landedKey)) {
           std::size_t landedIndex = container.indexOfKey(landedKey);
           container.state.anchor =
             Anchor{landedKey, frame.currentOffset - container.getRowOffset(landedIndex), AnchorMode::Row};
@@ -336,8 +339,9 @@ ScrollStep driveOperation(
          * there again, also when the view was already there and the landing moved nothing.
          */
         OperationType arrivedType = container.state.operation->type;
-        if (container.inverted &&
-            (arrivedType == OperationType::ScrollToKey || arrivedType == OperationType::ScrollToStart)) {
+        if (
+          container.inverted &&
+          (arrivedType == OperationType::ScrollToKey || arrivedType == OperationType::ScrollToStart)) {
           container.state.invertedBottomReleased = !atInvertedBottom(target, frame.totalSize, frame.windowSize);
         }
         container.state.operation.reset();
@@ -391,9 +395,8 @@ bool holdAnchor(
           invertedBottomAnchor = isLastAnchorable(container, anchorIndex) || followsBottom(container);
         }
       }
-      double rawAnchoredOffset = invertedBottomAnchor
-        ? frame.maxOffset
-        : container.getRowOffset(anchorIndex) + anchorDelta;
+      double rawAnchoredOffset =
+        invertedBottomAnchor ? frame.maxOffset : container.getRowOffset(anchorIndex) + anchorDelta;
       if (std::fabs(rawAnchoredOffset - frame.currentOffset) >= OFFSET_MOVED_THRESHOLD) {
         if (invertedBottomAnchor) {
           requestFixed(container, OperationType::BottomPin);
@@ -409,10 +412,8 @@ bool holdAnchor(
 }
 }
 
-std::vector<Anchor> Virtualizer::captureFallbackAnchors(
-  Container& container,
-  std::size_t anchorIndex,
-  double inputOffset) {
+std::vector<Anchor>
+Virtualizer::captureFallbackAnchors(Container& container, std::size_t anchorIndex, double inputOffset) {
   std::vector<Anchor> candidates;
   const std::vector<Row>& rows = container.revision.rows;
   if (anchorIndex == UNDEFINED_INDEX || container.state.anchor.mode != AnchorMode::Row) {
@@ -442,9 +443,9 @@ std::vector<Anchor> Virtualizer::captureFallbackAnchors(
 }
 
 std::size_t Virtualizer::captureAnchor(Container& container, double inputOffset) {
-  if (container.state.clampedAnchor &&
-      (!container.isAnchorable(container.state.clampedAnchor->key) ||
-       container.indexOfKey(container.state.clampedAnchor->key) == UNDEFINED_INDEX)) {
+  if (
+    container.state.clampedAnchor && (!container.isAnchorable(container.state.clampedAnchor->key) ||
+                                      container.indexOfKey(container.state.clampedAnchor->key) == UNDEFINED_INDEX)) {
     container.state.clampedAnchor.reset();
   }
   Anchor& anchor = container.state.anchor;
@@ -462,12 +463,8 @@ std::size_t Virtualizer::captureAnchor(Container& container, double inputOffset)
     return index;
   };
 
-  auto rowOffsetOf = [&](const Row& row) {
-    return container.horizontal ? row.offsetX : row.offsetY;
-  };
-  auto rowSizeOf = [&](const Row& row) {
-    return container.horizontal ? row.width : row.height;
-  };
+  auto rowOffsetOf = [&](const Row& row) { return container.horizontal ? row.offsetX : row.offsetY; };
+  auto rowSizeOf = [&](const Row& row) { return container.horizontal ? row.width : row.height; };
 
   /*
    * In a grid the tracks move independently as rows get measured. A new anchor each frame
@@ -533,8 +530,8 @@ std::size_t Virtualizer::captureAnchor(Container& container, double inputOffset)
        * whose rows are not measured yet that is the reader's row, and holding the top row would
        * let those rows push it down the screen.
        */
-      bool anchorTellsNewestRow = container.inverted && !container.state.invertedBottomReleased &&
-        !container.state.gestureActive;
+      bool anchorTellsNewestRow =
+        container.inverted && !container.state.invertedBottomReleased && !container.state.gestureActive;
       bool atStart = inputOffset < OFFSET_MOVED_THRESHOLD;
       std::size_t anchorIndex = previousRowIndex;
       if (container.numberOfColumns <= 1 && !anchorTellsNewestRow && !atStart) {

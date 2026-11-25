@@ -83,9 +83,8 @@ bool Virtualizer::applyRowSize(Container& container, std::size_t index, Size siz
   if (!wasMeasured && dimensionsChanged && container.numberOfColumns <= 1) {
     const Anchor* compensationAnchor = container.getCompensationAnchor();
     if (compensationAnchor != nullptr && !compensationAnchor->key.empty() && nextRow.key == compensationAnchor->key) {
-      container.state.anchorFirstMeasurementDelta += container.horizontal
-        ? size.width - previousWidth
-        : size.height - previousHeight;
+      container.state.anchorFirstMeasurementDelta +=
+        container.horizontal ? size.width - previousWidth : size.height - previousHeight;
     }
   }
 
@@ -200,14 +199,16 @@ void Virtualizer::commitRowSizes(Container& container, std::size_t fromIndex) {
        * did not move and needs no offset write. Preserve the hold before its next report
        * captures the clamped position. Later measurements may make room for the row again.
        */
-      if (!container.inverted && !container.state.gestureActive && !container.state.operation &&
-          !container.state.clampedAnchor && rawAnchoredOffset > anchoredOffset + OFFSET_MOVED_THRESHOLD) {
+      if (
+        !container.inverted && !container.state.gestureActive && !container.state.operation &&
+        !container.state.clampedAnchor && rawAnchoredOffset > anchoredOffset + OFFSET_MOVED_THRESHOLD) {
         container.state.clampedAnchor = *compensationAnchor;
         compensationAnchor = &*container.state.clampedAnchor;
       }
       correctOffsetIfMoved(container, anchoredOffset, rawAnchoredOffset);
-      if (container.state.clampedAnchor && compensationAnchor == &*container.state.clampedAnchor &&
-          std::fabs(anchoredOffset - rawAnchoredOffset) < OFFSET_MOVED_THRESHOLD) {
+      if (
+        container.state.clampedAnchor && compensationAnchor == &*container.state.clampedAnchor &&
+        std::fabs(anchoredOffset - rawAnchoredOffset) < OFFSET_MOVED_THRESHOLD) {
         container.state.anchor = *container.state.clampedAnchor;
         container.state.clampedAnchor.reset();
       }
@@ -227,11 +228,13 @@ void Virtualizer::commitRowSizes(Container& container, std::size_t fromIndex) {
    * row growing under a reader resting at the bottom is followed.
    */
   bool endEdgeOperation = container.state.operation && container.state.operation->target.mode == AnchorMode::EndEdge;
-  bool followBottom = container.state.pendingScrollToEnd || endEdgeOperation ||
+  bool followBottom =
+    container.state.pendingScrollToEnd || endEdgeOperation ||
     (container.inverted && container.state.invertedOpeningPin && container.state.restingAtInvertedBottom &&
      !container.state.invertedBottomReleased && !container.state.gestureActive && !container.state.operation);
-  if (!followBottom && container.inverted && !container.state.invertedBottomReleased &&
-      !container.state.gestureActive && !container.state.operation && !container.state.anchor.key.empty()) {
+  if (
+    !followBottom && container.inverted && !container.state.invertedBottomReleased && !container.state.gestureActive &&
+    !container.state.operation && !container.state.anchor.key.empty()) {
     followBottom =
       isLastAnchorable(container, container.indexOfKey(container.state.anchor.key)) || followsBottom(container);
   }
@@ -260,21 +263,21 @@ void Virtualizer::applyHeaderSizeChange(Container& container, double previousHea
     std::size_t anchorIndex = container.indexOfKey(container.state.operation->target.key);
     if (anchorIndex != UNDEFINED_INDEX) {
       // A scroll to a key works its sub offset out from the view position, like resolveScroll does.
-      double target = container.getRowOffset(anchorIndex) +
-        resolveAnchorOffset(container, *container.state.operation, anchorIndex);
+      double target =
+        container.getRowOffset(anchorIndex) + resolveAnchorOffset(container, *container.state.operation, anchorIndex);
       target = clampToReflowedEnd(container, target < 0.0 ? 0.0 : target);
-      SHADOWLIST_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f->%.1f resolved op=%llu",
-        previousHeaderSize, container.headerSize, offset, target,
-        static_cast<unsigned long long>(container.state.operation->commitToken));
+      SHADOWLIST_LOG(
+        "  headerSizeChange: %.1f->%.1f offset=%.1f->%.1f resolved op=%llu", previousHeaderSize, container.headerSize,
+        offset, target, static_cast<unsigned long long>(container.state.operation->commitToken));
       correctOffsetIfMoved(container, target, target);
       return;
     }
   }
 
   // The header was fully scrolled off. Every row on screen moved. Move the offset with them.
-  SHADOWLIST_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f branch=%s anchorSub=%.1f",
-    previousHeaderSize, container.headerSize, offset,
-    (offset > 0.0 && offset >= previousHeaderSize) ? "hold" : "push", container.state.anchor.offset);
+  SHADOWLIST_LOG(
+    "  headerSizeChange: %.1f->%.1f offset=%.1f branch=%s anchorSub=%.1f", previousHeaderSize, container.headerSize,
+    offset, (offset > 0.0 && offset >= previousHeaderSize) ? "hold" : "push", container.state.anchor.offset);
   if (offset > 0.0 && offset >= previousHeaderSize) {
     correctOffset(container, std::max(0.0, offset + delta));
     return;
@@ -291,10 +294,10 @@ void Virtualizer::applyWindowSizeChange(Container& container, double previousWin
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
   double windowSize = container.getWindowSize();
-  if (!container.inverted || container.revision.rows.empty() ||
-      previousWindowSize <= 0.0 || windowSize <= 0.0 ||
-      std::fabs(windowSize - previousWindowSize) < OFFSET_MOVED_THRESHOLD ||
-      !container.state.invertedInitialized || container.state.invertedBottomReleased || container.state.gestureActive) {
+  if (
+    !container.inverted || container.revision.rows.empty() || previousWindowSize <= 0.0 || windowSize <= 0.0 ||
+    std::fabs(windowSize - previousWindowSize) < OFFSET_MOVED_THRESHOLD || !container.state.invertedInitialized ||
+    container.state.invertedBottomReleased || container.state.gestureActive) {
     return;
   }
 
@@ -325,17 +328,19 @@ void Virtualizer::updateRowAtIndex(Container& container, std::size_t index, Size
 
 #if SHADOWLIST_DEBUG_LOG
   double tracePreviousTotal = container.horizontal ? container.revision.contentWidth : container.revision.contentHeight;
-  double tracePreviousSize = index < container.revision.rows.size()
-    ? (container.horizontal ? container.revision.rows[index].width : container.revision.rows[index].height)
-    : 0.0;
+  double tracePreviousSize =
+    index < container.revision.rows.size()
+      ? (container.horizontal ? container.revision.rows[index].width : container.revision.rows[index].height)
+      : 0.0;
 #endif
   if (applyRowSize(container, index, size)) {
     commitRowSizes(container, index);
     // The placed geometry changed after the frame selected its range.
     container.state.measuredRangeStale = true;
-    SHADOWLIST_LOG("  replaceChild size: index=%zu %.1f->%.1f total=%.1f corrected=%d anchor=%s",
-      index, tracePreviousSize, container.horizontal ? size.width : size.height, tracePreviousTotal,
-      container.state.offsetCorrected ? 1 : 0, container.state.anchor.key.c_str());
+    SHADOWLIST_LOG(
+      "  replaceChild size: index=%zu %.1f->%.1f total=%.1f corrected=%d anchor=%s", index, tracePreviousSize,
+      container.horizontal ? size.width : size.height, tracePreviousTotal, container.state.offsetCorrected ? 1 : 0,
+      container.state.anchor.key.c_str());
   }
 }
 
@@ -394,10 +399,12 @@ void Virtualizer::consumePredictions(Container& container) {
     Row& predictedRow = container.revision.rows[predictedIndex];
 
     // A row already measured for real ignores the prediction, and the entry is dropped.
-    if (!predictedRow.measured &&
-        (predictedRow.width != entry->second.width || predictedRow.height != entry->second.height)) {
-      SHADOWLIST_LOG("  prediction: index=%zu %.1f->%.1f estimated=%d",
-        predictedIndex, container.horizontal ? predictedRow.width : predictedRow.height,
+    if (
+      !predictedRow.measured &&
+      (predictedRow.width != entry->second.width || predictedRow.height != entry->second.height)) {
+      SHADOWLIST_LOG(
+        "  prediction: index=%zu %.1f->%.1f estimated=%d", predictedIndex,
+        container.horizontal ? predictedRow.width : predictedRow.height,
         container.horizontal ? entry->second.width : entry->second.height, predictedRow.estimated ? 1 : 0);
       predictedRow.width = entry->second.width;
       predictedRow.height = entry->second.height;

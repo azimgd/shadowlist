@@ -186,20 +186,12 @@ public class ShadowListScrollEvent extends Event<ShadowListScrollEvent> {
       return true;
     }
 
-    double getVelocityX() {
-      return mVelocityX;
-    }
+    double getVelocityX() { return mVelocityX; }
 
-    double getVelocityY() {
-      return mVelocityY;
-    }
+    double getVelocityY() { return mVelocityY; }
 
-    double getPendingX() {
-      return mPendingX;
-    }
+    double getPendingX() { return mPendingX; }
 
-    double getPendingY() {
-      return mPendingY;
-    }
+    double getPendingY() { return mPendingY; }
   }
 }

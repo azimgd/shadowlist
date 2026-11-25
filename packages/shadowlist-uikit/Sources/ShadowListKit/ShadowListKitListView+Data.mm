@@ -74,7 +74,8 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     std::size_t first = itemKeys.size();
     for (std::size_t local = 0; local < spec.itemCount; ++local) {
       @autoreleasepool {
-        itemKeys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)(first + local)]));
+        itemKeys.push_back(ShadowListKitStdString([_dataSource listView:self
+                                                      keyForItemAtIndex:(NSInteger)(first + local)]));
       }
     }
     if (sectionKeys) {
@@ -255,16 +256,17 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
  */
 - (void)reloadRows:(const std::vector<std::size_t>&)rows payload:(id)payload
 {
-  BOOL reconfigures = payload != nil &&
-    [_dataSource respondsToSelector:@selector(listView:reconfigureCell:atIndex:payload:)];
+  BOOL reconfigures =
+    payload != nil && [_dataSource respondsToSelector:@selector(listView:reconfigureCell:atIndex:payload:)];
   for (std::size_t row : rows) {
     ShadowListKitListCell *cell = [self mountedCellAtIndex:row];
     if (!cell) {
       continue;
     }
     std::size_t item = _sections.itemForRow(row);
-    if (reconfigures && item != UNDEFINED_INDEX &&
-        [_dataSource listView:self reconfigureCell:cell atIndex:(NSInteger)item payload:payload]) {
+    if (
+      reconfigures && item != UNDEFINED_INDEX &&
+      [_dataSource listView:self reconfigureCell:cell atIndex:(NSInteger)item payload:payload]) {
       continue;
     }
     _mounted.erase(_driver.getKeyAt(row));
@@ -279,34 +281,53 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   if (sourceIndex < 0 || destinationIndex < 0) {
     return;
   }
-  [self performBatchUpdates:^{
-    self->_batch.addMoved((std::size_t)sourceIndex, (std::size_t)destinationIndex);
-  } completion:nil];
+  [self
+    performBatchUpdates:^{ self->_batch.addMoved((std::size_t)sourceIndex, (std::size_t)destinationIndex); }
+             completion:nil];
 }
 
-- (void)performBatchUpdates:(void (NS_NOESCAPE ^)(void))updates completion:(void (^)(BOOL))completion
+- (void)performBatchUpdates:(void(NS_NOESCAPE ^)(void))updates completion:(void (^)(BOOL))completion
 {
   _batch.begin();
   if (updates) {
     updates();
   }
-  if (_batch.end()) {
-    [self commitBatch];
+  if (completion) {
+    if (!_batchCompletions) {
+      _batchCompletions = [NSMutableArray new];
+    }
+    [_batchCompletions addObject:[completion copy]];
   }
-  if (!completion) {
+  if (!_batch.end()) {
     return;
   }
-  // The change animation runs after the next layout. Completion follows it.
-  NSTimeInterval wait = 0;
-  if (_animatesChanges && self.window && [_itemAnimator isKindOfClass:[ShadowListKitDefaultItemAnimator class]]) {
-    wait = ((ShadowListKitDefaultItemAnimator *)_itemAnimator).duration;
+  /*
+   * Nested completions follow the commit that starts their animations, even when the outer
+   * call has no completion. Detach the collection before layout can start another batch.
+   * The main queue keeps completion asynchronous when nothing animates.
+   */
+  NSArray<void (^)(BOOL)> *completions = _batchCompletions;
+  _batchCompletions = nil;
+  if (completions.count) {
+    [CATransaction begin];
+    [CATransaction setCompletionBlock:^{
+      dispatch_async(dispatch_get_main_queue(), ^{
+        for (void (^callback)(BOOL) in completions) {
+          callback(YES);
+        }
+      });
+    }];
   }
-  if (self.window) {
-    ShadowListKitLayoutNow(self);
+  @try {
+    [self commitBatch];
+    if (completions.count && self.window) {
+      ShadowListKitLayoutNow(self);
+    }
+  } @finally {
+    if (completions.count) {
+      [CATransaction commit];
+    }
   }
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-    completion(YES);
-  });
 }
 
 /*
@@ -431,8 +452,11 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     [movedFrom addObject:@(move.from)];
     [movedTo addObject:@(move.to)];
   }
-  return [[ShadowListKitListChanges alloc] initWithDeleted:deleted inserted:inserted movedFrom:movedFrom movedTo:movedTo
-                                        reloaded:reloaded];
+  return [[ShadowListKitListChanges alloc] initWithDeleted:deleted
+                                                  inserted:inserted
+                                                 movedFrom:movedFrom
+                                                   movedTo:movedTo
+                                                  reloaded:reloaded];
 }
 
 /*

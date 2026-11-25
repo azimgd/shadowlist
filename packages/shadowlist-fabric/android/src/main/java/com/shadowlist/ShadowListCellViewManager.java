@@ -21,9 +21,8 @@ import com.facebook.react.viewmanagers.ShadowListCellViewManagerDelegate;
 import java.util.Map;
 
 @ReactModule(name = ShadowListCellViewManager.NAME)
-public class ShadowListCellViewManager extends ViewGroupManager<ShadowListCellView>
-    implements ShadowListCellViewManagerInterface<ShadowListCellView> {
-
+public class ShadowListCellViewManager
+  extends ViewGroupManager<ShadowListCellView> implements ShadowListCellViewManagerInterface<ShadowListCellView> {
   public static final String NAME = "ShadowListCellView";
 
   private final ViewManagerDelegate<ShadowListCellView> mDelegate;
@@ -57,12 +56,8 @@ public class ShadowListCellViewManager extends ViewGroupManager<ShadowListCellVi
   public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
     // Hook the events a row sends itself up to their JS handlers.
     return MapBuilder.<String, Object>builder()
-      .put(
-        ShadowListActionEvent.SWIPE_ACTION,
-        MapBuilder.of("registrationName", "onSwipeAction"))
-      .put(
-        ShadowListActionEvent.CONTEXT_MENU_ACTION,
-        MapBuilder.of("registrationName", "onContextMenuAction"))
+      .put(ShadowListActionEvent.SWIPE_ACTION, MapBuilder.of("registrationName", "onSwipeAction"))
+      .put(ShadowListActionEvent.CONTEXT_MENU_ACTION, MapBuilder.of("registrationName", "onContextMenuAction"))
       .build();
   }
 
@@ -75,8 +70,8 @@ public class ShadowListCellViewManager extends ViewGroupManager<ShadowListCellVi
    */
   @Nullable
   @Override
-  protected ShadowListCellView prepareToRecycleView(
-      @NonNull ThemedReactContext reactContext, @NonNull ShadowListCellView view) {
+  protected ShadowListCellView
+  prepareToRecycleView(@NonNull ThemedReactContext reactContext, @NonNull ShadowListCellView view) {
     if (!detachForRecycle(view)) {
       return null;
     }
@@ -104,7 +99,7 @@ public class ShadowListCellViewManager extends ViewGroupManager<ShadowListCellVi
   static boolean detachForRecycle(View view) {
     ViewParent parent = view.getParent();
     if (parent instanceof ViewGroup) {
-      ((ViewGroup) parent).removeView(view);
+      ((ViewGroup)parent).removeView(view);
     }
     return view.getParent() == null;
   }

@@ -146,7 +146,8 @@ void Container::requestScrollToRow(
    */
   bool fired = false;
   if (commandSequence > previousScrollToRowSequence_) {
-    SHADOWLIST_LOG("  scroll command: index=%zu sequence=%.0f position=%.2f", commandIndex, commandSequence, commandViewPosition);
+    SHADOWLIST_LOG(
+      "  scroll command: index=%zu sequence=%.0f position=%.2f", commandIndex, commandSequence, commandViewPosition);
     previousScrollToRowSequence_ = commandSequence;
     // scrollToEnd comes through the same command with SCROLL_TO_END_INDEX as the index.
     if (commandIndex == SCROLL_TO_END_INDEX) {
@@ -157,9 +158,8 @@ void Container::requestScrollToRow(
       fired = true;
     } else if (commandIndex != UNDEFINED_INDEX) {
       // A missing position means the top. Anything else is clamped between 0 and 1 to keep the row on screen.
-      double viewPosition = std::isfinite(commandViewPosition)
-        ? std::min(1.0, std::max(0.0, commandViewPosition))
-        : 0.0;
+      double viewPosition =
+        std::isfinite(commandViewPosition) ? std::min(1.0, std::max(0.0, commandViewPosition)) : 0.0;
       double viewOffset = std::isfinite(commandViewOffset) ? commandViewOffset : 0.0;
       scrollToRow(commandIndex, viewPosition, viewOffset);
       fired = true;
@@ -182,9 +182,7 @@ ContainerStateUpdate Container::resolveStateUpdate(
   ContainerStateUpdate update;
 
   bool corrected = state.offsetCorrected;
-  bool sizeChanged =
-    revision.contentWidth != previousContentWidth ||
-    revision.contentHeight != previousContentHeight;
+  bool sizeChanged = revision.contentWidth != previousContentWidth || revision.contentHeight != previousContentHeight;
 
   update.contentWidth = revision.contentWidth;
   update.contentHeight = revision.contentHeight;
@@ -207,8 +205,9 @@ ContainerStateUpdate Container::resolveStateUpdate(
    */
   update.commitToken = (corrected && state.operation) ? state.operation->commitToken : 0;
   if (update.applyOffset) {
-    if (state.commitRevision == 0 || state.publishedCommitToken != update.commitToken ||
-        state.publishedOffsetX != update.offsetX || state.publishedOffsetY != update.offsetY) {
+    if (
+      state.commitRevision == 0 || state.publishedCommitToken != update.commitToken ||
+      state.publishedOffsetX != update.offsetX || state.publishedOffsetY != update.offsetY) {
       ++state.commitRevision;
       state.publishedCommitToken = update.commitToken;
       state.publishedOffsetX = update.offsetX;
@@ -230,12 +229,10 @@ const std::vector<double>& Container::getSnapOffsets() const {
   double totalSize = horizontal ? revision.contentWidth : revision.contentHeight;
 
   // Scrolling alone never changes the snap offsets. Reuse them unless the geometry or settings changed.
-  if (snapCacheVersion_ == state.geometryVersion &&
-      snapCacheSnapToItem_ == snapToItem &&
-      snapCacheAlignment_ == snapAlignment &&
-      snapCacheWindowSize_ == windowSize &&
-      snapCacheTotalSize_ == totalSize &&
-      snapCacheHorizontal_ == horizontal) {
+  if (
+    snapCacheVersion_ == state.geometryVersion && snapCacheSnapToItem_ == snapToItem &&
+    snapCacheAlignment_ == snapAlignment && snapCacheWindowSize_ == windowSize && snapCacheTotalSize_ == totalSize &&
+    snapCacheHorizontal_ == horizontal) {
     return snapOffsetsCache_;
   }
 
@@ -306,7 +303,8 @@ const std::vector<double>& Container::getSnapOffsets() const {
   if (!ordered) {
     std::sort(snapOffsets.begin(), snapOffsets.end());
     snapOffsets.erase(
-      std::unique(snapOffsets.begin(), snapOffsets.end(),
+      std::unique(
+        snapOffsets.begin(), snapOffsets.end(),
         [](double previous, double next) { return next - previous <= OFFSET_MOVED_THRESHOLD; }),
       snapOffsets.end());
   }
@@ -326,8 +324,7 @@ bool Container::isAnchorable(const std::string& key) const {
     return false;
   }
   // With no keys excluded, every row can be the anchor.
-  return nonAnchorKeys.empty() ||
-    nonAnchorKeys.find(key) == nonAnchorKeys.end();
+  return nonAnchorKeys.empty() || nonAnchorKeys.find(key) == nonAnchorKeys.end();
 }
 
 const Anchor* Container::getCompensationAnchor() const {
@@ -349,10 +346,11 @@ void Container::dispatchObservers() {
     return;
   }
   IndexRange measured = getMeasuredRange();
-  if (onMeasuredRangeChangeCallback && (measured.low != previousMeasuredLow_ || measured.high != previousMeasuredHigh_)) {
-    SHADOWLIST_LOG("  emit onMeasuredRangeChange(%zd, %zd) keys=[%s..%s]",
-      static_cast<std::ptrdiff_t>(measured.low), static_cast<std::ptrdiff_t>(measured.high),
-      debugKeyAt(revision.rows, measured.low),
+  if (
+    onMeasuredRangeChangeCallback && (measured.low != previousMeasuredLow_ || measured.high != previousMeasuredHigh_)) {
+    SHADOWLIST_LOG(
+      "  emit onMeasuredRangeChange(%zd, %zd) keys=[%s..%s]", static_cast<std::ptrdiff_t>(measured.low),
+      static_cast<std::ptrdiff_t>(measured.high), debugKeyAt(revision.rows, measured.low),
       debugKeyAt(revision.rows, measured.high));
     onMeasuredRangeChangeCallback(measured.low, measured.high);
   }
@@ -369,7 +367,8 @@ void Container::dispatchObservers() {
       ranges.push_back(viewable.high);
     }
     if (ranges != previousViewableRanges_) {
-      SHADOWLIST_LOG("  emit onViewableIndicesChange(%zd, %zd) rules=%zu",
+      SHADOWLIST_LOG(
+        "  emit onViewableIndicesChange(%zd, %zd) rules=%zu",
         static_cast<std::ptrdiff_t>(ranges.empty() ? UNDEFINED_INDEX : ranges[0]),
         static_cast<std::ptrdiff_t>(ranges.empty() ? UNDEFINED_INDEX : ranges[1]), viewableRules.size());
       previousViewableRanges_ = ranges;
@@ -382,7 +381,7 @@ void Container::dispatchObservers() {
 
 bool Container::hasPendingCommand() const {
   return state.operation.has_value() || state.pendingScrollToEnd || state.pendingScrollToStart ||
-    state.scrollToRowTarget != UNDEFINED_INDEX;
+         state.scrollToRowTarget != UNDEFINED_INDEX;
 }
 
 OffsetBand Container::computeOffsetBand() const {
@@ -411,12 +410,12 @@ OffsetBand Container::computeOffsetBand() const {
    * Same inputs as the row reflow in layoutRows. The footer and the window size along the
    * scroll axis never move rows, and the band is recomputed on the frame that changes them.
    */
-  bool crossWindowChanged = horizontal
-    ? revision.windowHeight != state.previousLayoutWindowHeight
-    : revision.windowWidth != state.previousLayoutWindowWidth;
-  if (fallbackWidth != state.previousFallbackWidth || fallbackHeight != state.previousFallbackHeight ||
-      headerSize != state.previousLayoutHeaderSize || crossWindowChanged ||
-      numberOfColumns != state.previousLayoutNumberOfColumns || horizontal != state.previousLayoutHorizontal) {
+  bool crossWindowChanged = horizontal ? revision.windowHeight != state.previousLayoutWindowHeight
+                                       : revision.windowWidth != state.previousLayoutWindowWidth;
+  if (
+    fallbackWidth != state.previousFallbackWidth || fallbackHeight != state.previousFallbackHeight ||
+    headerSize != state.previousLayoutHeaderSize || crossWindowChanged ||
+    numberOfColumns != state.previousLayoutNumberOfColumns || horizontal != state.previousLayoutHorizontal) {
     return empty;
   }
 
@@ -431,8 +430,9 @@ OffsetBand Container::computeOffsetBand() const {
   double maxOffset = std::max(0.0, totalSize - windowSize);
   std::size_t measuredLow = revision.measuredLow;
   std::size_t measuredHigh = revision.measuredHigh;
-  if (!(windowSize > 0.0) || !std::isfinite(offset) || measuredLow == UNDEFINED_INDEX ||
-      measuredHigh == UNDEFINED_INDEX) {
+  if (
+    !(windowSize > 0.0) || !std::isfinite(offset) || measuredLow == UNDEFINED_INDEX ||
+    measuredHigh == UNDEFINED_INDEX) {
     return empty;
   }
 
@@ -546,8 +546,10 @@ IndexRange Container::getViewableIndices(const ViewableRule& rule) const {
   IndexRange viewable;
   for (std::size_t index = measured.low; index <= measured.high && index < revision.rows.size(); ++index) {
     const Row& row = revision.rows[index];
-    if (isRowViewable(horizontal ? row.offsetX : row.offsetY, horizontal ? row.width : row.height,
-          getOffset(), getWindowSize(), rule)) {
+    if (
+      isRowViewable(
+        horizontal ? row.offsetX : row.offsetY, horizontal ? row.width : row.height, getOffset(), getWindowSize(),
+        rule)) {
       if (viewable.low == UNDEFINED_INDEX) {
         viewable.low = index;
       }

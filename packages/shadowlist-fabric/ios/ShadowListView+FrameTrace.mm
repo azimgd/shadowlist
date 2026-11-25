@@ -51,12 +51,8 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef, CFRunLoopActivity, void *
   BOOL horizontal = _horizontal;
   CGFloat offset = horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
   CGFloat viewport = horizontal ? _scrollView.bounds.size.width : _scrollView.bounds.size.height;
-  auto leading = ^CGFloat(CGRect frame) {
-    return horizontal ? CGRectGetMinX(frame) : CGRectGetMinY(frame);
-  };
-  auto extent = ^CGFloat(CGRect frame) {
-    return horizontal ? frame.size.width : frame.size.height;
-  };
+  auto leading = ^CGFloat(CGRect frame) { return horizontal ? CGRectGetMinX(frame) : CGRectGetMinY(frame); };
+  auto extent = ^CGFloat(CGRect frame) { return horizontal ? frame.size.width : frame.size.height; };
   NSMutableArray<UIView *> *rows = [NSMutableArray array];
   for (UIView *subview in _contentView.subviews) {
     if (subview.hidden || ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
@@ -81,7 +77,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef, CFRunLoopActivity, void *
     }
     // A trailing tilde marks a row the layout pass hid with opacity 0.
     [rowsDescription appendFormat:@" %@@%.1f+%.1f%@", key, leading(row.frame) - offset, extent(row.frame),
-      row.layer.opacity < 0.5 ? @"~" : @""];
+                                  row.layer.opacity < 0.5 ? @"~" : @""];
   }
   UIView *header = _stickyHeaderView;
   /*
@@ -94,14 +90,17 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef, CFRunLoopActivity, void *
   UIView *footer = _stickyFooterView;
   UIView *overlay = _sectionHeaderOverlay;
   BOOL overlayVisible = overlay && !overlay.hidden;
-  NSString *signature = [NSString stringWithFormat:@"ax=%@ inv=%d off=%.1f cs=%.1f vp=%.1f ins=%.1f ph=%d ref=%d hdr=%.1f+%.1f ftr=%.1f+%.1f ovl=%.1f+%.1f stt=%d jump=%d rows=[%@ ]",
-    horizontal ? @"h" : @"v", inverted ? 1 : 0, offset,
-    horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height,
-    viewport, horizontal ? _scrollView.adjustedContentInset.left : _scrollView.adjustedContentInset.top, phase,
-    _refreshing ? 1 : 0, header ? leading(header.frame) - offset : -1.0, header ? extent(header.frame) : 0.0,
-    footer ? leading(footer.frame) - offset : -1.0, footer ? extent(footer.frame) : 0.0,
-    overlayVisible ? leading(overlay.frame) - offset : -1.0, overlayVisible ? extent(overlay.frame) : 0.0,
-    _scrollingToTop ? 1 : 0, _scrollToTopJumpPending ? 1 : 0, rowsDescription];
+  NSString *signature = [NSString
+    stringWithFormat:
+      @"ax=%@ inv=%d off=%.1f cs=%.1f vp=%.1f ins=%.1f ph=%d ref=%d hdr=%.1f+%.1f ftr=%.1f+%.1f ovl=%.1f+%.1f stt=%d jump=%d rows=[%@ ]",
+      horizontal ? @"h" : @"v", inverted ? 1 : 0, offset,
+      horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height, viewport,
+      horizontal ? _scrollView.adjustedContentInset.left : _scrollView.adjustedContentInset.top, phase,
+      [self refreshInProgress] ? 1 : 0, header ? leading(header.frame) - offset : -1.0,
+      header ? extent(header.frame) : 0.0, footer ? leading(footer.frame) - offset : -1.0,
+      footer ? extent(footer.frame) : 0.0, overlayVisible ? leading(overlay.frame) - offset : -1.0,
+      overlayVisible ? extent(overlay.frame) : 0.0, _scrollingToTop ? 1 : 0, _scrollToTopJumpPending ? 1 : 0,
+      rowsDescription];
   if ([signature isEqualToString:_previousFrameTrace]) {
     return;
   }

@@ -131,14 +131,21 @@ internal class ShadowListKitSwipeController(private val host: ShadowListKitSwipe
       track(event)
       val tracker = velocityTracker
       tracker?.computeCurrentVelocity(1000)
-      val velocity = if (tracker == null) 0f else if (host.horizontal) tracker.yVelocity else tracker.xVelocity
+      val velocity = if (tracker == null) {
+        0f
+      } else if (host.horizontal) {
+        tracker.yVelocity
+      } else {
+        tracker.xVelocity
+      }
       settle(velocity)
       return true
     }
     // A tap on the open row closes it.
     val open = cell
     if (open != null && !buttonTouch && event.actionMasked == MotionEvent.ACTION_UP &&
-      host.itemCellAt(event.x, event.y) === open) {
+      host.itemCellAt(event.x, event.y) === open
+    ) {
       close(true)
       return true
     }
@@ -194,15 +201,26 @@ internal class ShadowListKitSwipeController(private val host: ShadowListKitSwipe
     }
   }
 
-  private fun open(target: ShadowListKitListCell, leading: ShadowListKitSwipeActionsConfiguration?, trailing: ShadowListKitSwipeActionsConfiguration?) {
-    val view = ShadowListKitSwipeActionsView(view.context, leading, trailing, host.horizontal, host.density) { perform(it) }
+  private fun open(
+    target: ShadowListKitListCell,
+    leading: ShadowListKitSwipeActionsConfiguration?,
+    trailing: ShadowListKitSwipeActionsConfiguration?
+  ) {
+    val view =
+      ShadowListKitSwipeActionsView(view.context, leading, trailing, host.horizontal, host.density) { perform(it) }
     host.addActionsView(view)
     view.measure(
       View.MeasureSpec.makeMeasureSpec(target.width, View.MeasureSpec.EXACTLY),
-      View.MeasureSpec.makeMeasureSpec(target.height, View.MeasureSpec.EXACTLY))
+      View.MeasureSpec.makeMeasureSpec(target.height, View.MeasureSpec.EXACTLY)
+    )
     view.layout(target.left, target.top, target.right, target.bottom)
-    reveal.begin(view.leadingSizes, view.trailingSizes, leading?.performsFirstActionWithFullSwipe == true,
-      trailing?.performsFirstActionWithFullSwipe == true, (if (host.horizontal) target.height else target.width).toDouble())
+    reveal.begin(
+      view.leadingSizes,
+      view.trailingSizes,
+      leading?.performsFirstActionWithFullSwipe == true,
+      trailing?.performsFirstActionWithFullSwipe == true,
+      (if (host.horizontal) target.height else target.width).toDouble()
+    )
     cell = target
     actionsView = view
     offset = 0f
@@ -364,10 +382,13 @@ internal class ShadowListKitSwipeController(private val host: ShadowListKitSwipe
       tearDown()
       return
     }
-    if (view.left != swiped.left || view.top != swiped.top || view.width != swiped.width || view.height != swiped.height) {
+    if (view.left != swiped.left || view.top != swiped.top || view.width != swiped.width ||
+      view.height != swiped.height
+    ) {
       view.measure(
         View.MeasureSpec.makeMeasureSpec(swiped.width, View.MeasureSpec.EXACTLY),
-        View.MeasureSpec.makeMeasureSpec(swiped.height, View.MeasureSpec.EXACTLY))
+        View.MeasureSpec.makeMeasureSpec(swiped.height, View.MeasureSpec.EXACTLY)
+      )
       view.layout(swiped.left, swiped.top, swiped.right, swiped.bottom)
       reveal.show(offset.toDouble(), crossSize())
       view.layoutFor(offset, reveal.out)

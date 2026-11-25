@@ -13,8 +13,12 @@ namespace azimgd::shadowlist {
  */
 inline std::size_t itemSpanFrom(double value, std::size_t columns) {
   columns = std::max<std::size_t>(1, columns);
-  if (!std::isfinite(value) || value <= 1.0) return 1;
-  if (value >= static_cast<double>(columns)) return columns;
+  if (!std::isfinite(value) || value <= 1.0) {
+    return 1;
+  }
+  if (value >= static_cast<double>(columns)) {
+    return columns;
+  }
   return static_cast<std::size_t>(value);
 }
 
@@ -48,21 +52,29 @@ public:
    */
   template <typename RowAt>
   void seed(std::size_t before, RowAt rowAt) {
-    if (trackEnds_.empty()) reset(1);
+    if (trackEnds_.empty()) {
+      reset(1);
+    }
     std::size_t columns = trackEnds_.size();
     std::fill(trackEnds_.begin(), trackEnds_.end(), initialLeading_);
     known_.assign(columns, 0);
     nextColumn_ = 0;
-    if (before == 0) return;
+    if (before == 0) {
+      return;
+    }
     TrackPlacement previous = rowAt(before - 1);
     if (previous.column < columns && previous.span <= columns - previous.column) {
       nextColumn_ = previous.column + previous.span;
-      if (nextColumn_ == columns) nextColumn_ = 0;
+      if (nextColumn_ == columns) {
+        nextColumn_ = 0;
+      }
     }
     std::size_t remaining = columns;
     for (std::size_t index = before; index-- > 0 && remaining > 0;) {
       TrackPlacement row = rowAt(index);
-      if (row.column >= columns) continue;
+      if (row.column >= columns) {
+        continue;
+      }
       std::size_t span = std::min(row.span, columns - row.column);
       for (std::size_t column = row.column; column < row.column + span; ++column) {
         if (!known_[column]) {
@@ -75,16 +87,22 @@ public:
   }
 
   TrackPlacement place(std::size_t span, double extent) {
-    if (trackEnds_.empty()) reset(1);
+    if (trackEnds_.empty()) {
+      reset(1);
+    }
     std::size_t columns = trackEnds_.size();
     span = std::clamp<std::size_t>(span, 1, columns);
-    if (span > columns - nextColumn_) nextColumn_ = 0;
+    if (span > columns - nextColumn_) {
+      nextColumn_ = 0;
+    }
     auto first = trackEnds_.begin() + nextColumn_;
     double leading = *std::max_element(first, first + span);
     TrackPlacement placement{nextColumn_, span, leading, extent};
     std::fill(first, first + span, leading + extent);
     nextColumn_ += span;
-    if (nextColumn_ == columns) nextColumn_ = 0;
+    if (nextColumn_ == columns) {
+      nextColumn_ = 0;
+    }
     return placement;
   }
 

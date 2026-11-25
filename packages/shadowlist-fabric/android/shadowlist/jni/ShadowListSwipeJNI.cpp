@@ -182,5 +182,4 @@ JNIEXPORT void JNICALL SL_SWIPE_JNI(nativeButtonSpans)(
   jsize length = std::min(env->GetArrayLength(out), static_cast<jsize>(packed.size()));
   env->SetDoubleArrayRegion(out, 0, length, packed.data());
 }
-
 }

@@ -1,5 +1,3 @@
 #include "ShadowListCellViewState.h"
 
-namespace facebook::react {
-
-}
+namespace facebook::react {}

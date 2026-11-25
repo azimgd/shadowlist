@@ -57,9 +57,8 @@ TEST(change_animation_run_slides_inserts_and_carries) {
    * After the layout: top stays, new sits where gone was, below moved down 10, then a row that
    * was off screen.
    */
-  std::vector<ChangeStep> steps = animation.run(
-    {"top", "new", "below", "offscreen"},
-    {{0, 0}, {0, 40}, {0, 90}, {0, 140}});
+  std::vector<ChangeStep> steps =
+    animation.run({"top", "new", "below", "offscreen"}, {{0, 0}, {0, 40}, {0, 90}, {0, 140}});
   CHECK_EQ(steps.size(), std::size_t{4});
   CHECK(steps[0].kind == ChangeStepKind::Move);
   CHECK_NEAR(steps[0].fromY, 0.0, 1e-9);

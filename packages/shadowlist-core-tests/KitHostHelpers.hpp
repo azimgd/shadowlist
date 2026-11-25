@@ -186,7 +186,8 @@ struct KitHost : FuzzHost {
    */
   std::uint64_t checkedStructure = UNDEFINED_INDEX;
 
-  KitHost(std::uint32_t seed, FuzzEpisode& episode) : FuzzHost(seed, episode) {
+  KitHost(std::uint32_t seed, FuzzEpisode& episode)
+    : FuzzHost(seed, episode) {
     // The Apple kits measure a row at a time. The Android and web kits measure a pass's rows at once.
     movesOwnOffset = !chance(rng, 50);
     if (!movesOwnOffset) {
@@ -198,14 +199,13 @@ struct KitHost : FuzzHost {
         return measure(index, cross);
       });
     } else {
-      driver.setMeasureRows([this](
-        const std::vector<std::size_t>& indices,
-        const std::vector<double>& crossSizes,
-        std::vector<double>& sizes) {
-        for (std::size_t at = 0; at < indices.size(); ++at) {
-          sizes[at] = measure(indices[at], crossSizes[at]);
-        }
-      });
+      driver.setMeasureRows(
+        [this](
+          const std::vector<std::size_t>& indices, const std::vector<double>& crossSizes, std::vector<double>& sizes) {
+          for (std::size_t at = 0; at < indices.size(); ++at) {
+            sizes[at] = measure(indices[at], crossSizes[at]);
+          }
+        });
     }
     prefetches = chance(rng, 30);
     driver.setPrefetchRows([this](const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel) {
@@ -276,13 +276,9 @@ struct KitHost : FuzzHost {
     }
   }
 
-  double maxOffset() const {
-    return std::max(0.0, contentAlong - windowAlong);
-  }
+  double maxOffset() const { return std::max(0.0, contentAlong - windowAlong); }
 
-  std::size_t getColumns() const {
-    return std::max<std::size_t>(1, settings.numberOfColumns);
-  }
+  std::size_t getColumns() const { return std::max<std::size_t>(1, settings.numberOfColumns); }
 
   /*
    * The nonAnchorKeys property: the driver takes the keys and the next layout pass runs the core.
@@ -298,9 +294,7 @@ struct KitHost : FuzzHost {
   /*
    * Where the rows start: after the header, and after the empty view while it shows.
    */
-  double rowsStart() const {
-    return headerSize + (driver.showsEmpty() ? emptySize : 0.0);
-  }
+  double rowsStart() const { return headerSize + (driver.showsEmpty() ? emptySize : 0.0); }
 
   /*
    * Read the sections and every key the way reloadData does. Returns the rows' keys.
@@ -558,7 +552,8 @@ struct KitHost : FuzzHost {
       come += before.count(key) == 0 ? 1 : 0;
     }
     if (diff.deleted.size() != gone || diff.inserted.size() != come) {
-      failWith("diff: " + std::to_string(diff.deleted.size()) + " deleted and " + std::to_string(diff.inserted.size()) +
+      failWith(
+        "diff: " + std::to_string(diff.deleted.size()) + " deleted and " + std::to_string(diff.inserted.size()) +
         " inserted for " + std::to_string(gone) + " keys gone and " + std::to_string(come) + " new");
     }
     for (std::size_t index : diff.deleted) {
@@ -591,7 +586,7 @@ struct KitHost : FuzzHost {
       ++structureVersion;
     }
     bool changed = boundsAlong != windowAlong || boundsCross != windowCross || headerView != headerSize ||
-      footerView != footerSize || emptyView != emptySize;
+                   footerView != footerSize || emptyView != emptySize;
     windowAlong = boundsAlong;
     windowCross = boundsCross;
     headerSize = headerView;
@@ -741,8 +736,8 @@ struct KitHost : FuzzHost {
     inputs.windowAlong = windowAlong;
     inputs.pad = windowAlong * mountOverscan;
     plan = driver.planMount(offset, inputs.windowAlong, inputs.pad);
-    MountRecord next{plan.low, plan.high, plan.sticky, driver.getGeometryVersion(), structureVersion, 0.0, plan.band,
-      inputs};
+    MountRecord next{plan.low,         plan.high, plan.sticky, driver.getGeometryVersion(),
+                     structureVersion, 0.0,       plan.band,   inputs};
     bool skipped = shouldSkipMount(mountRecord, next, offset, getColumns(), false);
     mountRecord = next;
     if (skipped) {
@@ -856,10 +851,10 @@ struct KitHost : FuzzHost {
         "band=[%.1f..%.1f] settling=%d geometry=%llu reached=%d/%d\n",
         ran ? "core" : "band", offset, contentAlong, maxOffset(), driver.getRowCount(),
         static_cast<std::ptrdiff_t>(measured ? measured->low : UNDEFINED_INDEX),
-        static_cast<std::ptrdiff_t>(measured ? measured->high : UNDEFINED_INDEX),
-        static_cast<std::ptrdiff_t>(plan.low), static_cast<std::ptrdiff_t>(plan.high),
-        static_cast<std::ptrdiff_t>(plan.sticky), mounted.size(), band.low, band.high, settleScheduled ? 1 : 0,
-        static_cast<unsigned long long>(driver.getGeometryVersion()), reachedStart, reachedEnd);
+        static_cast<std::ptrdiff_t>(measured ? measured->high : UNDEFINED_INDEX), static_cast<std::ptrdiff_t>(plan.low),
+        static_cast<std::ptrdiff_t>(plan.high), static_cast<std::ptrdiff_t>(plan.sticky), mounted.size(), band.low,
+        band.high, settleScheduled ? 1 : 0, static_cast<unsigned long long>(driver.getGeometryVersion()), reachedStart,
+        reachedEnd);
     }
   }
 
@@ -922,8 +917,8 @@ struct KitHost : FuzzHost {
       double start = driver.getLeadingAt(index);
       double size = driver.getExtentAt(index);
       // A row follows the one before it on its track, and the first of a track the header.
-      double edge = index < tracks ? rowsStart() : driver.getLeadingAt(index - tracks) +
-        driver.getExtentAt(index - tracks);
+      double edge =
+        index < tracks ? rowsStart() : driver.getLeadingAt(index - tracks) + driver.getExtentAt(index - tracks);
       if (!std::isfinite(start) || !std::isfinite(size) || size < 0.0) {
         return "non finite geometry at " + std::to_string(index);
       }
@@ -952,7 +947,7 @@ struct KitHost : FuzzHost {
     }
     if (std::fabs(driver.getFooterStart(footerSize) + footerSize - total) > 0.01) {
       return "footer at " + std::to_string(driver.getFooterStart(footerSize)) + " does not end the content of " +
-        std::to_string(total);
+             std::to_string(total);
     }
     return "";
   }
@@ -974,15 +969,16 @@ struct KitHost : FuzzHost {
         return "cell of " + key + " sits on row " + std::to_string(cell.row) + " that has another key";
       }
       RowRect rect = driver.getRowRect(cell.row);
-      if (rect.x != cell.frame.x || rect.y != cell.frame.y || rect.width != cell.frame.width ||
-          rect.height != cell.frame.height) {
+      if (
+        rect.x != cell.frame.x || rect.y != cell.frame.y || rect.width != cell.frame.width ||
+        rect.height != cell.frame.height) {
         return "cell of " + key + " kept a frame the row " + std::to_string(cell.row) + " moved away from";
       }
       double cross = getColumns() > 1 ? (settings.horizontal ? rect.height : rect.width) : windowCross;
       double size = sizeFor(key, cross);
       if (std::fabs(driver.getExtentAt(cell.row) - size) > 0.01) {
         return "row " + std::to_string(cell.row) + " is mounted at " + std::to_string(driver.getExtentAt(cell.row)) +
-          " and measures " + std::to_string(size);
+               " and measures " + std::to_string(size);
       }
     }
     std::size_t bare = UNDEFINED_INDEX;
@@ -995,13 +991,13 @@ struct KitHost : FuzzHost {
     });
     if (bare != UNDEFINED_INDEX) {
       return "row " + std::to_string(bare) + " is on screen without a cell, plan [" +
-        std::to_string(static_cast<std::ptrdiff_t>(plan.low)) + ".." +
-        std::to_string(static_cast<std::ptrdiff_t>(plan.high)) + "] offset=" + std::to_string(offset);
+             std::to_string(static_cast<std::ptrdiff_t>(plan.low)) + ".." +
+             std::to_string(static_cast<std::ptrdiff_t>(plan.high)) + "] offset=" + std::to_string(offset);
     }
     if (cellsCreated != mounted.size() + pool.size() || cellsDisplayed - cellsEnded != mounted.size()) {
       return "cells do not add up: " + std::to_string(cellsCreated) + " made, " + std::to_string(mounted.size()) +
-        " mounted, " + std::to_string(pool.size()) + " pooled, " + std::to_string(cellsDisplayed) + " shown, " +
-        std::to_string(cellsEnded) + " ended";
+             " mounted, " + std::to_string(pool.size()) + " pooled, " + std::to_string(cellsDisplayed) + " shown, " +
+             std::to_string(cellsEnded) + " ended";
     }
     return "";
   }
@@ -1016,7 +1012,7 @@ struct KitHost : FuzzHost {
     }
     if (!plan.band.contains(offset)) {
       return "the mount plan's band [" + std::to_string(plan.band.low) + ".." + std::to_string(plan.band.high) +
-        "] leaves out its own offset " + std::to_string(offset);
+             "] leaves out its own offset " + std::to_string(offset);
     }
     for (double edge : {plan.band.low, plan.band.high}) {
       // A frame that kept its cells was checked when they were mounted.
@@ -1031,7 +1027,7 @@ struct KitHost : FuzzHost {
         bool there = index >= other.low && index <= other.high && driver.shouldMount(other, index);
         if (here != there) {
           return "the mount plan's band reaches " + std::to_string(edge) + " where row " + std::to_string(index) +
-            " mounts differently than at " + std::to_string(offset);
+                 " mounts differently than at " + std::to_string(offset);
         }
       }
       if ((plan.low == UNDEFINED_INDEX) != (other.low == UNDEFINED_INDEX)) {
@@ -1056,7 +1052,8 @@ struct KitHost : FuzzHost {
     }
     if (plan.sticky != active || driver.activeStickyIndex(offset) != active) {
       return "pinned row " + std::to_string(static_cast<std::ptrdiff_t>(plan.sticky)) + " where " +
-        std::to_string(static_cast<std::ptrdiff_t>(active)) + " is the last header above " + std::to_string(offset);
+             std::to_string(static_cast<std::ptrdiff_t>(active)) + " is the last header above " +
+             std::to_string(offset);
     }
     if (active == UNDEFINED_INDEX) {
       return "";
@@ -1065,8 +1062,9 @@ struct KitHost : FuzzHost {
       return "the pinned row " + std::to_string(active) + " has no cell";
     }
     double pinned = driver.stickyLeading(active, offset);
-    double limit = following == UNDEFINED_INDEX ? offset : std::min(offset,
-      driver.getLeadingAt(following) - driver.getExtentAt(active));
+    double limit = following == UNDEFINED_INDEX
+                     ? offset
+                     : std::min(offset, driver.getLeadingAt(following) - driver.getExtentAt(active));
     if (std::fabs(pinned - limit) > 0.01) {
       return "the pinned row sits at " + std::to_string(pinned) + " expected " + std::to_string(limit);
     }
@@ -1085,7 +1083,7 @@ struct KitHost : FuzzHost {
     }
     if (showsEmpty && std::fabs(footerStart - (headerSize + emptySize)) > 0.01) {
       return "the footer of an empty list starts at " + std::to_string(footerStart) + " and the empty view ends at " +
-        std::to_string(headerSize + emptySize);
+             std::to_string(headerSize + emptySize);
     }
     if (headerSize > 0.0) {
       double pushed = contentAlong - footerSize - headerSize;

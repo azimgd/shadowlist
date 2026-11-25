@@ -70,9 +70,7 @@ struct Json {
    */
   mutable bool read = false;
 
-  bool isNull() const {
-    return kind == Kind::Null;
-  }
+  bool isNull() const { return kind == Kind::Null; }
 
   /*
    * Whether the object has the field and it is not null.
@@ -102,9 +100,7 @@ struct Json {
     return items[index];
   }
 
-  std::size_t size() const {
-    return items.size();
-  }
+  std::size_t size() const { return items.size(); }
 
   /*
    * Counts every field below this value as asked for, for a replay that checks a part of an
@@ -165,9 +161,7 @@ struct Json {
   /*
    * A number, or NaN for a null, which is how a case leaves an optional number out.
    */
-  double asOptionalNumber() const {
-    return isNull() ? std::numeric_limits<double>::quiet_NaN() : number;
-  }
+  double asOptionalNumber() const { return isNull() ? std::numeric_limits<double>::quiet_NaN() : number; }
 };
 
 /*
@@ -189,8 +183,8 @@ struct JsonReader {
   }
 
   void skipSpace() {
-    while (cursor < source.size() && (source[cursor] == ' ' || source[cursor] == '\n' || source[cursor] == '\r' ||
-      source[cursor] == '\t')) {
+    while (cursor < source.size() &&
+           (source[cursor] == ' ' || source[cursor] == '\n' || source[cursor] == '\r' || source[cursor] == '\t')) {
       ++cursor;
     }
   }
@@ -370,9 +364,7 @@ inline std::map<std::string, std::set<std::string>>& replayedVectorFiles() {
 }
 
 struct VectorFile {
-  VectorFile(const char* folder, const char* file) {
-    replayedVectorFiles()[folder].insert(file);
-  }
+  VectorFile(const char* folder, const char* file) { replayedVectorFiles()[folder].insert(file); }
 };
 
 /*
@@ -413,12 +405,12 @@ inline void checkEveryVectorFileReplayed(const std::string& folder, const std::s
  * A test that replays one vector file of folder. Its body takes each case as const Json&
  * vector. The file counts as replayed in that folder, see checkEveryVectorFileReplayed.
  */
-#define SLT_FOLDER_VECTOR_TEST(name, folder, file)                     \
-  static void slt_replay_##name(const ::slt::Json& vector);            \
-  static const ::slt::VectorFile slt_vector_file_##name{folder, file}; \
-  TEST(name) {                                                         \
-    ::slt::forEachVector(folder, file, slt_replay_##name);             \
-  }                                                                    \
+#define SLT_FOLDER_VECTOR_TEST(name, folder, file)                                                                     \
+  static void slt_replay_##name(const ::slt::Json& vector);                                                            \
+  static const ::slt::VectorFile slt_vector_file_##name{folder, file};                                                 \
+  TEST(name) {                                                                                                         \
+    ::slt::forEachVector(folder, file, slt_replay_##name);                                                             \
+  }                                                                                                                    \
   static void slt_replay_##name(const ::slt::Json& vector)
 
 /*

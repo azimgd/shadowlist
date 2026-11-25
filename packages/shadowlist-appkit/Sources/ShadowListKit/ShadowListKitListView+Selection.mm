@@ -121,7 +121,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
     return NO;
   }
   return ![_userDelegate respondsToSelector:@selector(listView:shouldSelectItemAtIndex:)] ||
-    [_userDelegate listView:self shouldSelectItemAtIndex:item];
+         [_userDelegate listView:self shouldSelectItemAtIndex:item];
 }
 
 #pragma mark - Selection by the reader
@@ -431,8 +431,9 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 
 - (void)highlightCell:(ShadowListKitListCell *)cell
 {
-  if ([_userDelegate respondsToSelector:@selector(listView:shouldHighlightItemAtIndex:)] &&
-      ![_userDelegate listView:self shouldHighlightItemAtIndex:cell.index]) {
+  if (
+    [_userDelegate respondsToSelector:@selector(listView:shouldHighlightItemAtIndex:)] &&
+    ![_userDelegate listView:self shouldHighlightItemAtIndex:cell.index]) {
     return;
   }
   [self unhighlight];
@@ -470,8 +471,8 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
     return;
   }
   if (!_hoverTracking) {
-    NSTrackingAreaOptions options = NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited |
-      NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect;
+    NSTrackingAreaOptions options =
+      NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited | NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect;
     _hoverTracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:options owner:self userInfo:nil];
     [self addTrackingArea:_hoverTracking];
   }
@@ -572,18 +573,26 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
     [NSNotificationCenter.defaultCenter removeObserver:self name:NSWindowDidResignKeyNotification object:previous];
   }
   if (window) {
-    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(windowKeyChanged:)
-                                               name:NSWindowDidBecomeKeyNotification object:window];
-    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(windowKeyChanged:)
-                                               name:NSWindowDidResignKeyNotification object:window];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(windowKeyChanged:)
+                                               name:NSWindowDidBecomeKeyNotification
+                                             object:window];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(windowKeyChanged:)
+                                               name:NSWindowDidResignKeyNotification
+                                             object:window];
   }
 }
 
 - (void)viewDidMoveToWindow
 {
   [super viewDidMoveToWindow];
-  if (self.window) { _viewabilityAttached = YES; [self updateViewability]; }
-  else { [self detachViewability]; [self clearStickyHeaderOverlay]; }
+  if (self.window) {
+    [self updateViewability];
+  } else {
+    [self detachViewability];
+    [self clearStickyHeaderOverlay];
+  }
   _hoverActive = NO;
   [self updateHover];
   [self updateEmphasis];
@@ -671,7 +680,7 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
     }
     return;
   }
-  [self interpretKeyEvents:@[event]];
+  [self interpretKeyEvents:@[ event ]];
 }
 
 /*
@@ -705,8 +714,9 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
  */
 - (NSInteger)rowStepping:(NSInteger)step
 {
-  std::size_t row = stepRow([self leadIndex], (long)step, _driver.getKeyCount(),
-    [self](std::size_t candidate) { return (bool)[self shouldSelectRow:candidate]; });
+  std::size_t row = stepRow([self leadIndex], (long)step, _driver.getKeyCount(), [self](std::size_t candidate) {
+    return (bool)[self shouldSelectRow:candidate];
+  });
   return row == UNDEFINED_INDEX ? NSNotFound : (NSInteger)row;
 }
 
@@ -723,8 +733,8 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
  */
 - (void)moveToEnd:(BOOL)end extending:(BOOL)extending
 {
-  std::size_t row = endRow(end, _driver.getKeyCount(),
-    [self](std::size_t candidate) { return (bool)[self shouldSelectRow:candidate]; });
+  std::size_t row = endRow(
+    end, _driver.getKeyCount(), [self](std::size_t candidate) { return (bool)[self shouldSelectRow:candidate]; });
   if (row != UNDEFINED_INDEX) {
     [self moveToRow:row extending:extending];
   }
@@ -736,8 +746,8 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 - (void)moveByPage:(NSInteger)direction extending:(BOOL)extending
 {
   std::size_t count = std::min(_driver.getKeyCount(), _driver.getRowCount());
-  std::size_t row = pageRow([self leadIndex], (int)direction, count, _windowAlong,
-    [self](std::size_t at) { return _driver.getLeadingAt(at); },
+  std::size_t row = pageRow(
+    [self leadIndex], (int)direction, count, _windowAlong, [self](std::size_t at) { return _driver.getLeadingAt(at); },
     [self](std::size_t candidate) { return (bool)[self shouldSelectRow:candidate]; });
   if (row != UNDEFINED_INDEX) {
     [self moveToRow:row extending:extending];
@@ -776,14 +786,18 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 {
   std::size_t lead = [self leadIndex];
   if (_driver.hasRowSpans() && lead != UNDEFINED_INDEX) {
-    auto candidates = neighborRows(lead, direction < 0 ? -1 : 1, (bool)vertical, _driver.getRowCount(),
-      [self](std::size_t index) { return self->_driver.getRowRect(index); });
+    auto candidates =
+      neighborRows(lead, direction < 0 ? -1 : 1, (bool)vertical, _driver.getRowCount(), [self](std::size_t index) {
+        return self->_driver.getRowRect(index);
+      });
     NSUInteger structure = _structureVersion;
     NSUInteger spans = _rowSpansRevision;
     NSInteger columns = self.numberOfColumns;
     for (std::size_t row : candidates) {
       BOOL select = [self shouldSelectRow:row];
-      if (structure != _structureVersion || spans != _rowSpansRevision || columns != self.numberOfColumns) return;
+      if (structure != _structureVersion || spans != _rowSpansRevision || columns != self.numberOfColumns) {
+        return;
+      }
       if (select) {
         [self moveToRow:row extending:extending];
         return;
@@ -1007,7 +1021,8 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
       return NO;
     }
   }
-  BOOL continuing = _typeSelectBuffer.length > 0 && event.timestamp - _typeSelectTime <= SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT;
+  BOOL continuing =
+    _typeSelectBuffer.length > 0 && event.timestamp - _typeSelectTime <= SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT;
   if (!continuing && [characters isEqualToString:@" "]) {
     return NO;
   }
@@ -1040,7 +1055,9 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
       continue;
     }
     NSString *text = [_userDelegate listView:self typeSelectStringForItemAtIndex:item];
-    if (text && [text rangeOfString:match options:options].location != NSNotFound && [self shouldSelectRow:(std::size_t)row]) {
+    if (
+      text && [text rangeOfString:match options:options].location != NSNotFound &&
+      [self shouldSelectRow:(std::size_t)row]) {
       [self moveToRow:(std::size_t)row extending:NO];
       return;
     }
@@ -1053,17 +1070,27 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
 
 @implementation ShadowListKitListView (SelectionTesting)
 
-- (void)shadowListKit_pressKey:(NSString *)characters keyCode:(unsigned short)keyCode modifierFlags:(NSEventModifierFlags)flags
+- (void)shadowListKit_pressKey:(NSString *)characters
+                       keyCode:(unsigned short)keyCode
+                 modifierFlags:(NSEventModifierFlags)flags
 {
-  NSEvent *event = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:flags
-                                   timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:self.window.windowNumber
-                                     context:nil characters:characters charactersIgnoringModifiers:characters isARepeat:NO
+  NSEvent *event = [NSEvent keyEventWithType:NSEventTypeKeyDown
+                                    location:NSZeroPoint
+                               modifierFlags:flags
+                                   timestamp:NSProcessInfo.processInfo.systemUptime
+                                windowNumber:self.window.windowNumber
+                                     context:nil
+                                  characters:characters
+                 charactersIgnoringModifiers:characters
+                                   isARepeat:NO
                                      keyCode:keyCode];
   [self keyDown:event];
   [self layoutSubtreeIfNeeded];
 }
 
-- (void)shadowListKit_clickItemAtIndex:(NSInteger)index modifierFlags:(NSEventModifierFlags)flags clickCount:(NSInteger)clickCount
+- (void)shadowListKit_clickItemAtIndex:(NSInteger)index
+                         modifierFlags:(NSEventModifierFlags)flags
+                            clickCount:(NSInteger)clickCount
 {
   NSPoint point = [self shadowListKit_windowPointOfItemAtIndex:index];
   for (NSEventType type : {NSEventTypeLeftMouseDown, NSEventTypeLeftMouseUp}) {
@@ -1091,11 +1118,19 @@ static const NSTimeInterval SHADOWLIST_KIT_TYPE_SELECT_TIMEOUT = 1.0;
   return [self convertPoint:NSMakePoint(NSMidX(frame), NSMidY(frame)) toView:nil];
 }
 
-- (void)shadowListKit_sendMouse:(NSEventType)type at:(NSPoint)point modifierFlags:(NSEventModifierFlags)flags clickCount:(NSInteger)clickCount
+- (void)shadowListKit_sendMouse:(NSEventType)type
+                             at:(NSPoint)point
+                  modifierFlags:(NSEventModifierFlags)flags
+                     clickCount:(NSInteger)clickCount
 {
-  NSEvent *event = [NSEvent mouseEventWithType:type location:point modifierFlags:flags
+  NSEvent *event = [NSEvent mouseEventWithType:type
+                                      location:point
+                                 modifierFlags:flags
                                      timestamp:NSProcessInfo.processInfo.systemUptime
-                                  windowNumber:self.window.windowNumber context:nil eventNumber:0 clickCount:clickCount
+                                  windowNumber:self.window.windowNumber
+                                       context:nil
+                                   eventNumber:0
+                                    clickCount:clickCount
                                       pressure:type == NSEventTypeLeftMouseDown ? 1 : 0];
   switch (type) {
     case NSEventTypeLeftMouseDown:

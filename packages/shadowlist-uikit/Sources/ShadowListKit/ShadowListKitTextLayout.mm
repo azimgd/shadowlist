@@ -27,7 +27,12 @@ static NSString *const ShadowListKitTruncationToken = @"ShadowListKitTruncationT
                        alignment:(NSTextAlignment)alignment
 {
   return [self layoutWithAttributedString:[[NSAttributedString alloc] initWithString:string]
-                                    font:font lineHeight:lineHeight kern:kern width:width maximumLines:maximumLines alignment:alignment];
+                                     font:font
+                               lineHeight:lineHeight
+                                     kern:kern
+                                    width:width
+                             maximumLines:maximumLines
+                                alignment:alignment];
 }
 
 + (instancetype)layoutWithAttributedString:(NSAttributedString *)string
@@ -38,16 +43,22 @@ static NSString *const ShadowListKitTruncationToken = @"ShadowListKitTruncationT
                               maximumLines:(NSUInteger)maximumLines
                                  alignment:(NSTextAlignment)alignment
 {
-  return [[self alloc] initWithAttributedString:string font:font lineHeight:lineHeight kern:kern width:width maximumLines:maximumLines alignment:alignment];
+  return [[self alloc] initWithAttributedString:string
+                                           font:font
+                                     lineHeight:lineHeight
+                                           kern:kern
+                                          width:width
+                                   maximumLines:maximumLines
+                                      alignment:alignment];
 }
 
 - (instancetype)initWithAttributedString:(NSAttributedString *)string
-                          font:(ShadowListKitFont *)font
-                    lineHeight:(CGFloat)lineHeight
-                          kern:(CGFloat)kern
-                         width:(CGFloat)width
-                  maximumLines:(NSUInteger)maximumLines
-                     alignment:(NSTextAlignment)alignment
+                                    font:(ShadowListKitFont *)font
+                              lineHeight:(CGFloat)lineHeight
+                                    kern:(CGFloat)kern
+                                   width:(CGFloat)width
+                            maximumLines:(NSUInteger)maximumLines
+                               alignment:(NSTextAlignment)alignment
 {
   if (!(self = [super init])) {
     return nil;
@@ -62,8 +73,9 @@ static NSString *const ShadowListKitTruncationToken = @"ShadowListKitTruncationT
   _baselineShift = (lineHeight - font.lineHeight) / 4;
 #endif
 
-  CTTextAlignment ctAlignment = alignment == NSTextAlignmentRight ? kCTTextAlignmentRight
-    : alignment == NSTextAlignmentCenter ? kCTTextAlignmentCenter : kCTTextAlignmentNatural;
+  CTTextAlignment ctAlignment = alignment == NSTextAlignmentRight    ? kCTTextAlignmentRight
+                                : alignment == NSTextAlignmentCenter ? kCTTextAlignmentCenter
+                                                                     : kCTTextAlignmentNatural;
   CGFloat fixedHeight = lineHeight;
   CTLineBreakMode breakMode = kCTLineBreakByWordWrapping;
   CTParagraphStyleSetting settings[] = {
@@ -79,13 +91,16 @@ static NSString *const ShadowListKitTruncationToken = @"ShadowListKitTruncationT
     (id)kCTParagraphStyleAttributeName : (__bridge id)paragraph,
     (id)kCTForegroundColorFromContextAttributeName : @YES,
   };
-  NSMutableAttributedString *text = [[NSMutableAttributedString alloc] initWithString:string.string attributes:attributes];
-  [string enumerateAttributesInRange:NSMakeRange(0, string.length) options:0 usingBlock:^(NSDictionary<NSAttributedStringKey, id> *run, NSRange range, BOOL *) {
-    [text addAttributes:run range:range];
-    if (run[NSForegroundColorAttributeName] || run[(id)kCTForegroundColorAttributeName]) {
-      [text addAttribute:(id)kCTForegroundColorFromContextAttributeName value:@NO range:range];
-    }
-  }];
+  NSMutableAttributedString *text = [[NSMutableAttributedString alloc] initWithString:string.string
+                                                                           attributes:attributes];
+  [string enumerateAttributesInRange:NSMakeRange(0, string.length)
+                             options:0
+                          usingBlock:^(NSDictionary<NSAttributedStringKey, id> *run, NSRange range, BOOL *) {
+                            [text addAttributes:run range:range];
+                            if (run[NSForegroundColorAttributeName] || run[(id)kCTForegroundColorAttributeName]) {
+                              [text addAttribute:(id)kCTForegroundColorFromContextAttributeName value:@NO range:range];
+                            }
+                          }];
   // Every run uses the layout's line height and alignment, including supplied rich text.
   [text addAttribute:(id)kCTParagraphStyleAttributeName value:(__bridge id)paragraph range:NSMakeRange(0, text.length)];
   CFRelease(paragraph);
@@ -110,7 +125,8 @@ static NSString *const ShadowListKitTruncationToken = @"ShadowListKitTruncationT
       // The last line shown takes the rest of the text and ends in an ellipsis.
       CFRange range = CTLineGetStringRange(line);
       _stringOffsets[(size_t)index] = range.location;
-      NSAttributedString *rest = [text attributedSubstringFromRange:NSMakeRange((NSUInteger)range.location, text.length - (NSUInteger)range.location)];
+      NSAttributedString *rest = [text
+        attributedSubstringFromRange:NSMakeRange((NSUInteger)range.location, text.length - (NSUInteger)range.location)];
       CTLineRef full = CTLineCreateWithAttributedString((__bridge CFAttributedStringRef)rest);
       NSMutableDictionary *tokenAttributes = [attributes mutableCopy];
       tokenAttributes[ShadowListKitTruncationToken] = @YES;
@@ -135,7 +151,8 @@ static NSString *const ShadowListKitTruncationToken = @"ShadowListKitTruncationT
     CTLineRef line = (CTLineRef)CFArrayGetValueAtIndex(_lines, index);
     // Origins come bottom up from the top of the frame. Keep the baseline as distance from the top.
     _origins[(size_t)index] = CGPointMake(origins[(size_t)index].x, frameHeight - origins[(size_t)index].y);
-    CGFloat lineWidth = (CGFloat)CTLineGetTypographicBounds(line, NULL, NULL, NULL) - (CGFloat)CTLineGetTrailingWhitespaceWidth(line);
+    CGFloat lineWidth =
+      (CGFloat)CTLineGetTypographicBounds(line, NULL, NULL, NULL) - (CGFloat)CTLineGetTrailingWhitespaceWidth(line);
     _lineWidths[(size_t)index] = MAX(0, lineWidth);
     widest = MAX(widest, lineWidth);
   }
@@ -168,20 +185,28 @@ static NSString *const ShadowListKitTruncationToken = @"ShadowListKitTruncationT
  */
 - (NSUInteger)characterIndexAtPoint:(CGPoint)point
 {
-  if (_lineHeight <= 0 || point.y < 0 || point.y >= _size.height) return NSNotFound;
+  if (_lineHeight <= 0 || point.y < 0 || point.y >= _size.height) {
+    return NSNotFound;
+  }
   NSUInteger index = (NSUInteger)(point.y / _lineHeight);
-  if (!CGRectContainsPoint([self rectForLineAtIndex:index], point)) return NSNotFound;
+  if (!CGRectContainsPoint([self rectForLineAtIndex:index], point)) {
+    return NSNotFound;
+  }
   CTLineRef line = (CTLineRef)CFArrayGetValueAtIndex(_lines, (CFIndex)index);
   CGFloat x = point.x - _origins[index].x;
   CFArrayRef runs = CTLineGetGlyphRuns(line);
   for (CFIndex at = 0; at < CFArrayGetCount(runs); ++at) {
     CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, at);
     NSDictionary *attributes = (__bridge NSDictionary *)CTRunGetAttributes(run);
-    if (!attributes[ShadowListKitTruncationToken] || CTRunGetGlyphCount(run) == 0) continue;
+    if (!attributes[ShadowListKitTruncationToken] || CTRunGetGlyphCount(run) == 0) {
+      continue;
+    }
     CGPoint position;
     CTRunGetPositions(run, CFRangeMake(0, 1), &position);
     CGFloat width = (CGFloat)CTRunGetTypographicBounds(run, CFRangeMake(0, 0), NULL, NULL, NULL);
-    if (x >= position.x && x <= position.x + width) return NSNotFound;
+    if (x >= position.x && x <= position.x + width) {
+      return NSNotFound;
+    }
   }
   CFIndex character = CTLineGetStringIndexForPosition(line, CGPointMake(x, 0));
   return character == kCFNotFound ? NSNotFound : (NSUInteger)(character + _stringOffsets[index]);

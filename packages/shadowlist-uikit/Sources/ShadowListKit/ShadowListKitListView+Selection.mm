@@ -49,7 +49,7 @@ extern "C" const char ShadowListKitListViewSelectionLink = 0;
   id<ShadowListKitListViewDelegate> delegate = _userDelegate;
   SelectionTap tap = _selection.tap(key, [&] {
     return ![delegate respondsToSelector:@selector(listView:shouldSelectItemAtIndex:)] ||
-      [delegate listView:self shouldSelectItemAtIndex:index];
+           [delegate listView:self shouldSelectItemAtIndex:index];
   });
   if (tap.toggledOff) {
     [cell setSelected:NO animated:YES];
@@ -139,8 +139,9 @@ extern "C" const char ShadowListKitListViewSelectionLink = 0;
     return;
   }
   ShadowListKitListCell *cell = [self itemCellAtPoint:[touches.anyObject locationInView:self]];
-  if (!cell || ([_userDelegate respondsToSelector:@selector(listView:shouldHighlightItemAtIndex:)] &&
-                ![_userDelegate listView:self shouldHighlightItemAtIndex:cell.index])) {
+  if (
+    !cell || ([_userDelegate respondsToSelector:@selector(listView:shouldHighlightItemAtIndex:)] &&
+              ![_userDelegate listView:self shouldHighlightItemAtIndex:cell.index])) {
     return;
   }
   [cell setHighlighted:YES animated:NO];

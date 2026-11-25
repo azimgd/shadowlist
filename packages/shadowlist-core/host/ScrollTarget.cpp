@@ -46,11 +46,8 @@ double rowTargetOffset(
   return std::min(std::max(target, 0.0), std::max(0.0, maxOffset));
 }
 
-std::optional<double> commandTargetOffset(
-  const Container& core,
-  std::size_t commandIndex,
-  double viewPosition,
-  double viewOffset) {
+std::optional<double>
+commandTargetOffset(const Container& core, std::size_t commandIndex, double viewPosition, double viewOffset) {
   double windowAlong = core.getWindowSize();
   double totalAlong = core.horizontal ? core.revision.contentWidth : core.revision.contentHeight;
   double maxOffset = std::max(0.0, totalAlong - windowAlong);

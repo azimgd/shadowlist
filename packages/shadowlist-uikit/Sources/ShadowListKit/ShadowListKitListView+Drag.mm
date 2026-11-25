@@ -179,9 +179,7 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   target.list = self;
   _dragLink = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
   [_dragLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
-  [UIView animateWithDuration:SHADOWLIST_KIT_LIFT_DURATION animations:^{
-    [self updateDrag];
-  }];
+  [UIView animateWithDuration:SHADOWLIST_KIT_LIFT_DURATION animations:^{ [self updateDrag]; }];
 }
 
 - (ShadowListKitListCell *)movableCellAtPoint:(CGPoint)location
@@ -190,8 +188,9 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   if (!cell || (std::size_t)cell.row >= _driver.getRowCount() || _editing) {
     return nil;
   }
-  if ([_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] &&
-      ![_userDelegate listView:self canMoveItemAtIndex:cell.index]) {
+  if (
+    [_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] &&
+    ![_userDelegate listView:self canMoveItemAtIndex:cell.index]) {
     return nil;
   }
   return cell;
@@ -270,9 +269,11 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   DragOffset placed = _driver.placeHeld(held, [self along:touch], [self cross:touch]);
   CGAffineTransform lift = CGAffineTransformMakeScale(SHADOWLIST_KIT_LIFT_SCALE, SHADOWLIST_KIT_LIFT_SCALE);
   _heldCell.transform = CGAffineTransformConcat(lift, [self transformAlong:placed.leading cross:placed.cross]);
-  CGPoint center = [_heldCell convertPoint:CGPointMake(CGRectGetMidX(_heldCell.bounds), CGRectGetMidY(_heldCell.bounds)) toView:self.window];
+  CGPoint center = [_heldCell convertPoint:CGPointMake(CGRectGetMidX(_heldCell.bounds), CGRectGetMidY(_heldCell.bounds))
+                                    toView:self.window];
   CGPoint handoff = [self dragBoardReturnOffsetForCenter:center];
-  _heldCell.transform = CGAffineTransformConcat(_heldCell.transform, CGAffineTransformMakeTranslation(handoff.x, handoff.y));
+  _heldCell.transform =
+    CGAffineTransformConcat(_heldCell.transform, CGAffineTransformMakeTranslation(handoff.x, handoff.y));
 }
 
 - (std::vector<std::size_t>)mountedIndices
@@ -306,9 +307,11 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
     }
   };
   if (animated) {
-    [UIView animateWithDuration:SHADOWLIST_KIT_SHIFT_DURATION delay:0
+    [UIView animateWithDuration:SHADOWLIST_KIT_SHIFT_DURATION
+                          delay:0
                         options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
-                     animations:apply completion:nil];
+                     animations:apply
+                     completion:nil];
   } else {
     apply();
   }
@@ -354,7 +357,9 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
     commit = NO;
     _dragMoved = YES;
   }
-  if (_heldCell && _heldCell != cell) return;
+  if (_heldCell && _heldCell != cell) {
+    return;
+  }
   std::size_t from = _driver.getDragOriginIndex();
   std::size_t to = _driver.getDragInsertionIndex();
   _heldCell = nil;
@@ -362,8 +367,8 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
   NSInteger fromItem = NSNotFound;
   NSInteger toItem = NSNotFound;
   BOOL moves = commit && from != UNDEFINED_INDEX && to != UNDEFINED_INDEX && from != to &&
-    [self itemsForDragFromRow:from toRow:to from:&fromItem to:&toItem] &&
-    [_userDelegate respondsToSelector:@selector(listView:moveItemAtIndex:toIndex:)];
+               [self itemsForDragFromRow:from toRow:to from:&fromItem to:&toItem] &&
+               [_userDelegate respondsToSelector:@selector(listView:moveItemAtIndex:toIndex:)];
   if (moves) {
     [self commitMoveOfCell:cell from:fromItem to:toItem];
   }
@@ -395,26 +400,31 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
     _driver.setDropHint(DropHint{});
     _animatesChanges = animates;
   }
-  cell.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(SHADOWLIST_KIT_LIFT_SCALE, SHADOWLIST_KIT_LIFT_SCALE),
+  cell.transform = CGAffineTransformConcat(
+    CGAffineTransformMakeScale(SHADOWLIST_KIT_LIFT_SCALE, SHADOWLIST_KIT_LIFT_SCALE),
     CGAffineTransformMakeTranslation(shown.x - cell.center.x, shown.y - cell.center.y));
 }
 
 - (void)dropCell:(ShadowListKitListCell *)cell
 {
   __weak ShadowListKitListView *weakSelf = self;
-  [UIView animateWithDuration:SHADOWLIST_KIT_DROP_DURATION delay:0 usingSpringWithDamping:0.9 initialSpringVelocity:0
-                      options:UIViewAnimationOptionBeginFromCurrentState animations:^{
-                        for (auto& entry : self->_mounted) {
-                          entry.second.transform = CGAffineTransformIdentity;
-                        }
-                        cell.transform = CGAffineTransformIdentity;
-                      }
-                   completion:^(BOOL finished) {
-                     ShadowListKitListView *list = weakSelf;
-                     if (list && list->_heldCell != cell) {
-                       [list clearLiftOfCell:cell];
-                     }
-                   }];
+  [UIView animateWithDuration:SHADOWLIST_KIT_DROP_DURATION
+    delay:0
+    usingSpringWithDamping:0.9
+    initialSpringVelocity:0
+    options:UIViewAnimationOptionBeginFromCurrentState
+    animations:^{
+      for (auto& entry : self->_mounted) {
+        entry.second.transform = CGAffineTransformIdentity;
+      }
+      cell.transform = CGAffineTransformIdentity;
+    }
+    completion:^(BOOL finished) {
+      ShadowListKitListView *list = weakSelf;
+      if (list && list->_heldCell != cell) {
+        [list clearLiftOfCell:cell];
+      }
+    }];
 }
 
 - (void)clearLiftOfCell:(ShadowListKitListCell *)cell

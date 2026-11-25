@@ -23,7 +23,11 @@ final class AnimationTests: XCTestCase {
       inserted.append((cell as? TestCell)?.key ?? "")
     }
 
-    func listView(_ listView: ShadowListKitListView, animateDeleteOf cell: ShadowListKitListCell, completion: @escaping () -> Void) {
+    func listView(
+      _ listView: ShadowListKitListView,
+      animateDeleteOf cell: ShadowListKitListCell,
+      completion: @escaping () -> Void
+    ) {
       deleted.append((cell as? TestCell)?.key ?? "")
       if holdsDeletes {
         pending.append(completion)
@@ -32,7 +36,11 @@ final class AnimationTests: XCTestCase {
       }
     }
 
-    func listView(_ listView: ShadowListKitListView, animateMoveOf cell: ShadowListKitListCell, fromOffset offset: CGPoint) {
+    func listView(
+      _ listView: ShadowListKitListView,
+      animateMoveOf cell: ShadowListKitListCell,
+      fromOffset offset: CGPoint
+    ) {
       moved[(cell as? TestCell)?.key ?? ""] = offset
     }
   }
@@ -65,11 +73,32 @@ final class AnimationTests: XCTestCase {
   private final class Sections: TestSource {
     var counts = Array(repeating: 10, count: 10)
 
-    func numberOfSections(in listView: ShadowListKitListView) -> Int { counts.count }
-    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { counts[section] }
-    func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { "Section \(section)" }
-    func listView(_ listView: ShadowListKitListView, sizeForHeaderInSection section: Int, crossSize: CGFloat) -> CGFloat { 30 }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 44 }
+    func numberOfSections(in listView: ShadowListKitListView) -> Int {
+      counts.count
+    }
+
+    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int {
+      counts[section]
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      titleForHeaderInSection section: Int
+    ) -> String? {
+      "Section \(section)"
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      sizeForHeaderInSection section: Int,
+      crossSize: CGFloat
+    ) -> CGFloat {
+      30
+    }
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      44
+    }
   }
 
   private static let insertKey = "shadowListKitInsert"
@@ -97,12 +126,13 @@ final class AnimationTests: XCTestCase {
    * The offset a move animation starts from, or nil without one.
    */
   private func slide(_ cell: NSView?) -> CGPoint? {
-    (cell?.layer?.animation(forKey: Self.moveKey) as? CABasicAnimation)?.fromValue.flatMap { ($0 as? NSValue)?.pointValue }
+    (cell?.layer?.animation(forKey: Self.moveKey) as? CABasicAnimation)?.fromValue
+      .flatMap { ($0 as? NSValue)?.pointValue }
   }
 
   private func spin(until done: () -> Bool, timeout: TimeInterval = 2) {
     let end = Date().addingTimeInterval(timeout)
-    while !done() && Date() < end {
+    while !done(), Date() < end {
       RunLoop.main.run(until: Date().addingTimeInterval(0.01))
     }
   }
@@ -231,7 +261,7 @@ final class AnimationTests: XCTestCase {
     harness.layout()
     let moved = try XCTUnwrap(slide(cell(list, key: key, in: source)))
     XCTAssertEqual(moved.y, -132, accuracy: 0.01)
-    for index in 1...3 {
+    for index in 1 ... 3 {
       XCTAssertEqual(try XCTUnwrap(slide(list.cellForItem(at: index))).y, 44, accuracy: 0.01)
     }
     XCTAssertTrue(keys(list.cellForItem(at: 0)).isEmpty)
@@ -317,7 +347,7 @@ final class AnimationTests: XCTestCase {
     spin { fading.isHidden }
     XCTAssertTrue(fading.isHidden)
 
-    // A custom animator's animations are not waited for.
+    // A custom animator that starts no animations completes on the next main queue turn.
     list.itemAnimator = RecordingAnimator()
     finishedAt = nil
     let customStart = CACurrentMediaTime()
@@ -327,6 +357,67 @@ final class AnimationTests: XCTestCase {
     }) { _ in finishedAt = CACurrentMediaTime() }
     spin { finishedAt != nil }
     XCTAssertLessThan(try XCTUnwrap(finishedAt) - customStart, duration)
+  }
+
+  func testANestedBatchWaitsForTheAnimationsStartedByTheOuterCommit() throws {
+    for completesOuter in [false, true] {
+      let harness = makeHarness()
+      let list = harness.list
+      let rows = harness.source
+      let fading = try XCTUnwrap(list.cellForItem(at: 2))
+      let duration = try XCTUnwrap(list.itemAnimator as? ShadowListKitDefaultItemAnimator).duration
+      let start = CACurrentMediaTime()
+      var calls = 0
+      let completion: (Bool) -> Void = { finished in
+        XCTAssertTrue(finished)
+        XCTAssertTrue(fading.isHidden)
+        XCTAssertGreaterThanOrEqual(CACurrentMediaTime() - start, duration - 0.02)
+        calls += 1
+      }
+      list.performBatchUpdates({
+        list.performBatchUpdates({
+          rows.keys.remove(at: 2)
+          list.deleteItems(at: IndexSet(integer: 2))
+        }, completion: completion)
+        rows.keys.insert("new", at: 4)
+        list.insertItems(at: IndexSet(integer: 4))
+      }, completion: completesOuter ? completion : nil)
+      XCTAssertEqual(calls, 0)
+      let expected = completesOuter ? 2 : 1
+      spin { calls >= expected }
+      XCTAssertEqual(calls, expected)
+    }
+  }
+
+  func testUnrelatedAnimationsDoNotHoldTheBatchCompletion() throws {
+    let harness = makeHarness()
+    let list = harness.list
+    let before = try XCTUnwrap(list.cellForItem(at: 0)?.layer)
+    let after = try XCTUnwrap(list.cellForItem(at: 1)?.layer)
+    let unrelated = CABasicAnimation(keyPath: "opacity")
+    unrelated.fromValue = 1
+    unrelated.toValue = 0.5
+    unrelated.duration = 1
+    unrelated.repeatCount = .infinity
+    before.add(unrelated, forKey: "unrelated")
+    defer {
+      before.removeAnimation(forKey: "unrelated")
+      after.removeAnimation(forKey: "unrelated")
+    }
+    var calls = 0
+    list.performBatchUpdates({
+      harness.source.keys.remove(at: 2)
+      list.deleteItems(at: IndexSet(integer: 2))
+    }) { finished in
+      XCTAssertTrue(finished)
+      calls += 1
+    }
+    after.add(unrelated, forKey: "unrelated")
+    XCTAssertEqual(calls, 0)
+    spin { calls != 0 }
+    XCTAssertEqual(calls, 1)
+    XCTAssertNotNil(before.animation(forKey: "unrelated"))
+    XCTAssertNotNil(after.animation(forKey: "unrelated"))
   }
 
   func testADropAnimatesItselfAndAHeldRowStopsChangeAnimations() throws {
@@ -341,8 +432,8 @@ final class AnimationTests: XCTestCase {
       let frame = list.convert(cell.frame, from: cell.superview)
       return CGPoint(x: frame.midX, y: frame.midY)
     }
-    list.shadowListKit_beginDrag(at: try center(1))
-    list.shadowListKit_moveDrag(to: try center(4))
+    try list.shadowListKit_beginDrag(at: center(1))
+    try list.shadowListKit_moveDrag(to: center(4))
     // A change while a row is held is not animated.
     source.keys.append("tail")
     list.insertItems(at: IndexSet(integer: source.keys.count - 1))
@@ -352,7 +443,11 @@ final class AnimationTests: XCTestCase {
     harness.layout()
     // The drop moves the data and slides the rows on their transform, with no change animation.
     XCTAssertEqual(source.keys[3], "item-1")
-    XCTAssertTrue(list.visibleCells.allSatisfy { keys($0).isDisjoint(with: [Self.insertKey, Self.moveKey, Self.deleteKey]) })
+    XCTAssertTrue(list.visibleCells.allSatisfy { keys($0).isDisjoint(with: [
+      Self.insertKey,
+      Self.moveKey,
+      Self.deleteKey
+    ]) })
     // The next change animates again on the position and leaves a drag shift alone.
     try XCTUnwrap(list.cellForItem(at: 5)?.layer).transform = CATransform3DMakeTranslation(0, 7, 0)
     source.keys.insert("new", at: 2)
@@ -373,7 +468,8 @@ final class AnimationTests: XCTestCase {
     list.contentOffset = CGPoint(x: 0, y: 150)
     harness.layout()
     func pinned() -> ShadowListKitListCell? {
-      list.subviews.first!.subviews.compactMap { $0 as? ShadowListKitListCell }.first { !$0.isHidden && $0.layer?.zPosition == 1 }
+      list.subviews.first!.subviews.compactMap { $0 as? ShadowListKitListCell }
+        .first { !$0.isHidden && $0.layer?.zPosition == 1 }
     }
     let header = try XCTUnwrap(pinned())
     let below = try XCTUnwrap(list.cellForItem(at: 6))
@@ -411,13 +507,13 @@ final class AnimationTests: XCTestCase {
     harness.layout()
     let before = harness.visibleKeys()
     let first = list.visibleRange.location
-    source.keys.insert(contentsOf: (0..<10).map { "above-\($0)" }, at: 0)
+    source.keys.insert(contentsOf: (0 ..< 10).map { "above-\($0)" }, at: 0)
     source.keys.remove(at: first + 13)
     list.reloadData()
     harness.layout()
     XCTAssertFalse(host.corrections.isEmpty)
     // The rows above the deleted one held still, the ones after it slide up.
-    for index in (first + 10)..<(first + 12) {
+    for index in (first + 10) ..< (first + 12) {
       XCTAssertNil(slide(list.cellForItem(at: index)))
     }
     XCTAssertEqual(try XCTUnwrap(slide(list.cellForItem(at: first + 13))).y, 44, accuracy: 0.01)

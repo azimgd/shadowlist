@@ -9,33 +9,55 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class ShadowListKitItemSpanTest {
-  private open class Source : ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+  private open class Source :
+    ShadowListKitListView.DataSource,
+    ShadowListKitListView.Sizing {
     val keys = MutableList(200) { "span-$it" }
     val crosses = mutableMapOf<Int, Int>()
     override fun numberOfItems(listView: ShadowListKitListView) = keys.size
     override fun keyForItem(listView: ShadowListKitListView, index: Int) = keys[index]
-    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell = listView.dequeueReusableCell("cell")
+    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+      listView.dequeueReusableCell("cell")
     override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int {
       crosses[index] = crossSize
       return 40
     }
   }
 
-  private class Sections : Source(), ShadowListKitListView.Sections {
-    init { keys.clear(); keys.addAll((0..<4).map { "section-item-$it" }) }
+  private class Sections :
+    Source(),
+    ShadowListKitListView.Sections {
+    init {
+      keys.clear()
+      keys.addAll((0..<4).map { "section-item-$it" })
+    }
     override fun numberOfSections(listView: ShadowListKitListView) = 3
     override fun numberOfItemsInSection(listView: ShadowListKitListView, section: Int) = if (section == 1) 0 else 2
     override fun titleForHeaderInSection(listView: ShadowListKitListView, section: Int) = "Header $section"
-    override fun titleForFooterInSection(listView: ShadowListKitListView, section: Int) = if (section == 0) "Footer" else null
-    override fun sizeForHeaderInSection(listView: ShadowListKitListView, section: Int, crossSize: Int) = if (section == 1) 0 else 10
+    override fun titleForFooterInSection(listView: ShadowListKitListView, section: Int) = if (section ==
+      0
+    ) {
+      "Footer"
+    } else {
+      null
+    }
+    override fun sizeForHeaderInSection(listView: ShadowListKitListView, section: Int, crossSize: Int) = if (section ==
+      1
+    ) {
+      0
+    } else {
+      10
+    }
     override fun sizeForFooterInSection(listView: ShadowListKitListView, section: Int, crossSize: Int) = 0
   }
 
   private fun drain(list: ShadowListKitListView) {
     repeat(6) {
       list.requestLayout()
-      list.measure(View.MeasureSpec.makeMeasureSpec(360, View.MeasureSpec.EXACTLY),
-        View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY))
+      list.measure(
+        View.MeasureSpec.makeMeasureSpec(360, View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(400, View.MeasureSpec.EXACTLY)
+      )
       list.layout(0, 0, 360, 400)
     }
   }
@@ -54,7 +76,10 @@ class ShadowListKitItemSpanTest {
       val source = Source()
       val list = list(source)
       var calls = 0
-      list.getItemSpan = { index -> calls++; index % 3 + 1 }
+      list.getItemSpan = { index ->
+        calls++
+        index % 3 + 1
+      }
       list.reloadData()
       drain(list)
       assertEquals(200, calls)
@@ -101,7 +126,10 @@ class ShadowListKitItemSpanTest {
       val source = Sections()
       val list = list(source)
       val indices = mutableListOf<Int>()
-      list.getItemSpan = { index -> indices.add(index); index % 2 + 1 }
+      list.getItemSpan = { index ->
+        indices.add(index)
+        index % 2 + 1
+      }
       list.reloadData()
       drain(list)
       assertEquals(listOf(0, 1, 2, 3), indices) // Existing native item indices are global across sections.

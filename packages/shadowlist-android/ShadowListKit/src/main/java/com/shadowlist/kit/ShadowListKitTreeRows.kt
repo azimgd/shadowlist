@@ -8,14 +8,28 @@ class ShadowListKitTreeRows {
   private var handle = nativeCreate().also { reclaimer.register(this, it) }
 
   fun reset(rows: List<ShadowListKitTreeRow>) {
-    nativeReset(peer(), rows.map { it.key }.toTypedArray(), rows.map { it.depth }.toIntArray(),
-      rows.map { (if (it.hasChildren) TREE_ROW_HAS_CHILDREN else 0) or (if (it.expanded) TREE_ROW_EXPANDED else 0) }.toIntArray())
+    nativeReset(
+      peer(),
+      rows.map { it.key }.toTypedArray(),
+      rows.map { it.depth }.toIntArray(),
+      rows.map {
+        (if (it.hasChildren) TREE_ROW_HAS_CHILDREN else 0) or (if (it.expanded) TREE_ROW_EXPANDED else 0)
+      }.toIntArray()
+    )
   }
 
-  fun setExpandedKeys(keys: Collection<String>) { nativeSetExpandedKeys(peer(), keys.toTypedArray()) }
-  fun toggleKey(key: String) { nativeToggle(peer(), key) }
-  fun expandRow(index: Int) { nativeExpand(peer(), index) }
-  fun collapseRow(index: Int) { nativeCollapse(peer(), index) }
+  fun setExpandedKeys(keys: Collection<String>) {
+    nativeSetExpandedKeys(peer(), keys.toTypedArray())
+  }
+  fun toggleKey(key: String) {
+    nativeToggle(peer(), key)
+  }
+  fun expandRow(index: Int) {
+    nativeExpand(peer(), index)
+  }
+  fun collapseRow(index: Int) {
+    nativeCollapse(peer(), index)
+  }
 
   val rows: List<ShadowListKitTreeRow>
     get() {
@@ -24,7 +38,12 @@ class ShadowListKitTreeRows {
       return keys.mapIndexed { index, key ->
         val at = index * ROW_SLOTS
         val flags = metadata[at + ROW_FLAGS]
-        ShadowListKitTreeRow(key, metadata[at + ROW_DEPTH], flags and TREE_ROW_HAS_CHILDREN != 0, flags and TREE_ROW_EXPANDED != 0)
+        ShadowListKitTreeRow(
+          key,
+          metadata[at + ROW_DEPTH],
+          flags and TREE_ROW_HAS_CHILDREN != 0,
+          flags and TREE_ROW_EXPANDED != 0
+        )
       }
     }
 
@@ -37,7 +56,10 @@ class ShadowListKitTreeRows {
     handle = 0L
   }
 
-  private fun peer(): Long { check(handle != 0L) { "Tree rows were destroyed" }; return handle }
+  private fun peer(): Long {
+    check(handle != 0L) { "Tree rows were destroyed" }
+    return handle
+  }
 
   private external fun nativeCreate(): Long
   private external fun nativeReset(handle: Long, keys: Array<String>, depths: IntArray, flags: IntArray)
@@ -50,8 +72,11 @@ class ShadowListKitTreeRows {
   private external fun nativeExpandedKeys(handle: Long): Array<String>
 
   private companion object {
-    init { System.loadLibrary("shadowlistkit") }
+    init {
+      System.loadLibrary("shadowlistkit")
+    }
     val reclaimer = ShadowListKitPeerReclaimer(::nativeDestroy)
+
     @JvmStatic external fun nativeDestroy(handle: Long)
     const val TREE_ROW_HAS_CHILDREN = 1
     const val TREE_ROW_EXPANDED = 2

@@ -78,9 +78,7 @@ public:
   /*
    * Whether the host should tick on its next display frame.
    */
-  bool needsTick() const {
-    return needsTick_.load(std::memory_order_acquire);
-  }
+  bool needsTick() const { return needsTick_.load(std::memory_order_acquire); }
 
   /*
    * One display frame on the UI thread. Returns whether to keep ticking.
@@ -132,9 +130,7 @@ public:
   /*
    * A process wide id for this list. Android's Java view finds the driver by it, see find.
    */
-  std::int64_t getHandle() const {
-    return handle_;
-  }
+  std::int64_t getHandle() const { return handle_; }
 
   /*
    * Make a driver findable by handle. Entries are weak and go away with their list.

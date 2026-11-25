@@ -66,9 +66,7 @@ using namespace azimgd::shadowlist;
   [self placeCell:cell atScreenOrigin:*previous];
   [_fading addObject:cell];
   __weak ShadowListKitChangeAnimator *weakSelf = self;
-  [list.itemAnimator listView:list animateDeleteOfCell:cell completion:^{
-    [weakSelf finishFadeOfCell:cell];
-  }];
+  [list.itemAnimator listView:list animateDeleteOfCell:cell completion:^{ [weakSelf finishFadeOfCell:cell]; }];
   return YES;
 }
 
@@ -108,7 +106,8 @@ using namespace azimgd::shadowlist;
       cells.push_back(entry.second);
     }
   }
-  std::sort(cells.begin(), cells.end(), [](ShadowListKitListCell *a, ShadowListKitListCell *b) { return a.row < b.row; });
+  std::sort(
+    cells.begin(), cells.end(), [](ShadowListKitListCell *a, ShadowListKitListCell *b) { return a.row < b.row; });
   std::vector<std::string> keys;
   std::vector<ScreenPoint> positions;
   keys.reserve(cells.size());

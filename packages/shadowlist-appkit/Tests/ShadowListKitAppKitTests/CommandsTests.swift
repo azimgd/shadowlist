@@ -26,7 +26,12 @@ final class CommandsTests: XCTestCase {
       list.scrollToItem(at: 1200, viewPosition: 1, animated: true)
       harness.runScrollFrames()
       let rect = list.rectForItem(at: 1200)
-      XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 1200)) + rect.height, 480, accuracy: 0.5, "estimate \(estimate)")
+      XCTAssertEqual(
+        try XCTUnwrap(harness.screenY(ofItem: 1200)) + rect.height,
+        480,
+        accuracy: 0.5,
+        "estimate \(estimate)"
+      )
 
       list.scrollToItem(at: 4200, viewPosition: 0.5, animated: false)
       harness.layout()
@@ -71,7 +76,7 @@ final class CommandsTests: XCTestCase {
     list.restoreAnchorState(ShadowListKitAnchorState(key: "later-5", offset: 4))
     harness.layout()
     XCTAssertEqual(list.contentOffset.y, 0)
-    harness.source.keys.append(contentsOf: (0..<50).map { "later-\($0)" })
+    harness.source.keys.append(contentsOf: (0 ..< 50).map { "later-\($0)" })
     list.reloadData()
     harness.layout()
     XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 105)), -4, accuracy: 0.5)
@@ -85,7 +90,7 @@ final class CommandsTests: XCTestCase {
     list.scrollToItem(at: 50, viewPosition: 0, animated: false)
     harness.layout()
     let y = try XCTUnwrap(harness.screenY(ofItem: 50))
-    harness.source.keys.append(contentsOf: (0..<50).map { "later-\($0)" })
+    harness.source.keys.append(contentsOf: (0 ..< 50).map { "later-\($0)" })
     list.reloadData()
     harness.layout()
     XCTAssertEqual(try XCTUnwrap(harness.screenY(ofItem: 50)), y, accuracy: 0.5)

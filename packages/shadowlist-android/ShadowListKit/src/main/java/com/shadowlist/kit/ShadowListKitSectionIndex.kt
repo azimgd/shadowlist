@@ -33,7 +33,14 @@ internal class ShadowListKitSectionIndex(private val list: ShadowListKitListView
   var onSelect: ((Int) -> Unit)? = null
 
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-    typeface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) Typeface.create(Typeface.DEFAULT, TEXT_WEIGHT, false) else Typeface.DEFAULT_BOLD
+    typeface =
+      if (Build.VERSION.SDK_INT >=
+        Build.VERSION_CODES.P
+      ) {
+        Typeface.create(Typeface.DEFAULT, TEXT_WEIGHT, false)
+      } else {
+        Typeface.DEFAULT_BOLD
+      }
     textSize = ceil(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, TEXT_SP, list.resources.displayMetrics))
     isSubpixelText = true
     color = 0xFF007AFF.toInt()
@@ -43,7 +50,9 @@ internal class ShadowListKitSectionIndex(private val list: ShadowListKitListView
 
   var color: Int
     get() = paint.color
-    set(value) { paint.color = value }
+    set(value) {
+      paint.color = value
+    }
 
   private val width: Float get() = (ShadowListKitCore.SECTION_INDEX_WIDTH_DP * list.density).toFloat()
   private val titlePadding: Float get() = TITLE_PADDING_DP * list.density
@@ -86,7 +95,9 @@ internal class ShadowListKitSectionIndex(private val list: ShadowListKitListView
           select(event.y)
         }
       }
+
       MotionEvent.ACTION_MOVE -> if (owning) select(event.y)
+
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (owning) {
         owning = false
         return true

@@ -1,12 +1,14 @@
 import XCTest
 #if canImport(UIKit)
-import ShadowListKit
-import UIKit
-private typealias ActionColor = UIColor
+  import ShadowListKit
+  import UIKit
+
+  private typealias ActionColor = UIColor
 #else
-import AppKit
-import ShadowListKitAppKit
-private typealias ActionColor = NSColor
+  import AppKit
+  import ShadowListKitAppKit
+
+  private typealias ActionColor = NSColor
 #endif
 
 @MainActor
@@ -49,9 +51,9 @@ final class SwipeActionsConfigurationTests: XCTestCase {
       completion(true)
     }
     #if canImport(UIKit)
-    let image = UIImage()
+      let image = UIImage()
     #else
-    let image = NSImage(size: NSSize(width: 10, height: 10))
+      let image = NSImage(size: NSSize(width: 10, height: 10))
     #endif
     action.image = image
     let original = ShadowListKitSwipeActionsConfiguration(actions: [action])

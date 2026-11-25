@@ -161,6 +161,9 @@ interface NativeCommands {
   requestAnchorState: (
     viewRef: React.ElementRef<ShadowListViewComponentType>
   ) => void;
+  awaitRefreshSettle: (
+    viewRef: React.ElementRef<ShadowListViewComponentType>
+  ) => void;
   closeSwipeActions: (
     viewRef: React.ElementRef<ShadowListViewComponentType>
   ) => void;
@@ -264,6 +267,7 @@ export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({
     'scrollToEnd',
     'flashScrollIndicators',
     'requestAnchorState',
+    'awaitRefreshSettle',
     'closeSwipeActions',
   ],
 });

@@ -80,9 +80,13 @@ open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?)
   /*
    * Called before the cell is handed out again by dequeueReusableCell.
    */
-  open fun prepareForReuse() { clearSwipeAccessibility() }
+  open fun prepareForReuse() {
+    clearSwipeAccessibility()
+  }
 
-  internal fun clearSwipeAccessibility() { swipeAccessibility?.clear() }
+  internal fun clearSwipeAccessibility() {
+    swipeAccessibility?.clear()
+  }
 
   override fun onDetachedFromWindow() {
     clearSwipeAccessibility()
@@ -108,7 +112,10 @@ open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?)
   override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
     super.onInitializeAccessibilityNodeInfo(info)
     val list = parent as? ShadowListKitListView
-    if (list == null) { clearSwipeAccessibility(); return }
+    if (list == null) {
+      clearSwipeAccessibility()
+      return
+    }
     val actions = swipeAccessibility ?: ShadowListKitSwipeAccessibility(this) {
       val owner = parent as? ShadowListKitListView
       if (owner == null) null else owner.swipe to this
@@ -138,9 +145,24 @@ open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?)
    * only when membership or labels change, and read the current item again on invocation.
    */
   private fun refreshBoardActions(list: ShadowListKitListView) {
-    val targets = if (index >= 0 && list.delegate?.canMoveItem(list, index) != false) list.dragBoard?.moveTargets(list).orEmpty() else emptyList()
-    val labels = targets.map { context.getString(R.string.shadowlist_move_to, it.dragListLabel?.takeIf { label -> label.isNotEmpty() } ?: it.dragListId) }
-    if (labels == boardActionLabels && targets.size == boardActionTargets.size && targets.indices.all { targets[it] === boardActionTargets[it].get() }) return
+    val targets = if (index >= 0 &&
+      list.delegate?.canMoveItem(list, index) != false
+    ) {
+      list.dragBoard?.moveTargets(list).orEmpty()
+    } else {
+      emptyList()
+    }
+    val labels = targets.map {
+      context.getString(
+        R.string.shadowlist_move_to,
+        it.dragListLabel?.takeIf { label -> label.isNotEmpty() } ?: it.dragListId
+      )
+    }
+    if (labels == boardActionLabels && targets.size == boardActionTargets.size &&
+      targets.indices.all { targets[it] === boardActionTargets[it].get() }
+    ) {
+      return
+    }
     boardActionIds.forEach { ViewCompat.removeAccessibilityAction(this, it) }
     val ids = ArrayList<Int>()
     val keptLabels = ArrayList<String>()
@@ -150,7 +172,8 @@ open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?)
       val id = ViewCompat.addAccessibilityAction(this, labels[at]) { _, _ ->
         val source = parent as? ShadowListKitListView
         val target = destination.get()
-        source != null && target != null && index >= 0 && source.dragBoard?.performAccessibilityMove(source, index, target) == true
+        source != null && target != null && index >= 0 &&
+          source.dragBoard?.performAccessibilityMove(source, index, target) == true
       }
       if (id != NO_ID) {
         ids.add(id)

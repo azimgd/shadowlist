@@ -774,6 +774,8 @@ export class ShadowListKitListView extends HTMLElement {
       this.reusePool.set(identifier, pool);
     }
     pool.push(cell);
+    // A pooled cell leaves the document, which then neither styles nor lays it out.
+    cell.view.remove();
   }
 
   /*

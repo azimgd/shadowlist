@@ -20,7 +20,7 @@ internal class ShadowListKitSwipeActionsView(
   val trailing: ShadowListKitSwipeActionsConfiguration?,
   private val horizontal: Boolean,
   density: Float,
-  private val onAction: (ShadowListKitSwipeAction) -> Unit,
+  private val onAction: (ShadowListKitSwipeAction) -> Unit
 ) : ViewGroup(context) {
   private val leadingButtons = buttons(leading)
   private val trailingButtons = buttons(trailing)
@@ -77,14 +77,20 @@ internal class ShadowListKitSwipeActionsView(
       if (size > 0) {
         val w = if (horizontal) alongSize else size
         val h = if (horizontal) size else alongSize
-        button.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
+        button.measure(
+          MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
+          MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY)
+        )
         if (horizontal) button.layout(0, start, alongSize, end) else button.layout(start, 0, end, alongSize)
       }
     }
     shown.firstOrNull()?.let { setBackgroundColor((it.background as? ColorDrawable)?.color ?: 0) }
     // Only the gap shows the buttons' color.
     val gapStart = values[ShadowListKitSwipeReveal.OUT_REVEALED_START].roundToInt()
-    val gapEnd = (values[ShadowListKitSwipeReveal.OUT_REVEALED_START] + values[ShadowListKitSwipeReveal.OUT_REVEALED_SIZE]).roundToInt()
+    val gapEnd = (
+      values[ShadowListKitSwipeReveal.OUT_REVEALED_START] +
+        values[ShadowListKitSwipeReveal.OUT_REVEALED_SIZE]
+      ).roundToInt()
     if (horizontal) clip.set(0, gapStart, alongSize, gapEnd) else clip.set(gapStart, 0, gapEnd, alongSize)
     clipBounds = clip
   }
@@ -97,7 +103,10 @@ internal class ShadowListKitSwipeActionsView(
     val localY = (y - top).toInt()
     for (button in leadingButtons + trailingButtons) {
       if (button.visibility == VISIBLE && localX >= button.left && localX < button.right &&
-        localY >= button.top && localY < button.bottom) return true
+        localY >= button.top && localY < button.bottom
+      ) {
+        return true
+      }
     }
     return false
   }

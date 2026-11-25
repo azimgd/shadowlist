@@ -56,12 +56,10 @@ MountedRange stepMountedRange(
   std::size_t step) {
   bool disjoint = current.isEmpty() || target.low > current.high || target.high < current.low;
   const MountedRange& base = disjoint ? measured : current;
-  std::size_t low = target.low >= base.low
-    ? target.low
-    : std::max(target.low, std::min(subtractClamped(base.low, step), measured.low));
-  std::size_t high = target.high <= base.high
-    ? target.high
-    : std::min(target.high, std::max(base.high + step, measured.high));
+  std::size_t low =
+    target.low >= base.low ? target.low : std::max(target.low, std::min(subtractClamped(base.low, step), measured.low));
+  std::size_t high =
+    target.high <= base.high ? target.high : std::min(target.high, std::max(base.high + step, measured.high));
   return {low, high};
 }
 
@@ -100,7 +98,8 @@ std::optional<ReportedRange> reportedMountedRange(
   if (holdsMeasured && !firstReport) {
     std::size_t targetCount = target.high - target.low + 1;
     std::size_t currentCount = current.high - current.low + 1;
-    bool oversized = currentCount > targetCount && currentCount - targetCount > std::max(targetCount, MAX_FOLLOWED_APPEND);
+    bool oversized =
+      currentCount > targetCount && currentCount - targetCount > std::max(targetCount, MAX_FOLLOWED_APPEND);
     if (!oversized) {
       return std::nullopt;
     }
@@ -118,8 +117,9 @@ std::optional<MountedRange> viewableRange(std::size_t low, std::size_t high) {
 }
 
 std::size_t activeStickyIndexFor(const std::vector<std::size_t>& stickyIndices, std::size_t rangeLow) {
-  std::size_t position = pinnedSectionIndex(stickyIndices.size(), static_cast<double>(rangeLow),
-    [&](std::size_t at) { return static_cast<double>(stickyIndices[at]); });
+  std::size_t position = pinnedSectionIndex(stickyIndices.size(), static_cast<double>(rangeLow), [&](std::size_t at) {
+    return static_cast<double>(stickyIndices[at]);
+  });
   return position == UNDEFINED_INDEX ? UNDEFINED_INDEX : stickyIndices[position];
 }
 

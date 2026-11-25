@@ -45,7 +45,9 @@ TEST(track_layout_seeds_a_track_unused_for_many_mixed_span_rows) {
   std::vector<TrackPlacement> rows;
   rows.push_back(layout.place(2, 5.0));
   rows.push_back(layout.place(1, 100.0));
-  for (std::size_t index = 0; index < 1024; ++index) rows.push_back(layout.place(2, 1.0));
+  for (std::size_t index = 0; index < 1024; ++index) {
+    rows.push_back(layout.place(2, 1.0));
+  }
   TrackLayout reflow(3);
   reflow.seed(rows.size(), [&](std::size_t index) { return rows[index]; });
   CHECK_EQ(reflow.getTrackEnds(), layout.getTrackEnds());
@@ -58,7 +60,9 @@ TEST(track_layout_incremental_late_sizes_and_reordered_spans_match_full_reflow) 
   std::vector<double> extents{5.0, 100.0, 7.0, 0.0, 9.0, 12.0, 3.0, 4.0};
   TrackLayout original(3, 11.0);
   std::vector<TrackPlacement> rows;
-  for (std::size_t index = 0; index < spans.size(); ++index) rows.push_back(original.place(spans[index], extents[index]));
+  for (std::size_t index = 0; index < spans.size(); ++index) {
+    rows.push_back(original.place(spans[index], extents[index]));
+  }
   extents[2] = 24.0;
   std::swap(spans[4], spans[5]);
   std::swap(extents[4], extents[5]);
@@ -67,7 +71,9 @@ TEST(track_layout_incremental_late_sizes_and_reordered_spans_match_full_reflow) 
   TrackLayout full(3, 11.0);
   for (std::size_t index = 0; index < spans.size(); ++index) {
     auto expected = full.place(spans[index], extents[index]);
-    if (index < 2) continue;
+    if (index < 2) {
+      continue;
+    }
     auto actual = partial.place(spans[index], extents[index]);
     CHECK_EQ(actual.column, expected.column);
     CHECK_EQ(actual.span, expected.span);
@@ -95,7 +101,9 @@ TEST(track_ranges_incremental_append_trim_and_resize_match_actual_overlaps) {
   auto check = [&](double lower, double upper) {
     std::vector<std::size_t> expected;
     for (std::size_t index = 0; index < rows.size(); ++index) {
-      if (rows[index].end > lower && rows[index].leading <= upper) expected.push_back(index);
+      if (rows[index].end > lower && rows[index].leading <= upper) {
+        expected.push_back(index);
+      }
     }
     std::vector<std::size_t> actual;
     ranges.visit(lower, upper, [&](std::size_t index) { actual.push_back(index); });
@@ -119,7 +127,10 @@ TEST(track_ranges_incremental_append_trim_and_resize_match_actual_overlaps) {
 
 TEST(track_ranges_random_mixed_spans_and_late_edits_match_brute_force_rects) {
   std::uint32_t state = 0x724231u;
-  auto next = [&] { state = state * 1664525u + 1013904223u; return state; };
+  auto next = [&] {
+    state = state * 1664525u + 1013904223u;
+    return state;
+  };
   std::vector<std::size_t> spans(257);
   std::vector<double> extents(257);
   for (std::size_t index = 0; index < spans.size(); ++index) {
@@ -143,7 +154,9 @@ TEST(track_ranges_random_mixed_spans_and_late_edits_match_brute_force_rects) {
       double upper = lower + next() % 1000;
       std::vector<std::size_t> expected;
       for (std::size_t index = 0; index < rows.size(); ++index) {
-        if (rows[index].end > lower && rows[index].leading <= upper) expected.push_back(index);
+        if (rows[index].end > lower && rows[index].leading <= upper) {
+          expected.push_back(index);
+        }
       }
       std::vector<std::size_t> actual;
       ranges.visit(lower, upper, [&](std::size_t index) { actual.push_back(index); });

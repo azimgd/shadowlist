@@ -7,14 +7,13 @@
 
 namespace facebook::react {
 
-class ShadowListTemplateViewComponentDescriptor final : public ConcreteComponentDescriptor<ShadowListTemplateViewShadowNode> {
+class ShadowListTemplateViewComponentDescriptor final
+  : public ConcreteComponentDescriptor<ShadowListTemplateViewShadowNode> {
 public:
-  ShadowListTemplateViewComponentDescriptor(const ComponentDescriptorParameters& parameters) :
-    ConcreteComponentDescriptor<ShadowListTemplateViewShadowNode>(parameters) {}
+  ShadowListTemplateViewComponentDescriptor(const ComponentDescriptorParameters& parameters)
+    : ConcreteComponentDescriptor<ShadowListTemplateViewShadowNode>(parameters) {}
 
-  void adopt(ShadowNode& shadowNode) const override {
-    ConcreteComponentDescriptor::adopt(shadowNode);
-  }
+  void adopt(ShadowNode& shadowNode) const override { ConcreteComponentDescriptor::adopt(shadowNode); }
 };
 
 void ShadowListTemplateViewSpec_registerComponentDescriptorsFromCodegen(

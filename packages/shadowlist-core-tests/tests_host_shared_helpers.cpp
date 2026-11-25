@@ -19,10 +19,8 @@ namespace {
 /*
  * The overlay the plain way, a scan over every header.
  */
-SectionOverlayPosition scanOverlay(
-  const std::vector<double>& offsets,
-  const std::vector<double>& sizes,
-  double offset) {
+SectionOverlayPosition
+scanOverlay(const std::vector<double>& offsets, const std::vector<double>& sizes, double offset) {
   SectionOverlayPosition result;
   offset = offset < 0.0 ? 0.0 : offset;
   std::size_t active = UNDEFINED_INDEX;
@@ -78,7 +76,9 @@ TEST(drag_begin_and_place_row_match_the_list_and_grid_calls) {
   DragReorder listPlain;
   listPlain.begin(row.index, row.key, row.leading, row.extent, 350.0);
   CHECK(!list.isGrid());
-  CHECK_NEAR(list.placeRow(420.0, 40.0, row, 2000.0, 360.0).leading, listPlain.place(420.0, row.leading, row.extent, 2000.0), 1e-9);
+  CHECK_NEAR(
+    list.placeRow(420.0, 40.0, row, 2000.0, 360.0).leading, listPlain.place(420.0, row.leading, row.extent, 2000.0),
+    1e-9);
 
   DragReorder grid;
   grid.begin(row, 350.0, 180.0, 3);

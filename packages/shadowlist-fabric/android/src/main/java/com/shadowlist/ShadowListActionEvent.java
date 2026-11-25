@@ -33,8 +33,8 @@ public class ShadowListActionEvent extends Event<ShadowListActionEvent> {
     mFullSwipe = fullSwipe;
   }
 
-  static ShadowListActionEvent swipeAction(
-    int surfaceId, int viewId, boolean leading, int actionIndex, boolean fullSwipe) {
+  static ShadowListActionEvent
+  swipeAction(int surfaceId, int viewId, boolean leading, int actionIndex, boolean fullSwipe) {
     return new ShadowListActionEvent(surfaceId, viewId, SWIPE_ACTION, actionIndex, leading, fullSwipe);
   }
 

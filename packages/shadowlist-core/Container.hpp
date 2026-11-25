@@ -77,13 +77,9 @@ struct OffsetBand {
   double low = 1.0;
   double high = 0.0;
 
-  bool isEmpty() const {
-    return !(low <= high);
-  }
+  bool isEmpty() const { return !(low <= high); }
 
-  bool contains(double offset) const {
-    return low <= offset && offset <= high;
-  }
+  bool contains(double offset) const { return low <= offset && offset <= high; }
 };
 
 /*
@@ -122,17 +118,11 @@ struct IndexRange {
   std::size_t low = UNDEFINED_INDEX;
   std::size_t high = UNDEFINED_INDEX;
 
-  bool isEmpty() const {
-    return low == UNDEFINED_INDEX || high == UNDEFINED_INDEX;
-  }
+  bool isEmpty() const { return low == UNDEFINED_INDEX || high == UNDEFINED_INDEX; }
 
-  bool operator==(const IndexRange& other) const {
-    return low == other.low && high == other.high;
-  }
+  bool operator==(const IndexRange& other) const { return low == other.low && high == other.high; }
 
-  bool operator!=(const IndexRange& other) const {
-    return !(*this == other);
-  }
+  bool operator!=(const IndexRange& other) const { return !(*this == other); }
 };
 
 /*

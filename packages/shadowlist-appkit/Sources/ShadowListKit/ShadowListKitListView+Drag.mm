@@ -54,7 +54,7 @@ static void ShadowListKitSetTransform(CALayer *layer, CATransform3D transform, N
 static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
 {
   [NSHapticFeedbackManager.defaultPerformer performFeedbackPattern:pattern
-                                                    performanceTime:NSHapticFeedbackPerformanceTimeNow];
+                                                   performanceTime:NSHapticFeedbackPerformanceTimeNow];
 }
 
 @interface ShadowListKitListView (DragSteps)
@@ -248,8 +248,9 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   if (!cell || (std::size_t)cell.row >= _driver.getRowCount()) {
     return nil;
   }
-  if ([_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] &&
-      ![_userDelegate listView:self canMoveItemAtIndex:cell.index]) {
+  if (
+    [_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] &&
+    ![_userDelegate listView:self canMoveItemAtIndex:cell.index]) {
     return nil;
   }
   return cell;
@@ -303,16 +304,17 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
     return;
   }
   __weak ShadowListKitListView *weakSelf = self;
-  _dragKeyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent *(NSEvent *event) {
-    ShadowListKitListView *list = weakSelf;
-    if (![list hasHeldRow] || event.window != list.window) {
-      return event;
-    }
-    if (event.keyCode == SHADOWLIST_KIT_ESCAPE_KEY_CODE) {
-      [list cancelOperation:nil];
-    }
-    return nil;
-  }];
+  _dragKeyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+                                                          handler:^NSEvent *(NSEvent *event) {
+                                                            ShadowListKitListView *list = weakSelf;
+                                                            if (![list hasHeldRow] || event.window != list.window) {
+                                                              return event;
+                                                            }
+                                                            if (event.keyCode == SHADOWLIST_KIT_ESCAPE_KEY_CODE) {
+                                                              [list cancelOperation:nil];
+                                                            }
+                                                            return nil;
+                                                          }];
 }
 
 - (void)stopDragKeyMonitor
@@ -347,7 +349,8 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
   }
   CGPoint touch = [self contentPointOf:_dragTouch];
   DragOffset placed = _driver.placeHeld(held, [self along:touch], [self cross:touch]);
-  ShadowListKitSetTransform(_heldCell.layer, [self dragTransformOfCell:_heldCell offset:placed scale:SHADOWLIST_KIT_LIFT_SCALE], 0);
+  ShadowListKitSetTransform(
+    _heldCell.layer, [self dragTransformOfCell:_heldCell offset:placed scale:SHADOWLIST_KIT_LIFT_SCALE], 0);
   std::size_t insertion = _driver.getDragInsertionIndex();
   _driver.dragUpdateInsertion([self mountedRows]);
   std::size_t next = _driver.getDragInsertionIndex();
@@ -443,8 +446,8 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
 - (BOOL)itemsForDropOfRow:(std::size_t)fromRow atRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to
 {
   return fromRow != UNDEFINED_INDEX && toRow != UNDEFINED_INDEX && fromRow != toRow &&
-    [self itemsForDragFromRow:fromRow toRow:toRow from:from to:to] &&
-    [_userDelegate respondsToSelector:@selector(listView:moveItemAtIndex:toIndex:)];
+         [self itemsForDragFromRow:fromRow toRow:toRow from:from to:to] &&
+         [_userDelegate respondsToSelector:@selector(listView:moveItemAtIndex:toIndex:)];
 }
 
 /*
@@ -469,7 +472,8 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
     _animatesChanges = animates;
   }
   CGRect resting = cell.layer.frame;
-  CATransform3D transform = [self dragTransformOfCell:cell x:CGRectGetMidX(shown) - CGRectGetMidX(resting)
+  CATransform3D transform = [self dragTransformOfCell:cell
+                                                    x:CGRectGetMidX(shown) - CGRectGetMidX(resting)
                                                     y:CGRectGetMidY(shown) - CGRectGetMidY(resting)
                                                 scale:SHADOWLIST_KIT_LIFT_SCALE];
   ShadowListKitSetTransform(cell.layer, transform, 0);
@@ -604,9 +608,14 @@ static void ShadowListKitPerformHaptic(NSHapticFeedbackPattern pattern)
 - (void)shadowListKit_sendDragMouse:(NSEventType)type at:(CGPoint)point
 {
   NSPoint window = [self convertPoint:point toView:nil];
-  NSEvent *event = [NSEvent mouseEventWithType:type location:window modifierFlags:0
+  NSEvent *event = [NSEvent mouseEventWithType:type
+                                      location:window
+                                 modifierFlags:0
                                      timestamp:NSProcessInfo.processInfo.systemUptime
-                                  windowNumber:self.window.windowNumber context:nil eventNumber:0 clickCount:1
+                                  windowNumber:self.window.windowNumber
+                                       context:nil
+                                   eventNumber:0
+                                    clickCount:1
                                       pressure:type == NSEventTypeLeftMouseUp ? 0 : 1];
   switch (type) {
     case NSEventTypeLeftMouseDown:

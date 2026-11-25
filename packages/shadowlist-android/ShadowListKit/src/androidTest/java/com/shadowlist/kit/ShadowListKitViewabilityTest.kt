@@ -13,18 +13,30 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ShadowListKitViewabilityTest {
-  private open class Rows(val heights: MutableList<Int> = MutableList(20) { 100 }) : ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+  private open class Rows(val heights: MutableList<Int> = MutableList(20) { 100 }) :
+    ShadowListKitListView.DataSource,
+    ShadowListKitListView.Sizing {
     val keys = MutableList(heights.size) { "public-$it" }
     override fun numberOfItems(listView: ShadowListKitListView): Int = heights.size
     override fun keyForItem(listView: ShadowListKitListView, index: Int): String = keys[index]
-    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell = listView.dequeueReusableCell("row")
+    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+      listView.dequeueReusableCell("row")
     override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = heights[index]
   }
-  private class SectionRows(val stableSectionKeys: Boolean = false) : Rows(MutableList(4) { 40 }), ShadowListKitListView.Sections {
+  private class SectionRows(val stableSectionKeys: Boolean = false) :
+    Rows(MutableList(4) { 40 }),
+    ShadowListKitListView.Sections {
     var firstCount = 2
     override fun numberOfSections(listView: ShadowListKitListView): Int = 2
-    override fun numberOfItemsInSection(listView: ShadowListKitListView, section: Int): Int = if (section == 0) firstCount else 2
-    override fun keyForSection(listView: ShadowListKitListView, section: Int): String? = if (stableSectionKeys) "section-$section" else null
+    override fun numberOfItemsInSection(listView: ShadowListKitListView, section: Int): Int = if (section ==
+      0
+    ) {
+      firstCount
+    } else {
+      2
+    }
+    override fun keyForSection(listView: ShadowListKitListView, section: Int): String? =
+      if (stableSectionKeys) "section-$section" else null
     override fun titleForHeaderInSection(listView: ShadowListKitListView, section: Int): String = "Section $section"
     override fun sizeForHeaderInSection(listView: ShadowListKitListView, section: Int, crossSize: Int): Int = 20
   }
@@ -32,8 +44,12 @@ class ShadowListKitViewabilityTest {
   private fun main(body: () -> Unit) = instrumentation.runOnMainSync(body)
   private fun fixture(rows: Rows = Rows(), body: (Activity, ShadowListKitListView) -> Unit) {
     val context = instrumentation.context
-    val activity = instrumentation.startActivitySync(Intent().setClassName(context.packageName,
-      ShadowListKitBoardTestActivity::class.java.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    val activity = instrumentation.startActivitySync(
+      Intent().setClassName(
+        context.packageName,
+        ShadowListKitBoardTestActivity::class.java.name
+      ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
     lateinit var list: ShadowListKitListView
     try {
       main {
@@ -63,12 +79,15 @@ class ShadowListKitViewabilityTest {
       list.viewabilityConfig = config
       list.onViewableItemsChanged = { single++ }
       assertEquals(0, single)
-      list.viewabilityConfigCallbackPairs = listOf(ShadowListKitViewabilityConfigCallbackPair(config) { info ->
-        first++
-        assertTrue(info.viewableItems.all { it.key.startsWith("public-") && it.section == -1 })
-      })
+      list.viewabilityConfigCallbackPairs = listOf(
+        ShadowListKitViewabilityConfigCallbackPair(config) { info ->
+          first++
+          assertTrue(info.viewableItems.all { it.key.startsWith("public-") && it.section == -1 })
+        }
+      )
       assertEquals(1, first)
-      list.viewabilityConfigCallbackPairs = listOf(ShadowListKitViewabilityConfigCallbackPair(config.copy()) { replacement++ })
+      list.viewabilityConfigCallbackPairs =
+        listOf(ShadowListKitViewabilityConfigCallbackPair(config.copy()) { replacement++ })
       assertEquals(0, replacement)
       list.writeOffset(100)
       list.layoutPass()
@@ -84,12 +103,18 @@ class ShadowListKitViewabilityTest {
     var elapsed = 0L
     main {
       list.viewabilityConfig = ShadowListKitViewabilityConfig(minimumViewTime = 100.0, waitForInteraction = true)
-      list.onViewableItemsChanged = { elapsed = SystemClock.uptimeMillis() - interacted; delivered.countDown() }
+      list.onViewableItemsChanged = {
+        elapsed = SystemClock.uptimeMillis() - interacted
+        delivered.countDown()
+      }
       list.writeOffset(100)
       list.layoutPass()
     }
     assertFalse(delivered.await(140, TimeUnit.MILLISECONDS))
-    main { interacted = SystemClock.uptimeMillis(); list.recordInteraction() }
+    main {
+      interacted = SystemClock.uptimeMillis()
+      list.recordInteraction()
+    }
     assertFalse(delivered.await(30, TimeUnit.MILLISECONDS))
     assertTrue(delivered.await(2, TimeUnit.SECONDS))
     assertTrue("minimumViewTime must elapse on the actual attached host", elapsed >= 100)
@@ -129,29 +154,39 @@ class ShadowListKitViewabilityTest {
           list.viewabilityConfigCallbackPairs = emptyList()
           (list.parent as FrameLayout).removeView(list)
         },
-        ShadowListKitViewabilityConfigCallbackPair(ShadowListKitViewabilityConfig(itemVisiblePercentThreshold = 75.0)) { stale++ },
+        ShadowListKitViewabilityConfigCallbackPair(ShadowListKitViewabilityConfig(itemVisiblePercentThreshold = 75.0)) {
+          stale++
+        }
       )
       assertEquals(1, first)
       assertEquals(0, stale)
     }
   }
 
-  @Test fun masonry_qualifies_each_row_instead_of_including_the_bounding_gap() = fixture(Rows(mutableListOf(100, 60, 50, 100, 100, 100))) { _, list ->
-    main {
-      list.numberOfColumns = 2
-      list.reloadData()
-      list.layoutPass()
-      list.writeOffset(50)
-      list.layoutPass()
-      var keys = emptyList<String>()
-      list.viewabilityConfig = ShadowListKitViewabilityConfig(itemVisiblePercentThreshold = 50.0)
-      list.onViewableItemsChanged = { keys = it.viewableItems.map { token -> token.key } }
-      assertTrue(keys.contains("public-0"))
-      assertFalse(keys.contains("public-1"))
-      assertTrue(keys.contains("public-2"))
+  @Test fun masonry_qualifies_each_row_instead_of_including_the_bounding_gap() =
+    fixture(Rows(mutableListOf(100, 60, 50, 100, 100, 100))) {
+        _,
+        list
+      ->
+      main {
+        list.numberOfColumns = 2
+        list.reloadData()
+        list.layoutPass()
+        list.writeOffset(50)
+        list.layoutPass()
+        var keys = emptyList<String>()
+        list.viewabilityConfig = ShadowListKitViewabilityConfig(itemVisiblePercentThreshold = 50.0)
+        list.onViewableItemsChanged = { keys = it.viewableItems.map { token -> token.key } }
+        assertTrue(keys.contains("public-0"))
+        assertFalse(keys.contains("public-1"))
+        assertTrue(keys.contains("public-2"))
+      }
     }
-  }
-  @Test fun sections_report_public_item_keys_and_previous_metadata_for_removed_tokens() = fixture(SectionRows()) { _, list ->
+
+  @Test fun sections_report_public_item_keys_and_previous_metadata_for_removed_tokens() = fixture(SectionRows()) {
+      _,
+      list
+    ->
     main {
       var info: ShadowListKitViewableItemsChangedInfo? = null
       list.onViewableItemsChanged = { info = it }
@@ -222,12 +257,11 @@ class ShadowListKitViewabilityTest {
           },
           ShadowListKitViewabilityConfigCallbackPair(config) { info ->
             events.add("second:" + info.viewableItems.joinToString(",") { it.key })
-          },
+          }
         )
         list.layoutPass()
         assertEquals(listOf("first:public-0", "second:public-0", "first:public-1", "second:public-1"), events)
       }
     }
   }
-
 }

@@ -51,7 +51,8 @@ public:
    * that start with them would collide.
    */
   static constexpr const char* HEADER_KEY_PREFIX = "\x1fh:";
-  static constexpr const char* FOOTER_KEY_PREFIX = "\x1f" "f:";
+  static constexpr const char* FOOTER_KEY_PREFIX = "\x1f"
+                                                   "f:";
 
   /*
    * An item row qualified by its section, for data whose item keys repeat across sections, like
@@ -59,7 +60,8 @@ public:
    * Fabric's SectionList builds its item rows this way. JS builds the same keys for the rows it
    * mounts, see sectionKeys.ts.
    */
-  static constexpr const char* ITEM_KEY_PREFIX = "\x1f" "i:";
+  static constexpr const char* ITEM_KEY_PREFIX = "\x1f"
+                                                 "i:";
   static constexpr char ITEM_KEY_SEPARATOR = '\x1f';
 
   static std::string headerRowKey(const std::string& sectionKey);
@@ -158,10 +160,8 @@ public:
    * the key of the section's first item, or "#" and the section number for a section without
    * items.
    */
-  std::string sectionKey(
-    std::size_t section,
-    const std::optional<std::string>& given,
-    const std::string& firstItemKey) const;
+  std::string
+  sectionKey(std::size_t section, const std::optional<std::string>& given, const std::string& firstItemKey) const;
 
   /*
    * The keys of every header and footer row, in row order. sectionKeys has one optional key
@@ -176,9 +176,8 @@ public:
    * The rows' keys: each section's header key, its items' keys and its footer key.
    * itemKeys has one key per item, sectionKeys one optional key per section.
    */
-  std::vector<std::string> rowKeys(
-    const std::vector<std::string>& itemKeys,
-    const std::vector<std::optional<std::string>>& sectionKeys) const;
+  std::vector<std::string>
+  rowKeys(const std::vector<std::string>& itemKeys, const std::vector<std::optional<std::string>>& sectionKeys) const;
 
   /*
    * One section's rows' keys appended to rows: its header, its items qualified by sectionKey
@@ -201,9 +200,8 @@ public:
    * itemKeys without a copy: rowKeys itself without sections, otherwise the items' keys
    * written into scratch.
    */
-  const std::vector<std::string>& itemKeys(
-    const std::vector<std::string>& rowKeys,
-    std::vector<std::string>& scratch) const;
+  const std::vector<std::string>&
+  itemKeys(const std::vector<std::string>& rowKeys, std::vector<std::string>& scratch) const;
 
 private:
   /*

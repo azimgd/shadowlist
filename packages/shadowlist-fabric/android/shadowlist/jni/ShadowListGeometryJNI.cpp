@@ -94,7 +94,8 @@ JNIEXPORT void JNICALL SL_GEOMETRY_JNI(nativeStickyTranslations)(JNIEnv* env, jc
   slots[STICKY_PREVIOUS_OFFSET] = state.previousOffset;
   slots[STICKY_HEADER_TRANSLATION] = translations.header;
   slots[STICKY_FOOTER_TRANSLATION] = translations.footer;
-  env->SetDoubleArrayRegion(slotsArray, STICKY_HEADER_HIDDEN, STICKY_SLOTS - STICKY_HEADER_HIDDEN, slots + STICKY_HEADER_HIDDEN);
+  env->SetDoubleArrayRegion(
+    slotsArray, STICKY_HEADER_HIDDEN, STICKY_SLOTS - STICKY_HEADER_HIDDEN, slots + STICKY_HEADER_HIDDEN);
 }
 
 JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativeSectionOverlayTranslation)(
@@ -105,13 +106,15 @@ JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativeSectionOverlayTranslation)(
   jint count,
   jdouble offset) {
   constexpr double hidden = std::numeric_limits<double>::quiet_NaN();
-  if (offsetsArray == nullptr || sizesArray == nullptr || count <= 0 ||
-      env->GetArrayLength(offsetsArray) < count || env->GetArrayLength(sizesArray) < count) {
+  if (
+    offsetsArray == nullptr || sizesArray == nullptr || count <= 0 || env->GetArrayLength(offsetsArray) < count ||
+    env->GetArrayLength(sizesArray) < count) {
     return hidden;
   }
   auto* offsets = static_cast<jdouble*>(env->GetPrimitiveArrayCritical(offsetsArray, nullptr));
   // A failed get leaves an exception pending. Skip the second get, only releases are allowed then.
-  auto* sizes = offsets != nullptr ? static_cast<jdouble*>(env->GetPrimitiveArrayCritical(sizesArray, nullptr)) : nullptr;
+  auto* sizes =
+    offsets != nullptr ? static_cast<jdouble*>(env->GetPrimitiveArrayCritical(sizesArray, nullptr)) : nullptr;
   sl::SectionOverlayPosition position;
   if (offsets != nullptr && sizes != nullptr) {
     position = sl::sectionOverlayPosition(offsets, sizes, static_cast<std::size_t>(count), offset);
@@ -125,12 +128,8 @@ JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativeSectionOverlayTranslation)(
   return position.visible ? position.translation : hidden;
 }
 
-JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeNearestSnapOffsetPx)(
-  JNIEnv* env,
-  jclass,
-  jfloatArray offsetsArray,
-  jint count,
-  jint targetPx) {
+JNIEXPORT jint JNICALL
+SL_GEOMETRY_JNI(nativeNearestSnapOffsetPx)(JNIEnv* env, jclass, jfloatArray offsetsArray, jint count, jint targetPx) {
   if (offsetsArray == nullptr || count <= 0 || env->GetArrayLength(offsetsArray) < count) {
     return targetPx;
   }
@@ -159,13 +158,16 @@ JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeCopyStickyGeometry)(
   jdoubleArray offsetsArray,
   jdoubleArray sizesArray) {
   auto geometry = mountedGeometry(mountHandle);
-  if (!geometry.stickyIndices || !geometry.stickyOffsets || !geometry.stickySizes || indicesArray == nullptr ||
-      offsetsArray == nullptr || sizesArray == nullptr) {
+  if (
+    !geometry.stickyIndices || !geometry.stickyOffsets || !geometry.stickySizes || indicesArray == nullptr ||
+    offsetsArray == nullptr || sizesArray == nullptr) {
     return 0;
   }
-  std::size_t count = std::min({geometry.stickyIndices->size(), geometry.stickyOffsets->size(),
-    geometry.stickySizes->size(), static_cast<std::size_t>(env->GetArrayLength(indicesArray)),
-    static_cast<std::size_t>(env->GetArrayLength(offsetsArray)), static_cast<std::size_t>(env->GetArrayLength(sizesArray))});
+  std::size_t count = std::min(
+    {geometry.stickyIndices->size(), geometry.stickyOffsets->size(), geometry.stickySizes->size(),
+     static_cast<std::size_t>(env->GetArrayLength(indicesArray)),
+     static_cast<std::size_t>(env->GetArrayLength(offsetsArray)),
+     static_cast<std::size_t>(env->GetArrayLength(sizesArray))});
   auto length = static_cast<jsize>(count);
   env->SetIntArrayRegion(indicesArray, 0, length, reinterpret_cast<const jint*>(geometry.stickyIndices->data()));
   env->SetDoubleArrayRegion(offsetsArray, 0, length, geometry.stickyOffsets->data());
@@ -178,7 +180,8 @@ JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeSnapCount)(JNIEnv*, jclass, jlong m
   return geometry.snapOffsets ? static_cast<jint>(geometry.snapOffsets->size()) : 0;
 }
 
-JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeCopySnapOffsets)(JNIEnv* env, jclass, jlong mountHandle, jdoubleArray offsetsArray) {
+JNIEXPORT jint JNICALL
+SL_GEOMETRY_JNI(nativeCopySnapOffsets)(JNIEnv* env, jclass, jlong mountHandle, jdoubleArray offsetsArray) {
   auto geometry = mountedGeometry(mountHandle);
   if (!geometry.snapOffsets || offsetsArray == nullptr) {
     return 0;
@@ -189,14 +192,8 @@ JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeCopySnapOffsets)(JNIEnv* env, jclas
   return length;
 }
 
-JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativePageScrollTarget)(
-  JNIEnv*,
-  jclass,
-  jdouble offset,
-  jdouble windowAlong,
-  jdouble maxOffset,
-  jint direction) {
+JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(
+  nativePageScrollTarget)(JNIEnv*, jclass, jdouble offset, jdouble windowAlong, jdouble maxOffset, jint direction) {
   return sl::pageScrollTarget(offset, windowAlong, maxOffset, direction);
 }
-
 }

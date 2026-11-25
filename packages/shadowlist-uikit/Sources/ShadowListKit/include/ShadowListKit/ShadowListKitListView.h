@@ -107,8 +107,8 @@ NS_ASSUME_NONNULL_BEGIN
  *   together in one layout and one animation, the way UITableView takes them: deletes, reloads
  *   and move sources are indices in the data before, inserts and move destinations in the data
  *   after. A batch that does not add up reloads everything. completion gets finished once the
- *   change is laid out and, with the default item animator, its animation ended. A custom item
- *   animator's animations are not waited for.
+ *   change is laid out and the animations it started on the cells ended, the default item
+ *   animator's or a custom one's, on the first display frame after that.
  * - applyChanges reads every key, works out the inserts, deletes and moves against the keys the
  *   list holds, reloads items whose content version changed, and returns what it found.
  * - In a list with sections every change reads the sections and keys again, like reloadData.
@@ -158,11 +158,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isHorizontal) BOOL horizontal;
 @property (nonatomic) NSInteger numberOfColumns;
 @property (nonatomic) CGFloat estimatedItemSize;
-@property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec * _Nullable (^getItemSizeSpec)(NSInteger index);
+@property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec *_Nullable (^getItemSizeSpec)(NSInteger index);
 @property (nonatomic) NSUInteger measureLookaheadRows;
 @property (nonatomic, copy, nullable) NSInteger (^getItemSpan)(NSInteger index);
 @property (nonatomic, copy, nullable) ShadowListKitViewabilityConfig *viewabilityConfig;
-@property (nonatomic, copy, nullable) NSArray<ShadowListKitViewabilityConfigCallbackPair *> *viewabilityConfigCallbackPairs;
+@property (nonatomic, copy, nullable)
+  NSArray<ShadowListKitViewabilityConfigCallbackPair *> *viewabilityConfigCallbackPairs;
 @property (nonatomic, copy, nullable) void (^onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *info);
 - (void)recordInteraction;
 @property (nonatomic) CGFloat overscan;
@@ -178,7 +179,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL animatesChanges;
 @property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
 @property (nonatomic) BOOL stickySectionHeaders;
-@property (nonatomic, copy, nullable) UIView * _Nullable (^renderStickyHeaderOverlay)(NSString * _Nullable key, NSInteger index, NSInteger section);
+@property (nonatomic, copy, nullable) UIView *_Nullable (^renderStickyHeaderOverlay)
+  (NSString *_Nullable key, NSInteger index, NSInteger section);
 @property (nonatomic, strong, nullable) UIView *headerView;
 @property (nonatomic, strong, nullable) UIView *footerView;
 @property (nonatomic) BOOL stickyHeader;
@@ -222,7 +224,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices;
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices payload:(nullable id)payload;
 - (void)moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
-- (void)performBatchUpdates:(void (NS_NOESCAPE ^_Nullable)(void))updates completion:(void (^_Nullable)(BOOL finished))completion;
+- (void)performBatchUpdates:(void(NS_NOESCAPE ^ _Nullable)(void))updates
+                 completion:(void (^_Nullable)(BOOL finished))completion;
 - (ShadowListKitListChanges *)applyChanges;
 
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated;

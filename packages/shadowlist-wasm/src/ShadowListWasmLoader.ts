@@ -5,7 +5,6 @@ export interface ShadowListWasmLoadOptions {
 
 export interface ShadowListWasmModuleOptions {
   locateFile?: (path: string, scriptDirectory: string) => string;
-  wasmBinary?: BufferSource;
   instantiateWasm?: (
     imports: WebAssembly.Imports,
     done: (instance: WebAssembly.Instance, module: WebAssembly.Module) => void
@@ -14,8 +13,10 @@ export interface ShadowListWasmModuleOptions {
 
 /*
  * Both optional modules load once, share in-flight attempts, and forget failed attempts.
- * A compiled module that fails to instantiate rejects through fail: Emscripten's
- * instantiateWasm callback itself has no failure result.
+ * A source, bytes or a compiled module, instantiates through Emscripten's instantiateWasm
+ * callback, which every Emscripten version reads. Emscripten 7 no longer reads wasmBinary by
+ * default and would load its own file instead. The callback has no failure result: a source
+ * that fails to instantiate rejects through fail.
  */
 export class ShadowListWasmLoader<T> {
   private loading: Promise<void> | null = null;
@@ -32,18 +33,16 @@ export class ShadowListWasmLoader<T> {
     const attempt = new Promise<T>((resolve, reject) => {
       const source = options?.source;
       let moduleOptions: ShadowListWasmModuleOptions;
-      if (source instanceof WebAssembly.Module) {
+      if (source !== undefined) {
         moduleOptions = {
           instantiateWasm: (imports, done) => {
-            WebAssembly.instantiate(source, imports).then(
-              (instance) => done(instance, source),
+            instantiate(source, imports).then(
+              ({ instance, module }) => done(instance, module),
               reject
             );
             return {};
           },
         };
-      } else if (source !== undefined) {
-        moduleOptions = { wasmBinary: source };
       } else {
         moduleOptions = { locateFile: options?.locateFile };
       }
@@ -57,4 +56,17 @@ export class ShadowListWasmLoader<T> {
     this.loading = attempt;
     return attempt;
   }
+}
+
+async function instantiate(
+  source: BufferSource | WebAssembly.Module,
+  imports: WebAssembly.Imports
+): Promise<{ instance: WebAssembly.Instance; module: WebAssembly.Module }> {
+  if (source instanceof WebAssembly.Module) {
+    return {
+      instance: await WebAssembly.instantiate(source, imports),
+      module: source,
+    };
+  }
+  return WebAssembly.instantiate(source, imports);
 }

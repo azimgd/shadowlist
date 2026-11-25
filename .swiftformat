@@ -1,0 +1,14 @@
+# Swift formatting for the kits' tests, benches and package manifests.
+# Run it with `make format-native`, check it with `make format-native-check`.
+--swiftversion 5.9
+--indent 2
+--maxwidth 120
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+--commas inline
+--self remove
+--stripunusedargs closure-only
+--exclude **/.build,**/build,**/node_modules,**/DerivedData
+--disable noForceUnwrapInTests,docComments

@@ -219,9 +219,8 @@ std::optional<MountedRange> ListSections::itemRangeOfRows(std::size_t low, std::
   return range;
 }
 
-std::vector<std::size_t> ListSections::stickyRows(
-  const std::vector<std::size_t>& stickyItems,
-  bool sectionHeaders) const {
+std::vector<std::size_t>
+ListSections::stickyRows(const std::vector<std::size_t>& stickyItems, bool sectionHeaders) const {
   std::vector<std::size_t> rows;
   for (std::size_t item : stickyItems) {
     std::size_t row = rowForItem(item);
@@ -342,13 +341,17 @@ void ListSections::appendSectionRowKeys(
 std::vector<std::string> ListSections::itemKeys(const std::vector<std::string>& rowKeys) const {
   std::vector<std::string> scratch;
   const std::vector<std::string>& items = itemKeys(rowKeys, scratch);
-  return &items == &rowKeys ? rowKeys : std::move(scratch);
+  if (&items == &rowKeys) {
+    return rowKeys;
+  }
+  return scratch;
 }
 
-const std::vector<std::string>& ListSections::itemKeys(
-  const std::vector<std::string>& rowKeys,
-  std::vector<std::string>& scratch) const {
+const std::vector<std::string>&
+ListSections::itemKeys(const std::vector<std::string>& rowKeys, std::vector<std::string>& scratch) const {
   if (!sectioned_) {
+    // Returning the argument is the point: a list without sections hands its row keys back with no copy.
+    // NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)
     return rowKeys;
   }
   scratch.clear();

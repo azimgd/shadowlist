@@ -9,9 +9,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface ShadowListKitViewabilityConfig : NSObject <NSCopying>
 - (instancetype)init;
 - (instancetype)initWithItemVisiblePercentThreshold:(nullable NSNumber *)itemVisiblePercentThreshold
-                  viewAreaCoveragePercentThreshold:(nullable NSNumber *)viewAreaCoveragePercentThreshold
-                                   minimumViewTime:(double)minimumViewTime
-                                waitForInteraction:(BOOL)waitForInteraction NS_DESIGNATED_INITIALIZER;
+                   viewAreaCoveragePercentThreshold:(nullable NSNumber *)viewAreaCoveragePercentThreshold
+                                    minimumViewTime:(double)minimumViewTime
+                                 waitForInteraction:(BOOL)waitForInteraction NS_DESIGNATED_INITIALIZER;
 @property (nonatomic, copy, readonly, nullable) NSNumber *itemVisiblePercentThreshold;
 @property (nonatomic, copy, readonly, nullable) NSNumber *viewAreaCoveragePercentThreshold;
 @property (nonatomic, readonly) double minimumViewTime;
@@ -38,9 +38,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ShadowListKitViewabilityConfigCallbackPair : NSObject
 - (instancetype)initWithViewabilityConfig:(ShadowListKitViewabilityConfig *)viewabilityConfig
-                   onViewableItemsChanged:(void (^ _Nullable)(ShadowListKitViewableItemsChangedInfo *info))onViewableItemsChanged;
+                   onViewableItemsChanged:
+                     (void (^_Nullable)(ShadowListKitViewableItemsChangedInfo *info))onViewableItemsChanged;
 @property (nonatomic, copy, readonly) ShadowListKitViewabilityConfig *viewabilityConfig;
-@property (nonatomic, copy, readonly, nullable) void (^onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *info);
+@property (nonatomic, copy, readonly, nullable) void (^onViewableItemsChanged)
+  (ShadowListKitViewableItemsChangedInfo *info);
 @end
 
 NS_ASSUME_NONNULL_END

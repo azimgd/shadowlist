@@ -35,7 +35,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
 @property (nonatomic, strong, nullable) UIImage *image;
 @property (nonatomic, strong, null_resettable) UIColor *backgroundColor;
 #endif
-@property (nonatomic, copy, readonly) void (^handler)(ShadowListKitSwipeAction *action, void (^completion)(BOOL performed));
+@property (nonatomic, copy, readonly) void (^handler)
+  (ShadowListKitSwipeAction *action, void (^completion)(BOOL performed));
 
 @end
 

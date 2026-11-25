@@ -11,7 +11,7 @@ namespace {
 /*
  * Reflow a single column. Built once per axis so the loop skips the orientation check.
  */
-template <double Row::*offset, double Row::*size, double Row::*crossOffset, double Row::*crossSize>
+template <double Row::* offset, double Row::* size, double Row::* crossOffset, double Row::* crossSize>
 void reflowSingleTrack(
   Row* rows,
   std::size_t fromIndex,
@@ -42,7 +42,7 @@ void reflowSingleTrack(
 /*
  * Reflow several columns. Rows go to columns in turn and take the column's width.
  */
-template <double Row::*offset, double Row::*size, double Row::*crossOffset, double Row::*crossSize>
+template <double Row::* offset, double Row::* size, double Row::* crossOffset, double Row::* crossSize>
 void reflowTracks(
   Container& container,
   std::size_t fromIndex,
@@ -59,6 +59,8 @@ void reflowTracks(
    * Start each column at the end of its last row before fromIndex. Those rows are all
    * within one row per column back.
    */
+  // The decrement is sequenced before the second operand of &&, so it reads the decremented index.
+  // NOLINTNEXTLINE(bugprone-inc-dec-in-conditions)
   for (std::size_t seedIndex = fromIndex; seedIndex-- > 0 && seedIndex + columns >= fromIndex;) {
     const Row& seedRow = rows[seedIndex];
     trackSizes[seedIndex % columns] = seedRow.*offset + seedRow.*size;
@@ -70,8 +72,8 @@ void reflowTracks(
     nextRow.column = trackIndex;
 
     // Set the width too. A reflow after the window size is known fixes it.
-    anyOffsetChanged = anyOffsetChanged || nextRow.*offset != trackSizes[trackIndex] ||
-      nextRow.*crossOffset != trackIndex * trackSize;
+    anyOffsetChanged =
+      anyOffsetChanged || nextRow.*offset != trackSizes[trackIndex] || nextRow.*crossOffset != trackIndex * trackSize;
     nextRow.*crossOffset = trackIndex * trackSize;
     nextRow.*crossSize = trackSize;
     nextRow.*offset = trackSizes[trackIndex];
@@ -87,7 +89,7 @@ void reflowTracks(
  * Mixed spans use the same placement for core rows and drag reflow. Append keeps the last
  * per-track summary; other edits seed from actual prior placements, including long-unused tracks.
  */
-template <double Row::*offset, double Row::*size, double Row::*crossOffset, double Row::*crossSize>
+template <double Row::* offset, double Row::* size, double Row::* crossOffset, double Row::* crossSize>
 void reflowSpans(
   Container& container,
   std::size_t fromIndex,
@@ -97,11 +99,10 @@ void reflowSpans(
   auto& rows = container.revision.rows;
   auto& state = container.state;
   auto& layout = state.spanLayout;
-  bool append = fromIndex == state.spanLayoutRowCount &&
-    layout.getTrackEnds().size() == container.numberOfColumns &&
-    state.previousLayoutHeaderSize == container.headerSize &&
-    state.previousLayoutHorizontal == container.horizontal &&
-    state.previousLayoutNumberOfColumns == container.numberOfColumns;
+  bool append = fromIndex == state.spanLayoutRowCount && layout.getTrackEnds().size() == container.numberOfColumns &&
+                state.previousLayoutHeaderSize == container.headerSize &&
+                state.previousLayoutHorizontal == container.horizontal &&
+                state.previousLayoutNumberOfColumns == container.numberOfColumns;
   if (!append) {
     layout.reset(container.numberOfColumns, container.headerSize);
     layout.seed(fromIndex, [&](std::size_t index) {
@@ -114,8 +115,8 @@ void reflowSpans(
     TrackPlacement placed = layout.place(row.columnSpan, row.*size);
     double crossLeading = static_cast<double>(placed.column) * trackSize;
     double crossExtent = static_cast<double>(placed.span) * trackSize;
-    anyOffsetChanged = anyOffsetChanged || row.*offset != placed.leading ||
-      row.*crossOffset != crossLeading || row.*crossSize != crossExtent;
+    anyOffsetChanged = anyOffsetChanged || row.*offset != placed.leading || row.*crossOffset != crossLeading ||
+                       row.*crossSize != crossExtent;
     row.column = placed.column;
     row.*offset = placed.leading;
     row.*crossOffset = crossLeading;
@@ -134,9 +135,10 @@ void reflowSpans(
 void Virtualizer::layoutRows(Container& container) {
   std::size_t rowCount = container.revision.rows.size();
 
-  double trackSize = container.horizontal
-    ? container.revision.windowHeight / (container.numberOfColumns > 0 ? container.numberOfColumns : 1)
-    : container.revision.windowWidth / (container.numberOfColumns > 0 ? container.numberOfColumns : 1);
+  double trackSize =
+    container.horizontal
+      ? container.revision.windowHeight / (container.numberOfColumns > 0 ? container.numberOfColumns : 1)
+      : container.revision.windowWidth / (container.numberOfColumns > 0 ? container.numberOfColumns : 1);
 
   // Unmeasured rows get the average size, or the estimate until there is an average.
   auto [fallbackWidth, fallbackHeight] = effectiveFallbackSize(container);
@@ -148,9 +150,8 @@ void Virtualizer::layoutRows(Container& container) {
    */
   bool layoutParamsChanged =
     container.headerSize != container.state.previousLayoutHeaderSize ||
-    (container.horizontal
-      ? container.revision.windowHeight != container.state.previousLayoutWindowHeight
-      : container.revision.windowWidth != container.state.previousLayoutWindowWidth) ||
+    (container.horizontal ? container.revision.windowHeight != container.state.previousLayoutWindowHeight
+                          : container.revision.windowWidth != container.state.previousLayoutWindowWidth) ||
     container.numberOfColumns != container.state.previousLayoutNumberOfColumns ||
     container.horizontal != container.state.previousLayoutHorizontal;
 
@@ -160,8 +161,7 @@ void Virtualizer::layoutRows(Container& container) {
    * would walk the whole list for nothing.
    */
   bool fallbackDimensionsChanged =
-    fallbackWidth != container.state.previousFallbackWidth ||
-    fallbackHeight != container.state.previousFallbackHeight;
+    fallbackWidth != container.state.previousFallbackWidth || fallbackHeight != container.state.previousFallbackHeight;
 
   /*
    * Rows before the first one a structure change touched kept their size and place. A
@@ -169,8 +169,7 @@ void Virtualizer::layoutRows(Container& container) {
    */
   std::size_t structureFrom = UNDEFINED_INDEX;
   if (container.state.rowStructureDirty) {
-    double crossWindow = container.horizontal ? container.revision.windowHeight
-                                              : container.revision.windowWidth;
+    double crossWindow = container.horizontal ? container.revision.windowHeight : container.revision.windowWidth;
     structureFrom = container.state.maxCrossAxisExtent > crossWindow ? 0 : container.state.rowStructureDirtyFromIndex;
   }
   bool fullSizing = fallbackDimensionsChanged || layoutParamsChanged;
@@ -180,8 +179,8 @@ void Virtualizer::layoutRows(Container& container) {
 
   if (fullSizing || container.state.rowStructureDirty) {
     if (container.numberOfColumns > 1) {
-      double Row::*size = container.horizontal ? &Row::width : &Row::height;
-      double Row::*crossSize = container.horizontal ? &Row::height : &Row::width;
+      double Row::* size = container.horizontal ? &Row::width : &Row::height;
+      double Row::* crossSize = container.horizontal ? &Row::height : &Row::width;
       double fallbackSize = container.horizontal ? fallbackWidth : fallbackHeight;
       for (std::size_t nextRowIndex = sizingFrom; nextRowIndex < rowCount; ++nextRowIndex) {
         Row& nextRow = container.revision.rows[nextRowIndex];
@@ -198,8 +197,7 @@ void Virtualizer::layoutRows(Container& container) {
     } else {
       for (std::size_t nextRowIndex = sizingFrom; nextRowIndex < rowCount; ++nextRowIndex) {
         Row& nextRow = container.revision.rows[nextRowIndex];
-        if (!nextRow.estimated &&
-            (nextRow.width != fallbackWidth || nextRow.height != fallbackHeight)) {
+        if (!nextRow.estimated && (nextRow.width != fallbackWidth || nextRow.height != fallbackHeight)) {
           nextRow.width = fallbackWidth;
           nextRow.height = fallbackHeight;
           anyNewlyEstimated = true;
@@ -244,10 +242,7 @@ void Virtualizer::layoutRows(Container& container) {
   }
 }
 
-void Virtualizer::recomputeRowOffsets(
-  Container& container,
-  std::size_t fromIndex,
-  std::size_t changedThroughIndex) {
+void Virtualizer::recomputeRowOffsets(Container& container, std::size_t fromIndex, std::size_t changedThroughIndex) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
   /*
@@ -275,9 +270,8 @@ void Virtualizer::recomputeRowOffsets(
   }
 
   if (container.numberOfColumns > 1 && container.state.hasRowSpans) {
-    double trackSize = container.horizontal
-      ? container.revision.windowHeight / container.numberOfColumns
-      : container.revision.windowWidth / container.numberOfColumns;
+    double trackSize = container.horizontal ? container.revision.windowHeight / container.numberOfColumns
+                                            : container.revision.windowWidth / container.numberOfColumns;
     if (container.horizontal) {
       reflowSpans<&Row::offsetX, &Row::width, &Row::offsetY, &Row::height>(
         container, fromIndex, trackSize, crossMax, anyOffsetChanged);
@@ -287,9 +281,8 @@ void Virtualizer::recomputeRowOffsets(
     }
   } else if (container.numberOfColumns > 1) {
     container.state.spanLayoutRowCount = UNDEFINED_INDEX;
-    double trackSize = container.horizontal
-      ? container.revision.windowHeight / container.numberOfColumns
-      : container.revision.windowWidth / container.numberOfColumns;
+    double trackSize = container.horizontal ? container.revision.windowHeight / container.numberOfColumns
+                                            : container.revision.windowWidth / container.numberOfColumns;
     if (container.horizontal) {
       reflowTracks<&Row::offsetX, &Row::width, &Row::offsetY, &Row::height>(
         container, fromIndex, trackSize, crossMax, anyOffsetChanged);
@@ -304,9 +297,8 @@ void Virtualizer::recomputeRowOffsets(
 
     if (fromIndex > 0) {
       const Row& previousRow = container.revision.rows[fromIndex - 1];
-      nextOffset = container.horizontal
-        ? previousRow.offsetX + previousRow.width
-        : previousRow.offsetY + previousRow.height;
+      nextOffset =
+        container.horizontal ? previousRow.offsetX + previousRow.width : previousRow.offsetY + previousRow.height;
     }
 
     // This is the hottest loop in the core. The orientation check is kept out of it.

@@ -58,8 +58,7 @@ TEST(batched_measurement_matches_the_per_row_path) {
   Virtualizer::update(batched, inputFor(keys, 0.0));
   std::size_t lowestChanged = UNDEFINED_INDEX;
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    if (Virtualizer::applyRowSize(batched, index, {WINDOW_WIDTH, heights[index]}) &&
-        index < lowestChanged) {
+    if (Virtualizer::applyRowSize(batched, index, {WINDOW_WIDTH, heights[index]}) && index < lowestChanged) {
       lowestChanged = index;
     }
   }
@@ -103,8 +102,7 @@ TEST(batched_measurement_matches_the_per_row_path_while_scrolled) {
 
   std::size_t lowestChanged = UNDEFINED_INDEX;
   for (std::size_t index = low; index <= high; ++index) {
-    if (Virtualizer::applyRowSize(batched, index, {WINDOW_WIDTH, heights[index]}) &&
-        index < lowestChanged) {
+    if (Virtualizer::applyRowSize(batched, index, {WINDOW_WIDTH, heights[index]}) && index < lowestChanged) {
       lowestChanged = index;
     }
   }

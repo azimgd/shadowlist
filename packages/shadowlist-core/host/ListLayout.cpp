@@ -10,16 +10,15 @@ namespace azimgd::shadowlist {
 
 bool applyLayoutInputs(Container& core, double headerSize, double footerSize, double windowWidth, double windowHeight) {
   bool changed = core.headerSize != headerSize || core.footerSize != footerSize ||
-    core.revision.windowWidth != windowWidth || core.revision.windowHeight != windowHeight;
+                 core.revision.windowWidth != windowWidth || core.revision.windowHeight != windowHeight;
   if (!changed) {
     return false;
   }
   double previousHeaderSize = core.headerSize;
   double previousWindowSize = core.getWindowSize();
   // Row offsets only depend on the header and the window's cross size.
-  bool rowsMove = previousHeaderSize != headerSize ||
-    (core.horizontal ? core.revision.windowHeight != windowHeight
-                     : core.revision.windowWidth != windowWidth);
+  bool rowsMove = previousHeaderSize != headerSize || (core.horizontal ? core.revision.windowHeight != windowHeight
+                                                                       : core.revision.windowWidth != windowWidth);
   core.headerSize = headerSize;
   core.footerSize = footerSize;
   core.revision.windowWidth = windowWidth;
@@ -68,8 +67,11 @@ Size measuredRowSize(const Container& core, const MeasuredRow& row, bool horizon
   Size size{row.width, row.height};
   if (core.numberOfColumns > 1) {
     const Row& placed = core.getRowAtIndex(row.index);
-    if (horizontal) size.height = placed.height;
-    else size.width = placed.width;
+    if (horizontal) {
+      size.height = placed.height;
+    } else {
+      size.width = placed.width;
+    }
   }
   return size;
 }
@@ -120,8 +122,8 @@ bool PublishedGeometry::refresh(const Container& core) {
   double windowSize = core.getWindowSize();
   double totalSize = core.horizontal ? core.revision.contentWidth : core.revision.contentHeight;
   bool stale = geometryVersion_ != core.state.geometryVersion || snapToItem_ != core.snapToItem ||
-    snapAlignment_ != core.snapAlignment || inverted_ != core.inverted || horizontal_ != core.horizontal ||
-    windowSize_ != windowSize || totalSize_ != totalSize || sourceStickyIndices_ != core.stickyIndices;
+               snapAlignment_ != core.snapAlignment || inverted_ != core.inverted || horizontal_ != core.horizontal ||
+               windowSize_ != windowSize || totalSize_ != totalSize || sourceStickyIndices_ != core.stickyIndices;
   if (!stale) {
     return false;
   }

@@ -16,14 +16,36 @@ final class SectionsTests: XCTestCase {
     var perSection = 10
     var footers = false
 
-    func numberOfSections(in listView: ShadowListKitListView) -> Int { sectionCount }
-    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { perSection }
-    func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { "Section \(section)" }
+    func numberOfSections(in listView: ShadowListKitListView) -> Int {
+      sectionCount
+    }
+
+    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int {
+      perSection
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      titleForHeaderInSection section: Int
+    ) -> String? {
+      "Section \(section)"
+    }
+
     func listView(_ listView: ShadowListKitListView, titleForFooterInSection section: Int) -> String? {
       footers ? "\(perSection) items" : nil
     }
-    func listView(_ listView: ShadowListKitListView, sizeForHeaderInSection section: Int, crossSize: CGFloat) -> CGFloat { 30 }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 44 }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      sizeForHeaderInSection section: Int,
+      crossSize: CGFloat
+    ) -> CGFloat {
+      30
+    }
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      44
+    }
   }
 
   /*
@@ -55,7 +77,10 @@ final class SectionsTests: XCTestCase {
     var along: CGFloat = 0
 
     @objc func sizeThatFits(_ size: NSSize) -> NSSize {
-      size.width >= CGFloat.greatestFiniteMagnitude / 2 ? NSSize(width: along, height: size.height) : NSSize(width: size.width, height: along)
+      size.width >= CGFloat.greatestFiniteMagnitude / 2 ? NSSize(width: along, height: size.height) : NSSize(
+        width: size.width,
+        height: along
+      )
     }
   }
 
@@ -73,7 +98,9 @@ final class SectionsTests: XCTestCase {
    */
   private func titleCells(_ list: ShadowListKitListView) -> [String: ShadowListKitListCell] {
     var cells: [String: ShadowListKitListCell] = [:]
-    for case let cell as ShadowListKitListCell in list.subviews.first!.subviews where !cell.isHidden && cell.index == NSNotFound {
+    for case let cell as ShadowListKitListCell in list.subviews.first!.subviews
+      where !cell.isHidden && cell.index == NSNotFound
+    {
       if let title = cell.subviews.compactMap({ ($0 as? NSTextField)?.stringValue }).first {
         cells[title] = cell
       }
@@ -82,7 +109,8 @@ final class SectionsTests: XCTestCase {
   }
 
   private func pinned(_ list: ShadowListKitListView) -> ShadowListKitListCell? {
-    list.subviews.first!.subviews.compactMap { $0 as? ShadowListKitListCell }.first { !$0.isHidden && $0.layer?.zPosition == 1 }
+    list.subviews.first!.subviews.compactMap { $0 as? ShadowListKitListCell }
+      .first { !$0.isHidden && $0.layer?.zPosition == 1 }
   }
 
   private func title(of cell: ShadowListKitListCell?) -> String? {
@@ -166,7 +194,7 @@ final class SectionsTests: XCTestCase {
 
     list.contentOffset = CGPoint(x: 460, y: 0)
     harness.layout()
-    XCTAssertEqual(frame(try XCTUnwrap(pinned(list)), in: list).minX, -20, accuracy: 0.01)
+    XCTAssertEqual(try frame(XCTUnwrap(pinned(list)), in: list).minX, -20, accuracy: 0.01)
   }
 
   /*
@@ -204,12 +232,12 @@ final class SectionsTests: XCTestCase {
       harness.rest()
       XCTAssertEqual(list.contentOffset.y, offset, accuracy: 0.01)
       switch offset {
-      case 120: XCTAssertEqual(frame(try XCTUnwrap(pinned(list)), in: list).minY, 0, accuracy: 0.01)
-      case 460: XCTAssertEqual(frame(try XCTUnwrap(pinned(list)), in: list).minY, -20, accuracy: 0.01)
+      case 120: XCTAssertEqual(try frame(XCTUnwrap(pinned(list)), in: list).minY, 0, accuracy: 0.01)
+      case 460: XCTAssertEqual(try frame(XCTUnwrap(pinned(list)), in: list).minY, -20, accuracy: 0.01)
       case 1000: XCTAssertEqual(title(of: pinned(list)), "Section 2")
       default:
         XCTAssertNil(pinned(list))
-        XCTAssertEqual(frame(try XCTUnwrap(titleCells(list)["Section 0"]), in: list).minY, 30, accuracy: 0.01)
+        XCTAssertEqual(try frame(XCTUnwrap(titleCells(list)["Section 0"]), in: list).minY, 30, accuracy: 0.01)
       }
     }
   }
@@ -270,10 +298,10 @@ final class SectionsTests: XCTestCase {
     list.shadowListKit_endDrag()
     harness.layout()
     XCTAssertEqual(try XCTUnwrap(pinned(list)).layer?.zPosition, 1)
-    XCTAssertEqual(frame(try XCTUnwrap(pinned(list)), in: list).minY, 0, accuracy: 0.01)
+    XCTAssertEqual(try frame(XCTUnwrap(pinned(list)), in: list).minY, 0, accuracy: 0.01)
   }
 
-  func testScrollToSectionPutsItsHeaderAtTheTop() throws {
+  func testScrollToSectionPutsItsHeaderAtTheTop() {
     let harness = makeHarness()
     let list = harness.list
     list.scrollToSection(3, animated: false)
@@ -308,7 +336,8 @@ final class SectionsTests: XCTestCase {
     let dark = try XCTUnwrap(header.layer?.backgroundColor)
     XCTAssertNotEqual(light, dark)
     var expected: CGColor?
-    NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance { expected = NSColor.windowBackgroundColor.cgColor }
+    NSAppearance(named: .darkAqua)!
+      .performAsCurrentDrawingAppearance { expected = NSColor.windowBackgroundColor.cgColor }
     XCTAssertEqual(dark, expected)
   }
 
@@ -327,13 +356,20 @@ final class SectionsTests: XCTestCase {
     XCTAssertEqual(frame(header, in: list), CGRect(x: 0, y: 0, width: 320, height: 60))
     XCTAssertEqual(header.superview, list.cellForItem(at: 0)?.superview)
     // Both sit under every cell.
-    XCTAssertEqual(Set(header.superview!.subviews.prefix(2).map(ObjectIdentifier.init)), [ObjectIdentifier(header), ObjectIdentifier(footer)])
+    XCTAssertEqual(
+      Set(header.superview!.subviews.prefix(2).map(ObjectIdentifier.init)),
+      [ObjectIdentifier(header), ObjectIdentifier(footer)]
+    )
 
     list.scrollToEnd(animated: false)
     harness.layout()
     XCTAssertEqual(frame(footer, in: list).maxY, list.bounds.height, accuracy: 0.01)
     XCTAssertEqual(frame(footer, in: list).height, 50, accuracy: 0.01)
-    XCTAssertEqual(frame(footer, in: list).minY, frame(try XCTUnwrap(list.cellForItem(at: 19)), in: list).maxY, accuracy: 0.01)
+    XCTAssertEqual(
+      frame(footer, in: list).minY,
+      try frame(XCTUnwrap(list.cellForItem(at: 19)), in: list).maxY,
+      accuracy: 0.01
+    )
 
     list.scrollToItem(at: 5, viewPosition: 0, animated: false)
     harness.layout()
@@ -356,7 +392,7 @@ final class SectionsTests: XCTestCase {
     XCTAssertEqual(list.contentSize.height, 20 * 44, accuracy: 0.01)
   }
 
-  func testHeaderViewsWithoutAFrameSizeThemselves() throws {
+  func testHeaderViewsWithoutAFrameSizeThemselves() {
     let fitting = FittingView()
     fitting.along = 70
     let harness = ListHarness(source: SizedTestSource(count: 20)) { $0.headerView = fitting }
@@ -370,7 +406,7 @@ final class SectionsTests: XCTestCase {
     XCTAssertEqual(harness.list.rectForItem(at: 0).minY, 40, accuracy: 0.01)
   }
 
-  func testAHorizontalHeaderViewTakesItsWidth() throws {
+  func testAHorizontalHeaderViewTakesItsWidth() {
     let header = NSView(frame: NSRect(x: 0, y: 0, width: 80, height: 10))
     let harness = ListHarness(source: SizedTestSource(count: 20), size: NSSize(width: 480, height: 320)) {
       $0.isHorizontal = true

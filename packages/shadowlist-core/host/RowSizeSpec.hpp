@@ -95,7 +95,9 @@ public:
       double availableWidth = width;
       if (!core.horizontal && core.state.hasRowSpans) {
         std::size_t index = core.indexOfKey(spec.key);
-        if (index != UNDEFINED_INDEX) availableWidth *= core.revision.rows[index].columnSpan;
+        if (index != UNDEFINED_INDEX) {
+          availableWidth *= core.revision.rows[index].columnSpan;
+        }
       }
       core.setPredictedSize(spec.key, measure(spec, availableWidth));
       ++cursor_;
@@ -107,9 +109,7 @@ public:
   /*
    * Whether every spec of this source is measured.
    */
-  bool isFinished(const std::shared_ptr<const void>& source) const {
-    return done_ && source_ == source;
-  }
+  bool isFinished(const std::shared_ptr<const void>& source) const { return done_ && source_ == source; }
 
 private:
   std::shared_ptr<const void> source_;

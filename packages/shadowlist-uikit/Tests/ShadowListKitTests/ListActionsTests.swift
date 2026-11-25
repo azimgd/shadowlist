@@ -5,21 +5,34 @@ import XCTest
 @MainActor
 final class ListActionsTests: XCTestCase {
   private final class Rows: NSObject, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
-    var keys = (0..<20).map { "item-\($0)" }
+    var keys = (0 ..< 20).map { "item-\($0)" }
     var providerKeys: [String] = []
     var actedKeys: [String] = []
     var trailingCalls = 0
     var leadingHook: ((ShadowListKitListView) -> Void)?
-    func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
-    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+    func numberOfItems(in listView: ShadowListKitListView) -> Int {
+      keys.count
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+      keys[index]
+    }
+
     func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
       let cell = listView.dequeueReusableCell(withIdentifier: "row")
       cell.isAccessibilityElement = true
       cell.accessibilityLabel = keys[index]
       return cell
     }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 40 }
-    func listView(_ listView: ShadowListKitListView, leadingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      40
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      leadingSwipeActionsForItemAt index: Int
+    ) -> ShadowListKitSwipeActionsConfiguration? {
       let key = keys[index]
       providerKeys.append(key)
       let hook = leadingHook
@@ -28,12 +41,16 @@ final class ListActionsTests: XCTestCase {
       let configuration = ShadowListKitSwipeActionsConfiguration(actions: [
         ShadowListKitSwipeAction(style: .normal, title: "Archive \(key)") { [weak self] _, done in
           self?.actedKeys.append(key); done(true)
-        },
+        }
       ])
       configuration.performsFirstActionWithFullSwipe = false
       return configuration
     }
-    func listView(_ listView: ShadowListKitListView, trailingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      trailingSwipeActionsForItemAt index: Int
+    ) -> ShadowListKitSwipeActionsConfiguration? {
       trailingCalls += 1
       return nil
     }

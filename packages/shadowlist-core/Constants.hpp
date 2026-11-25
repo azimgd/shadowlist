@@ -117,7 +117,11 @@ inline double scrollCommandIndexToDouble(std::size_t index) {
 #include <android/log.h>
 #define SHADOWLIST_LOG(...) __android_log_print(ANDROID_LOG_INFO, "SL", __VA_ARGS__)
 #else
-#define SHADOWLIST_LOG(...) do { printf("[SL] " __VA_ARGS__); printf("\n"); } while (0)
+#define SHADOWLIST_LOG(...)                                                                                            \
+  do {                                                                                                                 \
+    printf("[SL] " __VA_ARGS__);                                                                                       \
+    printf("\n");                                                                                                      \
+  } while (0)
 #endif
 #else
 #define SHADOWLIST_LOG(...) ((void)0)

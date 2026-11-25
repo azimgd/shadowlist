@@ -44,14 +44,15 @@ namespace facebook::react {
  * This runs from a descriptor constructor so later descriptors pick it up. If RN's paragraph
  * descriptor was built first, text is measured twice but the size is still right.
  */
-inline std::shared_ptr<const TextLayoutManager> getSharedTextLayoutManager(
-  const std::shared_ptr<const ContextContainer>& contextContainer) {
+inline std::shared_ptr<const TextLayoutManager>
+getSharedTextLayoutManager(const std::shared_ptr<const ContextContainer>& contextContainer) {
   if (!contextContainer) {
     return nullptr;
   }
 
-  if (auto existing = contextContainer->find<std::shared_ptr<TextLayoutManager>>(TextLayoutManagerKey);
-      existing.has_value()) {
+  if (
+    auto existing = contextContainer->find<std::shared_ptr<TextLayoutManager>>(TextLayoutManagerKey);
+    existing.has_value()) {
     return existing.value();
   }
 
@@ -153,18 +154,17 @@ inline std::vector<azimgd::shadowlist::RowSizeSpec> parseRowSizeSpecs(const std:
       spec.fontWeight = std::to_string(static_cast<int>(fontWeight->asDouble()));
     }
     spec.fontStyle = shadowlist::detail::optionalString(entry, "fontStyle");
-    spec.fontSize = shadowlist::detail::optionalDouble(entry, "fontSize", azimgd::shadowlist::RowSizeSpec::DEFAULT_FONT_SIZE);
-    spec.lineHeight = shadowlist::detail::optionalDouble(
-      entry, "lineHeight", std::numeric_limits<double>::quiet_NaN());
-    spec.letterSpacing = shadowlist::detail::optionalDouble(
-      entry, "letterSpacing", std::numeric_limits<double>::quiet_NaN());
-    spec.numberOfLines = static_cast<int>(
-      shadowlist::detail::optionalDouble(entry, "numberOfLines", 0.0));
+    spec.fontSize =
+      shadowlist::detail::optionalDouble(entry, "fontSize", azimgd::shadowlist::RowSizeSpec::DEFAULT_FONT_SIZE);
+    spec.lineHeight = shadowlist::detail::optionalDouble(entry, "lineHeight", std::numeric_limits<double>::quiet_NaN());
+    spec.letterSpacing =
+      shadowlist::detail::optionalDouble(entry, "letterSpacing", std::numeric_limits<double>::quiet_NaN());
+    spec.numberOfLines = static_cast<int>(shadowlist::detail::optionalDouble(entry, "numberOfLines", 0.0));
     spec.insetWidth = shadowlist::detail::optionalDouble(entry, "insetWidth", 0.0);
     spec.insetHeight = shadowlist::detail::optionalDouble(entry, "insetHeight", 0.0);
     spec.widthFraction = shadowlist::detail::optionalDouble(entry, "widthFraction", 1.0);
-    spec.fixedHeight = shadowlist::detail::optionalDouble(
-      entry, "fixedHeight", std::numeric_limits<double>::quiet_NaN());
+    spec.fixedHeight =
+      shadowlist::detail::optionalDouble(entry, "fixedHeight", std::numeric_limits<double>::quiet_NaN());
 
     specs.push_back(std::move(spec));
   }
@@ -183,10 +183,10 @@ inline std::vector<azimgd::shadowlist::RowSizeSpec> parseRowSizeSpecs(const std:
 inline bool sameRowSizeSpec(const azimgd::shadowlist::RowSizeSpec& a, const azimgd::shadowlist::RowSizeSpec& b) {
   auto sameNumber = [](double x, double y) { return x == y || (std::isnan(x) && std::isnan(y)); };
   return a.key == b.key && a.text == b.text && a.fontFamily == b.fontFamily && a.fontSize == b.fontSize &&
-    a.fontWeight == b.fontWeight && a.fontStyle == b.fontStyle && sameNumber(a.lineHeight, b.lineHeight) &&
-    sameNumber(a.letterSpacing, b.letterSpacing) && a.numberOfLines == b.numberOfLines &&
-    a.insetWidth == b.insetWidth && a.insetHeight == b.insetHeight && a.widthFraction == b.widthFraction &&
-    sameNumber(a.fixedHeight, b.fixedHeight);
+         a.fontWeight == b.fontWeight && a.fontStyle == b.fontStyle && sameNumber(a.lineHeight, b.lineHeight) &&
+         sameNumber(a.letterSpacing, b.letterSpacing) && a.numberOfLines == b.numberOfLines &&
+         a.insetWidth == b.insetWidth && a.insetHeight == b.insetHeight && a.widthFraction == b.widthFraction &&
+         sameNumber(a.fixedHeight, b.fixedHeight);
 }
 
 inline azimgd::shadowlist::Size measureRowSizeSpec(
@@ -244,19 +244,14 @@ inline azimgd::shadowlist::Size measureRowSizeSpec(
 
   LayoutConstraints layoutConstraints;
   layoutConstraints.minimumSize = {0, 0};
-  layoutConstraints.maximumSize = {
-    static_cast<Float>(textWidth),
-    std::numeric_limits<Float>::infinity()};
+  layoutConstraints.maximumSize = {static_cast<Float>(textWidth), std::numeric_limits<Float>::infinity()};
 
   TextLayoutContext textLayoutContext;
   textLayoutContext.pointScaleFactor = pointScaleFactor;
   textLayoutContext.surfaceId = surfaceId;
 
   auto measurement = textLayoutManager.measure(
-    AttributedStringBox{attributedString},
-    paragraphAttributes,
-    textLayoutContext,
-    layoutConstraints);
+    AttributedStringBox{attributedString}, paragraphAttributes, textLayoutContext, layoutConstraints);
 
   return {rowWidth, static_cast<double>(measurement.size.height) + spec.insetHeight};
 }

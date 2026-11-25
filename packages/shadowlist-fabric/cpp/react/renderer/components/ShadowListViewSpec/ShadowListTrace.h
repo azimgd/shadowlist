@@ -55,9 +55,7 @@ inline void installJsTrace(const std::shared_ptr<const ContextContainer>& contex
       return;
     }
     auto trace = jsi::Function::createFromHostFunction(
-      runtime,
-      jsi::PropNameID::forAscii(runtime, "__shadowlistTrace"),
-      1,
+      runtime, jsi::PropNameID::forAscii(runtime, "__shadowlistTrace"), 1,
       [](jsi::Runtime& runtime, const jsi::Value&, const jsi::Value* arguments, std::size_t count) -> jsi::Value {
         if (count > 0 && arguments[0].isString()) {
           auto message = arguments[0].getString(runtime).utf8(runtime);

@@ -42,7 +42,8 @@ public:
     std::uint64_t sequence = 0;
   };
 
-  LiveScroll() : handle_(nextHandle().fetch_add(1, std::memory_order_relaxed)) {}
+  LiveScroll()
+    : handle_(nextHandle().fetch_add(1, std::memory_order_relaxed)) {}
 
   LiveScroll(const LiveScroll&) = delete;
   LiveScroll& operator=(const LiveScroll&) = delete;
@@ -78,9 +79,7 @@ public:
    * A process wide id for this list. A host that can't hold the pointer, like Android's
    * Java view, finds it by this id. See registerHandle.
    */
-  std::int64_t getHandle() const {
-    return handle_;
-  }
+  std::int64_t getHandle() const { return handle_; }
 
   /*
    * Versions of the sticky and snap lists. Hosts that reach the report by handle read them

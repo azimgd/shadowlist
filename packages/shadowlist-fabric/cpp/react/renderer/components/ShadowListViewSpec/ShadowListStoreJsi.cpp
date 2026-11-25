@@ -47,7 +47,9 @@ std::int64_t registerStore(const std::shared_ptr<sl::RowKeyStore>& store) {
  */
 class StoreHandle final : public jsi::HostObject {
 public:
-  StoreHandle() : store(std::make_shared<sl::RowKeyStore>()), id(registerStore(store)) {}
+  StoreHandle()
+    : store(std::make_shared<sl::RowKeyStore>()),
+      id(registerStore(store)) {}
 
   jsi::Value get(jsi::Runtime& runtime, const jsi::PropNameID& name) override {
     return name.utf8(runtime) == "id" ? jsi::Value(static_cast<double>(id)) : jsi::Value::undefined();
@@ -245,7 +247,8 @@ jsi::Value expandTree(jsi::Runtime& runtime, const jsi::Value* args, size_t coun
     return -1;
   }
   auto store = storeOf(runtime, args[0]);
-  auto splice = store->expandTree(versionOf(args[1]), versionOf(args[2]), sizeOf(args[3]), treeRowsOf(runtime, args + 4));
+  auto splice =
+    store->expandTree(versionOf(args[1]), versionOf(args[2]), sizeOf(args[3]), treeRowsOf(runtime, args + 4));
   return splice ? jsi::Value(static_cast<double>(splice->deleted)) : jsi::Value(-1);
 }
 
@@ -410,8 +413,11 @@ const Entry ENTRIES[] = {
 
 jsi::Function functionOf(jsi::Runtime& runtime, const Entry& entry) {
   Body body = entry.body;
-  return jsi::Function::createFromHostFunction(runtime, jsi::PropNameID::forAscii(runtime, entry.name), entry.argCount,
-    [body](jsi::Runtime& rt, const jsi::Value&, const jsi::Value* args, size_t count) { return body(rt, args, count); });
+  return jsi::Function::createFromHostFunction(
+    runtime, jsi::PropNameID::forAscii(runtime, entry.name), entry.argCount,
+    [body](jsi::Runtime& rt, const jsi::Value&, const jsi::Value* args, size_t count) {
+      return body(rt, args, count);
+    });
 }
 
 }

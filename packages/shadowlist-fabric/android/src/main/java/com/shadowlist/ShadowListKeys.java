@@ -8,25 +8,19 @@ import com.facebook.soloader.SoLoader;
  * instead of in a rowKeys prop copied to Java on every change.
  */
 final class ShadowListKeys {
-  static {
-    SoLoader.loadLibrary("react_codegen_ShadowListViewSpec");
-  }
+  static { SoLoader.loadLibrary("react_codegen_ShadowListViewSpec"); }
 
   private ShadowListKeys() {}
 
   /*
    * The number of rows, or -1 when the store or version is gone.
    */
-  static int keyCount(long store, double version) {
-    return nativeKeyCount(store, version);
-  }
+  static int keyCount(long store, double version) { return nativeKeyCount(store, version); }
 
   /*
    * A key's row, or -1.
    */
-  static int indexOfKey(long store, double version, String key) {
-    return nativeIndexOfKey(store, version, key);
-  }
+  static int indexOfKey(long store, double version, String key) { return nativeIndexOfKey(store, version, key); }
 
   private static native int nativeKeyCount(long store, double version);
 

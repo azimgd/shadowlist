@@ -56,7 +56,9 @@ private:
    * claims room past them before it writes there.
    */
   struct Slots {
-    explicit Slots(std::size_t capacity) : capacity(capacity), data(new const std::string*[capacity]) {}
+    explicit Slots(std::size_t capacity)
+      : capacity(capacity),
+        data(new const std::string*[capacity]) {}
 
     const std::size_t capacity;
     std::unique_ptr<const std::string*[]> data;

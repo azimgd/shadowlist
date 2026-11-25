@@ -47,12 +47,24 @@ final class ScrollEngineTests: XCTestCase {
     return engine
   }
 
-  private func send(_ engine: ShadowListKitScrollEngine, _ delta: CGPoint, _ phase: NSEvent.Phase, _ momentum: NSEvent.Phase = []) -> Bool {
+  private func send(
+    _ engine: ShadowListKitScrollEngine,
+    _ delta: CGPoint,
+    _ phase: NSEvent.Phase,
+    _ momentum: NSEvent.Phase = []
+  ) -> Bool {
     engine.handleScrollWheel(ShadowListKitScrollWheelEvent(delta, phase, momentum))
   }
 
   private func lineEvent(_ lines: Int32) throws -> NSEvent {
-    let cgEvent = try XCTUnwrap(CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: lines, wheel2: 0, wheel3: 0))
+    let cgEvent = try XCTUnwrap(CGEvent(
+      scrollWheelEvent2Source: nil,
+      units: .line,
+      wheelCount: 1,
+      wheel1: lines,
+      wheel2: 0,
+      wheel3: 0
+    ))
     return try XCTUnwrap(NSEvent(cgEvent: cgEvent))
   }
 
@@ -60,7 +72,7 @@ final class ScrollEngineTests: XCTestCase {
     let engine = makeEngine()
     XCTAssertTrue(send(engine, .zero, .began))
     XCTAssertEqual(engine.phase, .idle)
-    for _ in 0..<5 {
+    for _ in 0 ..< 5 {
       XCTAssertTrue(send(engine, CGPoint(x: 0, y: -20), .changed))
     }
     XCTAssertEqual(engine.phase, .dragging)
@@ -83,7 +95,7 @@ final class ScrollEngineTests: XCTestCase {
     _ = send(engine, .zero, .ended)
     _ = send(engine, CGPoint(x: 0, y: -40), [], .began)
     var deepest: CGFloat = 0
-    for _ in 0..<20 {
+    for _ in 0 ..< 20 {
       _ = send(engine, CGPoint(x: 0, y: -40), [], .changed)
       deepest = max(deepest, engine.offset.y)
       engine.shadowListKit_runFrames(for: 1.0 / 120)
@@ -99,7 +111,7 @@ final class ScrollEngineTests: XCTestCase {
   func testDragPastTheEdgeRubberBandsAndSpringsBack() {
     let engine = makeEngine()
     _ = send(engine, .zero, .began)
-    for _ in 0..<10 {
+    for _ in 0 ..< 10 {
       _ = send(engine, CGPoint(x: 0, y: 40), .changed)
     }
     let pulled = engine.offset.y
@@ -131,18 +143,18 @@ final class ScrollEngineTests: XCTestCase {
   func testMouseWheelScrollsByLinesAndStopsAtTheEdges() throws {
     let engine = makeEngine()
     engine.lineScroll = 20
-    XCTAssertTrue(engine.handleScrollWheel(try lineEvent(-3)))
+    XCTAssertTrue(try engine.handleScrollWheel(lineEvent(-3)))
     XCTAssertEqual(engine.offset.y, 60, accuracy: 0.01)
     XCTAssertEqual(engine.phase, .dragging)
-    XCTAssertTrue(engine.handleScrollWheel(try lineEvent(10)))
+    XCTAssertTrue(try engine.handleScrollWheel(lineEvent(10)))
     XCTAssertEqual(engine.offset.y, 0)
     engine.shadowListKit_runFrames(for: 0.3)
     XCTAssertEqual(engine.phase, .idle)
     // At the edge nothing moves, no rubber band, and the event is passed on.
-    XCTAssertFalse(engine.handleScrollWheel(try lineEvent(2)))
+    XCTAssertFalse(try engine.handleScrollWheel(lineEvent(2)))
     XCTAssertEqual(engine.offset.y, 0)
-    for _ in 0..<200 {
-      _ = engine.handleScrollWheel(try lineEvent(-5))
+    for _ in 0 ..< 200 {
+      _ = try engine.handleScrollWheel(lineEvent(-5))
     }
     XCTAssertEqual(engine.offset.y, 1500)
   }
@@ -183,7 +195,7 @@ final class ScrollEngineTests: XCTestCase {
   func testRestingOffsetSnapsTheEndOfAGesture() throws {
     let engine = makeEngine()
     delegate.resting = { CGPoint(x: $0.x, y: ($0.y / 100).rounded() * 100) }
-    _ = engine.handleScrollWheel(try lineEvent(-9))
+    _ = try engine.handleScrollWheel(lineEvent(-9))
     XCTAssertEqual(engine.offset.y, 144, accuracy: 0.01)
     engine.shadowListKit_runFrames(for: 0.2)
     XCTAssertEqual(engine.phase, .settling)

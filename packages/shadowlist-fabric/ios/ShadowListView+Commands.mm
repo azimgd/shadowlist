@@ -112,16 +112,20 @@ using namespace facebook::react;
     _scrollSync.momentumStopped();
   }
   [self commitStatePatch:_scrollSync.issueCommand(
-    command, _scrollView.contentOffset.x, _scrollView.contentOffset.y, yielded)];
+                           command, _scrollView.contentOffset.x, _scrollView.contentOffset.y, yielded)];
 }
 
-- (void)scrollToRow:(NSInteger)row viewPosition:(double)viewPosition viewOffset:(double)viewOffset animated:(BOOL)animated
+- (void)scrollToRow:(NSInteger)row
+       viewPosition:(double)viewPosition
+         viewOffset:(double)viewOffset
+           animated:(BOOL)animated
 {
   if (!_state) {
     return;
   }
 
-  SLF_TRACE("ev=cmd-scroll-to-index index=%ld viewPosition=%.2f animated=%d", (long)row, viewPosition, animated ? 1 : 0);
+  SLF_TRACE(
+    "ev=cmd-scroll-to-index index=%ld viewPosition=%.2f animated=%d", (long)row, viewPosition, animated ? 1 : 0);
   azimgd::shadowlist::ScrollCommand command;
   command.index = azimgd::shadowlist::scrollCommandIndexFromDouble((double)row);
   command.viewPosition = viewPosition;
@@ -156,9 +160,8 @@ using namespace facebook::react;
     return;
   }
   // Scroll straight to the offset. The core learns the new position from the scroll report.
-  CGPoint contentOffset = _horizontal
-    ? CGPointMake(offset, _scrollView.contentOffset.y)
-    : CGPointMake(_scrollView.contentOffset.x, offset);
+  CGPoint contentOffset =
+    _horizontal ? CGPointMake(offset, _scrollView.contentOffset.y) : CGPointMake(_scrollView.contentOffset.x, offset);
   [_scrollView setContentOffset:contentOffset animated:animated];
 }
 
@@ -169,7 +172,8 @@ using namespace facebook::react;
   }
 
   // SCROLL_TO_END_INDEX keeps the core aiming at the real bottom as rows get measured.
-  SLF_TRACE("ev=cmd-scroll-to-end off=%.1f,%.1f animated=%d", _scrollView.contentOffset.x, _scrollView.contentOffset.y,
+  SLF_TRACE(
+    "ev=cmd-scroll-to-end off=%.1f,%.1f animated=%d", _scrollView.contentOffset.x, _scrollView.contentOffset.y,
     animated ? 1 : 0);
   azimgd::shadowlist::ScrollCommand command;
   command.index = azimgd::shadowlist::SCROLL_TO_END_INDEX;
@@ -198,9 +202,10 @@ using namespace facebook::react;
 #if !TARGET_OS_OSX
   CGPoint current = _scrollView.contentOffset;
   CGFloat top = -_scrollView.contentInset.top;
-  CGFloat maxAlong = MAX(top, _horizontal
-    ? _scrollView.contentSize.width - _scrollView.bounds.size.width + _scrollView.contentInset.right
-    : _scrollView.contentSize.height - _scrollView.bounds.size.height + _scrollView.contentInset.bottom);
+  CGFloat maxAlong = MAX(
+    top, _horizontal
+           ? _scrollView.contentSize.width - _scrollView.bounds.size.width + _scrollView.contentInset.right
+           : _scrollView.contentSize.height - _scrollView.bounds.size.height + _scrollView.contentInset.bottom);
   if (_horizontal) {
     target.x = MIN(MAX(target.x, top), maxAlong);
   } else {
@@ -276,8 +281,9 @@ using namespace facebook::react;
 - (void)closeSwipeActionsExcept:(RCTUIView *)view
 {
   for (RCTUIView *subview in _contentView.subviews) {
-    if (subview != view && [subview isKindOfClass:[ShadowListCellView class]] &&
-        ![(ShadowListCellView *)subview isSwipedOut]) {
+    if (
+      subview != view && [subview isKindOfClass:[ShadowListCellView class]] &&
+      ![(ShadowListCellView *)subview isSwipedOut]) {
       [(ShadowListCellView *)subview closeSwipeActionsAnimated:YES];
     }
   }
@@ -297,11 +303,39 @@ using namespace facebook::react;
 /*
  * Ask the core for the row at the viewport start. The answer comes back as onAnchorState.
  */
+/*
+ * JS holds data that came during a refresh until the refresh ended and the list is at rest.
+ * It asks once refreshing turned false. A command, not the prop, since a refresh shorter than
+ * a mount never reaches native as a prop. See checkRefreshSettle.
+ */
+- (void)awaitRefreshSettle
+{
+#if !TARGET_OS_OSX
+  // macOS has no pull to refresh, and JS holds no data there.
+  [self transitionRefresh:SLRefreshEvent::Await];
+  [self checkRefreshSettle];
+#endif
+}
+
 - (void)requestAnchorState
 {
-  if (!_state) {
+  [self transitionAnchorRequest:SLAnchorEvent::Request];
+}
+
+- (void)transitionAnchorRequest:(SLAnchorEvent)event
+{
+  if (event == SLAnchorEvent::Reset) {
+    _anchorRequest = SLAnchorRequest::Idle;
     return;
   }
+  if (event == SLAnchorEvent::Ready && _anchorRequest != SLAnchorRequest::Parked) {
+    return;
+  }
+  if (!_state) {
+    _anchorRequest = SLAnchorRequest::Parked;
+    return;
+  }
+  _anchorRequest = SLAnchorRequest::Idle;
   [self commitStatePatch:_scrollSync.requestAnchor(_scrollView.contentOffset.x, _scrollView.contentOffset.y)];
 }
 

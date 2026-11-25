@@ -43,11 +43,8 @@ FrameInput ownWrite(const Container& container, const std::vector<std::string>& 
 /*
  * The host reporting back that it applied that offset.
  */
-FrameInput echo(
-  const Container& container,
-  const std::vector<std::string>& keys,
-  std::uint64_t token,
-  double header = HEADER) {
+FrameInput
+echo(const Container& container, const std::vector<std::string>& keys, std::uint64_t token, double header = HEADER) {
   FrameInput input = report(keys, container.revision.offsetY, header);
   input.commitToken = token;
   return input;
@@ -317,9 +314,8 @@ TEST(resizing_a_row_above_the_viewport_keeps_the_visible_rows_in_every_layout) {
      * Each grid column stacks on its own. One offset cannot hold two columns when only one
      * resizes. In a grid the whole row above resizes instead.
      */
-    std::vector<std::string> resized = variant.numberOfColumns > 1
-      ? std::vector<std::string>{"k27", "k28", "k29"}
-      : std::vector<std::string>{"k27"};
+    std::vector<std::string> resized =
+      variant.numberOfColumns > 1 ? std::vector<std::string>{"k27", "k28", "k29"} : std::vector<std::string>{"k27"};
     for (double size : {260.0, 40.0, 100.0}) {
       std::size_t lowest = UNDEFINED_INDEX;
       for (const std::string& key : resized) {
@@ -334,8 +330,9 @@ TEST(resizing_a_row_above_the_viewport_keeps_the_visible_rows_in_every_layout) {
         fail(std::string(variant.name) + ": k30 moved on the layout that resized k27 to " + std::to_string(size));
       }
       settleCommits(container, variant, keys);
-      if (std::fabs(screenPos(container, "k30") - before) > 0.5 ||
-          std::fabs(screenPos(container, "k33") - nextBefore) > 0.5) {
+      if (
+        std::fabs(screenPos(container, "k30") - before) > 0.5 ||
+        std::fabs(screenPos(container, "k33") - nextBefore) > 0.5) {
         fail(std::string(variant.name) + ": visible rows moved after k27 resized to " + std::to_string(size));
       }
     }
@@ -1094,8 +1091,7 @@ TEST(a_finger_echo_of_an_earlier_clamp_revision_keeps_the_pending_correction) {
   Container container;
   std::vector<std::string> keys = shrinkUnderAFinger(container);
   auto publish = [&]() {
-    return container.resolveStateUpdate(0.0, 5000.0, container.revision.contentWidth,
-      container.revision.contentHeight);
+    return container.resolveStateUpdate(0.0, 5000.0, container.revision.contentWidth, container.revision.contentHeight);
   };
   ContainerStateUpdate first = publish();
   CHECK(first.commitToken != 0);
@@ -1136,23 +1132,23 @@ TEST(a_revisioned_prepend_keeps_the_correction_while_a_finger_moves_before_its_w
   Virtualizer::update(container, report(keys, 1000.0, 0.0));
   keys.insert(keys.begin(), "prepended");
   Virtualizer::update(container, report(keys, 1000.0, 0.0));
-  ContainerStateUpdate first = container.resolveStateUpdate(0.0, 1000.0,
-    container.revision.contentWidth, container.revision.contentHeight);
+  ContainerStateUpdate first =
+    container.resolveStateUpdate(0.0, 1000.0, container.revision.contentWidth, container.revision.contentHeight);
   CHECK(first.commitToken != 0);
 
   FrameInput finger = report(keys, 1030.0, 0.0);
   finger.scrollPhase = ScrollPhase::Dragging;
   finger.userScrolled = true;
   Virtualizer::update(container, finger);
-  ContainerStateUpdate moved = container.resolveStateUpdate(0.0, 1030.0,
-    container.revision.contentWidth, container.revision.contentHeight);
+  ContainerStateUpdate moved =
+    container.resolveStateUpdate(0.0, 1030.0, container.revision.contentWidth, container.revision.contentHeight);
   CHECK_EQ(moved.commitToken, first.commitToken);
   CHECK(moved.commitRevision > first.commitRevision);
   CHECK_NEAR(moved.offsetY - 1030.0, first.offsetY - 1000.0, 0.5);
 
   Virtualizer::update(container, finger);
-  ContainerStateUpdate repeated = container.resolveStateUpdate(0.0, 1030.0,
-    container.revision.contentWidth, container.revision.contentHeight);
+  ContainerStateUpdate repeated =
+    container.resolveStateUpdate(0.0, 1030.0, container.revision.contentWidth, container.revision.contentHeight);
   CHECK_EQ(repeated.commitRevision, moved.commitRevision);
   CHECK_NEAR(repeated.offsetY, moved.offsetY, 0.5);
 
@@ -1171,8 +1167,8 @@ TEST(an_earlier_write_report_starts_no_second_clamp_but_a_finger_move_still_does
   for (bool userScrolled : {false, true}) {
     Container container;
     std::vector<std::string> keys = shrinkUnderAFinger(container);
-    ContainerStateUpdate first = container.resolveStateUpdate(0.0, 5000.0,
-      container.revision.contentWidth, container.revision.contentHeight);
+    ContainerStateUpdate first =
+      container.resolveStateUpdate(0.0, 5000.0, container.revision.contentWidth, container.revision.contentHeight);
     FrameInput finger = report(keys, first.offsetY, 0.0);
     finger.scrollPhase = ScrollPhase::Dragging;
     finger.commitToken = first.commitToken;
@@ -1181,13 +1177,16 @@ TEST(an_earlier_write_report_starts_no_second_clamp_but_a_finger_move_still_does
     CHECK(!container.state.operation);
 
     layoutPass(container, 0.0, 0, 0, 28.0);
-    ContainerStateUpdate measured = container.resolveStateUpdate(0.0, first.offsetY,
-      container.revision.contentWidth, container.revision.contentHeight);
+    ContainerStateUpdate measured = container.resolveStateUpdate(
+      0.0, first.offsetY, container.revision.contentWidth, container.revision.contentHeight);
     CHECK(measured.applyOffset);
     CHECK_EQ(measured.commitToken, static_cast<std::uint64_t>(0));
     CHECK(measured.commitRevision > first.commitRevision);
-    CHECK_EQ(container.resolveStateUpdate(0.0, first.offsetY, container.revision.contentWidth,
-      container.revision.contentHeight).commitRevision, measured.commitRevision);
+    CHECK_EQ(
+      container
+        .resolveStateUpdate(0.0, first.offsetY, container.revision.contentWidth, container.revision.contentHeight)
+        .commitRevision,
+      measured.commitRevision);
 
     finger.userScrolled = userScrolled;
     Virtualizer::update(container, finger);
@@ -1213,8 +1212,8 @@ TEST(a_finger_move_owns_the_offset_when_it_interrupts_a_scroll_to_end) {
   container.scrollToEnd();
   Virtualizer::update(container, report(keys, 0.0, 0.0));
   CHECK(container.state.pendingScrollToEnd);
-  ContainerStateUpdate command = container.resolveStateUpdate(0.0, 0.0,
-    container.revision.contentWidth, container.revision.contentHeight);
+  ContainerStateUpdate command =
+    container.resolveStateUpdate(0.0, 0.0, container.revision.contentWidth, container.revision.contentHeight);
 
   FrameInput finger = report(keys, 1000.0, 0.0);
   finger.userScrolled = true;

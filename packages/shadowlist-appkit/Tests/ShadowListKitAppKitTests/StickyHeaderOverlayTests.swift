@@ -5,12 +5,16 @@ import XCTest
 @MainActor
 final class StickyHeaderOverlayTests: XCTestCase {
   private final class Header: NSView {
-    override var fittingSize: NSSize { NSSize(width: 0, height: 60) }
+    override var fittingSize: NSSize {
+      NSSize(width: 0, height: 60)
+    }
   }
 
   private final class Action: NSObject {
     var presses = 0
-    @objc func press(_ sender: NSButton) { presses += 1 }
+    @objc func press(_ sender: NSButton) {
+      presses += 1
+    }
   }
 
   func testOffscreenCustomHeaderKeepsIdentityAndRestoresTheOriginalOnDetach() {
@@ -49,6 +53,7 @@ final class StickyHeaderOverlayTests: XCTestCase {
     list.removeFromSuperview()
     XCTAssertFalse(original.isHidden)
   }
+
   func testDrivenLayerCatchUpKeepsTheOriginalHiddenUntilOverlayRemoval() {
     let harness = ListHarness(source: SizedTestSource(count: 20), size: NSSize(width: 200, height: 100)) { list in
       list.isScrollDriven = true
@@ -57,6 +62,8 @@ final class StickyHeaderOverlayTests: XCTestCase {
     let list = harness.list
     // Query before moving: cellForItem itself catches up the views on AppKit.
     let original = list.cellForItem(at: 0)!
+    // The host drags: the list places the cells by their layers until the phase goes idle.
+    list.scrollPhase = .dragging
     list.contentOffset.y = 20
     harness.layout()
     XCTAssertEqual(original.value(forKey: "placedByLayer") as? Bool, true)
@@ -65,7 +72,7 @@ final class StickyHeaderOverlayTests: XCTestCase {
     XCTAssertTrue(original.isHidden)
     XCTAssertEqual(original.layer?.isHidden, true)
     XCTAssertEqual(original.value(forKey: "shown") as? Bool, false)
-    harness.rest()
+    list.scrollPhase = .idle
     XCTAssertTrue(original.isHidden)
     XCTAssertEqual(original.layer?.isHidden, true)
     XCTAssertEqual(original.value(forKey: "shown") as? Bool, false)
@@ -145,5 +152,4 @@ final class StickyHeaderOverlayTests: XCTestCase {
     XCTAssertEqual(original.layer?.isHidden, false)
     XCTAssertTrue(list.cellForItem(at: 0) === original)
   }
-
 }

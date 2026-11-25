@@ -48,8 +48,9 @@ inline std::string stringFromJava(JNIEnv* env, jstring value) {
   result.reserve(units.size());
   for (std::size_t index = 0; index < units.size(); ++index) {
     std::uint32_t point = units[index];
-    if (point >= 0xD800 && point <= 0xDBFF && index + 1 < units.size() && units[index + 1] >= 0xDC00 &&
-        units[index + 1] <= 0xDFFF) {
+    if (
+      point >= 0xD800 && point <= 0xDBFF && index + 1 < units.size() && units[index + 1] >= 0xDC00 &&
+      units[index + 1] <= 0xDFFF) {
       point = 0x10000 + ((point - 0xD800) << 10) + (units[index + 1] - 0xDC00);
       index += 1;
     } else if (point >= 0xD800 && point <= 0xDFFF) {

@@ -37,8 +37,14 @@ TEST(kit_bridge_settings_count_at_least_one_column) {
 
 TEST(kit_bridge_mount_slots_reject_non_integral_and_out_of_range_numbers) {
   double slots[kit::MOUNT_SLOTS] = {};
-  const double invalid[] = {-1.0, -0.5, 0.5, std::numeric_limits<double>::quiet_NaN(),
-    std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(), std::ldexp(1.0, 64)};
+  const double invalid[] = {
+    -1.0,
+    -0.5,
+    0.5,
+    std::numeric_limits<double>::quiet_NaN(),
+    std::numeric_limits<double>::infinity(),
+    -std::numeric_limits<double>::infinity(),
+    std::ldexp(1.0, 64)};
   for (double value : invalid) {
     slots[kit::MOUNT_LOW] = value;
     slots[kit::MOUNT_HIGH] = value;
@@ -62,7 +68,8 @@ TEST(kit_bridge_versions_keep_the_unsigned_range_without_a_signed_intermediate) 
 }
 
 TEST(kit_bridge_indices_do_not_wrap_when_the_bridge_is_narrower) {
-  CHECK_EQ(kit::intFrom(static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max())),
+  CHECK_EQ(
+    kit::intFrom(static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max())),
     std::numeric_limits<std::int32_t>::max());
   CHECK_EQ(kit::intFrom(static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max()) + 1), -1);
   CHECK_EQ(kit::indexFrom(std::int64_t{0}), std::size_t{0});

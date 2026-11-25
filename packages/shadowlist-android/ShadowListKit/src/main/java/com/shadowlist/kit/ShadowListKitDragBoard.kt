@@ -41,8 +41,9 @@ internal class ShadowListKitDragBoard private constructor() {
 
   fun leave(list: ShadowListKitListView) {
     if (handle == 0L) return
-    if (home.get() === list || landingCell.get()?.parent === list) endFlight()
-    else if (target.get() === list) {
+    if (home.get() === list || landingCell.get()?.parent === list) {
+      endFlight()
+    } else if (target.get() === list) {
       endForeign(list)
       target.clear()
     }
@@ -69,32 +70,55 @@ internal class ShadowListKitDragBoard private constructor() {
     fingerWindowY = fingerY
     sidewaysCarry = 0.0
     cell.getLocationOnScreen(location)
-    ShadowListKitCore.nativeDragBoardBegin(handle, list.dragListId.orEmpty(), heldKey, fingerX.toDouble(), fingerY.toDouble(),
-      location[POINT_X] + cell.width / 2.0, location[POINT_Y] + cell.height / 2.0)
+    ShadowListKitCore.nativeDragBoardBegin(
+      handle,
+      list.dragListId.orEmpty(),
+      heldKey,
+      fingerX.toDouble(),
+      fingerY.toDouble(),
+      location[POINT_X] + cell.width / 2.0,
+      location[POINT_Y] + cell.height / 2.0
+    )
   }
 
   fun update(list: ShadowListKitListView, cell: ShadowListKitListCell): Boolean {
     if (home.get() !== list) return false
     val fingerX = fingerWindowX
     val fingerY = fingerWindowY
-    val hovered = hitList(list.rootView, fingerX.toInt(), fingerY.toInt())?.takeIf { it.reorderEnabled && !it.isSectioned }
+    val hovered = hitList(list.rootView, fingerX.toInt(), fingerY.toInt())?.takeIf {
+      it.reorderEnabled &&
+        !it.isSectioned
+    }
     cell.getLocationOnScreen(location)
-    ShadowListKitCore.nativeDragBoardFrame(handle, fingerX.toDouble(), fingerY.toDouble(),
-      location[POINT_X] + cell.width / 2.0, location[POINT_Y] + cell.height / 2.0,
-      hovered?.dragListId.orEmpty(), now(), frame)
+    ShadowListKitCore.nativeDragBoardFrame(
+      handle,
+      fingerX.toDouble(),
+      fingerY.toDouble(),
+      location[POINT_X] + cell.width / 2.0,
+      location[POINT_Y] + cell.height / 2.0,
+      hovered?.dragListId.orEmpty(),
+      now(),
+      frame
+    )
     val floating = frame[ShadowListKitCore.BOARD_FRAME_FLOATING] != 0.0
     if (frame[ShadowListKitCore.BOARD_FRAME_STEP].toInt() != ShadowListKitCore.BOARD_STAY) {
       endForeign(target.get())
       target = WeakReference(if (floating) hovered else null)
       list.core.dragSetHeldAway(floating)
       target.get()?.let {
-        it.core.dragBeginForeign((if (it.horizontal) cell.width else cell.height).toDouble(),
-          (if (it.horizontal) cell.height else cell.width).toDouble())
+        it.core.dragBeginForeign(
+          (if (it.horizontal) cell.width else cell.height).toDouble(),
+          (if (it.horizontal) cell.height else cell.width).toDouble()
+        )
       }
     }
     if (floating && overlay == null) {
       val parent = list.rootView as? ViewGroup ?: return false
-      val bitmap = Bitmap.createBitmap(cell.width.coerceAtLeast(1), cell.height.coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+      val bitmap = Bitmap.createBitmap(
+        cell.width.coerceAtLeast(1),
+        cell.height.coerceAtLeast(1),
+        Bitmap.Config.ARGB_8888
+      )
       cell.draw(Canvas(bitmap))
       overlay = ImageView(list.context).apply {
         setImageBitmap(bitmap)
@@ -110,8 +134,10 @@ internal class ShadowListKitDragBoard private constructor() {
     overlay?.translationY = (frame[ShadowListKitCore.BOARD_FRAME_Y] - location[POINT_Y] - cell.height / 2.0).toFloat()
     target.get()?.takeIf { floating }?.let {
       it.getLocationOnScreen(location)
-      it.drag.updateForeign((frame[ShadowListKitCore.BOARD_FRAME_X] - location[POINT_X]).toFloat(),
-        (frame[ShadowListKitCore.BOARD_FRAME_Y] - location[POINT_Y]).toFloat())
+      it.drag.updateForeign(
+        (frame[ShadowListKitCore.BOARD_FRAME_X] - location[POINT_X]).toFloat(),
+        (frame[ShadowListKitCore.BOARD_FRAME_Y] - location[POINT_Y]).toFloat()
+      )
     }
     return floating
   }
@@ -129,11 +155,19 @@ internal class ShadowListKitDragBoard private constructor() {
     if (home.get() !== list) return false
     var ancestor = list.parent
     while (ancestor is View) {
-      if (ancestor is ShadowListKitListView && ancestor.horizontal && ancestor.scrollEnabled && ancestor.maxOffset > 0) {
+      if (ancestor is ShadowListKitListView && ancestor.horizontal && ancestor.scrollEnabled &&
+        ancestor.maxOffset > 0
+      ) {
         ancestor.getLocationOnScreen(location)
         val offset = ancestor.offset
-        val delta = ShadowListKitCore.nativeDragBoardScrollDelta(handle, fingerWindowX.toDouble(),
-          (fingerWindowX - location[POINT_X]).toDouble(), ancestor.width.toDouble(), ancestor.density.toDouble(), dtSeconds)
+        val delta = ShadowListKitCore.nativeDragBoardScrollDelta(
+          handle,
+          fingerWindowX.toDouble(),
+          (fingerWindowX - location[POINT_X]).toDouble(),
+          ancestor.width.toDouble(),
+          ancestor.density.toDouble(),
+          dtSeconds
+        )
         val wanted = offset + delta + if (delta != 0.0) sidewaysCarry else 0.0
         val next = wanted.roundToInt().coerceIn(0, ancestor.maxOffset)
         sidewaysCarry = if (next > 0 && next < ancestor.maxOffset) wanted - next else 0.0
@@ -151,10 +185,19 @@ internal class ShadowListKitDragBoard private constructor() {
     val destination = target.get() ?: return true
     if (!destination.scrollEnabled) return true
     destination.getLocationOnScreen(location)
-    val touch = destination.windowAlongAt(fingerWindowX - location[POINT_X], fingerWindowY - location[POINT_Y]).toDouble()
+    val touch = destination.windowAlongAt(
+      fingerWindowX - location[POINT_X],
+      fingerWindowY - location[POINT_Y]
+    ).toDouble()
     val offset = destination.offset.toDouble()
-    val next = ShadowListKitCore.dragAutoScrollOffset(touch, destination.windowAlong.toDouble(), offset,
-      destination.maxOffset.toDouble(), destination.density.toDouble(), dtSeconds)
+    val next = ShadowListKitCore.dragAutoScrollOffset(
+      touch,
+      destination.windowAlong.toDouble(),
+      offset,
+      destination.maxOffset.toDouble(),
+      destination.density.toDouble(),
+      dtSeconds
+    )
     if (abs(next - offset) >= 1) destination.writeOffset(next.toInt(), byUser = true)
     return true
   }
@@ -176,8 +219,13 @@ internal class ShadowListKitDragBoard private constructor() {
     handoff.fill(0.0)
     if (home.get() === list) {
       cell.getLocationOnScreen(location)
-      ShadowListKitCore.nativeDragBoardReturnOffset(handle, location[POINT_X] + cell.width / 2.0,
-        location[POINT_Y] + cell.height / 2.0, now(), handoff)
+      ShadowListKitCore.nativeDragBoardReturnOffset(
+        handle,
+        location[POINT_X] + cell.width / 2.0,
+        location[POINT_Y] + cell.height / 2.0,
+        now(),
+        handoff
+      )
     }
     return handoff
   }
@@ -189,16 +237,30 @@ internal class ShadowListKitDragBoard private constructor() {
     val destination = target.get()
     val foreign = destination?.core?.isDragForeign == true
     val destinationKey = if (foreign) destination!!.core.dragInsertionKey else ""
-    val kind = if (commit) ShadowListKitCore.nativeDragBoardRelease(handle,
-      if (foreign) destination!!.core.dragInsertionIndex else -1, destinationKey, destination?.keys?.size ?: 0, now(), release)
-    else ShadowListKitCore.BOARD_CANCEL
+    val kind = if (commit) {
+      ShadowListKitCore.nativeDragBoardRelease(
+        handle,
+        if (foreign) destination!!.core.dragInsertionIndex else -1,
+        destinationKey,
+        destination?.keys?.size ?: 0,
+        now(),
+        release
+      )
+    } else {
+      ShadowListKitCore.BOARD_CANCEL
+    }
     var landed: ShadowListKitListCell? = null
     if (kind == ShadowListKitCore.BOARD_DROP && destination != null) {
       val sourceIndex = list.core.heldIndex
       list.drag.releaseHeldForBoard()
       try {
-        val accepted = moveItemToList(list, sourceIndex, destination,
-          release[ShadowListKitCore.BOARD_RELEASE_INDEX].toInt(), destinationKey)
+        val accepted = moveItemToList(
+          list,
+          sourceIndex,
+          destination,
+          release[ShadowListKitCore.BOARD_RELEASE_INDEX].toInt(),
+          destinationKey
+        )
         if (!isCurrentFlight(list, flight)) return true
         ShadowListKitCore.nativeDragBoardLanded(handle, destination.dragListId.orEmpty(), accepted)
         landed = destination.mounted[heldKey]
@@ -218,13 +280,17 @@ internal class ShadowListKitDragBoard private constructor() {
       val left = location[POINT_X]
       val top = location[POINT_Y]
       overlayParent?.getLocationOnScreen(location)
-      picture.animate().translationX((left - location[POINT_X]).toFloat()).translationY((top - location[POINT_Y]).toFloat())
+      picture.animate().translationX(
+        (left - location[POINT_X]).toFloat()
+      ).translationY((top - location[POINT_Y]).toFloat())
         .setDuration(ShadowListKitCore.DROP_DURATION_MS).withEndAction {
           if (handle != 0L && ShadowListKitCore.nativeDragBoardFlight(handle) == flight) {
             endFlight()
           }
         }.start()
-    } else endFlight()
+    } else {
+      endFlight()
+    }
     return kind != ShadowListKitCore.BOARD_HOME
   }
 
@@ -242,8 +308,13 @@ internal class ShadowListKitDragBoard private constructor() {
   /*
    * Touch and accessibility share this scoped application-owned data transaction.
    */
-  fun moveItemToList(source: ShadowListKitListView, sourceIndex: Int, destination: ShadowListKitListView,
-    destinationIndex: Int, destinationKey: String): Boolean {
+  fun moveItemToList(
+    source: ShadowListKitListView,
+    sourceIndex: Int,
+    destination: ShadowListKitListView,
+    destinationIndex: Int,
+    destinationKey: String
+  ): Boolean {
     val key = source.keys.getOrNull(sourceIndex) ?: return false
     if (source.delegate?.canMoveItem(source, sourceIndex) == false) return false
     if (handle == 0L || source.dragBoard !== this || destination.dragBoard !== this) return false
@@ -256,7 +327,13 @@ internal class ShadowListKitDragBoard private constructor() {
     sourceCore.setDropHint(ShadowListKitCore.DROP_REMOVED, key)
     destinationCore.setDropHint(ShadowListKitCore.DROP_INSERTED, key)
     try {
-      source.delegate?.moveItemToList(source, sourceIndex, destination.dragListId.orEmpty(), destinationIndex, destinationKey)
+      source.delegate?.moveItemToList(
+        source,
+        sourceIndex,
+        destination.dragListId.orEmpty(),
+        destinationIndex,
+        destinationKey
+      )
       if (!current()) return false
       source.reloadData()
       if (!current()) return false
@@ -274,17 +351,42 @@ internal class ShadowListKitDragBoard private constructor() {
 
   fun moveTargets(source: ShadowListKitListView): List<ShadowListKitListView> {
     if (!source.reorderEnabled || source.isSectioned || source.editing) return emptyList()
-    return lists.filter { it !== source && it.reorderEnabled && !it.isSectioned && !it.dragListId.isNullOrEmpty() &&
-      it.isAttachedToWindow && it.isShown && it.windowToken == source.windowToken }
-      .sortedWith(compareBy({ it.getLocationOnScreen(location); location[POINT_X] }, { it.getLocationOnScreen(location); location[POINT_Y] }))
+    return lists.filter {
+      it !== source && it.reorderEnabled && !it.isSectioned && !it.dragListId.isNullOrEmpty() &&
+        it.isAttachedToWindow && it.isShown && it.windowToken == source.windowToken
+    }
+      .sortedWith(
+        compareBy({
+          it.getLocationOnScreen(location)
+          location[POINT_X]
+        }, {
+          it.getLocationOnScreen(location)
+          location[POINT_Y]
+        })
+      )
   }
 
-  fun performAccessibilityMove(source: ShadowListKitListView, sourceIndex: Int, destination: ShadowListKitListView): Boolean {
-    if (handle == 0L || !ShadowListKitCore.nativeDragBoardIsIdle(handle) || !moveTargets(source).contains(destination) ||
-      source.delegate?.canMoveItem(source, sourceIndex) == false) return false
+  fun performAccessibilityMove(
+    source: ShadowListKitListView,
+    sourceIndex: Int,
+    destination: ShadowListKitListView
+  ): Boolean {
+    if (handle == 0L || !ShadowListKitCore.nativeDragBoardIsIdle(
+        handle
+      ) || !moveTargets(source).contains(destination) ||
+      source.delegate?.canMoveItem(source, sourceIndex) == false
+    ) {
+      return false
+    }
     val accepted = moveItemToList(source, sourceIndex, destination, destination.keys.size, "")
-    if (accepted) destination.announceForAccessibility(destination.context.getString(R.string.shadowlist_moved_to,
-      destination.dragListLabel?.takeIf { it.isNotEmpty() } ?: destination.dragListId))
+    if (accepted) {
+      destination.announceForAccessibility(
+        destination.context.getString(
+          R.string.shadowlist_moved_to,
+          destination.dragListLabel?.takeIf { it.isNotEmpty() } ?: destination.dragListId
+        )
+      )
+    }
     return true
   }
 
@@ -309,11 +411,12 @@ internal class ShadowListKitDragBoard private constructor() {
   private fun snapSideways() {
     val outer = sidewaysScrollView.get()
     sidewaysScrollView.clear()
-    if (outer != null && outer.isAttachedToWindow && outer.snapToItem && outer.coreOrNull?.handle?.let { it != 0L } == true) {
+    if (outer != null && outer.isAttachedToWindow && outer.snapToItem &&
+      outer.coreOrNull?.handle?.let { it != 0L } == true
+    ) {
       outer.gesture.animateTo(outer.snapTarget(outer.offset))
     }
   }
-
 
   companion object {
     const val POINT_X = 0

@@ -123,8 +123,9 @@ static WheelPhase ShadowListKitWheelPhase(NSEventPhase phase)
 
 - (void)updateLimits
 {
-  _physics.setLimits(_contentSize.width - _viewportSize.width, _contentSize.height - _viewportSize.height,
-    _viewportSize.width, _viewportSize.height);
+  _physics.setLimits(
+    _contentSize.width - _viewportSize.width, _contentSize.height - _viewportSize.height, _viewportSize.width,
+    _viewportSize.height);
 }
 
 - (CGPoint)maxOffset
@@ -233,8 +234,8 @@ static WheelPhase ShadowListKitWheelPhase(NSEventPhase phase)
 
 NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventPhase phase, NSEventPhase momentumPhase)
 {
-  CGEventRef wheel = CGEventCreateScrollWheelEvent2(NULL, kCGScrollEventUnitPixel, 2, (int32_t)delta.y,
-    (int32_t)delta.x, 0);
+  CGEventRef wheel =
+    CGEventCreateScrollWheelEvent2(NULL, kCGScrollEventUnitPixel, 2, (int32_t)delta.y, (int32_t)delta.x, 0);
   int64_t scrollPhase = 0;
   switch (phase) {
     case NSEventPhaseBegan:

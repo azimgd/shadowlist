@@ -62,7 +62,7 @@ final class EnvironmentTests: XCTestCase {
   func testResizeAcrossTheAxisKeepsTheFirstVisibleRow() throws {
     let harness = ListHarness(source: WrappingSource(count: 600))
     let list = harness.list
-    for step in 1...12 {
+    for step in 1 ... 12 {
       list.contentOffset = CGPoint(x: 0, y: CGFloat(step) * 400 + 7)
       harness.layout()
     }

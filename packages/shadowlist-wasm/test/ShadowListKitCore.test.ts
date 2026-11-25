@@ -4,16 +4,260 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { before, test } from 'node:test';
+import { runInNewContext } from 'node:vm';
+import { ModuleKind, transpileModule } from 'typescript';
+import type { ShadowListKitScrollGesture } from '../src/ShadowListKitScrollGesture.ts';
 
 import {
   ShadowListKitCore,
   ShadowListKitListState,
   loadShadowListKit,
   keySplice,
+  easeOut,
 } from '../dist/ShadowListKitCore.js';
 
 const ROW_SIZE = 50;
 const WINDOW = 500;
+
+/*
+ * Run the gesture source with a manual browser clock. No browser, rebuilt dist, or real
+ * timer is needed to check how input events and display frames change the gesture.
+ */
+function scrollGesture(firesScrollend = true) {
+  const source = readFileSync(
+    new URL('../src/ShadowListKitScrollGesture.ts', import.meta.url),
+    'utf8'
+  );
+  const code = transpileModule(source, {
+    compilerOptions: { module: ModuleKind.CommonJS },
+  }).outputText;
+  let now = 1000;
+  let nextId = 0;
+  const timers = new Map<number, { at: number; run: () => void }>();
+  const frames = new Map<number, (time: number) => void>();
+  const listeners = new Map<string, (event: object) => void>();
+  const events: unknown[] = [];
+  const list = {
+    offset: 25,
+    movedElsewhere: false,
+    snapTarget: (offset: number) => offset,
+    addEventListener: (name: string, run: (event: object) => void) =>
+      listeners.set(name, run),
+    removeEventListener: (name: string) => listeners.delete(name),
+    gestureBegan: () => events.push('gesture'),
+    draggingBegan: () => events.push('drag'),
+    draggingEnded: (decelerates: boolean) =>
+      events.push(['release', decelerates]),
+    scrollingEnded: (command: boolean) => events.push(['end', command]),
+    scrollStep: (offset: number) => {
+      list.offset = offset;
+    },
+  };
+  const exports = {} as {
+    ShadowListKitScrollGesture: new (
+      list: object
+    ) => ShadowListKitScrollGesture;
+  };
+  runInNewContext(code, {
+    exports,
+    require: () => ({ ShadowListKitCore, easeOut }),
+    window: firesScrollend ? { onscrollend: null } : {},
+    performance: { now: () => now },
+    setTimeout: (run: () => void, delay: number) => {
+      const id = ++nextId;
+      timers.set(id, { at: now + delay, run });
+      return id;
+    },
+    clearTimeout: (id: number) => timers.delete(id),
+    requestAnimationFrame: (run: (time: number) => void) => {
+      const id = ++nextId;
+      frames.set(id, run);
+      return id;
+    },
+    cancelAnimationFrame: (id: number) => frames.delete(id),
+  });
+  const gesture = new exports.ShadowListKitScrollGesture(list);
+  gesture.attach();
+  return {
+    gesture,
+    list,
+    events,
+    timers,
+    frames,
+    listeners,
+    event(name: string, event: object = {}) {
+      listeners.get(name)?.(event);
+    },
+    advance(milliseconds: number) {
+      const until = now + milliseconds;
+      for (;;) {
+        const next = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
+        if (!next || next[1].at > until) break;
+        now = next[1].at;
+        timers.delete(next[0]);
+        next[1].run();
+      }
+      now = until;
+    },
+    frame(milliseconds: number) {
+      now += milliseconds;
+      const work = [...frames.values()];
+      frames.clear();
+      for (const run of work) run(now);
+    },
+  };
+}
+
+test('gesture holds an ended touch until the last finger lifts', () => {
+  const h = scrollGesture();
+  h.event('touchstart');
+  h.gesture.userScrolled();
+  assert.equal(h.gesture.isTracking, true);
+  assert.equal(h.gesture.isSettling, true);
+  assert.equal(h.timers.size, 0);
+  h.event('scrollend');
+  h.advance(0);
+  assert.deepEqual(h.events, ['gesture', 'drag']);
+  h.event('touchend', { touches: [{}] });
+  assert.equal(h.gesture.isTracking, true);
+  h.event('touchend', { touches: [] });
+  assert.deepEqual(h.events, [
+    'gesture',
+    'drag',
+    ['release', true],
+    ['end', false],
+  ]);
+  assert.equal(h.gesture.isTracking, false);
+  assert.equal(h.gesture.isSettling, false);
+  assert.equal(h.timers.size, 0);
+});
+
+test('gesture waits for a new scrollend if movement follows an end while held', () => {
+  const h = scrollGesture();
+  h.event('touchstart');
+  h.gesture.userScrolled();
+  h.event('scrollend');
+  h.gesture.userScrolled();
+  h.event('touchend', { touches: [] });
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.gesture.isSettling, true);
+  h.event('scrollend');
+  assert.equal(h.gesture.isSettling, true);
+  h.advance(0);
+  assert.equal(h.gesture.isSettling, false);
+  assert.deepEqual(h.events.at(-1), ['end', false]);
+});
+
+test('gesture restarts the wheel quiet wait and ignores intermediate scrollend', () => {
+  const h = scrollGesture();
+  const quiet = ShadowListKitCore.WHEEL_IDLE_MS;
+  h.event('wheel');
+  assert.equal(h.gesture.isSettling, false);
+  h.gesture.userScrolled();
+  h.event('scrollend');
+  h.advance(quiet - 1);
+  assert.equal(h.gesture.isSettling, true);
+  h.event('wheel');
+  h.gesture.userScrolled();
+  h.advance(quiet - 1);
+  assert.equal(h.gesture.isSettling, true);
+  h.advance(1);
+  assert.equal(h.gesture.isSettling, false);
+  assert.equal(h.timers.size, 0);
+  assert.deepEqual(h.events.at(-1), ['end', false]);
+  h.gesture.userScrolled();
+  assert.equal(h.timers.size, 0);
+  h.event('scrollend');
+  h.advance(0);
+  assert.equal(h.gesture.isSettling, false);
+});
+
+test('gesture quiet fallback cannot finish a held scroll and restarts on release', () => {
+  const h = scrollGesture(false);
+  h.event('touchstart');
+  h.gesture.userScrolled();
+  h.advance(ShadowListKitCore.WHEEL_IDLE_MS);
+  assert.equal(h.gesture.isSettling, true);
+  assert.equal(h.gesture.isTracking, true);
+  assert.equal(h.timers.size, 0);
+  h.event('touchcancel', { touches: [] });
+  assert.equal(h.gesture.isTracking, false);
+  assert.equal(h.timers.size, 1);
+  h.advance(ShadowListKitCore.WHEEL_IDLE_MS);
+  assert.equal(h.gesture.isSettling, false);
+  assert.deepEqual(h.events.at(-1), ['end', false]);
+});
+
+test('gesture scrollbar tracking replaces wheel completion and ignores row presses', () => {
+  const h = scrollGesture();
+  h.event('pointerdown', { pointerType: 'mouse', target: {} });
+  assert.equal(h.gesture.isTracking, false);
+  h.event('wheel');
+  h.gesture.userScrolled();
+  h.event('pointerdown', { pointerType: 'mouse', target: h.list });
+  h.advance(ShadowListKitCore.WHEEL_IDLE_MS);
+  assert.equal(h.gesture.isTracking, true);
+  h.event('pointercancel', { pointerType: 'mouse' });
+  assert.equal(h.gesture.isSettling, true);
+  assert.equal(h.timers.size, 0);
+  h.event('scrollend');
+  h.advance(0);
+  assert.equal(h.gesture.isSettling, false);
+});
+
+test('gesture animation replaces quiet work and touch takeover cancels its frame', () => {
+  const h = scrollGesture();
+  h.event('wheel');
+  h.gesture.userScrolled();
+  h.gesture.animateTo(() => 100);
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.gesture.isSettling, false);
+  assert.equal(h.gesture.isAnimating, true);
+  h.event('scrollend');
+  assert.equal(h.timers.size, 0);
+  h.event('touchstart');
+  assert.equal(h.frames.size, 0);
+  assert.equal(h.gesture.isAnimating, false);
+  assert.equal(h.gesture.isTracking, true);
+  h.event('touchend', { touches: [] });
+  assert.deepEqual(h.events.at(-2), ['release', false]);
+  assert.deepEqual(h.events.at(-1), ['end', false]);
+});
+
+test('gesture completes commands while held and follows corrected live targets', () => {
+  const h = scrollGesture();
+  h.event('touchstart');
+  let target = 100;
+  h.gesture.animateTo(() => target);
+  assert.equal(h.gesture.isTracking, true);
+  assert.equal(h.gesture.isAnimating, true);
+  h.gesture.offsetCorrected(10);
+  h.frame(0);
+  assert.equal(h.list.offset, 35);
+  target = 150;
+  h.frame(ShadowListKitCore.COMMAND_DURATION_MS);
+  assert.equal(h.list.offset, 150);
+  assert.equal(h.gesture.isAnimating, false);
+  assert.equal(h.gesture.isTracking, true);
+  assert.deepEqual(h.events.at(-1), ['end', true]);
+});
+
+test('gesture detach cancels completion and frames and clears its readable phases', () => {
+  for (const animate of [false, true]) {
+    const h = scrollGesture();
+    h.event('touchstart');
+    h.event('wheel');
+    h.gesture.userScrolled();
+    if (animate) h.gesture.animateTo(() => 100);
+    h.gesture.detach();
+    assert.equal(h.gesture.isTracking, false);
+    assert.equal(h.gesture.isSettling, false);
+    assert.equal(h.gesture.isAnimating, false);
+    assert.equal(h.timers.size, 0);
+    assert.equal(h.frames.size, 0);
+    assert.equal(h.listeners.size, 0);
+  }
+});
 
 before(() => loadShadowListKit());
 

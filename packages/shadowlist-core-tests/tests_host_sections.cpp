@@ -112,7 +112,9 @@ TEST(sections_row_keys_round_trip_to_item_keys) {
   CHECK_EQ(rows[5], std::string("c"));
   std::vector<std::string> back = sections.itemKeys(rows);
   CHECK_EQ(back.size(), items.size());
-  for (std::size_t index = 0; index < items.size(); ++index) CHECK_EQ(back[index], items[index]);
+  for (std::size_t index = 0; index < items.size(); ++index) {
+    CHECK_EQ(back[index], items[index]);
+  }
 }
 
 TEST(sections_drop_maps_to_an_item_inside_the_dragged_rows_section) {

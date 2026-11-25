@@ -176,7 +176,8 @@ TEST(fuzz_swipe_rests_closed_open_or_swiped_out_and_its_buttons_fill_the_gap) {
     spec.trailingWidth = chance(rng, 30) ? 0.0 : 74.0 * (1 + pickInt(rng, 0, 2));
     spec.leadingFullSwipe = chance(rng, 50);
     spec.trailingFullSwipe = chance(rng, 50);
-    trail.note("row " + std::to_string(spec.rowSize) + " leading " + std::to_string(spec.leadingWidth) +
+    trail.note(
+      "row " + std::to_string(spec.rowSize) + " leading " + std::to_string(spec.leadingWidth) +
       (spec.leadingFullSwipe ? " full" : "") + " trailing " + std::to_string(spec.trailingWidth) +
       (spec.trailingFullSwipe ? " full" : ""));
     double resting = 0.0;
@@ -184,8 +185,8 @@ TEST(fuzz_swipe_rests_closed_open_or_swiped_out_and_its_buttons_fill_the_gap) {
     for (int gesture = 0; gesture < 6; ++gesture) {
       swipe.begin(spec, resting);
       if (std::fabs(swipe.drag(0.0) - resting) > 1e-9) {
-        trail.failWith("a touch moved the row from " + std::to_string(resting) + " to " +
-          std::to_string(swipe.drag(0.0)));
+        trail.failWith(
+          "a touch moved the row from " + std::to_string(resting) + " to " + std::to_string(swipe.drag(0.0)));
       }
       double translation = 0.0;
       double offset = resting;
@@ -237,7 +238,8 @@ TEST(fuzz_swipe_rests_closed_open_or_swiped_out_and_its_buttons_fill_the_gap) {
       double velocity = (pickPercent(rng) - 50) * 20.0;
       SwipeRest rest = swipe.settle(offset, velocity, SWIPE_FLING_VELOCITY);
       episode.reach(rest.full ? "release full" : rest.side == SwipeSide::None ? "release closed" : "release open");
-      trail.note("release at " + std::to_string(offset) + " v=" + std::to_string(velocity) + " rests at " +
+      trail.note(
+        "release at " + std::to_string(offset) + " v=" + std::to_string(velocity) + " rests at " +
         std::to_string(rest.offset));
       episode.observe(rest.offset);
       bool leading = rest.side == SwipeSide::Leading;
@@ -248,8 +250,9 @@ TEST(fuzz_swipe_rests_closed_open_or_swiped_out_and_its_buttons_fill_the_gap) {
       } else if ((leading ? spec.leadingWidth : spec.trailingWidth) <= 0.0 || (offset > 0.0) != leading) {
         trail.failWith("the row opened a side it has no actions on or was not swiped to");
       } else if (rest.full) {
-        if (!(leading ? spec.leadingFullSwipe : spec.trailingFullSwipe) || !swipe.isPastFullSwipe(offset) ||
-            !swipe.isSwipedOut(rest.offset)) {
+        if (
+          !(leading ? spec.leadingFullSwipe : spec.trailingFullSwipe) || !swipe.isPastFullSwipe(offset) ||
+          !swipe.isSwipedOut(rest.offset)) {
           trail.failWith("a full swipe the side does not allow, or one that does not slide the row out");
         }
       } else if (rest.offset != swipe.openOffset(rest.side) || swipe.isPastFullSwipe(offset)) {

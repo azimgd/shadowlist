@@ -74,7 +74,8 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 - (void)swipeLinkTick:(CADisplayLink *)link;
 - (void)advanceSwipeSettleBy:(double)seconds;
 - (void)scriptSwipeOfCell:(ShadowListKitListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity;
-- (void)performSwipeAction:(nullable ShadowListKitSwipeAction *)action from:(nullable ShadowListKitSwipeActionsView *)view;
+- (void)performSwipeAction:(nullable ShadowListKitSwipeAction *)action
+                      from:(nullable ShadowListKitSwipeActionsView *)view;
 @end
 
 /*
@@ -118,10 +119,13 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 - (void)updateSwipesItems
 {
   _swipesItems = [_userDelegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)] ||
-    [_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)];
+                 [_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)];
 }
 
-- (ShadowListKitListCell *)swipeCell { return _swipeCell; }
+- (ShadowListKitListCell *)swipeCell
+{
+  return _swipeCell;
+}
 
 - (BOOL)isSwipeOpen
 {
@@ -145,19 +149,24 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
 
 - (ShadowListKitSwipeActionsConfiguration *)leadingActionsForItem:(NSInteger)index
 {
-  if (index == NSNotFound || ![_userDelegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)]) {
+  if (
+    index == NSNotFound || ![_userDelegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)]) {
     return nil;
   }
-  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self leadingSwipeActionsForItemAtIndex:index];
+  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self
+                                                leadingSwipeActionsForItemAtIndex:index];
   return configuration.actions.count > 0 ? configuration : nil;
 }
 
 - (ShadowListKitSwipeActionsConfiguration *)trailingActionsForItem:(NSInteger)index
 {
-  if (index == NSNotFound || ![_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)]) {
+  if (
+    index == NSNotFound ||
+    ![_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)]) {
     return nil;
   }
-  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self trailingSwipeActionsForItemAtIndex:index];
+  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self
+                                               trailingSwipeActionsForItemAtIndex:index];
   return configuration.actions.count > 0 ? configuration : nil;
 }
 
@@ -278,7 +287,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   [self setSwipeOffset:(CGFloat)_swipe.drag(_swipeTranslation)];
   if (_swipe.isPastFullSwipe(_swipeOffset) != wasPast) {
     [NSHapticFeedbackManager.defaultPerformer performFeedbackPattern:NSHapticFeedbackPatternAlignment
-                                                    performanceTime:NSHapticFeedbackPerformanceTimeNow];
+                                                     performanceTime:NSHapticFeedbackPerformanceTimeNow];
   }
 }
 
@@ -320,12 +329,12 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   if (!leading && !trailing) {
     return;
   }
-  ShadowListKitSwipeActionsView *view = [[ShadowListKitSwipeActionsView alloc] initWithLeading:leading trailing:trailing horizontal:_horizontal];
+  ShadowListKitSwipeActionsView *view = [[ShadowListKitSwipeActionsView alloc] initWithLeading:leading
+                                                                                      trailing:trailing
+                                                                                    horizontal:_horizontal];
   __weak ShadowListKitListView *weakSelf = self;
   __weak ShadowListKitSwipeActionsView *weakView = view;
-  view.onAction = ^(ShadowListKitSwipeAction *action) {
-    [weakSelf performSwipeAction:action from:weakView];
-  };
+  view.onAction = ^(ShadowListKitSwipeAction *action) { [weakSelf performSwipeAction:action from:weakView]; };
   view.hidden = YES;
   ShadowListKitPlace(view, cell.frame);
   [_contentView addSubview:view positioned:NSWindowBelow relativeTo:cell];
@@ -374,8 +383,8 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
     [_swipeLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
   }
   if (rest.full) {
-    ShadowListKitSwipeActionsConfiguration *configuration = rest.side == SwipeSide::Leading ? _swipeActionsView.leading
-                                                                                            : _swipeActionsView.trailing;
+    ShadowListKitSwipeActionsConfiguration *configuration =
+      rest.side == SwipeSide::Leading ? _swipeActionsView.leading : _swipeActionsView.trailing;
     [self performSwipeAction:configuration.actions.firstObject from:_swipeActionsView];
   }
 }
@@ -501,7 +510,7 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
  */
 - (NSView *)hitTest:(NSPoint)point
 {
-  if (_viewsBehind) {
+  if ([self viewsBehind]) {
     return [self hitTestThroughLayers:point];
   }
   NSView *hit = [super hitTest:point];
@@ -538,14 +547,16 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
     return;
   }
   __weak ShadowListKitListView *weakSelf = self;
-  _swipeKeyMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown handler:^NSEvent *(NSEvent *event) {
-    ShadowListKitListView *list = weakSelf;
-    if (![list isSwipeOpen] || event.keyCode != SHADOWLIST_KIT_ESCAPE_KEY_CODE) {
-      return event;
-    }
-    [list closeSwipeAnimated:YES];
-    return nil;
-  }];
+  _swipeKeyMonitor = [NSEvent
+    addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+                                 handler:^NSEvent *(NSEvent *event) {
+                                   ShadowListKitListView *list = weakSelf;
+                                   if (![list isSwipeOpen] || event.keyCode != SHADOWLIST_KIT_ESCAPE_KEY_CODE) {
+                                     return event;
+                                   }
+                                   [list closeSwipeAnimated:YES];
+                                   return nil;
+                                 }];
 }
 
 - (void)stopSwipeKeyMonitor
@@ -575,10 +586,11 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
       if (name.length == 0) {
         continue;
       }
-      [actions addObject:[[NSAccessibilityCustomAction alloc] initWithName:name handler:^BOOL {
-        [weakSelf performSwipeAction:action from:nil];
-        return YES;
-      }]];
+      [actions addObject:[[NSAccessibilityCustomAction alloc] initWithName:name
+                                                                   handler:^BOOL {
+                                                                     [weakSelf performSwipeAction:action from:nil];
+                                                                     return YES;
+                                                                   }]];
     }
   }
   return actions;
@@ -636,15 +648,19 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
       [menu addItem:NSMenuItem.separatorItem];
     }
     for (ShadowListKitSwipeAction *action in configuration.actions) {
-      NSMenuItem *menuItem = [[NSMenuItem alloc] initWithTitle:action.title ?: @"" action:@selector(performSwipeMenuItem:) keyEquivalent:@""];
+      NSMenuItem *menuItem = [[NSMenuItem alloc] initWithTitle:action.title ?: @""
+                                                        action:@selector(performSwipeMenuItem:)
+                                                 keyEquivalent:@""];
       menuItem.target = self;
       menuItem.representedObject = action;
       menuItem.image = action.image;
       if (action.style == ShadowListKitSwipeActionStyleDestructive) {
-        menuItem.attributedTitle = [[NSAttributedString alloc] initWithString:menuItem.title attributes:@{
-          NSFontAttributeName : [NSFont menuFontOfSize:0],
-          NSForegroundColorAttributeName : NSColor.systemRedColor,
-        }];
+        menuItem.attributedTitle =
+          [[NSAttributedString alloc] initWithString:menuItem.title
+                                          attributes:@{
+                                            NSFontAttributeName : [NSFont menuFontOfSize:0],
+                                            NSForegroundColorAttributeName : NSColor.systemRedColor,
+                                          }];
       }
       [menu addItem:menuItem];
     }
@@ -703,8 +719,10 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   _menuCell = cell;
   [cell setMenuTarget:YES animated:NO];
   [self placeMenuOutlineOnCell:cell];
-  [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(menuDidEndTracking:)
-                                             name:NSMenuDidEndTrackingNotification object:menu];
+  [NSNotificationCenter.defaultCenter addObserver:self
+                                         selector:@selector(menuDidEndTracking:)
+                                             name:NSMenuDidEndTrackingNotification
+                                           object:menu];
 }
 
 /*
@@ -714,7 +732,9 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
  */
 - (void)menuDidEndTracking:(NSNotification *)notification
 {
-  [NSNotificationCenter.defaultCenter removeObserver:self name:NSMenuDidEndTrackingNotification object:notification.object];
+  [NSNotificationCenter.defaultCenter removeObserver:self
+                                                name:NSMenuDidEndTrackingNotification
+                                              object:notification.object];
   [self clearMenuTarget];
   NSUInteger generation = _clickGeneration;
   __weak ShadowListKitListView *weakSelf = self;
@@ -763,9 +783,8 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   }
   [CATransaction begin];
   [CATransaction setDisableActions:YES];
-  [self.effectiveAppearance performAsCurrentDrawingAppearance:^{
-    self->_menuOutline.borderColor = NSColor.controlAccentColor.CGColor;
-  }];
+  [self.effectiveAppearance
+    performAsCurrentDrawingAppearance:^{ self->_menuOutline.borderColor = NSColor.controlAccentColor.CGColor; }];
   _menuOutline.frame = CGRectInset(cell.layer.bounds, 1, 1);
   [cell.layer addSublayer:_menuOutline];
   [CATransaction commit];
@@ -784,9 +803,15 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   NSRect frame = cell ? [self convertRect:cell.frame fromView:cell.superview] : NSZeroRect;
   NSPoint point = [self convertPoint:NSMakePoint(NSMidX(frame), NSMidY(frame)) toView:nil];
   NSEventType type = (flags & NSEventModifierFlagControl) ? NSEventTypeLeftMouseDown : NSEventTypeRightMouseDown;
-  NSEvent *event = [NSEvent mouseEventWithType:type location:point modifierFlags:flags
+  NSEvent *event = [NSEvent mouseEventWithType:type
+                                      location:point
+                                 modifierFlags:flags
                                      timestamp:NSProcessInfo.processInfo.systemUptime
-                                  windowNumber:self.window.windowNumber context:nil eventNumber:0 clickCount:1 pressure:1];
+                                  windowNumber:self.window.windowNumber
+                                       context:nil
+                                   eventNumber:0
+                                    clickCount:1
+                                      pressure:1];
   return [cell menuForEvent:event];
 }
 
@@ -815,7 +840,8 @@ static void ShadowListKitShowSwipeShift(CALayer *layer, CGPoint shift)
   CGEventRef wheel = CGEventCreateCopy(ShadowListKitScrollWheelEvent(delta, phase, momentumPhase).CGEvent);
   CGEventSetLocation(wheel, CGPointZero);
   NSEvent *origin = [NSEvent eventWithCGEvent:wheel];
-  NSPoint originScreen = origin.window ? [origin.window convertPointToScreen:origin.locationInWindow] : origin.locationInWindow;
+  NSPoint originScreen =
+    origin.window ? [origin.window convertPointToScreen:origin.locationInWindow] : origin.locationInWindow;
   NSPoint screen = [self.window convertPointToScreen:[self convertPoint:point toView:nil]];
   CGEventSetLocation(wheel, CGPointMake(screen.x - originScreen.x, originScreen.y - screen.y));
   NSEvent *event = [NSEvent eventWithCGEvent:wheel];

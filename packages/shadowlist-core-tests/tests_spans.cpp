@@ -23,8 +23,8 @@ FrameInput spanFrame(const std::vector<std::size_t>& spans) {
 
 void measureSpanRows(Container& container, const std::vector<double>& sizes) {
   for (std::size_t index = 0; index < sizes.size(); ++index) {
-    double cross = container.revision.windowWidth * container.revision.rows[index].columnSpan /
-      container.numberOfColumns;
+    double cross =
+      container.revision.windowWidth * container.revision.rows[index].columnSpan / container.numberOfColumns;
     Virtualizer::updateRowAtIndex(container, index, {cross, sizes[index]});
   }
 }
@@ -66,8 +66,8 @@ TEST(spans_horizontal_grid_preserves_axis_geometry_and_publishes_its_cross_heigh
   Virtualizer::update(horizontal, input);
   std::vector<double> widths{10.0, 20.0, 5.0, 7.0, 9.0};
   for (std::size_t index = 0; index < widths.size(); ++index) {
-    Virtualizer::updateRowAtIndex(horizontal, index, {widths[index],
-      100.0 * horizontal.revision.rows[index].columnSpan});
+    Virtualizer::updateRowAtIndex(
+      horizontal, index, {widths[index], 100.0 * horizontal.revision.rows[index].columnSpan});
   }
   Virtualizer::update(horizontal, input);
   CHECK_EQ(horizontal.revision.contentWidth, vertical.revision.contentHeight);
@@ -151,8 +151,7 @@ TEST(spans_long_unused_track_still_defines_content_extent) {
   CHECK_EQ(container.getViewableIndices(ViewableRule{}).low, 1u);
   checkNoRowLost(container, "long unused span track");
   std::vector<std::size_t> found;
-  auto inspected = container.state.spanRanges.visit(9000.0, 9010.0,
-    [&](std::size_t index) { found.push_back(index); });
+  auto inspected = container.state.spanRanges.visit(9000.0, 9010.0, [&](std::size_t index) { found.push_back(index); });
   CHECK_EQ(found, std::vector<std::size_t>{1});
   CHECK(inspected < 30u);
 }
@@ -234,7 +233,9 @@ TEST(spans_columns_and_metadata_revision_do_not_depend_on_row_heights) {
   Virtualizer::update(container, input);
   auto version = container.state.rowSpansVersion;
   std::vector<std::size_t> before;
-  for (const Row& row : container.revision.rows) before.push_back(row.column);
+  for (const Row& row : container.revision.rows) {
+    before.push_back(row.column);
+  }
   Virtualizer::updateRowAtIndex(container, 0, {200.0, 1000.0});
   Virtualizer::update(container, input);
   CHECK_EQ(container.state.rowSpansVersion, version);
@@ -281,7 +282,9 @@ TEST(spans_synchronous_keyed_anchor_survives_prepend_reorder_and_late_sizes) {
   driver.setSettings(settings);
   auto keys = keysFor(200);
   auto spans = std::vector<std::size_t>(keys.size());
-  for (std::size_t index = 0; index < spans.size(); ++index) spans[index] = index % 3 + 1;
+  for (std::size_t index = 0; index < spans.size(); ++index) {
+    spans[index] = index % 3 + 1;
+  }
   driver.setKeys(keys);
   driver.setRowSpans(spans);
   driver.setMeasureRow([](std::size_t, const std::string& key, double) {
@@ -293,7 +296,9 @@ TEST(spans_synchronous_keyed_anchor_survives_prepend_reorder_and_late_sizes) {
   input.clampStart = true;
   input.clampEnd = true;
   auto settle = [&] {
-    for (int pass = 0; pass < 20; ++pass) input.offset = driver.runPasses(input).offset;
+    for (int pass = 0; pass < 20; ++pass) {
+      input.offset = driver.runPasses(input).offset;
+    }
   };
   settle();
   driver.scrollToRow(90, 0.0);
@@ -316,9 +321,16 @@ TEST(spans_synchronous_keyed_anchor_survives_prepend_reorder_and_late_sizes) {
 }
 
 TEST(spans_incremental_random_edits_match_fresh_layout_and_brute_force_ranges) {
-  struct Item { std::string key; std::size_t span; double height; };
+  struct Item {
+    std::string key;
+    std::size_t span;
+    double height;
+  };
   std::uint32_t seed = 0x3217u;
-  auto next = [&] { seed = seed * 1664525u + 1013904223u; return seed; };
+  auto next = [&] {
+    seed = seed * 1664525u + 1013904223u;
+    return seed;
+  };
   std::vector<Item> items;
   for (std::size_t index = 0; index < 40; ++index) {
     items.push_back({"item" + std::to_string(index), next() % 4 + 1, static_cast<double>(next() % 120 + 1)});
@@ -333,8 +345,9 @@ TEST(spans_incremental_random_edits_match_fresh_layout_and_brute_force_ranges) {
     Virtualizer::update(core, input);
     SizeBatch batch;
     for (std::size_t index = 0; index < items.size(); ++index) {
-      batch.apply(core, index, {input.windowWidth * core.revision.rows[index].columnSpan / input.numberOfColumns,
-        items[index].height});
+      batch.apply(
+        core, index,
+        {input.windowWidth * core.revision.rows[index].columnSpan / input.numberOfColumns, items[index].height});
     }
     batch.commit(core);
     Virtualizer::update(core, input);
@@ -342,18 +355,37 @@ TEST(spans_incremental_random_edits_match_fresh_layout_and_brute_force_ranges) {
   for (std::size_t edit = 0; edit < 80; ++edit) {
     std::size_t index = next() % items.size();
     switch (edit % 8) {
-      case 0: items.push_back({"append" + std::to_string(edit), next() % 5 + 1, 15.0}); break;
-      case 1: items.erase(items.begin() + static_cast<std::ptrdiff_t>(index)); break;
-      case 2: std::swap(items[index], items[next() % items.size()]); break;
-      case 3: items[index].span = next() % 8 + 1; break;
-      case 4: items[index].height = static_cast<double>(next() % 1000 + 1); break;
-      case 5: input.numberOfColumns = next() % 4 + 2; break;
-      case 6: input.windowWidth = static_cast<double>(next() % 300 + 100); break;
-      case 7: input.headerSize = static_cast<double>(next() % 30); break;
+      case 0:
+        items.push_back({"append" + std::to_string(edit), next() % 5 + 1, 15.0});
+        break;
+      case 1:
+        items.erase(items.begin() + static_cast<std::ptrdiff_t>(index));
+        break;
+      case 2:
+        std::swap(items[index], items[next() % items.size()]);
+        break;
+      case 3:
+        items[index].span = next() % 8 + 1;
+        break;
+      case 4:
+        items[index].height = static_cast<double>(next() % 1000 + 1);
+        break;
+      case 5:
+        input.numberOfColumns = next() % 4 + 2;
+        break;
+      case 6:
+        input.windowWidth = static_cast<double>(next() % 300 + 100);
+        break;
+      case 7:
+        input.headerSize = static_cast<double>(next() % 30);
+        break;
     }
     input.keys.clear();
     input.rowSpans.clear();
-    for (const Item& item : items) { input.keys.push_back(item.key); input.rowSpans.push_back(item.span); }
+    for (const Item& item : items) {
+      input.keys.push_back(item.key);
+      input.rowSpans.push_back(item.span);
+    }
     input.userScrolled = false;
     input.scrollPhase = ScrollPhase::Idle;
     measure(incremental);
@@ -372,7 +404,8 @@ TEST(spans_incremental_random_edits_match_fresh_layout_and_brute_force_ranges) {
     input.userScrolled = true;
     input.scrollPhase = ScrollPhase::Dragging;
     for (int query = 0; query < 4; ++query) {
-      input.offsetY = next() % static_cast<std::size_t>(std::max(1.0, incremental.revision.contentHeight - input.windowHeight));
+      input.offsetY =
+        next() % static_cast<std::size_t>(std::max(1.0, incremental.revision.contentHeight - input.windowHeight));
       Virtualizer::update(incremental, input);
       checkNoRowLost(incremental, "random mixed-span edit " + std::to_string(edit));
     }
@@ -420,14 +453,15 @@ TEST(spans_inverted_follow_appends_pins_the_end_and_respects_user_release_on_bot
     std::vector<std::size_t> spans;
     auto syncSpans = [&] {
       spans.resize(keys.size());
-      for (std::size_t index = 0; index < spans.size(); ++index) spans[index] = index % 3 == 0 ? 2 : index % 3 == 1 ? 1 : 3;
+      for (std::size_t index = 0; index < spans.size(); ++index) {
+        spans[index] = index % 3 == 0 ? 2 : index % 3 == 1 ? 1 : 3;
+      }
       driver.setRowSpans(spans);
     };
     driver.setKeys(keys);
     syncSpans();
-    driver.setMeasureRow([](std::size_t, const std::string& key, double) {
-      return 30.0 + std::stoul(key.substr(1)) % 7;
-    });
+    driver.setMeasureRow(
+      [](std::size_t, const std::string& key, double) { return 30.0 + std::stoul(key.substr(1)) % 7; });
     PassInput input;
     input.windowAlong = 120;
     input.windowCross = 320;
@@ -439,14 +473,17 @@ TEST(spans_inverted_follow_appends_pins_the_end_and_respects_user_release_on_bot
       for (int frame = 0; frame < 24; ++frame) {
         result = driver.runPasses(input);
         input.offset = result.offset;
-        if (!result.settling) return;
+        if (!result.settling) {
+          return;
+        }
       }
       CHECK(!result.settling);
     };
     auto append = [&] {
       const auto previousCount = keys.size();
       keys = keysFor(previousCount + 3);
-      driver.insertKeys({previousCount, previousCount + 1, previousCount + 2},
+      driver.insertKeys(
+        {previousCount, previousCount + 1, previousCount + 2},
         {keys[previousCount], keys[previousCount + 1], keys[previousCount + 2]});
       syncSpans();
       settle();

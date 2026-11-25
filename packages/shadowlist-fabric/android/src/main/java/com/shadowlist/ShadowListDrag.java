@@ -11,9 +11,7 @@ import com.facebook.soloader.SoLoader;
  * Rows come in arrays the caller reuses. UI thread only.
  */
 final class ShadowListDrag {
-  static {
-    SoLoader.loadLibrary("react_codegen_ShadowListViewSpec");
-  }
+  static { SoLoader.loadLibrary("react_codegen_ShadowListViewSpec"); }
 
   /*
    * Slots of the array updateInsertion reads for each row, ROW_SLOTS values a row. Match
@@ -71,9 +69,9 @@ final class ShadowListDrag {
     LIFT_ELEVATION_DP = constants[CONSTANT_LIFT_ELEVATION];
     SHIFT_DURATION_MS = Math.round(constants[CONSTANT_SHIFT_DURATION_MS]);
     DROP_DURATION_MS = Math.round(constants[CONSTANT_DROP_DURATION_MS]);
-    EVENT_START = (int) constants[CONSTANT_EVENT_START];
-    EVENT_END = (int) constants[CONSTANT_EVENT_END];
-    EVENT_LAND = (int) constants[CONSTANT_EVENT_LAND];
+    EVENT_START = (int)constants[CONSTANT_EVENT_START];
+    EVENT_END = (int)constants[CONSTANT_EVENT_END];
+    EVENT_LAND = (int)constants[CONSTANT_EVENT_LAND];
   }
 
   private static final ShadowListPeerReclaimer RECLAIMER = new ShadowListPeerReclaimer(ShadowListDrag::nativeDestroy);
@@ -105,15 +103,18 @@ final class ShadowListDrag {
    * Whether a press still lifts a row after the finger moved this far, in dp, along and across
    * the scroll axis. Along the axis it fails sooner. A slow scroll stays a scroll.
    */
-  static boolean pressHolds(double alongDp, double crossDp) {
-    return nativePressHolds(alongDp, crossDp);
-  }
+  static boolean pressHolds(double alongDp, double crossDp) { return nativePressHolds(alongDp, crossDp); }
 
   /*
    * The offset after a frame of dtSeconds of auto scroll near the viewport edges, in pixels.
    */
   static double autoScrollOffset(
-    double touch, double windowSize, double offset, double maxOffset, double pixelsPerDp, double dtSeconds) {
+    double touch,
+    double windowSize,
+    double offset,
+    double maxOffset,
+    double pixelsPerDp,
+    double dtSeconds) {
     return nativeAutoScrollOffset(touch, windowSize, offset, maxOffset, pixelsPerDp, dtSeconds);
   }
 
@@ -122,27 +123,39 @@ final class ShadowListDrag {
    * content, along and across the scroll axis.
    */
   void begin(
-    int index, String key, double leading, double extent, double crossLeading, double crossExtent,
-    double touchAlong, double touchCross, int columns) {
+    int index,
+    String key,
+    double leading,
+    double extent,
+    double crossLeading,
+    double crossExtent,
+    double touchAlong,
+    double touchCross,
+    int columns) {
     nativeBegin(handle(), index, key, leading, extent, crossLeading, crossExtent, touchAlong, touchCross, columns);
   }
 
   /*
    * A data change during the drag can move the held row. -1 or an empty key keeps the one we have.
    */
-  void updateOrigin(int index, String key) {
-    nativeUpdateOrigin(handle(), index, key);
-  }
+  void updateOrigin(int index, String key) { nativeUpdateOrigin(handle(), index, key); }
 
   /*
    * Move the held row under the finger. Returns its translation from its resting frame, along
    * the scroll axis at 0 and across it at 1. The array is reused by the next call.
    */
   double[] placeRow(
-    double touchAlong, double touchCross, double leading, double extent, double crossLeading, double crossExtent,
-    double contentSize, double crossContentSize) {
-    nativePlaceRow(handle(), touchAlong, touchCross, leading, extent, crossLeading, crossExtent, contentSize,
-      crossContentSize, mOffset);
+    double touchAlong,
+    double touchCross,
+    double leading,
+    double extent,
+    double crossLeading,
+    double crossExtent,
+    double contentSize,
+    double crossContentSize) {
+    nativePlaceRow(
+      handle(), touchAlong, touchCross, leading, extent, crossLeading, crossExtent, contentSize, crossContentSize,
+      mOffset);
     return mOffset;
   }
 
@@ -161,13 +174,9 @@ final class ShadowListDrag {
     return mOffset;
   }
 
-  void setHeldAway(boolean away) {
-    nativeSetHeldAway(handle(), away);
-  }
+  void setHeldAway(boolean away) { nativeSetHeldAway(handle(), away); }
 
-  boolean isHeldAway() {
-    return nativeIsHeldAway(handle());
-  }
+  boolean isHeldAway() { return nativeIsHeldAway(handle()); }
 
   void beginForeign(double extent, double crossExtent, int columns) {
     nativeBeginForeign(handle(), extent, crossExtent, columns);
@@ -177,67 +186,41 @@ final class ShadowListDrag {
     nativePlaceForeignCenter(handle(), center, crossCenter);
   }
 
-  void endForeign() {
-    nativeEndForeign(handle());
-  }
+  void endForeign() { nativeEndForeign(handle()); }
 
-  boolean isForeign() {
-    return nativeIsForeign(handle());
-  }
+  boolean isForeign() { return nativeIsForeign(handle()); }
 
-  boolean isGrid() {
-    return nativeIsGrid(handle());
-  }
+  boolean isGrid() { return nativeIsGrid(handle()); }
 
-  int getOriginIndex() {
-    return nativeOriginIndex(handle());
-  }
+  int getOriginIndex() { return nativeOriginIndex(handle()); }
 
-  int getInsertionIndex() {
-    return nativeInsertionIndex(handle());
-  }
+  int getInsertionIndex() { return nativeInsertionIndex(handle()); }
 
-  String getOriginKey() {
-    return nativeOriginKey(handle());
-  }
+  String getOriginKey() { return nativeOriginKey(handle()); }
 
-  String getInsertionKey() {
-    return nativeInsertionKey(handle());
-  }
+  String getInsertionKey() { return nativeInsertionKey(handle()); }
 
   /*
    * The held row's leading edges where it was placed, which is where it was let go on drop.
    */
-  double getLeading() {
-    return nativeLeading(handle());
-  }
+  double getLeading() { return nativeLeading(handle()); }
 
-  double getCrossLeading() {
-    return nativeCrossLeading(handle());
-  }
+  double getCrossLeading() { return nativeCrossLeading(handle()); }
 
   /*
    * Haptics: start counting from this drop spot, or -1 to make the next spot tick. shouldTick
    * says whether the current drop spot ticks now.
    */
-  void resetFeedback(int index) {
-    nativeResetFeedback(handle(), index);
-  }
+  void resetFeedback(int index) { nativeResetFeedback(handle(), index); }
 
-  boolean shouldTick(double nowMs) {
-    return nativeShouldTick(handle(), nowMs);
-  }
+  boolean shouldTick(double nowMs) { return nativeShouldTick(handle(), nowMs); }
 
   /*
    * The wait after a drop for the row to reach insertionIndex, see SETTLE_*.
    */
-  void beginSettle(int insertionIndex, double nowMs) {
-    nativeBeginSettle(handle(), insertionIndex, nowMs);
-  }
+  void beginSettle(int insertionIndex, double nowMs) { nativeBeginSettle(handle(), insertionIndex, nowMs); }
 
-  int tickSettle(int currentIndex, double nowMs) {
-    return nativeTickSettle(handle(), currentIndex, nowMs);
-  }
+  int tickSettle(int currentIndex, double nowMs) { return nativeTickSettle(handle(), currentIndex, nowMs); }
 
   void resetSettle() {
     if (mHandle != 0) {
@@ -250,15 +233,37 @@ final class ShadowListDrag {
   private static native void nativeConstants(double[] out);
   private static native boolean nativePressHolds(double along, double cross);
   private static native double nativeAutoScrollOffset(
-    double touch, double windowSize, double offset, double maxOffset, double pixelsPerDp, double dtSeconds);
+    double touch,
+    double windowSize,
+    double offset,
+    double maxOffset,
+    double pixelsPerDp,
+    double dtSeconds);
   private static native void nativeBegin(
-    long handle, int index, String key, double leading, double extent, double crossLeading, double crossExtent,
-    double touchAlong, double touchCross, int columns);
+    long handle,
+    int index,
+    String key,
+    double leading,
+    double extent,
+    double crossLeading,
+    double crossExtent,
+    double touchAlong,
+    double touchCross,
+    int columns);
   private static native void nativeUpdateOrigin(long handle, int index, String key);
   private static native void nativePlaceRow(
-    long handle, double touchAlong, double touchCross, double leading, double extent, double crossLeading,
-    double crossExtent, double contentSize, double crossContentSize, double[] out);
-  private static native boolean nativeUpdateInsertion(long handle, long mountHandle, int[] indices, String[] keys, double[] frames, int count);
+    long handle,
+    double touchAlong,
+    double touchCross,
+    double leading,
+    double extent,
+    double crossLeading,
+    double crossExtent,
+    double contentSize,
+    double crossContentSize,
+    double[] out);
+  private static native boolean
+  nativeUpdateInsertion(long handle, long mountHandle, int[] indices, String[] keys, double[] frames, int count);
   private static native void nativeOffsetFor(long handle, int index, double[] out);
   private static native void nativeSetHeldAway(long handle, boolean away);
   private static native boolean nativeIsHeldAway(long handle);

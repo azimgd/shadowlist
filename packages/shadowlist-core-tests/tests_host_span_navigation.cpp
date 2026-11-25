@@ -6,8 +6,8 @@ using namespace slt;
 using namespace azimgd::shadowlist;
 
 TEST(span_navigation_full_width_rows_choose_nearest_beam_and_stable_ties) {
-  std::vector<RowRect> rows{{0, 0, 300, 10}, {0, 10, 100, 20}, {100, 10, 100, 20},
-    {200, 10, 100, 20}, {0, 30, 300, 10}, {0, 40, 100, 20}, {100, 40, 200, 20}};
+  std::vector<RowRect> rows{{0, 0, 300, 10},  {0, 10, 100, 20}, {100, 10, 100, 20}, {200, 10, 100, 20},
+                            {0, 30, 300, 10}, {0, 40, 100, 20}, {100, 40, 200, 20}};
   auto rect = [&](std::size_t index) { return rows[index]; };
   auto down = neighborRows(0, 1, true, rows.size(), rect);
   CHECK_EQ(down[0], 2u);
@@ -21,8 +21,7 @@ TEST(span_navigation_full_width_rows_choose_nearest_beam_and_stable_ties) {
 }
 
 TEST(span_navigation_preserves_the_beam_before_a_nearer_disjoint_track) {
-  std::vector<RowRect> rows{{100, 0, 100, 10}, {0, 10, 100, 10},
-    {100, 20, 100, 10}, {100, 20, 100, 10}};
+  std::vector<RowRect> rows{{100, 0, 100, 10}, {0, 10, 100, 10}, {100, 20, 100, 10}, {100, 20, 100, 10}};
   auto found = neighborRows(0, 1, true, rows.size(), [&](std::size_t index) { return rows[index]; });
   CHECK_EQ(found, (std::vector<std::size_t>{2, 3, 1}));
 }

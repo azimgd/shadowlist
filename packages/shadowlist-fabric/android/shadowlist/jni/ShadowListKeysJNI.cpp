@@ -46,5 +46,4 @@ JNIEXPORT jint JNICALL SL_KEYS_JNI(nativeIndexOfKey)(JNIEnv* env, jclass, jlong 
   std::size_t row = snapshot->indexOfKey(azimgd::shadowlist::stringFromJava(env, key));
   return row == azimgd::shadowlist::UNDEFINED_INDEX ? -1 : static_cast<jint>(row);
 }
-
 }

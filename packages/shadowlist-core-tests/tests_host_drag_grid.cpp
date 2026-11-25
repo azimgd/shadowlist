@@ -232,7 +232,8 @@ TEST(grid_masonry_preview_matches_the_core_layout_after_the_move) {
       crossLeadings.push_back(row.crossLeading);
       crossExtents.push_back(row.crossExtent);
     }
-    DragCells cells{indices.data(), leadings.data(), extents.data(), crossLeadings.data(), crossExtents.data(), rows.size()};
+    DragCells cells{indices.data(),       leadings.data(),     extents.data(),
+                    crossLeadings.data(), crossExtents.data(), rows.size()};
     std::vector<double> shifts(rows.size());
     std::vector<double> crossShifts(rows.size());
     dragGridShifts(cells, held, to, 3, shifts.data(), crossShifts.data());
@@ -262,7 +263,8 @@ TEST(grid_preview_restarts_a_column_after_an_unmounted_cell) {
     crossLeadings.push_back((index % 2) * 100.0);
     crossExtents.push_back(100.0);
   }
-  DragCells cells{indices.data(), leadings.data(), extents.data(), crossLeadings.data(), crossExtents.data(), indices.size()};
+  DragCells cells{indices.data(),       leadings.data(),     extents.data(),
+                  crossLeadings.data(), crossExtents.data(), indices.size()};
   DragRow held{1, "", 0.0, 100.0, 100.0, 100.0};
   std::vector<double> shifts(indices.size());
   std::vector<double> crossShifts(indices.size());

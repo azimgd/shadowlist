@@ -219,11 +219,11 @@ moves it:
 
 A new `contentOffset` lays the list out at once, unless it waits for a layout already. An offset that stays
 where the same rows are mounted, with nothing else waiting, runs no layout pass at all and only moves the content.
-While the host moves it, the list moves its content and its cells by their layers: the content view's
+While the host drags or settles it, the list moves its content and its cells by their layers: the content view's
 `sublayerTransform` and each cell's layer position and `hidden`. No view's frame, bounds or hidden state changes,
-which spares AppKit a walk over every view of the window to update tracking areas on each frame. Once the list rests
-for a tenth of a second, the views take their layers' geometry. Until then a cell's `frame` and `hidden` lag
-behind what shows. `visibleCells`, `cellForItemAtIndex:`, hit testing, menus, swipes, drags and accessibility see
+which spares AppKit a walk over every view of the window to update tracking areas on each frame. When the host sets
+`scrollPhase` back to idle, the views take their layers' geometry, and a move while the phase is idle places the
+views. Until then a cell's `frame` and `hidden` lag behind what shows. `visibleCells`, `cellForItemAtIndex:`, hit testing, menus, swipes, drags and accessibility see
 the cells where they show. A host that walks the list's subviews reads their layers, or `visibleCells`, which
 brings the views up to date. A held row, an open swipe and `animatesChanges` place the views as a list that
 scrolls by itself does. Rows are drawn on their own device pixels.

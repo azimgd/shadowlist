@@ -103,7 +103,8 @@ void mountRows(Container& container, const std::vector<std::string>& keys, doubl
 }
 
 std::vector<std::string> keyRange(const std::vector<std::string>& keys, std::size_t from, std::size_t to) {
-  return std::vector<std::string>(keys.begin() + static_cast<std::ptrdiff_t>(from), keys.begin() + static_cast<std::ptrdiff_t>(to));
+  return std::vector<std::string>(
+    keys.begin() + static_cast<std::ptrdiff_t>(from), keys.begin() + static_cast<std::ptrdiff_t>(to));
 }
 
 }

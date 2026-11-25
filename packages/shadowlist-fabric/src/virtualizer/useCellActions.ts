@@ -43,13 +43,12 @@ export interface CellActionProps {
 }
 
 /*
- * Calls back after the next macrotask and two frames. A row removed by the app's handler, even
- * through a store that notifies on a timer, has unmounted by then.
+ * Calls back two frames later. Tasks queued before then, like a store that notifies on its
+ * own task, have run and their commit has mounted, so a row the app's handler removed has
+ * unmounted by then.
  */
 function afterNextCommit(callback: () => void) {
-  setTimeout(() => {
-    requestAnimationFrame(() => requestAnimationFrame(callback));
-  }, 0);
+  requestAnimationFrame(() => requestAnimationFrame(callback));
 }
 
 /*

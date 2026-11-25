@@ -21,12 +21,21 @@ final class ListScrollingTests: XCTestCase {
   private final class ScrollDelegate: NSObject, ShadowListKitListViewDelegate {
     var events: [String] = []
 
-    func listViewWillBeginDragging(_ listView: ShadowListKitListView) { events.append("begin") }
+    func listViewWillBeginDragging(_ listView: ShadowListKitListView) {
+      events.append("begin")
+    }
+
     func listViewDidEndDragging(_ listView: ShadowListKitListView, willDecelerate decelerate: Bool) {
       events.append(decelerate ? "end-decelerate" : "end")
     }
-    func listViewDidEndDecelerating(_ listView: ShadowListKitListView) { events.append("stop") }
-    func listViewDidEndScrollingAnimation(_ listView: ShadowListKitListView) { events.append("animation") }
+
+    func listViewDidEndDecelerating(_ listView: ShadowListKitListView) {
+      events.append("stop")
+    }
+
+    func listViewDidEndScrollingAnimation(_ listView: ShadowListKitListView) {
+      events.append("animation")
+    }
   }
 
   private let scrollDelegate = ScrollDelegate()
@@ -58,14 +67,14 @@ final class ListScrollingTests: XCTestCase {
     let harness = makeHarness()
     let list = harness.list
     wheel(harness, .zero, .began)
-    for _ in 0..<10 {
+    for _ in 0 ..< 10 {
       wheel(harness, CGPoint(x: 0, y: -30), .changed)
     }
     XCTAssertTrue(list.isDragging)
     wheel(harness, .zero, .ended)
     wheel(harness, CGPoint(x: 0, y: -40), [], .began)
     XCTAssertTrue(list.isDecelerating)
-    for _ in 0..<10 {
+    for _ in 0 ..< 10 {
       wheel(harness, CGPoint(x: 0, y: -20), [], .changed)
     }
     wheel(harness, .zero, [], .ended)
@@ -81,7 +90,7 @@ final class ListScrollingTests: XCTestCase {
     let harness = makeHarness()
     let list = harness.list
     wheel(harness, .zero, .began)
-    for _ in 0..<8 {
+    for _ in 0 ..< 8 {
       wheel(harness, CGPoint(x: 0, y: 40), .changed)
     }
     XCTAssertLessThan(list.contentOffset.y, -20)
@@ -218,8 +227,15 @@ final class ListScrollingTests: XCTestCase {
   func testMouseWheelAtAnEdgeGoesToTheNextResponder() throws {
     let harness = makeHarness()
     let catcher = catchWheel(harness)
-    let cgEvent = try XCTUnwrap(CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: 3, wheel2: 0, wheel3: 0))
-    harness.list.scrollWheel(with: try XCTUnwrap(NSEvent(cgEvent: cgEvent)))
+    let cgEvent = try XCTUnwrap(CGEvent(
+      scrollWheelEvent2Source: nil,
+      units: .line,
+      wheelCount: 1,
+      wheel1: 3,
+      wheel2: 0,
+      wheel3: 0
+    ))
+    try harness.list.scrollWheel(with: XCTUnwrap(NSEvent(cgEvent: cgEvent)))
     XCTAssertEqual(catcher.phases.count, 1)
     XCTAssertEqual(harness.list.contentOffset.y, 0)
   }

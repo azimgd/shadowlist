@@ -19,17 +19,11 @@ struct MountedRange {
   std::size_t low = UNDEFINED_INDEX;
   std::size_t high = UNDEFINED_INDEX;
 
-  bool isEmpty() const {
-    return low == UNDEFINED_INDEX || high == UNDEFINED_INDEX || low > high;
-  }
+  bool isEmpty() const { return low == UNDEFINED_INDEX || high == UNDEFINED_INDEX || low > high; }
 
-  bool operator==(const MountedRange& other) const {
-    return low == other.low && high == other.high;
-  }
+  bool operator==(const MountedRange& other) const { return low == other.low && high == other.high; }
 
-  bool operator!=(const MountedRange& other) const {
-    return !(*this == other);
-  }
+  bool operator!=(const MountedRange& other) const { return !(*this == other); }
 };
 
 /*
@@ -123,9 +117,7 @@ struct ViewableChanges {
   std::vector<std::string> added;
   std::vector<std::string> removed;
 
-  bool isEmpty() const {
-    return added.empty() && removed.empty();
-  }
+  bool isEmpty() const { return added.empty() && removed.empty(); }
 };
 
 ViewableChanges viewableChanges(const std::vector<std::string>& previous, const std::vector<std::string>& current);

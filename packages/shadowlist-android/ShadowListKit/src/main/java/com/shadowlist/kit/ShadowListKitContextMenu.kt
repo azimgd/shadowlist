@@ -14,7 +14,7 @@ internal class ShadowListKitContextMenu {
     anchor: View,
     configure: (Menu) -> Boolean,
     isValid: () -> Boolean,
-    onWillShow: (() -> Unit)? = null,
+    onWillShow: (() -> Unit)? = null
   ): Boolean {
     if (!isValid()) return false
     val next = PopupMenu(anchor.context, anchor)
@@ -24,7 +24,12 @@ internal class ShadowListKitContextMenu {
     close()
     popup = next
     this.anchor = anchor
-    next.setOnDismissListener { if (popup === next) { popup = null; this.anchor = null } }
+    next.setOnDismissListener {
+      if (popup === next) {
+        popup = null
+        this.anchor = null
+      }
+    }
     anchor.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     next.show()
     return true

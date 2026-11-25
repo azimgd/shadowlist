@@ -47,6 +47,7 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
   private var downX = 0f
   private var downY = 0f
   private var pressPending = false
+
   // The previous auto scroll frame's time, 0 before the first frame of a drag.
   private var lastFrameNanos = 0L
 
@@ -89,7 +90,11 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     touchY = event.y
     list.dragBoard?.noteFinger(list, touchX, touchY)
     if (holdTaken) {
-      if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) holdTaken = false
+      if (event.actionMasked == MotionEvent.ACTION_UP ||
+        event.actionMasked == MotionEvent.ACTION_CANCEL
+      ) {
+        holdTaken = false
+      }
       return true
     }
     if (hasHeldRow) {
@@ -128,11 +133,13 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
         pressPending = true
         list.postDelayed(longPress, ShadowListKitCore.PRESS_DURATION_MS)
       }
+
       MotionEvent.ACTION_MOVE -> {
         val along = (list.along(event.x, event.y) - list.along(downX, downY)) / list.density
         val cross = (list.cross(event.x, event.y) - list.cross(downX, downY)) / list.density
         if (!ShadowListKitCore.dragPressHolds(along.toDouble(), cross.toDouble())) cancelLongPress()
       }
+
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> cancelLongPress()
     }
   }
@@ -149,7 +156,9 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
         if (abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop) movedSinceLift = true
         update()
       }
+
       MotionEvent.ACTION_UP -> end(true)
+
       MotionEvent.ACTION_CANCEL -> end(false)
     }
   }
@@ -183,7 +192,9 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
 
   private fun lift(cell: ShadowListKitListCell) {
     cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-    cell.animate().scaleX(ShadowListKitCore.LIFT_SCALE).scaleY(ShadowListKitCore.LIFT_SCALE).translationZ(liftElevation())
+    cell.animate().scaleX(
+      ShadowListKitCore.LIFT_SCALE
+    ).scaleY(ShadowListKitCore.LIFT_SCALE).translationZ(liftElevation())
       .setDuration(ShadowListKitCore.LIFT_DURATION_MS).start()
     list.invalidate()
   }
@@ -231,16 +242,33 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     for (at in 0 until count) frameRows[at] = frameCells[at].row
     val along = list.contentAlongAt(touchX, touchY).toDouble()
     val now = SystemClock.uptimeMillis().toDouble()
-    val held = list.core.dragFrame(along, list.contentCrossAt(touchX, touchY).toDouble(), frameRows, count, now, frameOut)
+    val held = list.core.dragFrame(
+      along,
+      list.contentCrossAt(touchX, touchY).toDouble(),
+      frameRows,
+      count,
+      now,
+      frameOut
+    )
     if (held < 0) {
       end(false)
       return
     }
-    if (frameOut[ShadowListKitCore.DRAG_FRAME_TICK] != 0.0) cell.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-    translate(cell, frameOut[ShadowListKitCore.DRAG_FRAME_HELD_ALONG].toFloat(), frameOut[ShadowListKitCore.DRAG_FRAME_HELD_CROSS].toFloat())
-    if (!floating) list.dragBoard?.returnOffset(list, cell)?.let {
-      cell.translationX += it[ShadowListKitDragBoard.POINT_X].toFloat()
-      cell.translationY += it[ShadowListKitDragBoard.POINT_Y].toFloat()
+    if (frameOut[ShadowListKitCore.DRAG_FRAME_TICK] !=
+      0.0
+    ) {
+      cell.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+    }
+    translate(
+      cell,
+      frameOut[ShadowListKitCore.DRAG_FRAME_HELD_ALONG].toFloat(),
+      frameOut[ShadowListKitCore.DRAG_FRAME_HELD_CROSS].toFloat()
+    )
+    if (!floating) {
+      list.dragBoard?.returnOffset(list, cell)?.let {
+        cell.translationX += it[ShadowListKitDragBoard.POINT_X].toFloat()
+        cell.translationY += it[ShadowListKitDragBoard.POINT_Y].toFloat()
+      }
     }
     val animated = frameOut[ShadowListKitCore.DRAG_FRAME_INSERTION_MOVED] != 0.0
     applyFrameShifts(count, animated)
@@ -252,10 +280,21 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     frameCells.addAll(list.mounted.values.filter { it.visibility == View.VISIBLE && it.row >= 0 })
     val count = frameCells.size
     if (frameRows.size < count) frameRows = IntArray(count * 2)
-    if (frameOut.size < ShadowListKitCore.DRAG_FRAME_SLOTS + count * 2) frameOut = DoubleArray(ShadowListKitCore.DRAG_FRAME_SLOTS + count * 4)
+    if (frameOut.size <
+      ShadowListKitCore.DRAG_FRAME_SLOTS + count * 2
+    ) {
+      frameOut =
+        DoubleArray(ShadowListKitCore.DRAG_FRAME_SLOTS + count * 4)
+    }
     for (at in 0 until count) frameRows[at] = frameCells[at].row
-    list.core.dragFrame(list.contentAlongAt(x, y).toDouble(), list.contentCrossAt(x, y).toDouble(), frameRows, count,
-      SystemClock.uptimeMillis().toDouble(), frameOut)
+    list.core.dragFrame(
+      list.contentAlongAt(x, y).toDouble(),
+      list.contentCrossAt(x, y).toDouble(),
+      frameRows,
+      count,
+      SystemClock.uptimeMillis().toDouble(),
+      frameOut
+    )
     applyFrameShifts(count, frameOut[ShadowListKitCore.DRAG_FRAME_INSERTION_MOVED] != 0.0)
     frameCells.clear()
   }
@@ -281,8 +320,13 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
       val known = shiftTargets[shifted]
       if (known == target) continue
       shiftTargets[shifted] = target
-      if (animated && known != null) animateTranslation(shifted, shiftAlong, shiftCross, ShadowListKitCore.SHIFT_DURATION_MS)
-      else setTranslation(shifted, shiftAlong, shiftCross)
+      if (animated &&
+        known != null
+      ) {
+        animateTranslation(shifted, shiftAlong, shiftCross, ShadowListKitCore.SHIFT_DURATION_MS)
+      } else {
+        setTranslation(shifted, shiftAlong, shiftCross)
+      }
     }
   }
 
@@ -328,7 +372,13 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     val touch = list.windowAlongAt(touchX, touchY).toDouble()
     val offset = list.offset.toDouble()
     val next = ShadowListKitCore.dragAutoScrollOffset(
-      touch, list.windowAlong.toDouble(), offset, list.maxOffset.toDouble(), list.density.toDouble(), dtSeconds)
+      touch,
+      list.windowAlong.toDouble(),
+      offset,
+      list.maxOffset.toDouble(),
+      list.density.toDouble(),
+      dtSeconds
+    )
     // The offset write runs a layout pass, which runs the drag frame.
     if (abs(next - offset) >= 1) list.writeOffset(next.toInt(), byUser = true)
     Choreographer.getInstance().postFrameCallback(this)

@@ -173,9 +173,7 @@ public:
     return (ack >= row.generation && !correcting) || row.layoutPasses > MAX_CONCEALED_LAYOUT_PASSES;
   }
 
-  void show(std::uint64_t id) {
-    rows_.erase(id);
-  }
+  void show(std::uint64_t id) { rows_.erase(id); }
 
   /*
    * Forget hidden rows that are no longer mounted. stillHidden holds hidden ids only, each
@@ -192,23 +190,17 @@ public:
     }
   }
 
-  bool isEmpty() const {
-    return rows_.empty();
-  }
+  bool isEmpty() const { return rows_.empty(); }
 
   /*
    * The newest hide while any row is hidden, or 0 when nothing waits on the host.
    */
-  double getPublishedGeneration() const {
-    return rows_.empty() ? 0.0 : static_cast<double>(generation_);
-  }
+  double getPublishedGeneration() const { return rows_.empty() ? 0.0 : static_cast<double>(generation_); }
 
   /*
    * Start a layout pass. Every row hidden in one pass gets the same generation.
    */
-  void beginPass() {
-    passGeneration_ = generation_ + 1;
-  }
+  void beginPass() { passGeneration_ = generation_ + 1; }
 
   std::uint64_t hide(std::uint64_t id, Payload payload) {
     generation_ = passGeneration_;

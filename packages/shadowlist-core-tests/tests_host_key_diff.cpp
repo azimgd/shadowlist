@@ -17,10 +17,8 @@ namespace {
 /*
  * Apply a diff to previous the way a list would: delete, then put inserts and moves in place.
  */
-std::vector<std::string> applyDiff(
-  const std::vector<std::string>& previous,
-  const std::vector<std::string>& next,
-  const KeyDiff& diff) {
+std::vector<std::string>
+applyDiff(const std::vector<std::string>& previous, const std::vector<std::string>& next, const KeyDiff& diff) {
   BatchUpdate batch;
   batch.deleted = diff.deleted;
   batch.inserted = diff.inserted;
@@ -55,7 +53,9 @@ TEST(key_diff_finds_inserts_deletes_and_the_fewest_moves) {
   CHECK_EQ(diff.moved.size(), std::size_t(1));
   std::vector<std::string> applied = applyDiff(previous, next, diff);
   CHECK_EQ(applied.size(), next.size());
-  for (std::size_t index = 0; index < next.size(); ++index) CHECK_EQ(applied[index], next[index]);
+  for (std::size_t index = 0; index < next.size(); ++index) {
+    CHECK_EQ(applied[index], next[index]);
+  }
 }
 
 TEST(key_diff_counts_a_repeated_key_once) {
@@ -64,7 +64,9 @@ TEST(key_diff_counts_a_repeated_key_once) {
   KeyDiff diff = diffKeys(previous, next);
   std::vector<std::string> applied = applyDiff(previous, next, diff);
   CHECK_EQ(applied.size(), next.size());
-  for (std::size_t index = 0; index < next.size(); ++index) CHECK_EQ(applied[index], next[index]);
+  for (std::size_t index = 0; index < next.size(); ++index) {
+    CHECK_EQ(applied[index], next[index]);
+  }
 }
 
 /*
@@ -80,12 +82,15 @@ TEST(key_diff_rebuilds_random_changes) {
   for (int round = 0; round < 200; ++round) {
     std::vector<std::string> previous;
     unsigned count = next(30);
-    for (unsigned at = 0; at < count; ++at) previous.push_back("k" + std::to_string(fresh++));
+    for (unsigned at = 0; at < count; ++at) {
+      previous.push_back("k" + std::to_string(fresh++));
+    }
     std::vector<std::string> changed = previous;
     for (unsigned edit = next(8); edit > 0; --edit) {
       unsigned kind = next(3);
       if (kind == 0 || changed.empty()) {
-        changed.insert(changed.begin() + next(static_cast<unsigned>(changed.size() + 1)), "n" + std::to_string(fresh++));
+        changed.insert(
+          changed.begin() + next(static_cast<unsigned>(changed.size() + 1)), "n" + std::to_string(fresh++));
       } else if (kind == 1) {
         changed.erase(changed.begin() + next(static_cast<unsigned>(changed.size())));
       } else {
@@ -114,7 +119,9 @@ TEST(batch_plan_applies_deletes_inserts_and_moves_like_uikit) {
   CHECK(plan.has_value());
   std::vector<std::size_t> expected = {3, 0, UNDEFINED_INDEX, 2, 4};
   CHECK_EQ(plan->sources.size(), expected.size());
-  for (std::size_t index = 0; index < expected.size(); ++index) CHECK_EQ(plan->sources[index], expected[index]);
+  for (std::size_t index = 0; index < expected.size(); ++index) {
+    CHECK_EQ(plan->sources[index], expected[index]);
+  }
 }
 
 TEST(batch_plan_rejects_a_batch_that_does_not_add_up) {

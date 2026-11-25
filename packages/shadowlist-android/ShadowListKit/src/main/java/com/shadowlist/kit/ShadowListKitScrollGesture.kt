@@ -84,7 +84,8 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
   private var caughtScroll = false
   private var moved = false
 
-  private val axis: Int get() = if (list.horizontal) ViewCompat.SCROLL_AXIS_HORIZONTAL else ViewCompat.SCROLL_AXIS_VERTICAL
+  private val axis: Int
+    get() = if (list.horizontal) ViewCompat.SCROLL_AXIS_HORIZONTAL else ViewCompat.SCROLL_AXIS_VERTICAL
 
   /*
    * Every event passes here first, to tell taps from scrolls.
@@ -99,16 +100,19 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
         caughtScroll = isSettling || isAnimating
         if (!caughtScroll) list.selection.highlightDown(event.x, event.y)
       }
+
       MotionEvent.ACTION_MOVE -> {
         if (!moved && (abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop)) {
           moved = true
           list.selection.cancelHighlight()
         }
       }
+
       MotionEvent.ACTION_UP -> {
         if (!moved && !caughtScroll && !isTracking) list.handleTap(event.x, event.y)
         list.selection.cancelHighlight()
       }
+
       MotionEvent.ACTION_CANCEL -> list.selection.cancelHighlight()
     }
   }
@@ -213,7 +217,15 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
     remaining -= taken
     consumed[0] = 0
     consumed[1] = 0
-    list.dispatchNestedScroll(alongX(taken), alongY(taken), alongX(remaining), alongY(remaining), offsetInWindow, type, consumed)
+    list.dispatchNestedScroll(
+      alongX(taken),
+      alongY(taken),
+      alongX(remaining),
+      alongY(remaining),
+      offsetInWindow,
+      type,
+      consumed
+    )
     remaining -= alongOf(consumed)
     followParent(type)
     return remaining
@@ -344,8 +356,11 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
   }
 
   private fun startScroll(from: Int, to: Int, durationMs: Long) {
-    if (list.horizontal) scroller.startScroll(from, 0, to - from, 0, durationMs.toInt())
-    else scroller.startScroll(0, from, 0, to - from, durationMs.toInt())
+    if (list.horizontal) {
+      scroller.startScroll(from, 0, to - from, 0, durationMs.toInt())
+    } else {
+      scroller.startScroll(0, from, 0, to - from, durationMs.toInt())
+    }
   }
 
   /*

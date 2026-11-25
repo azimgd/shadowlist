@@ -8,7 +8,7 @@
  * The shared core owns the flight. UIKit owns weak list membership and the temporary picture.
  */
 @interface ShadowListKitDragBoard : NSObject {
- @public
+@public
   azimgd::shadowlist::DragBoard core;
   azimgd::shadowlist::DragBoardScroll scroll;
 }

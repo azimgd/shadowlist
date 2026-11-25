@@ -33,18 +33,20 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
  */
 - (BOOL)accessibilityScrollList:(UIAccessibilityScrollDirection)direction
 {
-  BOOL forward = _horizontal
-    ? (direction == UIAccessibilityScrollDirectionLeft || direction == UIAccessibilityScrollDirectionNext)
-    : (direction == UIAccessibilityScrollDirectionUp || direction == UIAccessibilityScrollDirectionNext);
-  BOOL backward = _horizontal
-    ? (direction == UIAccessibilityScrollDirectionRight || direction == UIAccessibilityScrollDirectionPrevious)
-    : (direction == UIAccessibilityScrollDirectionDown || direction == UIAccessibilityScrollDirectionPrevious);
+  BOOL forward =
+    _horizontal ? (direction == UIAccessibilityScrollDirectionLeft || direction == UIAccessibilityScrollDirectionNext)
+                : (direction == UIAccessibilityScrollDirectionUp || direction == UIAccessibilityScrollDirectionNext);
+  BOOL backward =
+    _horizontal
+      ? (direction == UIAccessibilityScrollDirectionRight || direction == UIAccessibilityScrollDirectionPrevious)
+      : (direction == UIAccessibilityScrollDirectionDown || direction == UIAccessibilityScrollDirectionPrevious);
   if ((!forward && !backward) || !_state) {
     return NO;
   }
   CGFloat viewport = _horizontal ? _scrollView.bounds.size.width : _scrollView.bounds.size.height;
   CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
-  CGFloat maxOffset = MAX(0.0, (_horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height) - viewport);
+  CGFloat maxOffset =
+    MAX(0.0, (_horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height) - viewport);
   CGFloat target = azimgd::shadowlist::pageScrollTarget(offset, viewport, maxOffset, forward ? 1 : -1);
   if (fabs(target - offset) < azimgd::shadowlist::OFFSET_ARRIVED_THRESHOLD) {
     return NO;
@@ -52,16 +54,15 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
   [self stopMomentum];
   _scrollSync.momentumStopped();
   // The page scroll is the user's, like a drag. The core follows it.
-  _scrollView.contentOffset = _horizontal ? CGPointMake(target, _scrollView.contentOffset.y)
-                                          : CGPointMake(_scrollView.contentOffset.x, target);
+  _scrollView.contentOffset =
+    _horizontal ? CGPointMake(target, _scrollView.contentOffset.y) : CGPointMake(_scrollView.contentOffset.x, target);
   // The jump is over at once. Report the list at rest, or corrections would wait for a gesture end.
   [self clearUserScrolled];
   _pageAnnouncementPending = YES;
   __weak ShadowListView *weakSelf = self;
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_PAGE_ANNOUNCEMENT_MAX_WAIT * NSEC_PER_SEC)),
-    dispatch_get_main_queue(), ^{
-      [weakSelf announcePageScroll];
-    });
+  dispatch_after(
+    dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_PAGE_ANNOUNCEMENT_MAX_WAIT * NSEC_PER_SEC)),
+    dispatch_get_main_queue(), ^{ [weakSelf announcePageScroll]; });
   return YES;
 }
 
@@ -96,9 +97,9 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
     last = last == NSNotFound ? index : MAX(last, index);
   }
   NSString *status = first == NSNotFound
-    ? nil
-    : [NSString stringWithFormat:NSLocalizedString(@"Rows %ld to %ld of %lu", nil), (long)first + 1, (long)last + 1,
-                                 (unsigned long)rowCount];
+                       ? nil
+                       : [NSString stringWithFormat:NSLocalizedString(@"Rows %ld to %ld of %lu", nil), (long)first + 1,
+                                                    (long)last + 1, (unsigned long)rowCount];
   UIAccessibilityPostNotification(UIAccessibilityPageScrolledNotification, status);
 }
 

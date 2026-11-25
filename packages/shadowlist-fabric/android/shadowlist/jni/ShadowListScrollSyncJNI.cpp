@@ -188,11 +188,8 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeBeginMount)(
   peer->sync.beginMount(mounted, peer->liveScroll);
 }
 
-JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeSetApplyingContentSize)(
-  JNIEnv*,
-  jclass,
-  jlong handle,
-  jboolean applying) {
+JNIEXPORT void JNICALL
+SL_SCROLL_SYNC_JNI(nativeSetApplyingContentSize)(JNIEnv*, jclass, jlong handle, jboolean applying) {
   peerOf(handle)->sync.setApplyingContentSize(applying == JNI_TRUE);
 }
 
@@ -273,13 +270,8 @@ JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeOnScroll)(
   return report.needsCommit ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeArm)(
-  JNIEnv*,
-  jclass,
-  jlong handle,
-  jdouble offsetX,
-  jdouble offsetY,
-  jboolean animated) {
+JNIEXPORT void JNICALL
+SL_SCROLL_SYNC_JNI(nativeArm)(JNIEnv*, jclass, jlong handle, jdouble offsetX, jdouble offsetY, jboolean animated) {
   peerOf(handle)->sync.arm(offsetX, offsetY, animated == JNI_TRUE);
 }
 
@@ -307,13 +299,8 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeLivePatch)(
   writePatch(env, out, patch, true, false);
 }
 
-JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeClearUserScrolled)(
-  JNIEnv* env,
-  jclass,
-  jlong handle,
-  jdouble offsetX,
-  jdouble offsetY,
-  jdoubleArray out) {
+JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(
+  nativeClearUserScrolled)(JNIEnv* env, jclass, jlong handle, jdouble offsetX, jdouble offsetY, jdoubleArray out) {
   auto patch = peerOf(handle)->sync.clearUserScrolled(offsetX, offsetY);
   if (!patch) {
     return JNI_FALSE;
@@ -339,13 +326,8 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeIssueCommand)(
   writePatch(env, out, patch, true, false);
 }
 
-JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeLand)(
-  JNIEnv* env,
-  jclass,
-  jlong handle,
-  jdouble offsetX,
-  jdouble offsetY,
-  jdoubleArray out) {
+JNIEXPORT jboolean JNICALL
+SL_SCROLL_SYNC_JNI(nativeLand)(JNIEnv* env, jclass, jlong handle, jdouble offsetX, jdouble offsetY, jdoubleArray out) {
   auto patch = peerOf(handle)->sync.land(offsetX, offsetY);
   if (!patch) {
     return JNI_FALSE;
@@ -358,13 +340,8 @@ JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeIsLanding)(JNIEnv*, jclass, 
   return peerOf(handle)->sync.isLanding() ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeRequestAnchor)(
-  JNIEnv* env,
-  jclass,
-  jlong handle,
-  jdouble offsetX,
-  jdouble offsetY,
-  jdoubleArray out) {
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(
+  nativeRequestAnchor)(JNIEnv* env, jclass, jlong handle, jdouble offsetX, jdouble offsetY, jdoubleArray out) {
   writePatch(env, out, peerOf(handle)->sync.requestAnchor(offsetX, offsetY), true, false);
 }
 
@@ -375,5 +352,4 @@ JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeIsCurrentUserScrolled)(JNIEn
 JNIEXPORT jdouble JNICALL SL_SCROLL_SYNC_JNI(nativeGetCurrentScrollPhase)(JNIEnv*, jclass, jlong handle) {
   return peerOf(handle)->sync.getCurrentScrollPhase();
 }
-
 }

@@ -32,16 +32,20 @@ class TestSource: NSObject, ShadowListKitListViewDataSource {
   var cellsMade = 0
 
   init(count: Int, prefix: String = "item") {
-    keys = (0..<count).map { "\(prefix)-\($0)" }
+    keys = (0 ..< count).map { "\(prefix)-\($0)" }
   }
 
   func height(of key: String) -> CGFloat {
     heights[key] ?? defaultHeight
   }
 
-  func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
+  func numberOfItems(in listView: ShadowListKitListView) -> Int {
+    keys.count
+  }
 
-  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+    keys[index]
+  }
 
   func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
     let cell = listView.dequeueReusableCell(withIdentifier: "cell") as! TestCell
@@ -51,7 +55,12 @@ class TestSource: NSObject, ShadowListKitListViewDataSource {
     return cell
   }
 
-  func listView(_ listView: ShadowListKitListView, reconfigureCell cell: ShadowListKitListCell, at index: Int, payload: Any?) -> Bool {
+  func listView(
+    _ listView: ShadowListKitListView,
+    reconfigureCell cell: ShadowListKitListCell,
+    at index: Int,
+    payload: Any?
+  ) -> Bool {
     guard let cell = cell as? TestCell else { return false }
     cell.reconfigured += 1
     return true
@@ -112,8 +121,13 @@ final class ScaleWindow: NSWindow {
   var scale: CGFloat = 2
   var key = false
 
-  override var backingScaleFactor: CGFloat { scale }
-  override var isKeyWindow: Bool { key }
+  override var backingScaleFactor: CGFloat {
+    scale
+  }
+
+  override var isKeyWindow: Bool {
+    key
+  }
 }
 
 /*
@@ -140,12 +154,16 @@ final class StateSource: NSObject, ShadowListKitListViewDataSource {
   var keys: [String]
 
   init(count: Int) {
-    keys = (0..<count).map { "item-\($0)" }
+    keys = (0 ..< count).map { "item-\($0)" }
   }
 
-  func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
+  func numberOfItems(in listView: ShadowListKitListView) -> Int {
+    keys.count
+  }
 
-  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+    keys[index]
+  }
 
   func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
     let cell = listView.dequeueReusableCell(withIdentifier: "state") as! StateCell
@@ -153,7 +171,9 @@ final class StateSource: NSObject, ShadowListKitListViewDataSource {
     return cell
   }
 
-  func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 44 }
+  func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+    44
+  }
 }
 
 /*
@@ -169,8 +189,13 @@ final class SelectionRecorder: NSObject, ShadowListKitListViewDelegate {
   var menus = true
   var onShouldSelect: ((Int) -> Void)?
 
-  func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) { selected.append(index) }
-  func listView(_ listView: ShadowListKitListView, didDeselectItemAt index: Int) { deselected.append(index) }
+  func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) {
+    selected.append(index)
+  }
+
+  func listView(_ listView: ShadowListKitListView, didDeselectItemAt index: Int) {
+    deselected.append(index)
+  }
 
   func listView(_ listView: ShadowListKitListView, shouldSelectItemAt index: Int) -> Bool {
     onShouldSelect?(index)
@@ -182,7 +207,9 @@ final class SelectionRecorder: NSObject, ShadowListKitListViewDelegate {
     clickedWhenActivated.append(listView.clickedIndex)
   }
 
-  func listView(_ listView: ShadowListKitListView, typeSelectStringForItemAt index: Int) -> String? { names[index] }
+  func listView(_ listView: ShadowListKitListView, typeSelectStringForItemAt index: Int) -> String? {
+    names[index]
+  }
 
   func listView(_ listView: ShadowListKitListView, contextMenuForItemAt index: Int) -> NSMenu? {
     guard menus, index % 2 == 0 else { return nil }
@@ -206,8 +233,9 @@ final class SelectionHarness {
     source = StateSource(count: count)
     let size = NSSize(width: 320, height: 480)
     window = ScaleWindow(
-      contentRect: NSRect(origin: NSPoint(x: -10_000, y: -10_000), size: size), styleMask: [.borderless],
-      backing: .buffered, defer: false)
+      contentRect: NSRect(origin: NSPoint(x: -10000, y: -10000), size: size), styleMask: [.borderless],
+      backing: .buffered, defer: false
+    )
     window.isReleasedWhenClosed = false
     let container = NSView(frame: NSRect(origin: .zero, size: size))
     window.contentView = container
@@ -222,15 +250,19 @@ final class SelectionHarness {
   }
 
   func layout() {
-    for _ in 0..<6 {
+    for _ in 0 ..< 6 {
       list.needsLayout = true
       list.layoutSubtreeIfNeeded()
     }
   }
 
-  var selection: [Int] { Array(list.selectedIndices) }
+  var selection: [Int] {
+    Array(list.selectedIndices)
+  }
 
-  func cell(_ index: Int) -> StateCell? { list.cellForItem(at: index) as? StateCell }
+  func cell(_ index: Int) -> StateCell? {
+    list.cellForItem(at: index) as? StateCell
+  }
 
   func click(_ index: Int, _ flags: NSEvent.ModifierFlags = [], count: Int = 1) {
     list.shadowListKit_clickItem(at: index, modifierFlags: flags, clickCount: count)
@@ -260,7 +292,9 @@ final class SelectionHarness {
 struct Key {
   let characters: String
   let code: UInt16
-  var isFunction: Bool { characters.unicodeScalars.first.map { $0.value >= 0xF700 } ?? false }
+  var isFunction: Bool {
+    characters.unicodeScalars.first.map { $0.value >= 0xF700 } ?? false
+  }
 
   static let up = Key(characters: "\u{F700}", code: 126)
   static let down = Key(characters: "\u{F701}", code: 125)
@@ -274,7 +308,9 @@ struct Key {
   static let space = Key(characters: " ", code: 49)
   static let escape = Key(characters: "\u{1B}", code: 53)
 
-  static func text(_ characters: String) -> Key { Key(characters: characters, code: 0) }
+  static func text(_ characters: String) -> Key {
+    Key(characters: characters, code: 0)
+  }
 }
 
 /*
@@ -287,11 +323,16 @@ final class ListHarness {
   let source: TestSource
   let delegate = TestDelegate()
 
-  init(source: TestSource, size: NSSize = NSSize(width: 320, height: 480), configure: (ShadowListKitListView) -> Void = { _ in }) {
+  init(
+    source: TestSource,
+    size: NSSize = NSSize(width: 320, height: 480),
+    configure: (ShadowListKitListView) -> Void = { _ in }
+  ) {
     self.source = source
     window = ScaleWindow(
-      contentRect: NSRect(origin: NSPoint(x: -10_000, y: -10_000), size: size), styleMask: [.borderless],
-      backing: .buffered, defer: false)
+      contentRect: NSRect(origin: NSPoint(x: -10000, y: -10000), size: size), styleMask: [.borderless],
+      backing: .buffered, defer: false
+    )
     window.isReleasedWhenClosed = false
     let container = NSView(frame: NSRect(origin: .zero, size: size))
     window.contentView = container
@@ -311,7 +352,7 @@ final class ListHarness {
    * window may never fire.
    */
   func layout() {
-    for _ in 0..<12 {
+    for _ in 0 ..< 12 {
       list.needsLayout = true
       list.layoutSubtreeIfNeeded()
     }

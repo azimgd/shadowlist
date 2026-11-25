@@ -68,7 +68,9 @@ struct MountRenderer : Trail {
   std::string pacedLowKey;
   std::string pacedHighKey;
 
-  MountRenderer(std::uint32_t seed, FuzzEpisode& episode) : Trail(seed, episode), rng(seed) {}
+  MountRenderer(std::uint32_t seed, FuzzEpisode& episode)
+    : Trail(seed, episode),
+      rng(seed) {}
 
   std::size_t indexOf(const std::string& key) const {
     auto found = std::find(keys.begin(), keys.end(), key);
@@ -112,7 +114,8 @@ struct MountRenderer : Trail {
         std::size_t first = std::min(low, high);
         std::size_t last = std::max(low, high);
         std::size_t leading = settings.overscanRowsLeading;
-        return {applied->lowAtStart ? first - std::min(first, leading) : first,
+        return {
+          applied->lowAtStart ? first - std::min(first, leading) : first,
           applied->highAtEnd ? std::min(keys.size() - 1, last + leading) : last};
       }
     }
@@ -173,13 +176,14 @@ struct MountRenderer : Trail {
    * and growing by at most one step beyond the rows mounted and measured.
    */
   void receive(const MountMessage& message, bool tookReport, bool step) {
-    note(message.landed ? "landed gen=" + std::to_string(message.generation)
-      : std::string(step ? "step " : "range ") + std::to_string(message.range.low) + ".." +
-        std::to_string(message.range.high) + " seq=" + std::to_string(message.sequence) + " gen=" +
-        std::to_string(message.generation));
+    note(
+      message.landed ? "landed gen=" + std::to_string(message.generation)
+                     : std::string(step ? "step " : "range ") + std::to_string(message.range.low) + ".." +
+                         std::to_string(message.range.high) + " seq=" + std::to_string(message.sequence) +
+                         " gen=" + std::to_string(message.generation));
     if (message.generation != generation) {
-      failWith("a message carries generation " + std::to_string(message.generation) + " under " +
-        std::to_string(generation));
+      failWith(
+        "a message carries generation " + std::to_string(message.generation) + " under " + std::to_string(generation));
     }
     if (message.landed) {
       if (step || !seedPending || !tookReport || message.sequence != 0) {
@@ -196,8 +200,9 @@ struct MountRenderer : Trail {
     if (range.isEmpty() || range.high >= keys.size()) {
       failWith("a range outside the keys");
     }
-    if (message.lowKey != keys[range.low] || message.highKey != keys[range.high] ||
-        message.lowAtStart != (range.low == 0) || message.highAtEnd != (range.high == keys.size() - 1)) {
+    if (
+      message.lowKey != keys[range.low] || message.highKey != keys[range.high] ||
+      message.lowAtStart != (range.low == 0) || message.highAtEnd != (range.high == keys.size() - 1)) {
       failWith("a range whose edge keys or flags are not the rows at its ends");
     }
     if (message.sequence != previousSequence + 1) {
@@ -219,8 +224,9 @@ struct MountRenderer : Trail {
       std::size_t floor = valid ? std::min(basis.range.low, paced.low) : paced.low;
       std::size_t ceiling = valid ? std::max(basis.range.high, paced.high) : paced.high;
       if (range.low + pace < floor || range.high > ceiling + pace) {
-        failWith("a range grew more than a step of " + std::to_string(pace) + " past rows " + std::to_string(floor) +
-          ".." + std::to_string(ceiling));
+        failWith(
+          "a range grew more than a step of " + std::to_string(pace) + " past rows " + std::to_string(floor) + ".." +
+          std::to_string(ceiling));
       }
     }
     if (!driver.isPending() || driver.hasStep()) {
@@ -263,7 +269,8 @@ struct MountRenderer : Trail {
         std::optional<MountedRange> now = measured();
         MountedRange range = mountedRange();
         if (now && (range.isEmpty() || range.low > now->low || range.high < now->high)) {
-          failWith("at rest rows " + std::to_string(now->low) + ".." + std::to_string(now->high) +
+          failWith(
+            "at rest rows " + std::to_string(now->low) + ".." + std::to_string(now->high) +
             " are measured outside the mounted range " + std::to_string(range.low) + ".." + std::to_string(range.high));
         }
         return;
@@ -337,7 +344,8 @@ TEST(fuzz_mount_driver_paces_one_range_at_a_time_and_ends_on_the_measured_rows) 
       } else if (roll < 86 && size > 0) {
         episode.reach("delete");
         count = std::min(count, size - at);
-        renderer.keys.erase(renderer.keys.begin() + static_cast<std::ptrdiff_t>(at),
+        renderer.keys.erase(
+          renderer.keys.begin() + static_cast<std::ptrdiff_t>(at),
           renderer.keys.begin() + static_cast<std::ptrdiff_t>(at + count));
         renderer.note("delete " + std::to_string(count) + " at " + std::to_string(at));
       } else if (roll < 91 && size > 0) {

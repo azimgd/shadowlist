@@ -149,7 +149,9 @@ Trace buildTrace(std::size_t count) {
     auto measured = overlapRange(starts, at - VIEWPORT, at + 2.0 * VIEWPORT);
     auto visible = overlapRange(starts, at, at + VIEWPORT);
     auto half = halfVisibleRange(starts, at, at + VIEWPORT);
-    Frame frame{toIndex(measured.first), toIndex(measured.second),
+    Frame frame{
+      toIndex(measured.first),
+      toIndex(measured.second),
       {toIndex(visible.first), toIndex(visible.second), toIndex(half.first), toIndex(half.second)},
       index == jumpFrame ? static_cast<long>(jumpTarget) : -1};
     trace.frames.push_back(frame);
@@ -273,7 +275,8 @@ Stats run(const Trace& trace, bool instrument, std::FILE* dump, OutputHash* hash
       hash->add(message.generation);
     }
     if (dump) {
-      std::fprintf(dump,
+      std::fprintf(
+        dump,
         "{\"f\":%zu,\"t\":\"m\",\"lowKey\":\"%s\",\"highKey\":\"%s\",\"lowAtStart\":%s,\"highAtEnd\":%s,"
         "\"sequence\":%llu,\"generation\":%llu,\"landed\":%s}\n",
         frameIndex, message.lowKey.c_str(), message.highKey.c_str(), message.lowAtStart ? "true" : "false",
@@ -339,7 +342,8 @@ Stats run(const Trace& trace, bool instrument, std::FILE* dump, OutputHash* hash
       }
       std::vector<std::string> viewable;
       if (auto range = viewableRange(frame.ranges[2], frame.ranges[3])) {
-        viewable.assign(keys.begin() + static_cast<std::ptrdiff_t>(range->low),
+        viewable.assign(
+          keys.begin() + static_cast<std::ptrdiff_t>(range->low),
           keys.begin() + static_cast<std::ptrdiff_t>(range->high) + 1);
       }
       trackers[0].update(std::move(viewable), static_cast<double>(frameIndex));
@@ -386,9 +390,9 @@ Stats run(const Trace& trace, bool instrument, std::FILE* dump, OutputHash* hash
       prefetchMounted = basis.range;
       start();
       std::optional<MountedRange> mounted = basis.range;
-      prefetch.update(mounted, prefetchRange(mounted, PREFETCH_ROWS, keys.size()), keys.size(),
-        [&keys](std::size_t index) -> const std::string& { return keys[index]; }, indexOfKey, prefetchRows,
-        cancelRows);
+      prefetch.update(
+        mounted, prefetchRange(mounted, PREFETCH_ROWS, keys.size()), keys.size(),
+        [&keys](std::size_t index) -> const std::string& { return keys[index]; }, indexOfKey, prefetchRows, cancelRows);
       stop(stats.prefetchUs);
       if (!prefetchRows.empty() || !cancelRows.empty()) {
         ++stats.prefetchEvents;
@@ -400,8 +404,9 @@ Stats run(const Trace& trace, bool instrument, std::FILE* dump, OutputHash* hash
           hash->add(cancelRows);
         }
         if (dump) {
-          std::fprintf(dump, "{\"f\":%zu,\"t\":\"p\",\"prefetch\":%zu,\"cancel\":%zu}\n", frameIndex,
-            prefetchRows.size(), cancelRows.size());
+          std::fprintf(
+            dump, "{\"f\":%zu,\"t\":\"p\",\"prefetch\":%zu,\"cancel\":%zu}\n", frameIndex, prefetchRows.size(),
+            cancelRows.size());
         }
       }
     }
@@ -418,8 +423,9 @@ int main(int argc, char** argv) {
       dumpDir = argv[at + 1];
     }
   }
-  std::printf("rows\tframes\ttrace_checksum\toutput_checksum\tmedian_us\tmin_us\tmax_us\tmount_us\tviewability_us\tprefetch_us\t"
-              "crossings\tmount_events\tsteps\tviewability_events\tprefetch_events\treports\tprefetched\tcancelled\n");
+  std::printf(
+    "rows\tframes\ttrace_checksum\toutput_checksum\tmedian_us\tmin_us\tmax_us\tmount_us\tviewability_us\tprefetch_us\t"
+    "crossings\tmount_events\tsteps\tviewability_events\tprefetch_events\treports\tprefetched\tcancelled\n");
   for (std::size_t count : {std::size_t{10000}, std::size_t{100000}}) {
     Trace trace = buildTrace(count);
     run(trace, false, nullptr);
@@ -443,9 +449,10 @@ int main(int argc, char** argv) {
     }
     std::vector<double> sorted = times;
     std::sort(sorted.begin(), sorted.end());
-    std::printf("%zu\t%zu\t%lld\t%016llx\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\n", count,
-      trace.frames.size(), trace.checksum, static_cast<unsigned long long>(output.value), sorted[sorted.size() / 2], sorted.front(), sorted.back(),
-      breakdown.mountUs, breakdown.viewabilityUs, breakdown.prefetchUs,
+    std::printf(
+      "%zu\t%zu\t%lld\t%016llx\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\n", count,
+      trace.frames.size(), trace.checksum, static_cast<unsigned long long>(output.value), sorted[sorted.size() / 2],
+      sorted.front(), sorted.back(), breakdown.mountUs, breakdown.viewabilityUs, breakdown.prefetchUs,
       stats.mountEvents + stats.viewabilityEvents + stats.prefetchEvents, stats.mountEvents, stats.steps,
       stats.viewabilityEvents, stats.prefetchEvents, stats.reports, stats.prefetched, stats.cancelled);
   }

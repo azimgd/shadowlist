@@ -36,22 +36,14 @@ VECTOR_TEST(mounted_range_vectors_replay, "mounted-range.json") {
   if (isVectorFor(vector, "initialMountedRange")) {
     checkRange(
       initialMountedRange(
-        input["size"].asIndex(),
-        input["initialCount"].asIndex(),
-        input["inverted"].boolean,
-        input["target"].asIndex(),
-        input["overscanRows"].asIndex(),
-        input["viewPosition"].number),
+        input["size"].asIndex(), input["initialCount"].asIndex(), input["inverted"].boolean, input["target"].asIndex(),
+        input["overscanRows"].asIndex(), input["viewPosition"].number),
       output);
   } else if (isVectorFor(vector, "grownMountedRange")) {
     checkRange(
       grownMountedRange(
-        rangeOf(input["edges"]),
-        input["lowAtStart"].boolean,
-        input["highAtEnd"].boolean,
-        input["size"].asIndex(),
-        input["overscanRowsLeading"].asIndex(),
-        input["followTail"].boolean),
+        rangeOf(input["edges"]), input["lowAtStart"].boolean, input["highAtEnd"].boolean, input["size"].asIndex(),
+        input["overscanRowsLeading"].asIndex(), input["followTail"].boolean),
       output);
   } else if (isVectorFor(vector, "unionRangeIndices")) {
     std::vector<std::size_t> indices = unionRangeIndices(rangeOf(input["first"]), rangeOf(input["second"]));

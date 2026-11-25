@@ -134,10 +134,10 @@ struct ShadowListViewGeometryCache {
 };
 
 class ShadowListViewShadowNode final : public ConcreteViewShadowNode<
-  ShadowListViewComponentName,
-  ShadowListViewProps,
-  ShadowListViewEventEmitter,
-  ShadowListViewState> {
+                                         ShadowListViewComponentName,
+                                         ShadowListViewProps,
+                                         ShadowListViewEventEmitter,
+                                         ShadowListViewState> {
 public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 
@@ -146,9 +146,7 @@ public:
    * Inherited constructors leave derived members empty. The clone copies them from
    * its source. That keeps one core per list across all its clones.
    */
-  ShadowListViewShadowNode(
-    const ShadowNode& sourceShadowNode,
-    const ShadowNodeFragment& fragment);
+  ShadowListViewShadowNode(const ShadowNode& sourceShadowNode, const ShadowNodeFragment& fragment);
 
 #pragma mark - LayoutableShadowNode
 
@@ -216,8 +214,11 @@ private:
    * mounted row's size into the core.
    */
   bool measureChildren(
-    azimgd::shadowlist::Container& core, bool horizontal, LayoutSlots& slots,
-    LayoutContext& layoutContext, std::unique_lock<std::recursive_mutex>& coreLock);
+    azimgd::shadowlist::Container& core,
+    bool horizontal,
+    LayoutSlots& slots,
+    LayoutContext& layoutContext,
+    std::unique_lock<std::recursive_mutex>& coreLock);
 
   /*
    * Moves each mounted row to the core's frame, hiding or showing unsettled rows.

@@ -245,18 +245,27 @@ TEST(list_driver_key_edits_match_a_plain_list) {
       host.driver.insertKeys(indices, keys);
       // The model applies the same rule: sorted by index, first key of a repeated index.
       std::vector<std::pair<std::size_t, std::string>> pairs;
-      for (std::size_t at = 0; at < indices.size(); ++at) pairs.emplace_back(indices[at], keys[at]);
+      for (std::size_t at = 0; at < indices.size(); ++at) {
+        pairs.emplace_back(indices[at], keys[at]);
+      }
       std::stable_sort(pairs.begin(), pairs.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-      pairs.erase(std::unique(pairs.begin(), pairs.end(), [](const auto& a, const auto& b) { return a.first == b.first; }),
+      pairs.erase(
+        std::unique(pairs.begin(), pairs.end(), [](const auto& a, const auto& b) { return a.first == b.first; }),
         pairs.end());
-      for (auto& [index, key] : pairs) model.insert(model.begin() + std::min(index, model.size()), key);
+      for (auto& [index, key] : pairs) {
+        model.insert(model.begin() + std::min(index, model.size()), key);
+      }
     } else {
       std::vector<std::size_t> indices;
-      for (unsigned place = 0; place < places; ++place) indices.push_back(next(static_cast<unsigned>(model.size())));
+      for (unsigned place = 0; place < places; ++place) {
+        indices.push_back(next(static_cast<unsigned>(model.size())));
+      }
       host.driver.deleteKeys(indices);
       std::sort(indices.begin(), indices.end());
       indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-      for (auto it = indices.rbegin(); it != indices.rend(); ++it) model.erase(model.begin() + *it);
+      for (auto it = indices.rbegin(); it != indices.rend(); ++it) {
+        model.erase(model.begin() + *it);
+      }
     }
     CHECK_EQ(host.driver.getKeyCount(), model.size());
     for (std::size_t index = 0; index < model.size(); ++index) {
@@ -300,7 +309,8 @@ TEST(list_driver_end_edits_keep_the_top_row) {
         host.driver.replaceKeys(0, 2, {});
         break;
       case 0:
-        host.driver.insertKeys({0, 1, 2}, {"k" + std::to_string(fresh), "k" + std::to_string(fresh + 1), "k" + std::to_string(fresh + 2)});
+        host.driver.insertKeys(
+          {0, 1, 2}, {"k" + std::to_string(fresh), "k" + std::to_string(fresh + 1), "k" + std::to_string(fresh + 2)});
         fresh += 3;
         break;
       case 1:
@@ -330,7 +340,9 @@ TEST(list_driver_reload_keys_applies_only_the_changed_middle) {
   std::vector<std::string> next = {"k0", "k1", "k90", "k4", "k5", "k6", "k7"};
   host.driver.reloadKeys(next);
   CHECK_EQ(host.driver.getKeyCount(), next.size());
-  for (std::size_t index = 0; index < next.size(); ++index) CHECK_EQ(host.driver.getKeyAt(index), next[index]);
+  for (std::size_t index = 0; index < next.size(); ++index) {
+    CHECK_EQ(host.driver.getKeyAt(index), next[index]);
+  }
 
   // The same keys again change nothing the core would see.
   host.settle();
@@ -352,19 +364,25 @@ TEST(list_driver_replace_keys_splices_the_range) {
   host.driver.replaceKeys(1, 2, {"a", "b", "c"});
   std::vector<std::string> expected = {"k0", "a", "b", "c", "k3", "k4", "k5"};
   CHECK_EQ(host.driver.getKeyCount(), expected.size());
-  for (std::size_t index = 0; index < expected.size(); ++index) CHECK_EQ(host.driver.getKeyAt(index), expected[index]);
+  for (std::size_t index = 0; index < expected.size(); ++index) {
+    CHECK_EQ(host.driver.getKeyAt(index), expected[index]);
+  }
 
   host.driver.replaceKeys(0, 4, {"z"});
   expected = {"z", "k3", "k4", "k5"};
   CHECK_EQ(host.driver.getKeyCount(), expected.size());
-  for (std::size_t index = 0; index < expected.size(); ++index) CHECK_EQ(host.driver.getKeyAt(index), expected[index]);
+  for (std::size_t index = 0; index < expected.size(); ++index) {
+    CHECK_EQ(host.driver.getKeyAt(index), expected[index]);
+  }
 
   // Past the end appends, and a count past the end is clipped.
   host.driver.replaceKeys(99, 5, {"end"});
   host.driver.replaceKeys(3, 99, {});
   expected = {"z", "k3", "k4"};
   CHECK_EQ(host.driver.getKeyCount(), expected.size());
-  for (std::size_t index = 0; index < expected.size(); ++index) CHECK_EQ(host.driver.getKeyAt(index), expected[index]);
+  for (std::size_t index = 0; index < expected.size(); ++index) {
+    CHECK_EQ(host.driver.getKeyAt(index), expected[index]);
+  }
 }
 
 TEST(list_driver_scroll_to_index_lands_on_the_row) {
@@ -512,8 +530,8 @@ TEST(list_driver_sticky_frames_pin_the_same_header_as_the_driver) {
       continue;
     }
     bool hasNext = position + 1 < rows.size() && std::isfinite(frames[(position + 1) * 2]);
-    double pinned = pinnedSectionLeading(frames[position * 2], frames[position * 2 + 1], offset, hasNext,
-      hasNext ? frames[(position + 1) * 2] : 0.0);
+    double pinned = pinnedSectionLeading(
+      frames[position * 2], frames[position * 2 + 1], offset, hasNext, hasNext ? frames[(position + 1) * 2] : 0.0);
     CHECK_NEAR(pinned, host.driver.stickyLeading(active, offset), 1e-9);
   }
 }
@@ -720,8 +738,10 @@ TEST(a_mount_pass_in_a_grid_is_not_skipped_once_the_window_or_an_inset_changed) 
   MountRecord mounted = recordOf(plan, inputs);
   for (int field = 0; field < 4; ++field) {
     MountRecord next = mounted;
-    double& value = field == 0 ? next.inputs.windowAlong : field == 1 ? next.inputs.pad
-      : field == 2 ? next.inputs.leadingInset : next.inputs.trailingInset;
+    double& value = field == 0   ? next.inputs.windowAlong
+                    : field == 1 ? next.inputs.pad
+                    : field == 2 ? next.inputs.leadingInset
+                                 : next.inputs.trailingInset;
     value += 1.0;
     CHECK(!shouldSkipMount(mounted, next, host.offset, 3, false));
     CHECK(shouldSkipMount(mounted, next, host.offset, 1, false));
@@ -1043,7 +1063,9 @@ TEST(list_driver_prefetches_measured_rows_once_and_cancels_them_when_they_leave)
   host.driver.updatePrefetch(plan.low, plan.high, prefetch, cancel);
   CHECK(!prefetch.empty());
   CHECK(cancel.empty());
-  for (std::size_t index : prefetch) CHECK(index > plan.high);
+  for (std::size_t index : prefetch) {
+    CHECK(index > plan.high);
+  }
 
   // The same frame again prefetches nothing new.
   host.driver.updatePrefetch(plan.low, plan.high, prefetch, cancel);
@@ -1155,13 +1177,17 @@ TEST(list_driver_moved_key_keeps_its_size_and_the_top_row_holds) {
   std::string top = host.driver.getKeyAt(before.first);
   // Move the last row above the viewport through the batch plan, like moveItem.
   std::vector<std::string> keys;
-  for (std::size_t index = 0; index < host.driver.getKeyCount(); ++index) keys.push_back(host.driver.getKeyAt(index));
+  for (std::size_t index = 0; index < host.driver.getKeyCount(); ++index) {
+    keys.push_back(host.driver.getKeyAt(index));
+  }
   BatchUpdate batch;
   batch.moved = {{keys.size() - 1, 2}};
   auto plan = planBatch(keys.size(), keys.size(), batch);
   CHECK(plan.has_value());
   std::vector<std::string> next;
-  for (std::size_t source : plan->sources) next.push_back(keys[source]);
+  for (std::size_t source : plan->sources) {
+    next.push_back(keys[source]);
+  }
   std::string moved = keys.back();
   host.driver.reloadKeys(next);
   host.settle();
@@ -1317,9 +1343,8 @@ TEST(list_driver_draws_a_list_brought_back_inside_the_content_its_end_run_measur
     ListSettings settings;
     settings.inverted = true;
     driver.setSettings(settings);
-    driver.setMeasureRow([](std::size_t, const std::string& key, double) {
-      return std::stoul(key.substr(1)) < 3 ? 150.0 : 220.0;
-    });
+    driver.setMeasureRow(
+      [](std::size_t, const std::string& key, double) { return std::stoul(key.substr(1)) < 3 ? 150.0 : 220.0; });
     driver.setKeys(keysFrom(0, 20));
     PassInput input;
     input.windowAlong = WINDOW_ALONG;
@@ -1410,9 +1435,8 @@ TEST(list_driver_never_holds_the_content_by_a_non_anchor_key) {
   for (Case which : {Case::Anchor, Case::NonAnchor, Case::NonAnchorAfterReset}) {
     Host host(100);
     double size = 60.0;
-    host.driver.setMeasureRow([&size](std::size_t, const std::string& key, double) {
-      return key == "k10" ? size : 60.0;
-    });
+    host.driver.setMeasureRow(
+      [&size](std::size_t, const std::string& key, double) { return key == "k10" ? size : 60.0; });
     if (which != Case::Anchor) {
       host.driver.setNonAnchorKeys({"k10"});
     }
@@ -1475,9 +1499,8 @@ TEST(list_driver_counts_the_empty_view_with_the_header_while_it_has_no_rows) {
 TEST(list_driver_remeasuring_changed_content_releases_a_previous_clamped_hold) {
   Host host(1);
   double lastSize = 200.0;
-  host.driver.setMeasureRow([&lastSize](std::size_t, const std::string& key, double) {
-    return key == "k0" ? lastSize : 200.0;
-  });
+  host.driver.setMeasureRow(
+    [&lastSize](std::size_t, const std::string& key, double) { return key == "k0" ? lastSize : 200.0; });
   host.settle();
   host.driver.setKeys({"k1", "k2", "k3", "k4", "k5", "k6", "k0"});
   host.settle();
@@ -1568,16 +1591,18 @@ TEST(list_driver_predictive_specs_are_bounded_cached_and_preserve_exact_measurem
   std::size_t callbacks = 0;
   std::size_t layouts = 0;
   double predictedHeight = 140.0;
-  host.driver.setGetItemSizeSpec([&](std::size_t, const std::string&) -> std::optional<RowSizeSpec> {
-    ++callbacks;
-    RowSizeSpec spec;
-    spec.text = "prediction";
-    spec.fixedHeight = predictedHeight;
-    return spec;
-  }, [&](const RowSizeSpec& spec, double width) {
-    ++layouts;
-    return Size{width, spec.fixedHeight};
-  });
+  host.driver.setGetItemSizeSpec(
+    [&](std::size_t, const std::string&) -> std::optional<RowSizeSpec> {
+      ++callbacks;
+      RowSizeSpec spec;
+      spec.text = "prediction";
+      spec.fixedHeight = predictedHeight;
+      return spec;
+    },
+    [&](const RowSizeSpec& spec, double width) {
+      ++layouts;
+      return Size{width, spec.fixedHeight};
+    });
   host.layout();
   CHECK(layouts <= SizeSpecQueue::BUDGET_PER_RUN);
   host.settle();
@@ -1604,11 +1629,15 @@ TEST(list_driver_predictive_cache_rewraps_at_width_changes_and_deduplicates_reta
   host.uniformSize = 60.0;
   std::vector<std::size_t> calls;
   host.driver.setPersistentKeys({"k40", "k199", "k199"});
-  host.driver.setGetItemSizeSpec([&](std::size_t index, const std::string&) -> std::optional<RowSizeSpec> {
-    calls.push_back(index);
-    if (index == 41) return std::nullopt;
-    return RowSizeSpec{};
-  }, [](const RowSizeSpec&, double width) { return Size{width, width / 3.0}; });
+  host.driver.setGetItemSizeSpec(
+    [&](std::size_t index, const std::string&) -> std::optional<RowSizeSpec> {
+      calls.push_back(index);
+      if (index == 41) {
+        return std::nullopt;
+      }
+      return RowSizeSpec{};
+    },
+    [](const RowSizeSpec&, double width) { return Size{width, width / 3.0}; });
   host.settle();
   CHECK_EQ(std::count(calls.begin(), calls.end(), 40u), 1);
   CHECK_EQ(std::count(calls.begin(), calls.end(), 199u), 1);
@@ -1617,7 +1646,9 @@ TEST(list_driver_predictive_cache_rewraps_at_width_changes_and_deduplicates_reta
   PassInput input;
   input.windowAlong = WINDOW_ALONG;
   input.windowCross = 600.0;
-  for (int frame = 0; frame < 10; ++frame) host.driver.runPasses(input);
+  for (int frame = 0; frame < 10; ++frame) {
+    host.driver.runPasses(input);
+  }
   CHECK_EQ(host.driver.getExtentAt(42), 200.0);
   CHECK_EQ(host.driver.getExtentAt(0), 60.0);
 }
@@ -1625,11 +1656,13 @@ TEST(list_driver_predictive_cache_rewraps_at_width_changes_and_deduplicates_reta
 TEST(list_driver_predictive_provider_uses_current_indices_after_key_moves) {
   Host host(200);
   host.uniformSize = 60.0;
-  host.driver.setGetItemSizeSpec([](std::size_t index, const std::string&) -> std::optional<RowSizeSpec> {
-    RowSizeSpec spec;
-    spec.fixedHeight = 100.0 + static_cast<double>(index);
-    return spec;
-  }, [](const RowSizeSpec& spec, double width) { return Size{width, spec.fixedHeight}; });
+  host.driver.setGetItemSizeSpec(
+    [](std::size_t index, const std::string&) -> std::optional<RowSizeSpec> {
+      RowSizeSpec spec;
+      spec.fixedHeight = 100.0 + static_cast<double>(index);
+      return spec;
+    },
+    [](const RowSizeSpec& spec, double width) { return Size{width, spec.fixedHeight}; });
   host.settle();
   CHECK_EQ(host.driver.getExtentAt(40), 140.0);
   auto keys = keysFrom(0, 200);

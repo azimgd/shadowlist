@@ -172,8 +172,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   CALayer *thumb = [CALayer layer];
   thumb.opacity = 0;
   thumb.hidden = YES;
-  thumb.actions = @{@"bounds" : NSNull.null, @"position" : NSNull.null, @"hidden" : NSNull.null,
-    @"cornerRadius" : NSNull.null};
+  thumb.actions =
+    @{@"bounds" : NSNull.null, @"position" : NSNull.null, @"hidden" : NSNull.null, @"cornerRadius" : NSNull.null};
   [self.layer addSublayer:thumb];
   return thumb;
 }
@@ -273,9 +273,10 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
     return;
   }
   __weak ShadowListKitScrollerView *weakSelf = self;
-  _hideTimer = [[NSTimer alloc] initWithFireDate:hide interval:0 repeats:NO block:^(NSTimer *timer) {
-    [weakSelf hideScrollers];
-  }];
+  _hideTimer = [[NSTimer alloc] initWithFireDate:hide
+                                        interval:0
+                                         repeats:NO
+                                           block:^(NSTimer *timer) { [weakSelf hideScrollers]; }];
   [NSRunLoop.mainRunLoop addTimer:_hideTimer forMode:NSDefaultRunLoopMode];
 }
 
@@ -298,8 +299,9 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   if ((_axes & ShadowListKitScrollAxesVertical) == 0) {
     return ScrollerThumb();
   }
-  return scrollerThumb(_contentSize.height, [self trackLength:NO], _offset.y, _scrollerInsets.top,
-    SHADOWLIST_KIT_THUMB_INSET, SHADOWLIST_KIT_THUMB_MIN_LENGTH);
+  return scrollerThumb(
+    _contentSize.height, [self trackLength:NO], _offset.y, _scrollerInsets.top, SHADOWLIST_KIT_THUMB_INSET,
+    SHADOWLIST_KIT_THUMB_MIN_LENGTH);
 }
 
 - (ScrollerThumb)horizontalThumb
@@ -307,8 +309,9 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   if ((_axes & ShadowListKitScrollAxesHorizontal) == 0) {
     return ScrollerThumb();
   }
-  return scrollerThumb(_contentSize.width, [self trackLength:YES], _offset.x, _scrollerInsets.left,
-    SHADOWLIST_KIT_THUMB_INSET, SHADOWLIST_KIT_THUMB_MIN_LENGTH);
+  return scrollerThumb(
+    _contentSize.width, [self trackLength:YES], _offset.x, _scrollerInsets.left, SHADOWLIST_KIT_THUMB_INSET,
+    SHADOWLIST_KIT_THUMB_MIN_LENGTH);
 }
 
 - (CGFloat)trackLength:(BOOL)horizontal
@@ -337,15 +340,16 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   _verticalThumb.hidden = !vertical.visible;
   if (vertical.visible) {
     CGFloat breadth = [self breadthOf:ShadowListKitThumbAxisVertical];
-    _verticalThumb.frame = CGRectMake(size.width - _scrollerInsets.right - breadth - inset, (CGFloat)vertical.start,
-      breadth, (CGFloat)vertical.length);
+    _verticalThumb.frame = CGRectMake(
+      size.width - _scrollerInsets.right - breadth - inset, (CGFloat)vertical.start, breadth, (CGFloat)vertical.length);
     _verticalThumb.cornerRadius = breadth / 2;
   }
   _horizontalThumb.hidden = !horizontal.visible;
   if (horizontal.visible) {
     CGFloat breadth = [self breadthOf:ShadowListKitThumbAxisHorizontal];
-    _horizontalThumb.frame = CGRectMake((CGFloat)horizontal.start,
-      size.height - _scrollerInsets.bottom - breadth - inset, (CGFloat)horizontal.length, breadth);
+    _horizontalThumb.frame = CGRectMake(
+      (CGFloat)horizontal.start, size.height - _scrollerInsets.bottom - breadth - inset, (CGFloat)horizontal.length,
+      breadth);
     _horizontalThumb.cornerRadius = breadth / 2;
   }
   [CATransaction commit];
@@ -366,12 +370,14 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   CGFloat depth = SHADOWLIST_KIT_THUMB_GRAB_DEPTH;
   CGFloat right = size.width - _scrollerInsets.right;
   CGFloat bottom = size.height - _scrollerInsets.bottom;
-  if ([self isShown:_verticalThumb] && point.x >= right - depth && point.x <= right &&
-      point.y >= _scrollerInsets.top && point.y <= bottom) {
+  if (
+    [self isShown:_verticalThumb] && point.x >= right - depth && point.x <= right && point.y >= _scrollerInsets.top &&
+    point.y <= bottom) {
     return ShadowListKitThumbAxisVertical;
   }
-  if ([self isShown:_horizontalThumb] && point.y >= bottom - depth && point.y <= bottom &&
-      point.x >= _scrollerInsets.left && point.x <= right) {
+  if (
+    [self isShown:_horizontalThumb] && point.y >= bottom - depth && point.y <= bottom &&
+    point.x >= _scrollerInsets.left && point.x <= right) {
     return ShadowListKitThumbAxisHorizontal;
   }
   return ShadowListKitThumbAxisNone;
@@ -409,8 +415,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   if (_tracking) {
     [self removeTrackingArea:_tracking];
   }
-  NSTrackingAreaOptions options = NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited |
-    NSTrackingActiveInActiveApp | NSTrackingInVisibleRect;
+  NSTrackingAreaOptions options =
+    NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited | NSTrackingActiveInActiveApp | NSTrackingInVisibleRect;
   _tracking = [[NSTrackingArea alloc] initWithRect:NSZeroRect options:options owner:self userInfo:nil];
   [self addTrackingArea:_tracking];
 }
@@ -489,12 +495,14 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   CGPoint offset = _offset;
   if (_grab == ShadowListKitThumbAxisVertical) {
     CGFloat track = [self trackLength:NO];
-    offset.y = (CGFloat)scrollerDragOffset(point.y, _grabOffset, _scrollerInsets.top, SHADOWLIST_KIT_THUMB_INSET,
-      track, _verticalThumb.bounds.size.height, MAX(0, _contentSize.height - track));
+    offset.y = (CGFloat)scrollerDragOffset(
+      point.y, _grabOffset, _scrollerInsets.top, SHADOWLIST_KIT_THUMB_INSET, track, _verticalThumb.bounds.size.height,
+      MAX(0, _contentSize.height - track));
   } else if (_grab == ShadowListKitThumbAxisHorizontal) {
     CGFloat track = [self trackLength:YES];
-    offset.x = (CGFloat)scrollerDragOffset(point.x, _grabOffset, _scrollerInsets.left, SHADOWLIST_KIT_THUMB_INSET,
-      track, _horizontalThumb.bounds.size.width, MAX(0, _contentSize.width - track));
+    offset.x = (CGFloat)scrollerDragOffset(
+      point.x, _grabOffset, _scrollerInsets.left, SHADOWLIST_KIT_THUMB_INSET, track, _horizontalThumb.bounds.size.width,
+      MAX(0, _contentSize.width - track));
   } else {
     return;
   }
@@ -533,7 +541,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
 - (id)accessibilityHitTest:(NSPoint)point
 {
   NSRect screen = NSMakeRect(point.x, point.y, 0, 0);
-  NSPoint local = self.window ? [self convertRect:[self.window convertRectFromScreen:screen] fromView:nil].origin : NSZeroPoint;
+  NSPoint local =
+    self.window ? [self convertRect:[self.window convertRectFromScreen:screen] fromView:nil].origin : NSZeroPoint;
   NSArray *children = self.accessibilityChildren;
   ShadowListKitThumbAxis axis = [self thumbAt:local];
   for (ShadowListKitScrollBarAccessibilityElement *element in children) {
@@ -546,7 +555,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
 
 - (BOOL)canScrollAccessibilityAxis:(BOOL)horizontal
 {
-  if (self.hidden || (_axes & (horizontal ? ShadowListKitScrollAxesHorizontal : ShadowListKitScrollAxesVertical)) == 0) {
+  if (
+    self.hidden || (_axes & (horizontal ? ShadowListKitScrollAxesHorizontal : ShadowListKitScrollAxesVertical)) == 0) {
     return NO;
   }
   CGFloat content = horizontal ? _contentSize.width : _contentSize.height;
@@ -612,7 +622,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitThumbAxis) {
   NSSize size = self.bounds.size;
   CGFloat depth = SHADOWLIST_KIT_THUMB_GRAB_DEPTH;
   if (horizontal) {
-    return NSMakeRect(_scrollerInsets.left, size.height - _scrollerInsets.bottom - depth, [self trackLength:YES], depth);
+    return NSMakeRect(
+      _scrollerInsets.left, size.height - _scrollerInsets.bottom - depth, [self trackLength:YES], depth);
   }
   return NSMakeRect(size.width - _scrollerInsets.right - depth, _scrollerInsets.top, depth, [self trackLength:NO]);
 }

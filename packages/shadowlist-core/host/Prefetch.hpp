@@ -34,9 +34,7 @@ public:
     std::vector<std::size_t>& cancel) {
     prefetch.clear();
     cancel.clear();
-    auto isMounted = [&](std::size_t index) {
-      return mounted && index >= mounted->low && index <= mounted->high;
-    };
+    auto isMounted = [&](std::size_t index) { return mounted && index >= mounted->low && index <= mounted->high; };
     auto inRange = [&](std::size_t index) { return range && index >= range->low && index <= range->high; };
     // Rows prefetched earlier: shown now, gone, or out of the range.
     for (auto entry = prefetched_.begin(); entry != prefetched_.end();) {
@@ -60,9 +58,7 @@ public:
     std::sort(cancel.begin(), cancel.end());
   }
 
-  void clear() {
-    prefetched_.clear();
-  }
+  void clear() { prefetched_.clear(); }
 
 private:
   std::unordered_set<std::string> prefetched_;
@@ -72,6 +68,7 @@ private:
  * The range to prefetch: the mounted rows plus rows on each side, or nothing without mounted
  * rows or prefetch rows.
  */
-std::optional<MountedRange> prefetchRange(const std::optional<MountedRange>& mounted, std::size_t rows, std::size_t count);
+std::optional<MountedRange>
+prefetchRange(const std::optional<MountedRange>& mounted, std::size_t rows, std::size_t count);
 
 }

@@ -10,17 +10,28 @@ final class AutoHideTests: XCTestCase {
    */
   private final class List: ShadowListKitListView {
     var draggingPhase = false
-    override var isDragging: Bool { draggingPhase }
+    override var isDragging: Bool {
+      draggingPhase
+    }
   }
 
   private final class Source: NSObject, ShadowListKitListViewDataSource {
-    var keys = (0..<100).map { "row-\($0)" }
-    func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
-    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+    var keys = (0 ..< 100).map { "row-\($0)" }
+    func numberOfItems(in listView: ShadowListKitListView) -> Int {
+      keys.count
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+      keys[index]
+    }
+
     func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
       listView.dequeueReusableCell(withIdentifier: "cell")
     }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 40 }
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      40
+    }
   }
 
   private func makeList() -> (List, Source) {
@@ -46,8 +57,13 @@ final class AutoHideTests: XCTestCase {
     list.draggingPhase = false
   }
 
-  private func headerStart(_ list: List) -> CGFloat { list.headerView!.frame.minY - list.contentOffset.y }
-  private func footerEnd(_ list: List) -> CGFloat { list.footerView!.frame.maxY - list.contentOffset.y }
+  private func headerStart(_ list: List) -> CGFloat {
+    list.headerView!.frame.minY - list.contentOffset.y
+  }
+
+  private func footerEnd(_ list: List) -> CGFloat {
+    list.footerView!.frame.maxY - list.contentOffset.y
+  }
 
   func testOnlyUserDisplacementAccumulatesAndRepeatedLayoutsDoNotHideAgain() {
     let (list, source) = makeList()

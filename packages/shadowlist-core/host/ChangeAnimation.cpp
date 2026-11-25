@@ -43,9 +43,8 @@ std::optional<ScreenPoint> ChangeAnimation::deletedPosition(const std::string& k
   return previous->second;
 }
 
-std::vector<ChangeStep> ChangeAnimation::run(
-  const std::vector<std::string>& keys,
-  const std::vector<ScreenPoint>& positions) {
+std::vector<ChangeStep>
+ChangeAnimation::run(const std::vector<std::string>& keys, const std::vector<ScreenPoint>& positions) {
   std::vector<ChangeStep> steps;
   if (!pending_) {
     return steps;

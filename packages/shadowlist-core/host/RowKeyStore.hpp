@@ -132,11 +132,8 @@ public:
   bool setSections(std::uint64_t version, std::uint64_t baseVersion, SectionsUpdate update);
 
   bool resetTree(std::uint64_t version, std::vector<TreeRow> rows);
-  std::optional<TreeSplice> expandTree(
-    std::uint64_t version,
-    std::uint64_t baseVersion,
-    std::size_t row,
-    std::vector<TreeRow> descendants);
+  std::optional<TreeSplice>
+  expandTree(std::uint64_t version, std::uint64_t baseVersion, std::size_t row, std::vector<TreeRow> descendants);
   std::optional<TreeSplice> collapseTree(std::uint64_t version, std::uint64_t baseVersion, std::size_t row);
 
   std::shared_ptr<const RowKeysSnapshot> snapshot(std::uint64_t version) const;

@@ -6,37 +6,83 @@ import XCTest
 final class ViewabilityTests: XCTestCase {
   private final class List: ShadowListKitListView {
     var draggingPhase = false
-    override var isDragging: Bool { draggingPhase }
+    override var isDragging: Bool {
+      draggingPhase
+    }
   }
 
   private class Source: NSObject, ShadowListKitListViewDataSource {
     var heights = Array(repeating: CGFloat(100), count: 20)
-    var keys = (0..<20).map { "public-\($0)" }
-    func numberOfItems(in listView: ShadowListKitListView) -> Int { heights.count }
-    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+    var keys = (0 ..< 20).map { "public-\($0)" }
+    func numberOfItems(in listView: ShadowListKitListView) -> Int {
+      heights.count
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+      keys[index]
+    }
+
     func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
       listView.dequeueReusableCell(withIdentifier: "row")
     }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { heights[index] }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      sizeForItemAt index: Int,
+      crossSize: CGFloat
+    ) -> CGFloat {
+      heights[index]
+    }
   }
 
   private class SectionSource: Source {
     var firstCount = 2
-    override init() { super.init(); heights = [40, 40, 40, 40] }
-    func numberOfSections(in listView: ShadowListKitListView) -> Int { 2 }
-    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { section == 0 ? firstCount : 2 }
-    func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { "Section \(section)" }
-    func listView(_ listView: ShadowListKitListView, sizeForHeaderInSection section: Int, crossSize: CGFloat) -> CGFloat { 20 }
+    override init() {
+      super.init(); heights = [40, 40, 40, 40]
+    }
+
+    func numberOfSections(in listView: ShadowListKitListView) -> Int {
+      2
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      numberOfItemsInSection section: Int
+    ) -> Int {
+      section == 0 ? firstCount : 2
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      titleForHeaderInSection section: Int
+    ) -> String? {
+      "Section \(section)"
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      sizeForHeaderInSection section: Int,
+      crossSize: CGFloat
+    ) -> CGFloat {
+      20
+    }
   }
 
   private final class StableSectionSource: SectionSource {
-    func listView(_ listView: ShadowListKitListView, keyForSection section: Int) -> String { "section-\(section)" }
+    func listView(_ listView: ShadowListKitListView, keyForSection section: Int) -> String {
+      "section-\(section)"
+    }
   }
 
   private func config(_ percent: Double = 50, time: Double = 0, wait: Bool = false) -> ShadowListKitViewabilityConfig {
-    ShadowListKitViewabilityConfig(itemVisiblePercentThreshold: NSNumber(value: percent),
-      viewAreaCoveragePercentThreshold: nil, minimumViewTime: time, waitForInteraction: wait)
+    ShadowListKitViewabilityConfig(
+      itemVisiblePercentThreshold: NSNumber(value: percent),
+      viewAreaCoveragePercentThreshold: nil,
+      minimumViewTime: time,
+      waitForInteraction: wait
+    )
   }
+
   private func fixture(_ source: Source, automaticInsets: Bool = false) -> (ShadowListKitListView, UIWindow) {
     let list = List()
     // These tests specify the viewport in content coordinates, without device safe-area insets.
@@ -47,9 +93,11 @@ final class ViewabilityTests: XCTestCase {
     let window = host(list, size: CGSize(width: 200, height: 100))
     return (list, window)
   }
+
   private func pump(_ seconds: TimeInterval) {
     RunLoop.main.run(until: Date(timeIntervalSinceNow: seconds))
   }
+
   private func layout(_ list: ShadowListKitListView) {
     list.setNeedsLayout()
     list.layoutIfNeeded()
@@ -66,12 +114,17 @@ final class ViewabilityTests: XCTestCase {
     list.onViewableItemsChanged = { _ in single += 1 }
     layout(list)
     XCTAssertEqual(single, 0)
-    list.viewabilityConfigCallbackPairs = [ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config()) { info in
-      first += 1
-      XCTAssertTrue(info.viewableItems.allSatisfy { $0.key.hasPrefix("public-") && $0.section == NSNotFound })
-    }]
+    list
+      .viewabilityConfigCallbackPairs =
+      [ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config()) { info in
+        first += 1
+        XCTAssertTrue(info.viewableItems.allSatisfy { $0.key.hasPrefix("public-") && $0.section == NSNotFound })
+      }]
     XCTAssertEqual(first, 1)
-    list.viewabilityConfigCallbackPairs = [ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config()) { _ in replacement += 1 }]
+    list
+      .viewabilityConfigCallbackPairs = [ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config()) { _ in
+        replacement += 1
+      }]
     layout(list)
     XCTAssertEqual(replacement, 0)
     list.contentOffset.y = 100
@@ -158,11 +211,16 @@ final class ViewabilityTests: XCTestCase {
     var keys: [String] = []
     list.viewabilityConfig = config()
     list.onViewableItemsChanged = { info in keys = info.viewableItems.map(\.key) }
-    XCTAssertTrue(keys.contains("public-0"), "offset \(list.contentOffset.y), inset \(list.adjustedContentInset), bounds \(list.bounds), rows \((0..<3).map { list.rectForItem(at: $0) }), keys \(keys)")
+    XCTAssertTrue(
+      keys.contains("public-0"),
+      "offset \(list.contentOffset.y), inset \(list.adjustedContentInset), bounds \(list.bounds), " +
+        "rows \((0 ..< 3).map { list.rectForItem(at: $0) }), keys \(keys)"
+    )
     XCTAssertFalse(keys.contains("public-1"))
     XCTAssertTrue(keys.contains("public-2"))
     withExtendedLifetime((window, source)) {}
   }
+
   func testAdjustedInsetsUseTheObservedLogicalViewport() {
     let source = Source()
     let (list, window) = fixture(source, automaticInsets: true)
@@ -174,7 +232,7 @@ final class ViewabilityTests: XCTestCase {
     let high = low + list.bounds.height - inset.top - inset.bottom
     XCTAssertGreaterThan(inset.top, 0)
     XCTAssertGreaterThan(high, low)
-    let expected = (0..<source.heights.count).filter {
+    let expected = (0 ..< source.heights.count).filter {
       let rect = list.rectForItem(at: $0)
       return rect.maxY > low && rect.minY < high
     }.map { "public-\($0)" }
@@ -265,4 +323,28 @@ final class ViewabilityTests: XCTestCase {
     withExtendedLifetime((window, source)) {}
   }
 
+  func testDetachAndReattachInsideACallbackDiscardsTheOldReports() throws {
+    let source = Source()
+    let (list, window) = fixture(source)
+    let container = try XCTUnwrap(list.superview)
+    let config = ShadowListKitViewabilityConfig(
+      itemVisiblePercentThreshold: 50,
+      viewAreaCoveragePercentThreshold: nil,
+      minimumViewTime: 0,
+      waitForInteraction: false
+    )
+    var events: [String] = []
+    list.viewabilityConfigCallbackPairs = [
+      ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config) { _ in
+        events.append("first")
+        if events.count == 1 {
+          list.removeFromSuperview()
+          container.addSubview(list)
+        }
+      },
+      ShadowListKitViewabilityConfigCallbackPair(viewabilityConfig: config) { _ in events.append("second") }
+    ]
+    XCTAssertEqual(events, ["first", "first", "second"])
+    withExtendedLifetime((window, source)) {}
+  }
 }

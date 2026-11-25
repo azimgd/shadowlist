@@ -370,8 +370,7 @@ TEST(multi_column_rows_span_their_track) {
   double trackSize = WINDOW_WIDTH / 4.0;
   for (std::size_t index = 0; index < keys.size(); ++index) {
     CHECK_NEAR(container.revision.rows[index].width, trackSize, 0.001);
-    CHECK_NEAR(container.revision.rows[index].offsetX,
-      static_cast<double>(index % 4) * trackSize, 0.001);
+    CHECK_NEAR(container.revision.rows[index].offsetX, static_cast<double>(index % 4) * trackSize, 0.001);
   }
   checkGeometryContiguous(container, "4 columns");
 
@@ -424,7 +423,7 @@ TEST(randomized_session_never_loses_a_row) {
 
   for (int step = 0; step < 400; ++step) {
     switch (nextRandom() % 5) {
-      case 0: {  // scroll somewhere
+      case 0: { // scroll somewhere
         double total = container.revision.contentHeight;
         offset = total > 0.0 ? static_cast<double>(nextRandom() % 100000) / 100000.0 * total : 0.0;
         FrameInput input = inputFor(keys, offset, fixture);
@@ -434,7 +433,7 @@ TEST(randomized_session_never_loses_a_row) {
         rangeFresh = true;
         break;
       }
-      case 1: {  // measure a mounted row
+      case 1: { // measure a mounted row
         if (container.getRowCount() == 0) {
           break;
         }
@@ -445,7 +444,7 @@ TEST(randomized_session_never_loses_a_row) {
         rangeFresh = false;
         break;
       }
-      case 2: {  // insert a page somewhere
+      case 2: { // insert a page somewhere
         std::size_t at = keys.empty() ? 0 : nextRandom() % keys.size();
         std::vector<std::string> inserted;
         for (std::size_t index = 0; index < 5; ++index) {
@@ -456,7 +455,7 @@ TEST(randomized_session_never_loses_a_row) {
         rangeFresh = true;
         break;
       }
-      case 3: {  // remove a page
+      case 3: { // remove a page
         if (keys.size() < 20) {
           break;
         }
@@ -466,7 +465,7 @@ TEST(randomized_session_never_loses_a_row) {
         rangeFresh = true;
         break;
       }
-      default: {  // move a row
+      default: { // move a row
         if (keys.size() < 4) {
           break;
         }

@@ -41,14 +41,37 @@ internal class ShadowListKitSwipeReveal {
     private const val REST_OFFSET = 2
 
     @JvmStatic private external fun nativeCreate(): Long
+
     @JvmStatic private external fun nativeDestroy(handle: Long)
+
     @JvmStatic private external fun nativeBegin(
-      handle: Long, leadingSizes: DoubleArray, trailingSizes: DoubleArray, leadingFull: Boolean, trailingFull: Boolean,
-      rowSize: Double)
-    @JvmStatic private external fun nativeMove(handle: Long, start: Double, translation: Double, crossSize: Double, out: DoubleArray)
+      handle: Long,
+      leadingSizes: DoubleArray,
+      trailingSizes: DoubleArray,
+      leadingFull: Boolean,
+      trailingFull: Boolean,
+      rowSize: Double
+    )
+
+    @JvmStatic private external fun nativeMove(
+      handle: Long,
+      start: Double,
+      translation: Double,
+      crossSize: Double,
+      out: DoubleArray
+    )
+
     @JvmStatic private external fun nativeShow(handle: Long, offset: Double, crossSize: Double, out: DoubleArray)
+
     @JvmStatic private external fun nativeIsSwipedOut(handle: Long, offset: Double): Boolean
-    @JvmStatic private external fun nativeSettle(handle: Long, offset: Double, velocity: Double, flingVelocity: Double, out: DoubleArray)
+
+    @JvmStatic private external fun nativeSettle(
+      handle: Long,
+      offset: Double,
+      velocity: Double,
+      flingVelocity: Double,
+      out: DoubleArray
+    )
   }
 
   private val handle: Long = nativeCreate().also { reclaimer.register(this, it) }
@@ -63,7 +86,13 @@ internal class ShadowListKitSwipeReveal {
   /*
    * A row with these buttons opens. rowSize is its cross size.
    */
-  fun begin(leadingSizes: DoubleArray, trailingSizes: DoubleArray, leadingFull: Boolean, trailingFull: Boolean, rowSize: Double) {
+  fun begin(
+    leadingSizes: DoubleArray,
+    trailingSizes: DoubleArray,
+    leadingFull: Boolean,
+    trailingFull: Boolean,
+    rowSize: Double
+  ) {
     val needed = OUT_SPANS + 2 * max(leadingSizes.size, trailingSizes.size)
     if (out.size < needed) out = DoubleArray(needed)
     nativeBegin(handle, leadingSizes, trailingSizes, leadingFull, trailingFull, rowSize)
@@ -73,7 +102,8 @@ internal class ShadowListKitSwipeReveal {
    * A finger that moved translation since the swipe began at start, the buttons laid out across
    * crossSize.
    */
-  fun move(start: Double, translation: Double, crossSize: Double) = nativeMove(handle, start, translation, crossSize, out)
+  fun move(start: Double, translation: Double, crossSize: Double) =
+    nativeMove(handle, start, translation, crossSize, out)
 
   /*
    * The row at offset, like an animation frame.
@@ -86,7 +116,8 @@ internal class ShadowListKitSwipeReveal {
    * Where a swipe let go at offset with velocity rests. Read it from restSide, restFull and
    * restOffset.
    */
-  fun settle(offset: Double, velocity: Double, flingVelocity: Double) = nativeSettle(handle, offset, velocity, flingVelocity, rest)
+  fun settle(offset: Double, velocity: Double, flingVelocity: Double) =
+    nativeSettle(handle, offset, velocity, flingVelocity, rest)
 
   val restSide: Int get() = rest[REST_SIDE].toInt()
   val restFull: Boolean get() = rest[REST_FULL] != 0.0

@@ -150,9 +150,7 @@ final class ShadowListDragController {
   @Nullable private static Field sPagingField = null;
   private static boolean sPagingFieldLooked = false;
 
-  ShadowListDragController(ShadowListView view) {
-    mView = view;
-  }
+  ShadowListDragController(ShadowListView view) { mView = view; }
 
   void setEnabled(boolean reorderEnabled) {
     boolean wasEnabled = mReorderEnabled;
@@ -172,18 +170,15 @@ final class ShadowListDragController {
     }
   }
 
-  boolean isDragging() {
-    return mDragging;
-  }
+  boolean isDragging() { return mDragging; }
 
-  boolean isEnabled() {
-    return mReorderEnabled;
-  }
+  boolean isEnabled() { return mReorderEnabled; }
 
   /*
    * The held row, or null when nothing is being dragged.
    */
-  @Nullable ShadowListCellView getDraggedView() {
+  @Nullable
+  ShadowListCellView getDraggedView() {
     return mDraggedView;
   }
 
@@ -192,9 +187,7 @@ final class ShadowListDragController {
    * list of the drag board hovers this one or a drop between lists is landing.
    * Core corrections must not move the content during this time.
    */
-  boolean ownsScrollOffset() {
-    return mDragging || mDragDropPending || mDrag.isForeign() || mBoardDropPending;
-  }
+  boolean ownsScrollOffset() { return mDragging || mDragDropPending || mDrag.isForeign() || mBoardDropPending; }
 
   /*
    * Sees every event of the gesture, even once the scroll view stops passing them to
@@ -246,9 +239,7 @@ final class ShadowListDragController {
   /*
    * Returns true once a drag starts, taking the gesture away from the inner scroll view.
    */
-  boolean onInterceptTouchEvent(MotionEvent event) {
-    return mDragging;
-  }
+  boolean onInterceptTouchEvent(MotionEvent event) { return mDragging; }
 
   /*
    * Returns true when the drag consumed the event. A cancelled gesture puts the row back,
@@ -294,16 +285,15 @@ final class ShadowListDragController {
   /*
    * The row keys changed. A drop between the lists of a drag board lands with them.
    */
-  void onKeysChanged() {
-    boardMountDidFinish(false);
-  }
+  void onKeysChanged() { boardMountDidFinish(false); }
 
   // region Pick up
 
   /*
    * The topmost row whose resting frame contains the point.
    */
-  @Nullable ShadowListCellView cellViewAtContentPoint(float contentX, float contentY) {
+  @Nullable
+  ShadowListCellView cellViewAtContentPoint(float contentX, float contentY) {
     ViewGroup contentView = mView.getContentView();
     ShadowListCellView result = null;
     for (int i = 0; i < contentView.getChildCount(); i++) {
@@ -311,9 +301,10 @@ final class ShadowListDragController {
       if (!(child instanceof ShadowListCellView)) {
         continue;
       }
-      if (contentX >= child.getLeft() && contentX < child.getRight()
-          && contentY >= child.getTop() && contentY < child.getBottom()) {
-        result = (ShadowListCellView) child;
+      if (
+        contentX >= child.getLeft() && contentX < child.getRight() && contentY >= child.getTop() &&
+        contentY < child.getBottom()) {
+        result = (ShadowListCellView)child;
       }
     }
     return result;
@@ -348,14 +339,11 @@ final class ShadowListDragController {
     mDragging = true;
     mDraggedView = view;
     mNumberOfColumns = mView.getNumberOfColumns();
-    mDrag.begin(index, view.getRowKey(),
-      horizontal ? view.getLeft() : view.getTop(),
-      horizontal ? view.getWidth() : view.getHeight(),
-      horizontal ? view.getTop() : view.getLeft(),
-      horizontal ? view.getHeight() : view.getWidth(),
-      horizontal ? contentX : contentY,
-      horizontal ? contentY : contentX,
-      mNumberOfColumns);
+    mDrag.begin(
+      index, view.getRowKey(), horizontal ? view.getLeft() : view.getTop(),
+      horizontal ? view.getWidth() : view.getHeight(), horizontal ? view.getTop() : view.getLeft(),
+      horizontal ? view.getHeight() : view.getWidth(), horizontal ? contentX : contentY,
+      horizontal ? contentY : contentX, mNumberOfColumns);
     mDragTouchInViewport = horizontal ? x : y;
     mDragCrossTouchInViewport = horizontal ? y : x;
     noteFingerInWindow(x, y);
@@ -370,10 +358,10 @@ final class ShadowListDragController {
     setAncestorsMayIntercept(false);
 
     view.invalidateOutline();
-    view.setTranslationZ(PixelUtil.toPixelFromDIP((float) ShadowListDrag.LIFT_ELEVATION_DP));
-    mView.performHapticFeedback(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-      ? HapticFeedbackConstants.GESTURE_START
-      : HapticFeedbackConstants.LONG_PRESS);
+    view.setTranslationZ(PixelUtil.toPixelFromDIP((float)ShadowListDrag.LIFT_ELEVATION_DP));
+    mView.performHapticFeedback(
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ? HapticFeedbackConstants.GESTURE_START
+                                                     : HapticFeedbackConstants.LONG_PRESS);
 
     String originKey = mDrag.getOriginKey();
     dispatchDragEvent(DRAG_EVENT_START, originKey, originKey);
@@ -453,8 +441,8 @@ final class ShadowListDragController {
     float maxOffset = Math.max(0f, content - window);
     float offset = horizontal ? scrollView.getScrollX() : scrollView.getScrollY();
 
-    float newOffset = (float) ShadowListDrag.autoScrollOffset(
-      touch, window, offset, maxOffset, PixelUtil.toPixelFromDIP(1f), dtSeconds);
+    float newOffset =
+      (float)ShadowListDrag.autoScrollOffset(touch, window, offset, maxOffset, PixelUtil.toPixelFromDIP(1f), dtSeconds);
     if (Math.round(newOffset) == Math.round(offset)) {
       return;
     }
@@ -495,15 +483,13 @@ final class ShadowListDragController {
     boolean horizontal = mView.isHorizontal();
     float touchAlong = mDragTouchInViewport + (horizontal ? scrollView.getScrollX() : scrollView.getScrollY());
     float touchCross = mDragCrossTouchInViewport + (horizontal ? scrollView.getScrollY() : scrollView.getScrollX());
-    double[] translation = mDrag.placeRow(touchAlong, touchCross,
-      horizontal ? view.getLeft() : view.getTop(),
-      horizontal ? view.getWidth() : view.getHeight(),
-      horizontal ? view.getTop() : view.getLeft(),
-      horizontal ? view.getHeight() : view.getWidth(),
-      horizontal ? contentView.getWidth() : contentView.getHeight(),
+    double[] translation = mDrag.placeRow(
+      touchAlong, touchCross, horizontal ? view.getLeft() : view.getTop(),
+      horizontal ? view.getWidth() : view.getHeight(), horizontal ? view.getTop() : view.getLeft(),
+      horizontal ? view.getHeight() : view.getWidth(), horizontal ? contentView.getWidth() : contentView.getHeight(),
       horizontal ? contentView.getHeight() : contentView.getWidth());
-    float along = (float) translation[0];
-    float cross = (float) translation[1];
+    float along = (float)translation[0];
+    float cross = (float)translation[1];
     float translationX = horizontal ? along : cross;
     float translationY = horizontal ? cross : along;
     // A row that came back from another list of the board starts where its picture was.
@@ -512,10 +498,9 @@ final class ShadowListDragController {
       contentView.getLocationInWindow(mLocation);
       double[] offset = board.returnOffset(
         mLocation[0] + view.getLeft() + translationX + view.getWidth() / 2f,
-        mLocation[1] + view.getTop() + translationY + view.getHeight() / 2f,
-        SystemClock.uptimeMillis());
-      translationX += (float) offset[0];
-      translationY += (float) offset[1];
+        mLocation[1] + view.getTop() + translationY + view.getHeight() / 2f, SystemClock.uptimeMillis());
+      translationX += (float)offset[0];
+      translationY += (float)offset[1];
     }
     view.setTranslationX(translationX);
     view.setTranslationY(translationY);
@@ -537,9 +522,9 @@ final class ShadowListDragController {
    */
   private void tickDropSpot() {
     if (mDrag.shouldTick(SystemClock.uptimeMillis())) {
-      mView.performHapticFeedback(Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-        ? HapticFeedbackConstants.SEGMENT_TICK
-        : HapticFeedbackConstants.CLOCK_TICK);
+      mView.performHapticFeedback(
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ? HapticFeedbackConstants.SEGMENT_TICK
+                                                       : HapticFeedbackConstants.CLOCK_TICK);
     }
   }
 
@@ -562,7 +547,7 @@ final class ShadowListDragController {
       if (!(child instanceof ShadowListCellView) || child == mDraggedView) {
         continue;
       }
-      ShadowListCellView cellChild = (ShadowListCellView) child;
+      ShadowListCellView cellChild = (ShadowListCellView)child;
       int rowIndex = mView.rowIndexOf(cellChild);
       if (rowIndex < 0) {
         continue;
@@ -589,9 +574,7 @@ final class ShadowListDragController {
    * Whether a row mounted now has to shift: during a drag, or while a row from another list of
    * the drag board hovers this one.
    */
-  boolean needsMountShuffle() {
-    return mDragging || mDrag.isForeign();
-  }
+  boolean needsMountShuffle() { return mDragging || mDrag.isForeign(); }
 
   /*
    * A row mounted during the drag. Work out the shifts again with it and slide every row.
@@ -627,8 +610,8 @@ final class ShadowListDragController {
     for (int i = 0; i < mRowCount; i++) {
       View child = mRowViews[i];
       double[] offset = mDrag.offsetFor(mRowIndices[i]);
-      float shift = (float) offset[0];
-      float crossShift = (float) offset[1];
+      float shift = (float)offset[0];
+      float crossShift = (float)offset[1];
       float translationX = horizontal ? shift : crossShift;
       float translationY = horizontal ? crossShift : shift;
       if (!slide) {
@@ -640,12 +623,15 @@ final class ShadowListDragController {
         continue;
       }
       float[] target = mShiftTargets.get(child);
-      if (target != null ? target[0] == translationX && target[1] == translationY
-          : child.getTranslationX() == translationX && child.getTranslationY() == translationY) {
+      if (
+        target != null ? target[0] == translationX && target[1] == translationY
+                       : child.getTranslationX() == translationX && child.getTranslationY() == translationY) {
         continue;
       }
       mShiftTargets.put(child, new float[] {translationX, translationY});
-      child.animate().translationX(translationX).translationY(translationY)
+      child.animate()
+        .translationX(translationX)
+        .translationY(translationY)
         .setDuration(ShadowListDrag.SHIFT_DURATION_MS)
         .withEndAction(() -> mShiftTargets.remove(child))
         .start();
@@ -684,8 +670,12 @@ final class ShadowListDragController {
       }
       child.animate().cancel();
       if (child == held) {
-        child.animate().translationX(0f).translationY(0f).setDuration(ShadowListDrag.DROP_DURATION_MS)
-          .withEndAction(() -> child.setTranslationZ(0f)).start();
+        child.animate()
+          .translationX(0f)
+          .translationY(0f)
+          .setDuration(ShadowListDrag.DROP_DURATION_MS)
+          .withEndAction(() -> child.setTranslationZ(0f))
+          .start();
       } else {
         child.setTranslationZ(0f);
         if (child.getTranslationX() != 0f || child.getTranslationY() != 0f) {
@@ -713,8 +703,8 @@ final class ShadowListDragController {
     int from = mDrag.getOriginIndex();
     int to = mDrag.getInsertionIndex();
     ShadowListCellView view = mDraggedView;
-    mDropReleaseLeading = (float) mDrag.getLeading();
-    mDropReleaseCrossLeading = (float) mDrag.getCrossLeading();
+    mDropReleaseLeading = (float)mDrag.getLeading();
+    mDropReleaseCrossLeading = (float)mDrag.getCrossLeading();
     mDragging = false;
     mDraggedView = null;
 
@@ -809,8 +799,12 @@ final class ShadowListDragController {
     view.animate().cancel();
     view.setTranslationX(horizontal ? startTranslation : startCross);
     view.setTranslationY(horizontal ? startCross : startTranslation);
-    view.animate().translationX(0f).translationY(0f).setDuration(ShadowListDrag.DROP_DURATION_MS)
-      .withEndAction(() -> view.setTranslationZ(0f)).start();
+    view.animate()
+      .translationX(0f)
+      .translationY(0f)
+      .setDuration(ShadowListDrag.DROP_DURATION_MS)
+      .withEndAction(() -> view.setTranslationZ(0f))
+      .start();
   }
 
   /*
@@ -895,21 +889,15 @@ final class ShadowListDragController {
 
   // region Drag board membership
 
-  ShadowListView getView() {
-    return mView;
-  }
+  ShadowListView getView() { return mView; }
 
-  String getBoardToken() {
-    return mBoardToken;
-  }
+  String getBoardToken() { return mBoardToken; }
 
   /*
    * The name TalkBack gives this list in another list's Move to action: dragListLabel, or the
    * dragListId without one.
    */
-  String getDragListLabel() {
-    return mDragListLabel.isEmpty() ? mDragListId : mDragListLabel;
-  }
+  String getDragListLabel() { return mDragListLabel.isEmpty() ? mDragListId : mDragListLabel; }
 
   /*
    * Join the board named by dragBoardId, or leave it when the id is empty or changes.
@@ -1015,8 +1003,9 @@ final class ShadowListDragController {
       }
       return;
     }
-    if (board.getTarget() == this && board.getHome() != this && board.isFloating()
-        && board.getTargetId().equals(mBoardToken)) {
+    if (
+      board.getTarget() == this && board.getHome() != this && board.isFloating() &&
+      board.getTargetId().equals(mBoardToken)) {
       board.leaveCore(mBoardToken);
       board.setTarget(null);
       endBoardForeign();
@@ -1049,10 +1038,9 @@ final class ShadowListDragController {
       return;
     }
     mView.getContentView().getLocationInWindow(mLocation);
-    board.begin(this, view.getRowKey(), mFingerWindowX, mFingerWindowY,
-      mLocation[0] + view.getLeft() + view.getWidth() / 2f,
-      mLocation[1] + view.getTop() + view.getHeight() / 2f,
-      root.getWidth(), root.getHeight());
+    board.begin(
+      this, view.getRowKey(), mFingerWindowX, mFingerWindowY, mLocation[0] + view.getLeft() + view.getWidth() / 2f,
+      mLocation[1] + view.getTop() + view.getHeight() / 2f, root.getWidth(), root.getHeight());
     mSidewaysCarry = 0.0;
   }
 
@@ -1111,8 +1099,8 @@ final class ShadowListDragController {
       return false;
     }
     view.setVisibility(frame[ShadowListDragBoard.FRAME_HIDE_HELD] != 0.0 ? View.INVISIBLE : View.VISIBLE);
-    float centerX = (float) frame[ShadowListDragBoard.FRAME_OVERLAY_X];
-    float centerY = (float) frame[ShadowListDragBoard.FRAME_OVERLAY_Y];
+    float centerX = (float)frame[ShadowListDragBoard.FRAME_OVERLAY_X];
+    float centerY = (float)frame[ShadowListDragBoard.FRAME_OVERLAY_Y];
     board.moveOverlayCenterTo(centerX, centerY);
     // The rows after the held one close its gap.
     collectRows();
@@ -1235,7 +1223,7 @@ final class ShadowListDragController {
       if (!(parent instanceof HorizontalScrollView)) {
         continue;
       }
-      HorizontalScrollView outer = (HorizontalScrollView) parent;
+      HorizontalScrollView outer = (HorizontalScrollView)parent;
       if (outer.getChildCount() == 0) {
         continue;
       }
@@ -1249,7 +1237,7 @@ final class ShadowListDragController {
       double delta = board.scrollDelta(mFingerWindowX, mFingerWindowX - mLocation[0], outer.getWidth(), dtSeconds);
       // Keep the part of a pixel a slow scroll moves on each frame.
       double wanted = offset + delta + (delta != 0.0 ? mSidewaysCarry : 0.0);
-      int next = (int) Math.max(0, Math.min(maxOffset, Math.round(wanted)));
+      int next = (int)Math.max(0, Math.min(maxOffset, Math.round(wanted)));
       mSidewaysCarry = next > 0 && next < maxOffset ? wanted - next : 0.0;
       if (next != offset) {
         outer.scrollTo(next, outer.getScrollY());
@@ -1267,10 +1255,10 @@ final class ShadowListDragController {
   private void snapBoardScrollView() {
     ShadowListDragBoard board = mBoard;
     ViewGroup outer = board != null ? board.takeSidewaysScrollView() : null;
-    if (!(outer instanceof ReactHorizontalScrollView) || !isPagingEnabled((ReactHorizontalScrollView) outer)) {
+    if (!(outer instanceof ReactHorizontalScrollView) || !isPagingEnabled((ReactHorizontalScrollView)outer)) {
       return;
     }
-    ((ReactHorizontalScrollView) outer).fling(0);
+    ((ReactHorizontalScrollView)outer).fling(0);
   }
 
   private static boolean isPagingEnabled(ReactHorizontalScrollView outer) {
@@ -1312,10 +1300,8 @@ final class ShadowListDragController {
     ShadowListDragController target = board.getTarget();
     boolean foreign = target != null && target.mDrag.isForeign();
     int release = board.release(
-      foreign ? target.mDrag.getInsertionIndex() : -1,
-      foreign ? target.mDrag.getInsertionKey() : "",
-      foreign ? target.getView().getRowKeyCount() : -1,
-      SystemClock.uptimeMillis());
+      foreign ? target.mDrag.getInsertionIndex() : -1, foreign ? target.mDrag.getInsertionKey() : "",
+      foreign ? target.getView().getRowKeyCount() : -1, SystemClock.uptimeMillis());
     if (release == ShadowListDragBoard.RELEASE_HOME) {
       return false;
     }
@@ -1437,12 +1423,13 @@ final class ShadowListDragController {
 
   // region Drag board landing
 
-  @Nullable private ShadowListCellView boardCellForKey(String key) {
+  @Nullable
+  private ShadowListCellView boardCellForKey(String key) {
     ViewGroup contentView = mView.getContentView();
     for (int i = 0; i < contentView.getChildCount(); i++) {
       View child = contentView.getChildAt(i);
-      if (child instanceof ShadowListCellView && key.equals(((ShadowListCellView) child).getRowKey())) {
-        return (ShadowListCellView) child;
+      if (child instanceof ShadowListCellView && key.equals(((ShadowListCellView)child).getRowKey())) {
+        return (ShadowListCellView)child;
       }
     }
     return null;
@@ -1466,8 +1453,8 @@ final class ShadowListDragController {
       heldKey = null;
     }
     ShadowListCellView hidden = mBoardHiddenView;
-    boolean hiddenHoldsHeldRow = hidden != null && heldKey != null && hidden.getParent() != null
-      && heldKey.equals(hidden.getRowKey());
+    boolean hiddenHoldsHeldRow =
+      hidden != null && heldKey != null && hidden.getParent() != null && heldKey.equals(hidden.getRowKey());
     if (hidden != null && !hiddenHoldsHeldRow) {
       showBoardHiddenView();
       // The floating row's cell now shows another row. The row it held is gone. Stop the drag.
@@ -1476,8 +1463,8 @@ final class ShadowListDragController {
         return;
       }
     }
-    if (mBoardDropPending
-        && (heldKey == null || (!mView.rowKeysContain(heldKey) && boardCellForKey(heldKey) == null))) {
+    if (
+      mBoardDropPending && (heldKey == null || (!mView.rowKeysContain(heldKey) && boardCellForKey(heldKey) == null))) {
       mBoardDropPending = false;
       if (!mDragging) {
         clearDragTransforms();
@@ -1487,13 +1474,15 @@ final class ShadowListDragController {
     if (landingKey == null) {
       return;
     }
-    if (board.getPhase() == ShadowListDragBoard.PHASE_LANDING
-        && board.landed(mBoardToken, mView.rowKeysContain(landingKey))) {
+    if (
+      board.getPhase() == ShadowListDragBoard.PHASE_LANDING &&
+      board.landed(mBoardToken, mView.rowKeysContain(landingKey))) {
       mDrag.endForeign();
       clearDragTransforms();
     }
-    if (fromFrame && board.getPhase() == ShadowListDragBoard.PHASE_SETTLING && !board.isSettling()
-        && mBoardToken.equals(board.getTargetId())) {
+    if (
+      fromFrame && board.getPhase() == ShadowListDragBoard.PHASE_SETTLING && !board.isSettling() &&
+      mBoardToken.equals(board.getTargetId())) {
       ShadowListCellView cell = boardCellForKey(landingKey);
       if (cell != null && cell.isLaidOut()) {
         landBoardOnView(cell);
@@ -1578,13 +1567,14 @@ final class ShadowListDragController {
       if (!(child instanceof ShadowListCellView) || child == view) {
         continue;
       }
-      int childIndex = mView.rowIndexOf((ShadowListCellView) child);
+      int childIndex = mView.rowIndexOf((ShadowListCellView)child);
       if (childIndex < 0) {
         continue;
       }
-      if (up ? (childIndex < index && childIndex > neighborIndex) : (childIndex > index && childIndex < neighborIndex)) {
+      if (
+        up ? (childIndex < index && childIndex > neighborIndex) : (childIndex > index && childIndex < neighborIndex)) {
         neighborIndex = childIndex;
-        neighbor = (ShadowListCellView) child;
+        neighbor = (ShadowListCellView)child;
       }
     }
     if (neighbor == null || neighbor.getRowKey().isEmpty()) {
@@ -1606,8 +1596,9 @@ final class ShadowListDragController {
       return targets;
     }
     for (ShadowListDragController list : board.getLists()) {
-      if (list != this && list.mReorderEnabled && !list.mDragListId.isEmpty() && list.mView.isAttachedToWindow()
-          && list.mView.isShown() && list.mView.getStateWrapper() != null) {
+      if (
+        list != this && list.mReorderEnabled && !list.mDragListId.isEmpty() && list.mView.isAttachedToWindow() &&
+        list.mView.isShown() && list.mView.getStateWrapper() != null) {
         targets.add(list);
       }
     }
@@ -1622,8 +1613,9 @@ final class ShadowListDragController {
    */
   boolean performAccessibilityMoveToList(ShadowListCellView view, ShadowListDragController target) {
     String key = view.getRowKey();
-    if (!mReorderEnabled || mDragging || key.isEmpty() || mBoard == null || target == this
-        || target.mBoard != mBoard || !target.canTakeBoardRow(false)) {
+    if (
+      !mReorderEnabled || mDragging || key.isEmpty() || mBoard == null || target == this || target.mBoard != mBoard ||
+      !target.canTakeBoardRow(false)) {
       return false;
     }
     target.dispatchDragEvent(DRAG_EVENT_LAND, key, key);
@@ -1661,7 +1653,7 @@ final class ShadowListDragController {
     for (int i = 0; i < contentView.getChildCount(); i++) {
       View child = contentView.getChildAt(i);
       if (child instanceof ShadowListCellView) {
-        ((ShadowListCellView) child).updateAccessibilityActions();
+        ((ShadowListCellView)child).updateAccessibilityActions();
       }
     }
   }
@@ -1676,8 +1668,8 @@ final class ShadowListDragController {
    * A drag event for JS. destinationListId and destinationIndex name the other list of the drag
    * board a row dropped in, and stay empty and -1 for every other event.
    */
-  private void dispatchDragEvent(
-    int type, String sourceKey, String destinationKey, String destinationListId, int destinationIndex) {
+  private void
+  dispatchDragEvent(int type, String sourceKey, String destinationKey, String destinationListId, int destinationIndex) {
     StateWrapper state = mView.getStateWrapper();
     if (state == null) {
       return;

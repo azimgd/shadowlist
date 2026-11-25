@@ -38,7 +38,8 @@ std::size_t countRuns(std::size_t count, ValueAt valueAt) {
 
 }
 
-ListDriver::ListDriver() : core_(std::make_unique<Container>()) {
+ListDriver::ListDriver()
+  : core_(std::make_unique<Container>()) {
   installCallbacks();
 }
 
@@ -71,7 +72,9 @@ void ListDriver::setStickyIndices(std::vector<std::size_t> sticky) {
 }
 
 void ListDriver::setRowSpans(std::vector<std::size_t> spans) {
-  if (rowSpans_ == spans) return;
+  if (rowSpans_ == spans) {
+    return;
+  }
   rowSpans_ = std::move(spans);
   rowSpansChanged_ = true;
 }
@@ -89,7 +92,9 @@ std::vector<std::size_t> ListDriver::setViewabilityConfigs(std::vector<Viewabili
       changed.push_back(index);
       viewabilityTrackers_[index] = ViewabilityTracker{};
       viewabilityTrackers_[index].setTiming(viewabilityTimingFor(configs[index]));
-      if (viewabilityInteracted_) viewabilityTrackers_[index].recordInteraction(now);
+      if (viewabilityInteracted_) {
+        viewabilityTrackers_[index].recordInteraction(now);
+      }
     }
   }
   viewabilityConfigs_ = std::move(configs);
@@ -97,12 +102,19 @@ std::vector<std::size_t> ListDriver::setViewabilityConfigs(std::vector<Viewabili
 }
 
 void ListDriver::recordInteraction(double now) {
-  if (viewabilityInteracted_) return;
-  bool waits = std::any_of(viewabilityConfigs_.begin(), viewabilityConfigs_.end(),
-    [](const ViewabilityConfig& config) { return config.waitForInteraction; });
-  if (!waits) return;
+  if (viewabilityInteracted_) {
+    return;
+  }
+  bool waits = std::any_of(viewabilityConfigs_.begin(), viewabilityConfigs_.end(), [](const ViewabilityConfig& config) {
+    return config.waitForInteraction;
+  });
+  if (!waits) {
+    return;
+  }
   viewabilityInteracted_ = true;
-  for (auto& tracker : viewabilityTrackers_) tracker.recordInteraction(now);
+  for (auto& tracker : viewabilityTrackers_) {
+    tracker.recordInteraction(now);
+  }
 }
 
 void ListDriver::resetViewability() {
@@ -114,12 +126,13 @@ void ListDriver::resetViewability() {
 }
 
 bool ListDriver::isViewabilityWaiting() const {
-  return std::any_of(viewabilityTrackers_.begin(), viewabilityTrackers_.end(),
-    [](const ViewabilityTracker& tracker) { return tracker.isWaiting(); });
+  return std::any_of(viewabilityTrackers_.begin(), viewabilityTrackers_.end(), [](const ViewabilityTracker& tracker) {
+    return tracker.isWaiting();
+  });
 }
 
-std::vector<std::pair<std::size_t, ViewabilityReport>> ListDriver::updateViewability(
-  double offset, double windowAlong, double now, const ListSections* sections) {
+std::vector<std::pair<std::size_t, ViewabilityReport>>
+ListDriver::updateViewability(double offset, double windowAlong, double now, const ListSections* sections) {
   std::vector<std::pair<std::size_t, ViewabilityReport>> reports;
   auto measured = getMeasuredRange();
   for (std::size_t config = 0; config < viewabilityConfigs_.size(); ++config) {
@@ -127,7 +140,9 @@ std::vector<std::pair<std::size_t, ViewabilityReport>> ListDriver::updateViewabi
     std::vector<std::string> keys;
     if (measured) {
       for (std::size_t index = measured->low; index <= measured->high; ++index) {
-        if (sections && sections->itemForRow(index) == UNDEFINED_INDEX) continue;
+        if (sections && sections->itemForRow(index) == UNDEFINED_INDEX) {
+          continue;
+        }
         if (isRowViewable(getLeadingAt(index), getExtentAt(index), offset, windowAlong, rule)) {
           keys.push_back(getKeyAt(index));
         }
@@ -136,7 +151,9 @@ std::vector<std::pair<std::size_t, ViewabilityReport>> ListDriver::updateViewabi
     auto& tracker = viewabilityTrackers_[config];
     tracker.update(std::move(keys), now);
     ViewabilityReport report;
-    if (tracker.take(now, report)) reports.emplace_back(config, std::move(report));
+    if (tracker.take(now, report)) {
+      reports.emplace_back(config, std::move(report));
+    }
   }
   return reports;
 }
@@ -155,7 +172,9 @@ void ListDriver::setMeasureLookaheadRows(std::size_t rows) {
 }
 
 void ListDriver::invalidateSizeSpecs() {
-  if (sizeSpecsSource_) Virtualizer::invalidatePredictions(*core_);
+  if (sizeSpecsSource_) {
+    Virtualizer::invalidatePredictions(*core_);
+  }
   sizeSpecs_ = SizeSpecQueue{};
   sizeSpecsSource_.reset();
   sizeSpecsRange_.reset();
@@ -207,8 +226,8 @@ void ListDriver::reloadKeys(std::vector<std::string> keys, const KeySplice& spli
     return;
   }
   auto first = keys.begin() + static_cast<std::ptrdiff_t>(splice.start);
-  std::vector<std::string> middle(std::make_move_iterator(first),
-    std::make_move_iterator(first + static_cast<std::ptrdiff_t>(splice.inserted)));
+  std::vector<std::string> middle(
+    std::make_move_iterator(first), std::make_move_iterator(first + static_cast<std::ptrdiff_t>(splice.inserted)));
   replaceKeys(splice.start, splice.deleted, std::move(middle));
 }
 
@@ -225,8 +244,9 @@ void ListDriver::replaceKeys(std::size_t start, std::size_t count, std::vector<s
   if (count > common) {
     keys_.erase(first + static_cast<std::ptrdiff_t>(common), first + static_cast<std::ptrdiff_t>(count));
   } else if (keys.size() > common) {
-    keys_.insert(first + static_cast<std::ptrdiff_t>(common), std::make_move_iterator(keys.begin() + static_cast<std::ptrdiff_t>(common)),
-      std::make_move_iterator(keys.end()));
+    keys_.insert(
+      first + static_cast<std::ptrdiff_t>(common),
+      std::make_move_iterator(keys.begin() + static_cast<std::ptrdiff_t>(common)), std::make_move_iterator(keys.end()));
   }
   recordEdit(edit);
 }
@@ -287,7 +307,8 @@ void ListDriver::insertKeysInPlace(const std::vector<std::size_t>& indices, std:
       ++last;
     }
     std::size_t at = std::min(indices[first], keys_.size());
-    keys_.insert(keys_.begin() + static_cast<std::ptrdiff_t>(at),
+    keys_.insert(
+      keys_.begin() + static_cast<std::ptrdiff_t>(at),
       std::make_move_iterator(keys.begin() + static_cast<std::ptrdiff_t>(first)),
       std::make_move_iterator(keys.begin() + static_cast<std::ptrdiff_t>(last)));
     first = last;
@@ -332,7 +353,8 @@ void ListDriver::deleteKeys(std::vector<std::size_t> indices) {
       while (first > 0 && deleted[first - 1] + 1 == deleted[first]) {
         --first;
       }
-      keys_.erase(keys_.begin() + static_cast<std::ptrdiff_t>(deleted[first]),
+      keys_.erase(
+        keys_.begin() + static_cast<std::ptrdiff_t>(deleted[first]),
         keys_.begin() + static_cast<std::ptrdiff_t>(deleted[last - 1] + 1));
       last = first;
     }
@@ -362,7 +384,9 @@ void ListDriver::markRemeasure(const std::vector<std::size_t>& indices) {
       changed = true;
     }
   }
-  if (changed) invalidateSizeSpecs();
+  if (changed) {
+    invalidateSizeSpecs();
+  }
 }
 
 FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, bool userScrolled) const {
@@ -465,8 +489,8 @@ double ListDriver::runCore(const PassInput& input, double offset, bool userScrol
     }
     bool measured = measureRange(offset, input);
 
-    ContainerStateUpdate update = core.resolveStateUpdate(horizontal ? offset : 0, horizontal ? 0 : offset,
-      core.revision.contentWidth, core.revision.contentHeight);
+    ContainerStateUpdate update = core.resolveStateUpdate(
+      horizontal ? offset : 0, horizontal ? 0 : offset, core.revision.contentWidth, core.revision.contentHeight);
     bool wrote = false;
     if (update.applyOffset) {
       double target = clampOffset(horizontal ? update.offsetX : update.offsetY, input);
@@ -485,8 +509,8 @@ double ListDriver::runCore(const PassInput& input, double offset, bool userScrol
     if (rowAim_ && !core.hasPendingCommand()) {
       std::size_t index = core.indexOfKey(rowAim_->key);
       double maxOffset = std::max(0.0, getContentAlong() - input.windowAlong);
-      double aimed = rowTargetOffset(core, index, rowAim_->viewPosition, rowAim_->viewOffset, input.windowAlong,
-        maxOffset);
+      double aimed =
+        rowTargetOffset(core, index, rowAim_->viewPosition, rowAim_->viewOffset, input.windowAlong, maxOffset);
       bool landed = !measured && std::fabs(aimed - offset) < OFFSET_ARRIVED_THRESHOLD;
       if (index == UNDEFINED_INDEX || landed) {
         rowAim_.reset();
@@ -536,7 +560,7 @@ PassResult ListDriver::finishPasses(double offset, const PassInput& input) {
   }
   settlingLayouts_ = core.hasPendingCommand() ? settlingLayouts_ + 1 : 0;
   result.settling = (settlingLayouts_ > 0 && settlingLayouts_ < MAX_SETTLING_LAYOUTS) ||
-    (sizeSpecsSource_ && !sizeSpecs_.isFinished(sizeSpecsSource_));
+                    (sizeSpecsSource_ && !sizeSpecs_.isFinished(sizeSpecsSource_));
   result.reachedStart = reachedStart_;
   result.reachedEnd = reachedEnd_;
   reachedStart_ = false;
@@ -586,8 +610,8 @@ bool ListDriver::updateSizeSpecs(double offset, const PassInput& input) {
   if (!getItemSizeSpec_ || !measureSizeSpec_ || keys_.empty()) {
     return false;
   }
-  double width = settings_.horizontal ? input.windowAlong :
-    input.windowCross / static_cast<double>(settings_.numberOfColumns);
+  double width =
+    settings_.horizontal ? input.windowAlong : input.windowCross / static_cast<double>(settings_.numberOfColumns);
   if (width != sizeSpecsWidth_) {
     invalidateSizeSpecs();
     sizeSpecsWidth_ = width;
@@ -596,11 +620,14 @@ bool ListDriver::updateSizeSpecs(double offset, const PassInput& input) {
   if (mounted.low == UNDEFINED_INDEX) {
     return false;
   }
-  MountedRange range{mounted.low > measureLookaheadRows_ ? mounted.low - measureLookaheadRows_ : 0,
+  MountedRange range{
+    mounted.low > measureLookaheadRows_ ? mounted.low - measureLookaheadRows_ : 0,
     mounted.high + std::min(measureLookaheadRows_, keys_.size() - 1 - mounted.high)};
   if (!sizeSpecsRange_ || *sizeSpecsRange_ != range) {
     std::vector<std::size_t> indices;
-    for (std::size_t index = range.low; index <= range.high; ++index) indices.push_back(index);
+    for (std::size_t index = range.low; index <= range.high; ++index) {
+      indices.push_back(index);
+    }
     auto persistent = getPersistentIndices();
     indices.insert(indices.end(), persistent.begin(), persistent.end());
     std::sort(indices.begin(), indices.end());
@@ -616,9 +643,13 @@ bool ListDriver::updateSizeSpecs(double offset, const PassInput& input) {
       } else {
         cached.index = index;
         cached.spec = getItemSizeSpec_(index, key);
-        if (cached.spec) cached.spec->key = key;
+        if (cached.spec) {
+          cached.spec->key = key;
+        }
       }
-      if (cached.spec) specs->push_back(*cached.spec);
+      if (cached.spec) {
+        specs->push_back(*cached.spec);
+      }
       kept.emplace(key, std::move(cached));
     }
     sizeSpecsCache_ = std::move(kept);
@@ -771,8 +802,8 @@ void ListDriver::resetKeepingPosition() {
    */
   double offset = core_->getOffset();
   double windowAlong = core_->getWindowSize();
-  bool holdEnd = settings_.inverted && getContentAlong() > windowAlong &&
-    offset >= getContentAlong() - windowAlong - 1.0;
+  bool holdEnd =
+    settings_.inverted && getContentAlong() > windowAlong && offset >= getContentAlong() - windowAlong - 1.0;
   std::optional<AnchorState> anchor = getAnchorState(offset);
   core_ = std::make_unique<Container>();
   installCallbacks();
@@ -858,12 +889,8 @@ bool ListDriver::overlaps(std::size_t index, double viewLow, double viewHigh) co
   return start + getExtentAt(index) > viewLow && start < viewHigh;
 }
 
-MountPlan ListDriver::planMount(
-  double offset,
-  double windowAlong,
-  double pad,
-  double leadingInset,
-  double trailingInset) const {
+MountPlan
+ListDriver::planMount(double offset, double windowAlong, double pad, double leadingInset, double trailingInset) const {
   MountPlan plan;
   plan.viewLow = offset - pad - leadingInset;
   plan.viewHigh = offset + windowAlong + pad + trailingInset;
@@ -1019,8 +1046,8 @@ void ListDriver::updatePrefetch(
   prefetchMounted_ = mounted;
   prefetchRange_ = range;
   prefetchCount_ = rows.size();
-  prefetch_.update(mounted, range, rows.size(),
-    [&](std::size_t index) -> const std::string& { return rows[index].key; },
+  prefetch_.update(
+    mounted, range, rows.size(), [&](std::size_t index) -> const std::string& { return rows[index].key; },
     [&](const std::string& key) { return indexOfKey(key); }, prefetch, cancel);
 }
 
@@ -1042,11 +1069,8 @@ double ListDriver::nearestSnapOffset(double target) const {
   return azimgd::shadowlist::nearestSnapOffset(offsets, target);
 }
 
-double ListDriver::animatedTargetOffset(
-  std::size_t index,
-  double viewPosition,
-  double windowAlong,
-  double maxOffset) const {
+double
+ListDriver::animatedTargetOffset(std::size_t index, double viewPosition, double windowAlong, double maxOffset) const {
   return rowTargetOffset(*core_, index, viewPosition, 0.0, windowAlong, maxOffset);
 }
 

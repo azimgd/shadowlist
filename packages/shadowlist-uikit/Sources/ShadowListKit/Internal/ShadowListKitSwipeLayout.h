@@ -39,7 +39,8 @@ static inline void ShadowListKitLayOutSwipe(
   for (const azimgd::shadowlist::SwipeSpan& span : spans) {
     CGFloat start = (CGFloat)span.start;
     CGFloat width = (CGFloat)span.size;
-    layout.buttons.push_back(horizontal ? CGRectMake(0, start, alongSize, width) : CGRectMake(start, 0, width, alongSize));
+    layout.buttons.push_back(
+      horizontal ? CGRectMake(0, start, alongSize, width) : CGRectMake(start, 0, width, alongSize));
   }
   azimgd::shadowlist::SwipeSpan gap = azimgd::shadowlist::swipeRevealedSpan(offset, crossSize);
   layout.gap = horizontal ? CGRectMake(0, (CGFloat)gap.start, alongSize, (CGFloat)gap.size)

@@ -67,7 +67,8 @@ std::shared_ptr<ShadowListMountDriver> makeShadowListMountDriver() {
   return std::make_shared<ShadowListMountDriver>();
 }
 
-ShadowListMountDriver::ShadowListMountDriver() : handle_(nextHandle().fetch_add(1, std::memory_order_relaxed)) {}
+ShadowListMountDriver::ShadowListMountDriver()
+  : handle_(nextHandle().fetch_add(1, std::memory_order_relaxed)) {}
 
 void ShadowListMountDriver::registerHandle(const std::shared_ptr<ShadowListMountDriver>& driver) {
   if (!driver) {
@@ -188,7 +189,8 @@ void ShadowListMountDriver::endCommit(
       for (std::size_t position = 0; position < trackers_.size(); ++position) {
         std::vector<std::string> viewable;
         if (auto range = rangeAt(position + 1)) {
-          viewable.assign(keys.begin() + static_cast<std::ptrdiff_t>(range->low),
+          viewable.assign(
+            keys.begin() + static_cast<std::ptrdiff_t>(range->low),
             keys.begin() + static_cast<std::ptrdiff_t>(range->high) + 1);
         }
         trackers_[position].update(std::move(viewable), now);
@@ -219,8 +221,9 @@ void ShadowListMountDriver::endCommit(
       prefetchMounted_ = {};
     }
     sl::MountedRange mounted;
-    if (props.mountedLow >= 0 && props.mountedHigh >= props.mountedLow &&
-        static_cast<std::size_t>(props.mountedHigh) < keys.size()) {
+    if (
+      props.mountedLow >= 0 && props.mountedHigh >= props.mountedLow &&
+      static_cast<std::size_t>(props.mountedHigh) < keys.size()) {
       mounted = {static_cast<std::size_t>(props.mountedLow), static_cast<std::size_t>(props.mountedHigh)};
     }
     if (prefetchRows_ > 0 && (mounted != prefetchMounted_ || propsChanged_)) {
@@ -229,8 +232,9 @@ void ShadowListMountDriver::endCommit(
       if (!mounted.isEmpty()) {
         mountedRows = mounted;
       }
-      prefetch_.update(mountedRows, sl::prefetchRange(mountedRows, prefetchRows_, keys.size()),
-        keys.size(), [&keys](std::size_t index) -> const std::string& { return keys[index]; },
+      prefetch_.update(
+        mountedRows, sl::prefetchRange(mountedRows, prefetchRows_, keys.size()), keys.size(),
+        [&keys](std::size_t index) -> const std::string& { return keys[index]; },
         [&core](const std::string& key) { return core.indexOfKey(key); }, outgoing.prefetch, outgoing.cancel);
       // The keys go along. JS finds the rows again in data that changed before the event arrived.
       for (std::size_t index : outgoing.prefetch) {
@@ -261,7 +265,9 @@ bool ShadowListMountDriver::tick() {
 }
 
 void ShadowListMountDriver::reportRowColumns(
-  const sl::Container& core, const std::vector<std::string>& mountedKeys, double rowSpansVersion) {
+  const sl::Container& core,
+  const std::vector<std::string>& mountedKeys,
+  double rowSpansVersion) {
   Outgoing outgoing;
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -269,13 +275,19 @@ void ShadowListMountDriver::reportRowColumns(
     columns.reserve(mountedKeys.size());
     for (const auto& key : mountedKeys) {
       auto index = core.indexOfKey(key);
-      if (index < core.getRowCount()) columns.push_back({key, index, core.getRowAtIndex(index).column});
+      if (index < core.getRowCount()) {
+        columns.push_back({key, index, core.getRowAtIndex(index).column});
+      }
     }
-    if (columns == rowColumns_ && rowSpansVersion == rowSpansVersion_ && core.numberOfColumns == numberOfColumns_) return;
+    if (columns == rowColumns_ && rowSpansVersion == rowSpansVersion_ && core.numberOfColumns == numberOfColumns_) {
+      return;
+    }
     rowColumns_ = std::move(columns);
     rowSpansVersion_ = rowSpansVersion;
     numberOfColumns_ = core.numberOfColumns;
-    SHADOWLIST_LOG("rowColumns: mounted=%zu rowSpansVersion=%.0f numberOfColumns=%zu", rowColumns_.size(), rowSpansVersion_, numberOfColumns_);
+    SHADOWLIST_LOG(
+      "rowColumns: mounted=%zu rowSpansVersion=%.0f numberOfColumns=%zu", rowColumns_.size(), rowSpansVersion_,
+      numberOfColumns_);
     outgoing.emitter = emitter_;
     outgoing.rowColumns = rowColumns_;
     outgoing.rowSpansVersion = rowSpansVersion_;

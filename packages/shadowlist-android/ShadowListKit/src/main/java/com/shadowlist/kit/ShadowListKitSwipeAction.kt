@@ -10,7 +10,7 @@ import android.graphics.drawable.Drawable
 class ShadowListKitSwipeAction(
   val style: Style,
   var title: String?,
-  val handler: (action: ShadowListKitSwipeAction, completion: (performed: Boolean) -> Unit) -> Unit,
+  val handler: (action: ShadowListKitSwipeAction, completion: (performed: Boolean) -> Unit) -> Unit
 ) {
   enum class Style { NORMAL, DESTRUCTIVE }
 
@@ -23,8 +23,11 @@ class ShadowListKitSwipeAction(
 
   internal val shownColor: Int
     get() = backgroundColor
-      ?: if (style == Style.DESTRUCTIVE) ShadowListKitCore.SWIPE_ACTION_COLOR_DESTRUCTIVE
-      else ShadowListKitCore.SWIPE_ACTION_COLOR_NORMAL
+      ?: if (style == Style.DESTRUCTIVE) {
+        ShadowListKitCore.SWIPE_ACTION_COLOR_DESTRUCTIVE
+      } else {
+        ShadowListKitCore.SWIPE_ACTION_COLOR_NORMAL
+      }
 }
 
 /*

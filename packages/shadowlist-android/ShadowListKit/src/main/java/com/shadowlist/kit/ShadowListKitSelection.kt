@@ -34,6 +34,7 @@ internal class ShadowListKitSelection(private val list: ShadowListKitListView) {
         cell.setSelected(false, true)
         list.delegate?.didDeselectItem(list, index)
       }
+
       ShadowListKitListState.TAP_SELECTED -> {
         for (previous in tap.deselected) {
           list.mounted[previous]?.setSelected(false, true)

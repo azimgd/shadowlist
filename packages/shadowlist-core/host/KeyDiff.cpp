@@ -16,8 +16,10 @@ std::vector<std::size_t> longestIncreasing(const std::vector<std::size_t>& value
   std::vector<std::size_t> tails;
   std::vector<std::size_t> parents(values.size(), UNDEFINED_INDEX);
   for (std::size_t at = 0; at < values.size(); ++at) {
-    auto place = std::lower_bound(tails.begin(), tails.end(), values[at],
-      [&values](std::size_t tail, std::size_t value) { return values[tail] < value; });
+    auto place =
+      std::lower_bound(tails.begin(), tails.end(), values[at], [&values](std::size_t tail, std::size_t value) {
+        return values[tail] < value;
+      });
     if (place != tails.begin()) {
       parents[at] = *(place - 1);
     }

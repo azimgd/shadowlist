@@ -133,13 +133,8 @@ namespace {
  * of a last row of the held row's size, and short of a smaller one's.
  */
 template <typename RowAt>
-std::size_t insertionPosition(
-  std::size_t count,
-  std::size_t originIndex,
-  double center,
-  bool atStart,
-  bool atEnd,
-  RowAt row) {
+std::size_t
+insertionPosition(std::size_t count, std::size_t originIndex, double center, bool atStart, bool atEnd, RowAt row) {
   std::size_t insertion = originIndex;
   std::size_t position = UNDEFINED_INDEX;
   for (std::size_t current = 0; current < count; ++current) {
@@ -151,8 +146,9 @@ std::size_t insertionPosition(
       continue;
     }
     double midpoint = leading + extent / 2.0;
-    if ((index > originIndex && (center > midpoint || atEnd) && index > insertion) ||
-        (index < originIndex && (center < midpoint || atStart) && index < insertion)) {
+    if (
+      (index > originIndex && (center > midpoint || atEnd) && index > insertion) ||
+      (index < originIndex && (center < midpoint || atStart) && index < insertion)) {
       insertion = index;
       position = current;
     }
@@ -176,8 +172,8 @@ CellFrame frameOf(const DragRow& row) {
 }
 
 bool frameContains(const CellFrame& frame, double center, double crossCenter) {
-  return center >= frame.leading && center < frame.leading + frame.extent &&
-    crossCenter >= frame.crossLeading && crossCenter < frame.crossLeading + frame.crossExtent;
+  return center >= frame.leading && center < frame.leading + frame.extent && crossCenter >= frame.crossLeading &&
+         crossCenter < frame.crossLeading + frame.crossExtent;
 }
 
 /*
@@ -282,9 +278,7 @@ void relayoutCells(
     }
     return index < base || index > maxIndex ? NO_CELL : slots[index - base];
   };
-  auto frameAt = [&](std::size_t slot) {
-    return slot == EXTRA_CELL ? extra : cellAt(slot);
-  };
+  auto frameAt = [&](std::size_t slot) { return slot == EXTRA_CELL ? extra : cellAt(slot); };
 
   // Where each column's stack ends, restarted after a cell that isn't mounted.
   static thread_local std::vector<DragOffset> lanes;
@@ -321,8 +315,7 @@ void relayoutCells(
       known[lane] = 1;
     }
     if (sourceSlot != EXTRA_CELL) {
-      write(sourceSlot,
-        DragOffset{lanes[lane].leading - source.leading, lanes[lane].cross - source.crossLeading});
+      write(sourceSlot, DragOffset{lanes[lane].leading - source.leading, lanes[lane].cross - source.crossLeading});
     }
     lanes[lane].leading += source.extent;
   }
@@ -342,7 +335,7 @@ void gridShifts(
   std::size_t origin = held.index;
   std::size_t maxIndex = maxCellIndex(count, cellAt, origin);
   bool moves = origin != UNDEFINED_INDEX && insertionIndex != UNDEFINED_INDEX && origin != insertionIndex &&
-    insertionIndex <= maxIndex;
+               insertionIndex <= maxIndex;
   auto sourceOf = [&](std::size_t index) {
     if (index == insertionIndex) {
       return origin;
@@ -392,8 +385,9 @@ void gridForeignShifts(
     return index > insertionIndex ? index - 1 : index;
   };
   CellFrame extra{UNDEFINED_INDEX, 0.0, extent, 0.0, crossExtent};
-  relayoutCells(count, cellAt, extra, UNDEFINED_INDEX, opens ? insertionIndex : UNDEFINED_INDEX,
-    opens ? maxIndex + 1 : 0, columns, sourceOf, write);
+  relayoutCells(
+    count, cellAt, extra, UNDEFINED_INDEX, opens ? insertionIndex : UNDEFINED_INDEX, opens ? maxIndex + 1 : 0, columns,
+    sourceOf, write);
 }
 
 /*
@@ -452,7 +446,7 @@ std::size_t gridForeignInsertionPosition(
     any = true;
   }
   bool pastLast = center >= last.leading && center < last.leading + last.extent &&
-    crossCenter >= last.crossLeading + last.crossExtent;
+                  crossCenter >= last.crossLeading + last.crossExtent;
   if (!any || center >= trailing || pastLast || insertionIndex == UNDEFINED_INDEX) {
     return count;
   }
@@ -460,8 +454,9 @@ std::size_t gridForeignInsertionPosition(
 }
 
 CellFrame cellFrameAt(const DragCells& cells, std::size_t position) {
-  return {cells.indices[position], cells.leadings[position], cells.extents[position],
-    cells.crossLeadings[position], cells.crossExtents[position]};
+  return {
+    cells.indices[position], cells.leadings[position], cells.extents[position], cells.crossLeadings[position],
+    cells.crossExtents[position]};
 }
 
 }
@@ -472,8 +467,9 @@ std::size_t dragGridInsertionIndex(
   std::size_t insertionIndex,
   double center,
   double crossCenter) {
-  return gridInsertionPosition(cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); },
-    held, insertionIndex, center, crossCenter);
+  return gridInsertionPosition(
+    cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); }, held, insertionIndex, center,
+    crossCenter);
 }
 
 void dragGridShifts(
@@ -483,8 +479,9 @@ void dragGridShifts(
   std::size_t columns,
   double* shifts,
   double* crossShifts) {
-  gridShifts(cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); },
-    held, insertionIndex, columns, [&](std::size_t position, DragOffset offset) {
+  gridShifts(
+    cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); }, held, insertionIndex, columns,
+    [&](std::size_t position, DragOffset offset) {
       shifts[position] = offset.leading;
       crossShifts[position] = offset.cross;
     });
@@ -496,20 +493,19 @@ void dragGridRemovalShifts(
   std::size_t columns,
   double* shifts,
   double* crossShifts) {
-  gridRemovalShifts(cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); },
-    held, columns, [&](std::size_t position, DragOffset offset) {
+  gridRemovalShifts(
+    cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); }, held, columns,
+    [&](std::size_t position, DragOffset offset) {
       shifts[position] = offset.leading;
       crossShifts[position] = offset.cross;
     });
 }
 
-std::size_t dragGridForeignInsertionIndex(
-  const DragCells& cells,
-  std::size_t insertionIndex,
-  double center,
-  double crossCenter) {
-  return gridForeignInsertionPosition(cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); },
-    insertionIndex, center, crossCenter);
+std::size_t
+dragGridForeignInsertionIndex(const DragCells& cells, std::size_t insertionIndex, double center, double crossCenter) {
+  return gridForeignInsertionPosition(
+    cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); }, insertionIndex, center,
+    crossCenter);
 }
 
 void dragGridForeignShifts(
@@ -520,8 +516,10 @@ void dragGridForeignShifts(
   std::size_t columns,
   double* shifts,
   double* crossShifts) {
-  gridForeignShifts(cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); },
-    extent, crossExtent, insertionIndex, columns, [&](std::size_t position, DragOffset offset) {
+  gridForeignShifts(
+    cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); }, extent, crossExtent,
+    insertionIndex, columns,
+    [&](std::size_t position, DragOffset offset) {
       shifts[position] = offset.leading;
       crossShifts[position] = offset.cross;
     });
@@ -691,7 +689,9 @@ void DragReorder::updateInsertion(const std::vector<DragRow>& rows) {
 }
 
 void DragReorder::updateSpanOffsets(const Container& core, const std::vector<DragRow>& mounted) {
-  if (columns_ <= 1 || !core.state.hasRowSpans) return;
+  if (columns_ <= 1 || !core.state.hasRowSpans) {
+    return;
+  }
   if (!foreign_ && !originKey_.empty()) {
     std::size_t origin = core.indexOfKey(originKey_);
     if (origin == UNDEFINED_INDEX) {
@@ -703,9 +703,12 @@ void DragReorder::updateSpanOffsets(const Container& core, const std::vector<Dra
   double cross = core.horizontal ? core.revision.windowHeight : core.revision.windowWidth;
   double trackSize = cross / static_cast<double>(columns_);
   // A foreign cell carries a pixel-rounded physical extent, not an app span value.
-  std::size_t incomingSpan = itemSpanFrom(trackSize > 0 ? std::round(heldResting_.crossExtent / trackSize) : 1, columns_);
+  std::size_t incomingSpan =
+    itemSpanFrom(trackSize > 0 ? std::round(heldResting_.crossExtent / trackSize) : 1, columns_);
   const auto& rows = core.revision.rows;
-  if ((!foreign_ && originIndex_ >= rows.size()) || (foreign_ && insertionIndex_ > rows.size())) return;
+  if ((!foreign_ && originIndex_ >= rows.size()) || (foreign_ && insertionIndex_ > rows.size())) {
+    return;
+  }
   std::size_t first = UNDEFINED_INDEX;
   std::size_t last = 0;
   for (const auto& row : mounted) {
@@ -715,31 +718,49 @@ void DragReorder::updateSpanOffsets(const Container& core, const std::vector<Dra
     }
   }
   offsets_.clear();
-  if (first == UNDEFINED_INDEX) return;
+  if (first == UNDEFINED_INDEX) {
+    return;
+  }
   offsetsBase_ = first;
   offsets_.assign(last - first + 1, {});
   std::size_t low = foreign_ ? insertionIndex_ : heldAway_ ? originIndex_ : std::min(originIndex_, insertionIndex_);
-  if (low == UNDEFINED_INDEX) return;
+  if (low == UNDEFINED_INDEX) {
+    return;
+  }
   spanLayout_.reset(columns_, core.headerSize);
   spanLayout_.seed(low, [&](std::size_t index) {
     const Row& row = rows[index];
-    return TrackPlacement{row.column, row.columnSpan, core.horizontal ? row.offsetX : row.offsetY,
+    return TrackPlacement{
+      row.column, row.columnSpan, core.horizontal ? row.offsetX : row.offsetY,
       core.horizontal ? row.width : row.height};
   });
   std::size_t count = rows.size() + (foreign_ ? 1 : 0) - (heldAway_ ? 1 : 0);
   // Placement only depends on the prefix. Rows after the last mounted source cannot change it.
   std::size_t lastTarget = last;
-  if (foreign_ && last >= insertionIndex_) ++lastTarget;
-  else if (heldAway_ && last > originIndex_) --lastTarget;
-  else if (!foreign_ && !heldAway_ && originIndex_ < insertionIndex_ && last > originIndex_ && last <= insertionIndex_) --lastTarget;
-  else if (!foreign_ && !heldAway_ && originIndex_ > insertionIndex_ && last >= insertionIndex_ && last < originIndex_) ++lastTarget;
+  if (foreign_ && last >= insertionIndex_) {
+    ++lastTarget;
+  } else if (heldAway_ && last > originIndex_) {
+    --lastTarget;
+  } else if (
+    !foreign_ && !heldAway_ && originIndex_ < insertionIndex_ && last > originIndex_ && last <= insertionIndex_) {
+    --lastTarget;
+  } else if (
+    !foreign_ && !heldAway_ && originIndex_ > insertionIndex_ && last >= insertionIndex_ && last < originIndex_) {
+    ++lastTarget;
+  }
   for (std::size_t index = low; index < count && index <= lastTarget; ++index) {
     std::size_t source = index;
-    if (foreign_) source = index == insertionIndex_ ? UNDEFINED_INDEX : index > insertionIndex_ ? index - 1 : index;
-    else if (heldAway_) source = index >= originIndex_ ? index + 1 : index;
-    else if (index == insertionIndex_) source = originIndex_;
-    else if (originIndex_ < insertionIndex_ && index >= originIndex_ && index < insertionIndex_) source = index + 1;
-    else if (originIndex_ > insertionIndex_ && index > insertionIndex_ && index <= originIndex_) source = index - 1;
+    if (foreign_) {
+      source = index == insertionIndex_ ? UNDEFINED_INDEX : index > insertionIndex_ ? index - 1 : index;
+    } else if (heldAway_) {
+      source = index >= originIndex_ ? index + 1 : index;
+    } else if (index == insertionIndex_) {
+      source = originIndex_;
+    } else if (originIndex_ < insertionIndex_ && index >= originIndex_ && index < insertionIndex_) {
+      source = index + 1;
+    } else if (originIndex_ > insertionIndex_ && index > insertionIndex_ && index <= originIndex_) {
+      source = index - 1;
+    }
     const Row* row = source == UNDEFINED_INDEX ? nullptr : &rows[source];
     double extent = row ? (core.horizontal ? row->width : row->height) : heldResting_.extent;
     auto placed = spanLayout_.place(row ? row->columnSpan : incomingSpan, extent);
@@ -796,9 +817,8 @@ std::size_t DragReorder::locateGridInsertion(const std::vector<DragRow>& rows) {
     insertionIndex_ = rows[position].index;
   }
 
-  storeOffsets(rows, [&](auto write) {
-    gridShifts(rows.size(), cellAt, heldResting_, insertionIndex_, columns_, write);
-  });
+  storeOffsets(
+    rows, [&](auto write) { gridShifts(rows.size(), cellAt, heldResting_, insertionIndex_, columns_, write); });
   return position;
 }
 
@@ -889,8 +909,8 @@ std::size_t DragReorder::locateForeignInsertion(const std::vector<DragRow>& rows
   }
   if (isGrid()) {
     storeOffsets(rows, [&](auto write) {
-      gridForeignShifts(rows.size(), cellAt, heldResting_.extent, heldResting_.crossExtent, insertionIndex_, columns_,
-        write);
+      gridForeignShifts(
+        rows.size(), cellAt, heldResting_.extent, heldResting_.crossExtent, insertionIndex_, columns_, write);
     });
   }
   return position;

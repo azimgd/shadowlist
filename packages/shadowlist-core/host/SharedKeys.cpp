@@ -28,7 +28,10 @@ struct SharedKeys::Pool {
 };
 
 SharedKeys::SharedKeys(std::shared_ptr<Pool> pool, std::shared_ptr<Slots> slots, std::size_t begin, std::size_t size)
-  : pool_(std::move(pool)), slots_(std::move(slots)), begin_(begin), size_(size) {}
+  : pool_(std::move(pool)),
+    slots_(std::move(slots)),
+    begin_(begin),
+    size_(size) {}
 
 SharedKeys::SharedKeys(SharedKeys&& other) noexcept
   : pool_(std::move(other.pool_)),
@@ -44,7 +47,8 @@ SharedKeys& SharedKeys::operator=(SharedKeys&& other) noexcept {
   return *this;
 }
 
-SharedKeys::SharedKeys(std::vector<std::string> keys) : size_(keys.size()) {
+SharedKeys::SharedKeys(std::vector<std::string> keys)
+  : size_(keys.size()) {
   if (keys.empty()) {
     return;
   }
@@ -119,7 +123,10 @@ SharedKeys SharedKeys::splice(std::size_t start, std::size_t deleted, std::vecto
 }
 
 SharedKeys::Builder::Builder(const SharedKeys& base, std::size_t size)
-  : base_(base), slots_(std::make_shared<Slots>(size + 2 * roomFor(size))), begin_(roomFor(size)), size_(size) {}
+  : base_(base),
+    slots_(std::make_shared<Slots>(size + 2 * roomFor(size))),
+    begin_(roomFor(size)),
+    size_(size) {}
 
 void SharedKeys::Builder::append(std::size_t start, std::size_t count) {
   assert(count_ + count <= size_ && start + count <= base_.size_);

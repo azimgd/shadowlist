@@ -243,11 +243,11 @@ struct SimHost : FuzzHost {
   std::string finding;
 
   SimHost(std::uint32_t seed, FuzzEpisode& episode, const HostFaults& faults = {})
-    : FuzzHost(seed, episode), faults(faults), faultRng(~seed) {}
+    : FuzzHost(seed, episode),
+      faults(faults),
+      faultRng(~seed) {}
 
-  double maxOffset() const {
-    return std::max(0.0, axisTotal() - windowSize);
-  }
+  double maxOffset() const { return std::max(0.0, axisTotal() - windowSize); }
 
   /*
    * The content size and the core's offset along the scroll axis.
@@ -256,9 +256,7 @@ struct SimHost : FuzzHost {
     return container.horizontal ? container.revision.contentWidth : container.revision.contentHeight;
   }
 
-  double axisOffset() const {
-    return container.horizontal ? container.revision.offsetX : container.revision.offsetY;
-  }
+  double axisOffset() const { return container.horizontal ? container.revision.offsetX : container.revision.offsetY; }
 
   /*
    * Count a fault into the episode. Returns its kind.
@@ -322,9 +320,10 @@ struct SimHost : FuzzHost {
    * is reported first on a real host.
    */
   void nudgeBeforeWrite(const ContainerStateUpdate& update) {
-    if (!faults.scrollsBeforeEchoes || landingCommand || !update.applyOffset || update.commitToken == 0 || fingerDown ||
-        phase != ScrollPhase::Idle || userScrolled ||
-        std::fabs(hostOffset - container.state.previousReportedOffset) >= OFFSET_MOVED_THRESHOLD) {
+    if (
+      !faults.scrollsBeforeEchoes || landingCommand || !update.applyOffset || update.commitToken == 0 || fingerDown ||
+      phase != ScrollPhase::Idle || userScrolled ||
+      std::fabs(hostOffset - container.state.previousReportedOffset) >= OFFSET_MOVED_THRESHOLD) {
       return;
     }
     const std::optional<Operation>& running = container.state.operation;
@@ -497,8 +496,8 @@ struct SimHost : FuzzHost {
    */
   void mountState() {
     Container& core = container;
-    ContainerStateUpdate update = core.resolveStateUpdate(stateOffset, stateOffset,
-      core.revision.contentWidth, core.revision.contentHeight);
+    ContainerStateUpdate update =
+      core.resolveStateUpdate(stateOffset, stateOffset, core.revision.contentWidth, core.revision.contentHeight);
     ListScrollState state;
     state.offsetY = stateOffset;
     state.baseY = stateBase;
@@ -526,8 +525,9 @@ struct SimHost : FuzzHost {
     mounted.commitToken = update.commitToken;
     mounted.commitRevision = update.commitRevision;
     mounted.userScrolled = userScrolled;
-    mounted.scrollPhase = phase == ScrollPhase::Dragging ? SCROLL_PHASE_DRAGGING
-      : phase == ScrollPhase::Settling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE;
+    mounted.scrollPhase = phase == ScrollPhase::Dragging   ? SCROLL_PHASE_DRAGGING
+                          : phase == ScrollPhase::Settling ? SCROLL_PHASE_SETTLING
+                                                           : SCROLL_PHASE_IDLE;
     ViewMotion view;
     view.offsetY = hostOffset;
     view.shiftFromY = hostOffset;
@@ -604,7 +604,8 @@ struct SimHost : FuzzHost {
     while (!ownWrite && !stale && stalePending) {
       stalePending = false;
       std::string kind = reachFault(&HostFaults::staleEchoes);
-      note(kind + " off=" + std::to_string(staleOffset) + " tok=" + std::to_string(staleToken) +
+      note(
+        kind + " off=" + std::to_string(staleOffset) + " tok=" + std::to_string(staleToken) +
         " rev=" + std::to_string(staleRevision));
       std::swap(phase, stalePhase);
       std::swap(userScrolled, staleUserScrolled);
@@ -663,8 +664,8 @@ struct SimHost : FuzzHost {
         core.state.pendingScrollToEnd ? 1 : 0, core.state.restingAtInvertedBottom ? 1 : 0,
         core.state.invertedBottomReleased ? 1 : 0, core.state.invertedInitialized ? 1 : 0,
         static_cast<unsigned long long>(echoedToken), static_cast<unsigned long long>(echoedRevision),
-        static_cast<std::ptrdiff_t>(measured.low),
-        static_cast<std::ptrdiff_t>(measured.high), core.state.anchor.key.c_str(), core.state.anchor.offset);
+        static_cast<std::ptrdiff_t>(measured.low), static_cast<std::ptrdiff_t>(measured.high),
+        core.state.anchor.key.c_str(), core.state.anchor.offset);
     }
     // The own write commit is what Fabric runs when state changes, without a host report.
     if (ownWrite || stale) {
@@ -687,8 +688,9 @@ struct SimHost : FuzzHost {
     for (int frame = 0; frame < FUZZ_MAX_SETTLE_FRAMES; ++frame) {
       bool corrected = commit(true);
       bool reported = commit(false);
-      if (!corrected && !reported && !container.state.operation && !container.state.pendingScrollToEnd &&
-          !measuresPending) {
+      if (
+        !corrected && !reported && !container.state.operation && !container.state.pendingScrollToEnd &&
+        !measuresPending) {
         return frame;
       }
     }
@@ -739,7 +741,7 @@ inline std::string checkMounted(const SimHost& host, double offset, std::size_t 
     return "";
   }
   return "row " + std::to_string(blank) + " on screen but not mounted, measured [" + std::to_string(measured.low) +
-    ".." + std::to_string(measured.high) + "] pad " + std::to_string(pad) + " offset=" + std::to_string(offset);
+         ".." + std::to_string(measured.high) + "] pad " + std::to_string(pad) + " offset=" + std::to_string(offset);
 }
 
 /*
@@ -789,8 +791,8 @@ inline bool isHoldClamped(const SimHost& host, const std::string& key, double sc
  */
 inline double landingOf(const SimHost& host, const std::string& key, double viewPosition) {
   std::size_t index = host.container.indexOfKey(key);
-  return landingOffset(offsetOf(host.container, index), sizeOf(host.container, index), viewPosition,
-    host.windowSize, host.maxOffset());
+  return landingOffset(
+    offsetOf(host.container, index), sizeOf(host.container, index), viewPosition, host.windowSize, host.maxOffset());
 }
 
 /*
@@ -841,9 +843,9 @@ inline void changeAndHold(SimHost& host, const std::vector<std::string>& nextKey
    * bottom by shrinking content is still counted as away, see the release tests.
    */
   bool wasAtBottom = host.inverted && host.hostOffset >= maxBefore - INVERTED_FOLLOW_BAND &&
-    !host.container.state.invertedBottomReleased;
-  bool appendOnly = nextKeys.size() > host.keys.size() &&
-    std::equal(host.keys.begin(), host.keys.end(), nextKeys.begin());
+                     !host.container.state.invertedBottomReleased;
+  bool appendOnly =
+    nextKeys.size() > host.keys.size() && std::equal(host.keys.begin(), host.keys.end(), nextKeys.begin());
   bool followsToBottom = wasAtBottom && host.followAppends && appendOnly;
 
   host.travel = 0.0;
@@ -859,8 +861,9 @@ inline void changeAndHold(SimHost& host, const std::vector<std::string>& nextKey
 
   if (followsToBottom) {
     if (std::fabs(host.hostOffset - host.maxOffset()) > FUZZ_TOLERANCE) {
-      host.failWith(what + ": followAppends did not reach the bottom, off=" +
-        std::to_string(host.hostOffset) + " max=" + std::to_string(host.maxOffset()));
+      host.failWith(
+        what + ": followAppends did not reach the bottom, off=" + std::to_string(host.hostOffset) +
+        " max=" + std::to_string(host.maxOffset()));
     }
     return;
   }
@@ -884,8 +887,9 @@ inline void changeAndHold(SimHost& host, const std::vector<std::string>& nextKey
     double wanted = host.container.revision.rows[index].offsetY - expected;
     double held = host.container.revision.rows[index].offsetY - row.screen;
     double edgeSlack = FUZZ_TOLERANCE + std::fabs(host.travel);
-    if (isHoldClamped(held, host.hostOffset, host.maxOffset(), edgeSlack) ||
-        isHoldClamped(wanted, host.hostOffset, host.maxOffset(), edgeSlack)) {
+    if (
+      isHoldClamped(held, host.hostOffset, host.maxOffset(), edgeSlack) ||
+      isHoldClamped(wanted, host.hostOffset, host.maxOffset(), edgeSlack)) {
       return;
     }
     /*
@@ -895,10 +899,10 @@ inline void changeAndHold(SimHost& host, const std::vector<std::string>& nextKey
     if (host.inverted && wasAtBottom && std::fabs(host.hostOffset - host.maxOffset()) <= FUZZ_TOLERANCE) {
       return;
     }
-    host.failWith(what + ": row " + row.key + " moved from " + std::to_string(row.screen) +
-      " to " + std::to_string(after) + " (wanted offset " + std::to_string(wanted) + ", host " +
-      std::to_string(host.hostOffset) + ", max " + std::to_string(host.maxOffset()) + ", frames " +
-      std::to_string(frames) + ")");
+    host.failWith(
+      what + ": row " + row.key + " moved from " + std::to_string(row.screen) + " to " + std::to_string(after) +
+      " (wanted offset " + std::to_string(wanted) + ", host " + std::to_string(host.hostOffset) + ", max " +
+      std::to_string(host.maxOffset()) + ", frames " + std::to_string(frames) + ")");
   }
 }
 
@@ -960,8 +964,8 @@ inline void scrollToEndAndLand(SimHost& host) {
   }
   checkFrame(host, true);
   if (std::fabs(host.hostOffset - host.maxOffset()) > FUZZ_TOLERANCE) {
-    host.failWith("scrollToEnd landed at " + std::to_string(host.hostOffset) + " max " +
-      std::to_string(host.maxOffset()));
+    host.failWith(
+      "scrollToEnd landed at " + std::to_string(host.hostOffset) + " max " + std::to_string(host.maxOffset()));
   }
   host.landingCommand = false;
 }
@@ -1016,7 +1020,6 @@ inline std::vector<std::string> withRemove(SimHost& host, std::size_t at, std::s
   return next;
 }
 
-
 /*
  * The first row whose top is on screen that the reader also saw on screen last frame, at
  * previousOffset, with its real size. Only such a row can be seen to jump.
@@ -1049,6 +1052,5 @@ inline ScreenRow firstRowStartingOnScreen(const SimHost& host, double previousOf
   }
   return {};
 }
-
 
 }

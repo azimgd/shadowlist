@@ -120,9 +120,11 @@ inline bool hasTrustedEnd(const Container& container) {
   double windowStart = contentEnd + container.footerSize - container.getWindowSize();
   if (container.state.hasRowSpans) {
     for (std::size_t index = 0; index < rows.size(); ++index) {
-      double end = container.horizontal ? rows[index].offsetX + rows[index].width
-                                        : rows[index].offsetY + rows[index].height;
-      if (end > windowStart && !container.hasTrustedSize(index)) return false;
+      double end =
+        container.horizontal ? rows[index].offsetX + rows[index].width : rows[index].offsetY + rows[index].height;
+      if (end > windowStart && !container.hasTrustedSize(index)) {
+        return false;
+      }
     }
     return !rows.empty();
   }

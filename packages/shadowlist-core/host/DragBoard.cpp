@@ -75,11 +75,8 @@ DragBoardStep DragBoard::hover(const std::vector<std::string>& candidates) {
   return step;
 }
 
-DragBoardFrame DragBoard::frame(
-  DragPoint finger,
-  DragPoint shownCenter,
-  const std::vector<std::string>& candidates,
-  double nowMs) {
+DragBoardFrame
+DragBoard::frame(DragPoint finger, DragPoint shownCenter, const std::vector<std::string>& candidates, double nowMs) {
   DragBoardFrame result;
   result.step = hover(candidates);
   if (result.step.kind == DragBoardStep::Kind::LiftOut) {
@@ -142,11 +139,8 @@ DragPoint DragBoard::returnOffset(DragPoint placedCenter, double nowMs) {
   return {returnDelta_.x * remaining, returnDelta_.y * remaining};
 }
 
-DragBoardRelease DragBoard::release(
-  std::size_t insertionIndex,
-  const std::string& insertionKey,
-  std::size_t rowCount,
-  double nowMs) {
+DragBoardRelease
+DragBoard::release(std::size_t insertionIndex, const std::string& insertionKey, std::size_t rowCount, double nowMs) {
   DragBoardRelease result;
   if (phase_ != DragBoardPhase::Floating) {
     reset();

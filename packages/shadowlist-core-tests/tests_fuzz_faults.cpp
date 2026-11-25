@@ -41,7 +41,7 @@ void prependThenCommand(SimHost& host, std::size_t count, bool toEnd) {
   checkFrame(host);
   // A correction clamped to where the view already is needs no write and may end.
   bool awaitsWrite = host.droppingEchoes && host.container.state.operation &&
-    std::fabs(host.container.revision.offsetY - host.hostOffset) > FUZZ_TOLERANCE;
+                     std::fabs(host.container.revision.offsetY - host.hostOffset) > FUZZ_TOLERANCE;
   std::uint64_t token = awaitsWrite ? host.container.state.operation->commitToken : 0;
   for (int frame = 0; frame < 3; ++frame) {
     host.commit(true);
@@ -116,8 +116,8 @@ auto faultyFeed(const HostFaults& faults) {
  */
 FuzzKinds faultyFeedKinds(const HostFaults& faults) {
   FuzzKinds kinds = {
-    {"prepend", "append", "insert", "delete", "scroll", "command to end", "command to start",
-      "core maintain anchor", "core scroll to start", "core scroll to end", "core bottom pin"},
+    {"prepend", "append", "insert", "delete", "scroll", "command to end", "command to start", "core maintain anchor",
+     "core scroll to start", "core scroll to end", "core bottom pin"},
     {"core shrink clamp"},
     {},
   };
@@ -250,8 +250,7 @@ TEST(fuzz_a_host_with_every_fault_still_holds_the_first_visible_row) {
  */
 TEST(fuzz_a_grid_or_horizontal_host_with_faults_holds_the_top_row) {
   const FuzzKinds kinds = {
-    {"prepend", "append", "scroll",
-      "core maintain anchor", "late echo", "repeated echo", "late measurement"},
+    {"prepend", "append", "scroll", "core maintain anchor", "late echo", "repeated echo", "late measurement"},
     {"core shrink clamp"},
     {"core shrink clamp"},
   };

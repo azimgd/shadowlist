@@ -23,7 +23,9 @@ final class DragTests: XCTestCase {
       self.source = source
     }
 
-    func listView(_ listView: ShadowListKitListView, canMoveItemAt index: Int) -> Bool { !fixed.contains(index) }
+    func listView(_ listView: ShadowListKitListView, canMoveItemAt index: Int) -> Bool {
+      !fixed.contains(index)
+    }
 
     func listView(_ listView: ShadowListKitListView, moveItemAt sourceIndex: Int, to destinationIndex: Int) {
       moves.append([sourceIndex, destinationIndex])
@@ -103,7 +105,7 @@ final class DragTests: XCTestCase {
     let start = try center(list, 2)
     list.shadowListKit_mouseDown(at: start)
     list.shadowListKit_mouseDrag(to: moved(start, y: 30))
-    list.reloadItems(at: IndexSet(integersIn: 2...3))
+    list.reloadItems(at: IndexSet(integersIn: 2 ... 3))
     harness.layout()
     list.shadowListKit_mouseDrag(to: moved(start, y: 40))
     let cell = try XCTUnwrap(list.cellForItem(at: 2))
@@ -178,16 +180,16 @@ final class DragTests: XCTestCase {
     // Past the middle of items 3, 4 and 5.
     list.shadowListKit_mouseDrag(to: moved(start, y: 140))
     XCTAssertEqual(list.shadowListKit_dropIndex, 5)
-    for index in 3...5 {
+    for index in 3 ... 5 {
       let cell = try XCTUnwrap(list.cellForItem(at: index))
       XCTAssertEqual(cell.layer?.transform.m42 ?? 0, -44, accuracy: 0.01, "item \(index)")
     }
-    XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(list.cellForItem(at: 6)?.layer?.transform)))
+    XCTAssertTrue(try CATransform3DIsIdentity(XCTUnwrap(list.cellForItem(at: 6)?.layer?.transform)))
     // Back up to the start, past items 1 and 0.
     list.shadowListKit_mouseDrag(to: moved(start, y: -100))
     XCTAssertEqual(list.shadowListKit_dropIndex, 0)
     XCTAssertEqual(list.cellForItem(at: 1)?.layer?.transform.m42 ?? 0, 44, accuracy: 0.01)
-    XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(list.cellForItem(at: 4)?.layer?.transform)))
+    XCTAssertTrue(try CATransform3DIsIdentity(XCTUnwrap(list.cellForItem(at: 4)?.layer?.transform)))
     list.cancelOperation(nil)
   }
 
@@ -205,11 +207,11 @@ final class DragTests: XCTestCase {
     XCTAssertEqual(harness.source.keys[5], keys[2])
     XCTAssertEqual(list.contentOffset, offset)
     // Every row rests in its new slot.
-    for index in 0..<8 {
+    for index in 0 ..< 8 {
       let cell = try XCTUnwrap(list.cellForItem(at: index) as? TestCell)
       XCTAssertEqual(cell.key, harness.source.keys[index])
       XCTAssertEqual(harness.screenY(ofItem: index) ?? -1, CGFloat(index) * 44, accuracy: 0.5)
-      XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(cell.layer?.transform)), "item \(index)")
+      XCTAssertTrue(try CATransform3DIsIdentity(XCTUnwrap(cell.layer?.transform)), "item \(index)")
     }
     XCTAssertEqual(list.shadowListKit_heldIndex, NSNotFound)
   }
@@ -229,7 +231,7 @@ final class DragTests: XCTestCase {
     let slide = try XCTUnwrap(cell.layer?.animation(forKey: "transform") as? CABasicAnimation)
     let from = try XCTUnwrap((slide.fromValue as? NSValue)?.caTransform3DValue)
     XCTAssertTrue(CATransform3DEqualToTransform(from, held))
-    XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(cell.layer?.transform)))
+    XCTAssertTrue(try CATransform3DIsIdentity(XCTUnwrap(cell.layer?.transform)))
   }
 
   func testADropTheHostAppliesDoesNotAnimateAsAChange() throws {
@@ -277,9 +279,9 @@ final class DragTests: XCTestCase {
     harness.layout()
     XCTAssertTrue(recorder.moves.isEmpty)
     XCTAssertEqual(harness.source.keys, keys)
-    for index in 0..<8 {
+    for index in 0 ..< 8 {
       let cell = try XCTUnwrap(list.cellForItem(at: index))
-      XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(cell.layer?.transform)), "item \(index)")
+      XCTAssertTrue(try CATransform3DIsIdentity(XCTUnwrap(cell.layer?.transform)), "item \(index)")
     }
   }
 
@@ -390,7 +392,7 @@ final class DragTests: XCTestCase {
     list.shadowListKit_mouseDrag(to: moved(start, x: 100))
     XCTAssertEqual(list.shadowListKit_dropIndex, 3)
     XCTAssertEqual(list.cellForItem(at: 2)?.layer?.transform.m41 ?? 0, -44, accuracy: 0.01)
-    XCTAssertEqual(try shownFrame(list, try XCTUnwrap(list.cellForItem(at: 1))).midX, start.x + 100, accuracy: 0.5)
+    XCTAssertEqual(try shownFrame(list, XCTUnwrap(list.cellForItem(at: 1))).midX, start.x + 100, accuracy: 0.5)
     list.shadowListKit_mouseUp(at: moved(start, x: 100))
     XCTAssertEqual(recorder.moves, [[1, 3]])
   }
@@ -412,11 +414,32 @@ final class DragTests: XCTestCase {
 
   func testInASectionedListAnItemStaysInItsSection() throws {
     final class Sections: TestSource {
-      func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 44 }
-      func numberOfSections(in listView: ShadowListKitListView) -> Int { 3 }
-      func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { keys.count / 3 }
-      func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { "Section \(section)" }
-      func listView(_ listView: ShadowListKitListView, sizeForHeaderInSection section: Int, crossSize: CGFloat) -> CGFloat { 30 }
+      func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+        44
+      }
+
+      func numberOfSections(in listView: ShadowListKitListView) -> Int {
+        3
+      }
+
+      func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int {
+        keys.count / 3
+      }
+
+      func listView(
+        _ listView: ShadowListKitListView,
+        titleForHeaderInSection section: Int
+      ) -> String? {
+        "Section \(section)"
+      }
+
+      func listView(
+        _ listView: ShadowListKitListView,
+        sizeForHeaderInSection section: Int,
+        crossSize: CGFloat
+      ) -> CGFloat {
+        30
+      }
     }
     let source = Sections(count: 12)
     let harness = ListHarness(source: source) { $0.reorderEnabled = true }
@@ -460,7 +483,7 @@ final class DragTests: XCTestCase {
     list.shadowListKit_mouseDown(at: start)
     list.shadowListKit_mouseDrag(to: moved(start, y: 140))
     let shifted = try XCTUnwrap(list.cellForItem(at: 4))
-    XCTAssertFalse(CATransform3DIsIdentity(try XCTUnwrap(shifted.layer?.transform)))
+    XCTAssertFalse(try CATransform3DIsIdentity(XCTUnwrap(shifted.layer?.transform)))
     list.shadowListKit_mouseDrag(to: CGPoint(x: start.x, y: list.bounds.height - 2))
     list.shadowListKit_runDragFrames(for: 3)
     XCTAssertNil(list.cellForItem(at: 4))

@@ -7,7 +7,9 @@ static dispatch_queue_t ShadowListKitTextRenderQueue(void)
   static dispatch_queue_t queue;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    queue = dispatch_queue_create("com.shadowlist.kit.text.render", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0));
+    queue = dispatch_queue_create(
+      "com.shadowlist.kit.text.render",
+      dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0));
   });
   return queue;
 }
@@ -24,8 +26,8 @@ static CGImageRef ShadowListKitTextCreateImage(ShadowListKitTextLayout *layout, 
     return NULL;
   }
   CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-  CGContextRef context = CGBitmapContextCreate(NULL, width, height, 8, 0, space,
-    (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+  CGContextRef context = CGBitmapContextCreate(
+    NULL, width, height, 8, 0, space, (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
   CGColorSpaceRelease(space);
   if (!context) {
     return NULL;
@@ -118,9 +120,7 @@ static CGImageRef ShadowListKitTextCreateImage(ShadowListKitTextLayout *layout, 
 - (CGColorRef)resolvedTextColor CF_RETURNS_RETAINED
 {
   __block CGColorRef color = NULL;
-  [self.effectiveAppearance performAsCurrentDrawingAppearance:^{
-    color = CGColorRetain(self->_textColor.CGColor);
-  }];
+  [self.effectiveAppearance performAsCurrentDrawingAppearance:^{ color = CGColorRetain(self->_textColor.CGColor); }];
   return color;
 }
 

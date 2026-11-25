@@ -15,7 +15,9 @@ extern "C" const char ShadowListKitListViewActionsLink = 0;
     _swipeController = [[ShadowListKitSwipeController alloc] initWithHost:self];
     _swipePan = _swipeController.pan;
   }
-  if (!_menuController) _menuController = [[ShadowListKitMenuController alloc] initWithHost:self];
+  if (!_menuController) {
+    _menuController = [[ShadowListKitMenuController alloc] initWithHost:self];
+  }
   [_menuController refresh];
   BOOL longPresses = [_userDelegate respondsToSelector:@selector(listView:didLongPressItemAtIndex:)];
   if (longPresses && !_longPress) {
@@ -28,14 +30,38 @@ extern "C" const char ShadowListKitListViewActionsLink = 0;
   }
 }
 
-- (BOOL)isSwipeOpen { return _swipeController.isOpen; }
-- (ShadowListKitListCell *)swipeCell { return (id)_swipeController.content; }
-- (BOOL)isSwipedOutCell:(ShadowListKitListCell *)cell { return [_swipeController isSwipedOutContent:cell]; }
-- (void)closeSwipeAnimated:(BOOL)animated { [_swipeController closeAnimated:animated]; }
-- (void)swipeCellWillRecycle:(ShadowListKitListCell *)cell { [_swipeController contentWillRecycle:cell]; }
-- (void)layoutSwipe { [_swipeController layout]; }
-- (BOOL)swipeOwnsTapAtPoint:(CGPoint)point { return [_swipeController ownsTapAtPoint:point]; }
-- (BOOL)swipeTakesPan:(UIPanGestureRecognizer *)pan { return [_swipeController takesPan:pan]; }
+- (BOOL)isSwipeOpen
+{
+  return _swipeController.isOpen;
+}
+- (ShadowListKitListCell *)swipeCell
+{
+  return (id)_swipeController.content;
+}
+- (BOOL)isSwipedOutCell:(ShadowListKitListCell *)cell
+{
+  return [_swipeController isSwipedOutContent:cell];
+}
+- (void)closeSwipeAnimated:(BOOL)animated
+{
+  [_swipeController closeAnimated:animated];
+}
+- (void)swipeCellWillRecycle:(ShadowListKitListCell *)cell
+{
+  [_swipeController contentWillRecycle:cell];
+}
+- (void)layoutSwipe
+{
+  [_swipeController layout];
+}
+- (BOOL)swipeOwnsTapAtPoint:(CGPoint)point
+{
+  return [_swipeController ownsTapAtPoint:point];
+}
+- (BOOL)swipeTakesPan:(UIPanGestureRecognizer *)pan
+{
+  return [_swipeController takesPan:pan];
+}
 - (void)scriptSwipeOfCell:(ShadowListKitListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity
 {
   [_swipeController scriptSwipeOfContent:cell distance:distance velocity:velocity];
@@ -43,47 +69,73 @@ extern "C" const char ShadowListKitListViewActionsLink = 0;
 
 - (BOOL)shouldBeginActionGesture:(UIGestureRecognizer *)gesture
 {
-  if (gesture == _longPress) return [self longPressCellAtPoint:[gesture locationInView:self]] != nil;
+  if (gesture == _longPress) {
+    return [self longPressCellAtPoint:[gesture locationInView:self]] != nil;
+  }
   return gesture == _swipePan && [_swipeController takesPan:_swipePan];
 }
 
 - (BOOL)isCurrentActionCell:(UIView *)content
 {
-  if (![content isKindOfClass:ShadowListKitListCell.class]) return NO;
+  if (![content isKindOfClass:ShadowListKitListCell.class]) {
+    return NO;
+  }
   ShadowListKitListCell *cell = (id)content;
-  if (!self.window || cell.superview != self || cell.hidden || cell.row == NSNotFound || cell.index == NSNotFound ||
-      (std::size_t)cell.row >= _driver.getKeyCount() || _sections.itemForRow((std::size_t)cell.row) != (std::size_t)cell.index) return NO;
+  if (
+    !self.window || cell.superview != self || cell.hidden || cell.row == NSNotFound || cell.index == NSNotFound ||
+    (std::size_t)cell.row >= _driver.getKeyCount() ||
+    _sections.itemForRow((std::size_t)cell.row) != (std::size_t)cell.index) {
+    return NO;
+  }
   auto found = _mounted.find(_driver.getKeyAt((std::size_t)cell.row));
   return found != _mounted.end() && found->second == cell;
 }
 
 #pragma mark - Swipe host
 
-- (UIView *)swipeRootView { return self; }
+- (UIView *)swipeRootView
+{
+  return self;
+}
 - (UIView *)swipeContentAtPoint:(CGPoint)point
 {
   return _editing || [self hasHeldRow] ? nil : [self itemCellAtPoint:point];
 }
-- (BOOL)isSwipeContentValid:(UIView *)content { return !_editing && ![self hasHeldRow] && [self isCurrentActionCell:content]; }
+- (BOOL)isSwipeContentValid:(UIView *)content
+{
+  return !_editing && ![self hasHeldRow] && [self isCurrentActionCell:content];
+}
 
 - (ShadowListKitSwipeActionsConfiguration *)leadingActionsForContent:(UIView *)content
 {
-  if (![self isSwipeContentValid:content] || ![_userDelegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)]) return nil;
-  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self leadingSwipeActionsForItemAtIndex:((ShadowListKitListCell *)content).index];
+  if (
+    ![self isSwipeContentValid:content] ||
+    ![_userDelegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)]) {
+    return nil;
+  }
+  ShadowListKitSwipeActionsConfiguration *configuration =
+    [_userDelegate listView:self leadingSwipeActionsForItemAtIndex:((ShadowListKitListCell *)content).index];
   return configuration.actions.count ? configuration : nil;
 }
 
 - (ShadowListKitSwipeActionsConfiguration *)trailingActionsForContent:(UIView *)content
 {
-  if (![self isSwipeContentValid:content] || ![_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)]) return nil;
-  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self trailingSwipeActionsForItemAtIndex:((ShadowListKitListCell *)content).index];
+  if (
+    ![self isSwipeContentValid:content] ||
+    ![_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)]) {
+    return nil;
+  }
+  ShadowListKitSwipeActionsConfiguration *configuration =
+    [_userDelegate listView:self trailingSwipeActionsForItemAtIndex:((ShadowListKitListCell *)content).index];
   return configuration.actions.count ? configuration : nil;
 }
 
 - (void)unhighlightSwipeContent:(UIView *)content
 {
   ShadowListKitListCell *cell = (id)content;
-  if (cell.isHighlighted) [cell setHighlighted:NO animated:NO];
+  if (cell.isHighlighted) {
+    [cell setHighlighted:NO animated:NO];
+  }
 }
 
 - (NSArray<UIAccessibilityCustomAction *> *)swipeAccessibilityActionsForCell:(ShadowListKitListCell *)cell
@@ -93,12 +145,30 @@ extern "C" const char ShadowListKitListViewActionsLink = 0;
 
 #pragma mark - Menu host
 
-- (UIView *)menuRootView { return self; }
-- (BOOL)menusEnabled { return [_userDelegate respondsToSelector:@selector(listView:contextMenuForItemAtIndex:)]; }
-- (UIView *)menuContentAtPoint:(CGPoint)point { return [self itemCellAtPoint:point]; }
-- (BOOL)isMenuContentValid:(UIView *)content { return [self isCurrentActionCell:content]; }
-- (BOOL)canShowMenuForContent:(UIView *)content { return ![self hasHeldRow] && ![self isSwipeOpen] && ![self canMoveCell:(id)content]; }
-- (UIMenu *)menuForContent:(UIView *)content { return [self menuForCell:(id)content]; }
+- (UIView *)menuRootView
+{
+  return self;
+}
+- (BOOL)menusEnabled
+{
+  return [_userDelegate respondsToSelector:@selector(listView:contextMenuForItemAtIndex:)];
+}
+- (UIView *)menuContentAtPoint:(CGPoint)point
+{
+  return [self itemCellAtPoint:point];
+}
+- (BOOL)isMenuContentValid:(UIView *)content
+{
+  return [self isCurrentActionCell:content];
+}
+- (BOOL)canShowMenuForContent:(UIView *)content
+{
+  return ![self hasHeldRow] && ![self isSwipeOpen] && ![self canMoveCell:(id)content];
+}
+- (UIMenu *)menuForContent:(UIView *)content
+{
+  return [self menuForCell:(id)content];
+}
 - (id<NSCopying>)menuIdentifierForContent:(UIView *)content
 {
   ShadowListKitListCell *cell = (id)content;
@@ -106,22 +176,33 @@ extern "C" const char ShadowListKitListViewActionsLink = 0;
 }
 - (UIView *)menuContentForIdentifier:(id<NSCopying>)identifier
 {
-  if (![(id)identifier isKindOfClass:NSString.class]) return nil;
+  if (![(id)identifier isKindOfClass:NSString.class]) {
+    return nil;
+  }
   auto found = _mounted.find(ShadowListKitStdString((NSString *)identifier));
   return found != _mounted.end() && [self isCurrentActionCell:found->second] ? found->second : nil;
 }
-- (void)contextMenuWillShowForContent:(UIView *)content {}
+- (void)contextMenuWillShowForContent:(UIView *)content
+{
+}
 
 - (UIMenu *)menuForCell:(ShadowListKitListCell *)cell
 {
-  if (!cell || cell.index == NSNotFound || ![_userDelegate respondsToSelector:@selector(listView:contextMenuForItemAtIndex:)]) return nil;
+  if (
+    !cell || cell.index == NSNotFound ||
+    ![_userDelegate respondsToSelector:@selector(listView:contextMenuForItemAtIndex:)]) {
+    return nil;
+  }
   return [_userDelegate listView:self contextMenuForItemAtIndex:cell.index];
 }
 
 - (BOOL)canMoveCell:(ShadowListKitListCell *)cell
 {
-  if (!self.reorderEnabled || _editing) return NO;
-  return ![_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] || [_userDelegate listView:self canMoveItemAtIndex:cell.index];
+  if (!self.reorderEnabled || _editing) {
+    return NO;
+  }
+  return ![_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] ||
+         [_userDelegate listView:self canMoveItemAtIndex:cell.index];
 }
 
 - (BOOL)showMenuForCell:(ShadowListKitListCell *)cell atPoint:(CGPoint)point

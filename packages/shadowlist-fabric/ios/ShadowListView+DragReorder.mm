@@ -60,9 +60,7 @@ static void SLAnimateDragTransform(
                         delay:0.0
                       options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseOut |
                               UIViewAnimationOptionAllowUserInteraction
-                   animations:^{
-                     view.transform = target;
-                   }
+                   animations:^{ view.transform = target; }
                    completion:completion];
 #endif
 }
@@ -111,9 +109,7 @@ void SLDragSelectionFeedback(void)
   [SLDragSelectionGenerator() prepare];
 }
 #else
-void SLPrepareDragFeedback(void)
-{
-}
+void SLPrepareDragFeedback(void) {}
 
 void SLDragLiftFeedback(void)
 {
@@ -167,9 +163,8 @@ void SLDragSelectionFeedback(void)
 
 - (CGAffineTransform)dragTransformForOffset:(azimgd::shadowlist::DragOffset)offset
 {
-  return _horizontal
-    ? CGAffineTransformMakeTranslation(offset.leading, offset.cross)
-    : CGAffineTransformMakeTranslation(offset.cross, offset.leading);
+  return _horizontal ? CGAffineTransformMakeTranslation(offset.leading, offset.cross)
+                     : CGAffineTransformMakeTranslation(offset.cross, offset.leading);
 }
 
 /*
@@ -306,9 +301,7 @@ void SLDragSelectionFeedback(void)
   _draggedView = view;
   azimgd::shadowlist::DragRow resting = [self dragRowForView:view index:index];
   _drag.begin(
-    resting,
-    _horizontal ? contentPoint.x : contentPoint.y,
-    _horizontal ? contentPoint.y : contentPoint.x,
+    resting, _horizontal ? contentPoint.x : contentPoint.y, _horizontal ? contentPoint.y : contentPoint.x,
     (std::size_t)MAX(_numberOfColumns, 1));
   [self setDragTouch:location];
   _dragFeedback.reset(_drag.getOriginIndex());
@@ -391,9 +384,8 @@ void SLDragSelectionFeedback(void)
     return;
   }
 
-  CGPoint next = _horizontal
-    ? CGPointMake(newOffset, _scrollView.contentOffset.y)
-    : CGPointMake(_scrollView.contentOffset.x, newOffset);
+  CGPoint next = _horizontal ? CGPointMake(newOffset, _scrollView.contentOffset.y)
+                             : CGPointMake(_scrollView.contentOffset.x, newOffset);
   /*
    * This must count as a user scroll so the core renders rows at this offset.
    * Treating it as our own move leaves blank rows during the drag.
@@ -437,9 +429,7 @@ void SLDragSelectionFeedback(void)
     _dragTouchInViewport.x + _scrollView.contentOffset.x, _dragTouchInViewport.y + _scrollView.contentOffset.y);
   azimgd::shadowlist::DragRow resting = [self dragRowForView:view index:SLViewIndex(_drag.getOriginIndex())];
   azimgd::shadowlist::DragOffset translation = _drag.placeRow(
-    _horizontal ? touchContent.x : touchContent.y,
-    _horizontal ? touchContent.y : touchContent.x,
-    resting,
+    _horizontal ? touchContent.x : touchContent.y, _horizontal ? touchContent.y : touchContent.x, resting,
     _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height,
     // The scroll view's content size is 0 across the scroll axis. Use the content view.
     _horizontal ? _contentView.bounds.size.height : _contentView.bounds.size.width);
@@ -482,15 +472,19 @@ void SLDragSelectionFeedback(void)
   if (core) {
     std::lock_guard<std::recursive_mutex> lock(core->coreMutex);
     available = _drag.isForeign() || _drag.getOriginKey().empty() ||
-      core->indexOfKey(_drag.getOriginKey()) != azimgd::shadowlist::UNDEFINED_INDEX;
+                core->indexOfKey(_drag.getOriginKey()) != azimgd::shadowlist::UNDEFINED_INDEX;
     if (available) {
-      rows.erase(std::remove_if(rows.begin(), rows.end(), [&](azimgd::shadowlist::DragRow& row) {
-        row.index = core->indexOfKey(row.key);
-        return row.index == azimgd::shadowlist::UNDEFINED_INDEX;
-      }), rows.end());
-      std::sort(rows.begin(), rows.end(), [](const azimgd::shadowlist::DragRow& a, const azimgd::shadowlist::DragRow& b) {
-        return a.index < b.index;
-      });
+      rows.erase(
+        std::remove_if(
+          rows.begin(), rows.end(),
+          [&](azimgd::shadowlist::DragRow& row) {
+            row.index = core->indexOfKey(row.key);
+            return row.index == azimgd::shadowlist::UNDEFINED_INDEX;
+          }),
+        rows.end());
+      std::sort(
+        rows.begin(), rows.end(),
+        [](const azimgd::shadowlist::DragRow& a, const azimgd::shadowlist::DragRow& b) { return a.index < b.index; });
       _drag.updateInsertion(rows);
       _drag.updateSpanOffsets(*core, rows);
     }
@@ -535,8 +529,7 @@ void SLDragSelectionFeedback(void)
 {
   BOOL animated = forceAnimated || (_dragBoard && (_drag.isForeign() || _drag.isHeldAway() || _dragBoardAnimateShifts));
   for (RCTUIView *subview in _contentView.subviews) {
-    if (subview == _draggedView ||
-        ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
+    if (subview == _draggedView || ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
       continue;
     }
     NSInteger rowIndex = [self indexOfCellView:subview];
@@ -682,8 +675,8 @@ void SLDragSelectionFeedback(void)
    * The indices below still drive the settle animation.
    */
   [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END
-                    sourceKey:SLDragKey(_drag.getOriginKey())
-                      destinationKey:SLDragKey(_drag.getInsertionKey())];
+                  sourceKey:SLDragKey(_drag.getOriginKey())
+             destinationKey:SLDragKey(_drag.getInsertionKey())];
 
   if (from == to || !view) {
     // Dropped where it started. No commit will come. Settle now.
@@ -718,10 +711,11 @@ void SLDragSelectionFeedback(void)
 {
   RCTUIView *view = _droppedView;
   using Status = azimgd::shadowlist::DropSettle::Status;
-  Status status = _dragDropPending
-    ? _dropSettle.tick(view ? SLCoreIndex([self indexOfCellView:view]) : azimgd::shadowlist::UNDEFINED_INDEX,
-        SLDragNowMs())
-    : Status::Idle;
+  Status status =
+    _dragDropPending
+      ? _dropSettle.tick(
+          view ? SLCoreIndex([self indexOfCellView:view]) : azimgd::shadowlist::UNDEFINED_INDEX, SLDragNowMs())
+      : Status::Idle;
   if (status == Status::Waiting) {
     return;
   }
@@ -817,26 +811,24 @@ void SLDragSelectionFeedback(void)
   __weak RCTUIView *weakView = view;
 #if TARGET_OS_OSX
   NSAccessibilityCustomAction *moveUp = [[NSAccessibilityCustomAction alloc]
-    initWithName:NSLocalizedString(@"Move up", nil) handler:^BOOL {
-      return [weakSelf performAccessibilityMove:weakView up:YES];
-    }];
+    initWithName:NSLocalizedString(@"Move up", nil)
+         handler:^BOOL { return [weakSelf performAccessibilityMove:weakView up:YES]; }];
   NSAccessibilityCustomAction *moveDown = [[NSAccessibilityCustomAction alloc]
-    initWithName:NSLocalizedString(@"Move down", nil) handler:^BOOL {
-      return [weakSelf performAccessibilityMove:weakView up:NO];
-    }];
+    initWithName:NSLocalizedString(@"Move down", nil)
+         handler:^BOOL { return [weakSelf performAccessibilityMove:weakView up:NO]; }];
 #else
-  UIAccessibilityCustomAction *moveUp = [[UIAccessibilityCustomAction alloc]
-      initWithName:NSLocalizedString(@"Move up", nil)
-     actionHandler:^BOOL(UIAccessibilityCustomAction *action) {
-       (void)action;
-       return [weakSelf performAccessibilityMove:weakView up:YES];
-     }];
-  UIAccessibilityCustomAction *moveDown = [[UIAccessibilityCustomAction alloc]
-      initWithName:NSLocalizedString(@"Move down", nil)
-     actionHandler:^BOOL(UIAccessibilityCustomAction *action) {
-       (void)action;
-       return [weakSelf performAccessibilityMove:weakView up:NO];
-     }];
+  UIAccessibilityCustomAction *moveUp =
+    [[UIAccessibilityCustomAction alloc] initWithName:NSLocalizedString(@"Move up", nil)
+                                        actionHandler:^BOOL(UIAccessibilityCustomAction *action) {
+                                          (void)action;
+                                          return [weakSelf performAccessibilityMove:weakView up:YES];
+                                        }];
+  UIAccessibilityCustomAction *moveDown =
+    [[UIAccessibilityCustomAction alloc] initWithName:NSLocalizedString(@"Move down", nil)
+                                        actionHandler:^BOOL(UIAccessibilityCustomAction *action) {
+                                          (void)action;
+                                          return [weakSelf performAccessibilityMove:weakView up:NO];
+                                        }];
 #endif
   cellView.nativeAccessibilityActions =
     [@[ moveUp, moveDown ] arrayByAddingObjectsFromArray:[self dragBoardAccessibilityActionsForView:view]];
@@ -867,8 +859,9 @@ void SLDragSelectionFeedback(void)
     if (subviewIndex == NSNotFound) {
       continue;
     }
-    if (up ? (subviewIndex < index && subviewIndex > neighborIndex)
-           : (subviewIndex > index && subviewIndex < neighborIndex)) {
+    if (
+      up ? (subviewIndex < index && subviewIndex > neighborIndex)
+         : (subviewIndex > index && subviewIndex < neighborIndex)) {
       neighborIndex = subviewIndex;
       neighbor = subview;
     }

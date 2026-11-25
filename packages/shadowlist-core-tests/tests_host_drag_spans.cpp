@@ -27,7 +27,9 @@ DragRow dragRow(const Container& core, std::size_t index) {
 std::vector<DragRow> mounted(const Container& core, std::size_t held = UNDEFINED_INDEX) {
   std::vector<DragRow> rows;
   for (std::size_t index = 0; index < core.getRowCount(); ++index) {
-    if (index != held) rows.push_back(dragRow(core, index));
+    if (index != held) {
+      rows.push_back(dragRow(core, index));
+    }
   }
   return rows;
 }
@@ -113,7 +115,9 @@ TEST(drag_spans_plain_target_keeps_its_existing_foreign_grid_preview) {
   auto rows = mounted(core);
   drag.updateInsertion(rows);
   std::vector<DragOffset> before;
-  for (std::size_t index = 0; index < rows.size(); ++index) before.push_back(drag.offsetFor(index));
+  for (std::size_t index = 0; index < rows.size(); ++index) {
+    before.push_back(drag.offsetFor(index));
+  }
   drag.updateSpanOffsets(core, rows);
   for (std::size_t index = 0; index < rows.size(); ++index) {
     CHECK_EQ(drag.offsetFor(index).leading, before[index].leading);

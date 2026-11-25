@@ -33,8 +33,10 @@ std::vector<std::size_t> insertionIndices(std::vector<std::size_t> indices, std:
 }
 
 std::vector<std::size_t> deletionIndices(std::vector<std::size_t> indices, std::size_t previousCount) {
-  indices.erase(std::remove_if(indices.begin(), indices.end(),
-    [previousCount](std::size_t index) { return index >= previousCount; }), indices.end());
+  indices.erase(
+    std::remove_if(
+      indices.begin(), indices.end(), [previousCount](std::size_t index) { return index >= previousCount; }),
+    indices.end());
   sortUnique(indices);
   return indices;
 }
@@ -52,9 +54,7 @@ KeySplice keySplice(const std::vector<std::string>& previous, const std::vector<
   return {start, previous.size() - start - end, next.size() - start - end};
 }
 
-std::unordered_set<std::string> keysOfRows(
-  const std::vector<std::string>& keys,
-  const std::vector<std::size_t>& rows) {
+std::unordered_set<std::string> keysOfRows(const std::vector<std::string>& keys, const std::vector<std::size_t>& rows) {
   std::unordered_set<std::string> found;
   for (std::size_t row : rows) {
     if (row < keys.size()) {
@@ -64,9 +64,8 @@ std::unordered_set<std::string> keysOfRows(
   return found;
 }
 
-std::vector<std::size_t> rowsOfKeys(
-  const std::vector<std::string>& keys,
-  const std::unordered_set<std::string>& wanted) {
+std::vector<std::size_t>
+rowsOfKeys(const std::vector<std::string>& keys, const std::unordered_set<std::string>& wanted) {
   std::vector<std::size_t> rows;
   if (wanted.empty()) {
     return rows;
@@ -139,30 +138,50 @@ CollectedBatch BatchCollector::take() {
 }
 
 template <typename Changed>
-void ContentVersions::keep(
-  KeyList itemKeys,
-  const std::vector<std::int64_t>& versions,
-  Changed changed) {
+void ContentVersions::keep(KeyList itemKeys, const std::vector<std::int64_t>& versions, Changed changed) {
   std::uint64_t round = ++round_;
   std::size_t count = std::min(itemKeys.size(), versions.size());
   std::size_t seen = 0;
   versions_.reserve(count);
+  // The items before and after the changed middle sit where the last round left their keys.
+  std::size_t previous = positions_.size();
+  std::size_t front = 0;
+  while (front < count && front < previous && itemKeys[front] == positions_[front]->first) {
+    ++front;
+  }
+  std::size_t back = 0;
+  while (back < count - front && back < previous - front &&
+         itemKeys[count - 1 - back] == positions_[previous - 1 - back]->first) {
+    ++back;
+  }
+  nextPositions_.resize(count);
   for (std::size_t item = 0; item < count; ++item) {
-    auto [entry, inserted] = versions_.try_emplace(itemKeys[item], Entry{versions[item], round});
-    if (inserted) {
-      ++seen;
-      continue;
+    Kept* kept = item < front           ? positions_[item]
+                 : item >= count - back ? positions_[previous - (count - item)]
+                                        : nullptr;
+    if (!kept) {
+      auto [entry, inserted] = versions_.try_emplace(itemKeys[item], Entry{versions[item], round});
+      kept = &*entry;
+      nextPositions_[item] = kept;
+      if (inserted) {
+        ++seen;
+        continue;
+      }
     }
+    nextPositions_[item] = kept;
+    Entry& entry = kept->second;
     // A key named twice keeps its first version.
-    if (entry->second.round == round) {
+    if (entry.round == round) {
       continue;
     }
     ++seen;
-    if (entry->second.version != versions[item]) {
+    if (entry.version != versions[item]) {
       changed(item);
     }
-    entry->second = {versions[item], round};
+    entry = {versions[item], round};
   }
+  // Every entry of this round's positions was seen in it and outlives the sweep.
+  positions_.swap(nextPositions_);
   if (seen == versions_.size()) {
     return;
   }
@@ -179,9 +198,8 @@ void ContentVersions::record(KeyList itemKeys, const std::vector<std::int64_t>& 
   keep(itemKeys, versions, [](std::size_t) {});
 }
 
-std::vector<std::size_t> ContentVersions::update(
-  const std::vector<std::string>& itemKeys,
-  const std::vector<std::int64_t>& versions) {
+std::vector<std::size_t>
+ContentVersions::update(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions) {
   return update(KeyList(itemKeys), versions);
 }
 
@@ -231,7 +249,8 @@ HeldKeysCommit HeldKeys::commit(KeyChange rows, std::optional<KeyChange> items, 
     }
   }
   // The items splice reads the rows held before when the list had no sections.
-  items_ = items ? previousItems.splice(itemSplice.start, itemSplice.deleted, std::move(items->inserted)) : SharedKeys();
+  items_ =
+    items ? previousItems.splice(itemSplice.start, itemSplice.deleted, std::move(items->inserted)) : SharedKeys();
   sectioned_ = items.has_value();
   rows_ = rows_.splice(result.rows.start, result.rows.deleted, std::move(rows.inserted));
   return result;

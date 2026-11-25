@@ -7,9 +7,7 @@ import com.facebook.soloader.SoLoader;
  * are in px along the cross axis. A positive offset shows the leading actions.
  */
 final class ShadowListSwipeReveal {
-  static {
-    SoLoader.loadLibrary("react_codegen_ShadowListViewSpec");
-  }
+  static { SoLoader.loadLibrary("react_codegen_ShadowListViewSpec"); }
 
   /*
    * Slots of mOut, matching OutSlot in ShadowListSwipeJNI.cpp.
@@ -40,14 +38,14 @@ final class ShadowListSwipeReveal {
    * The core's swipe constants: the fling speed in dp per second and the settle duration.
    */
   static final double FLING_VELOCITY_DP = CONSTANTS[CONSTANT_FLING_VELOCITY];
-  static final long SETTLE_DURATION_MS = (long) CONSTANTS[CONSTANT_SETTLE_DURATION_MS];
+  static final long SETTLE_DURATION_MS = (long)CONSTANTS[CONSTANT_SETTLE_DURATION_MS];
 
   /*
    * The core's backgrounds of a swipe action that sets none, as ARGB: gray, and red for a
    * destructive action.
    */
-  static final int ACTION_COLOR_NORMAL = (int) (long) CONSTANTS[CONSTANT_ACTION_COLOR_NORMAL];
-  static final int ACTION_COLOR_DESTRUCTIVE = (int) (long) CONSTANTS[CONSTANT_ACTION_COLOR_DESTRUCTIVE];
+  static final int ACTION_COLOR_NORMAL = (int)(long)CONSTANTS[CONSTANT_ACTION_COLOR_NORMAL];
+  static final int ACTION_COLOR_DESTRUCTIVE = (int)(long)CONSTANTS[CONSTANT_ACTION_COLOR_DESTRUCTIVE];
 
   /*
    * Frees the peer of a row dropped without destroy().
@@ -98,13 +96,9 @@ final class ShadowListSwipeReveal {
   /*
    * The offset for a finger that moved translation since begin().
    */
-  double drag(double translation) {
-    return nativeDrag(handle(), translation);
-  }
+  double drag(double translation) { return nativeDrag(handle(), translation); }
 
-  boolean isPastFullSwipe(double offset) {
-    return offset != 0.0 && nativeIsPastFullSwipe(handle(), offset);
-  }
+  boolean isPastFullSwipe(double offset) { return offset != 0.0 && nativeIsPastFullSwipe(handle(), offset); }
 
   /*
    * Where the row goes when let go. The result is getRestSide(), isRestFull() and getRestOffset().
@@ -113,25 +107,17 @@ final class ShadowListSwipeReveal {
     nativeSettle(handle(), offset, velocity, flingVelocity, mOut);
   }
 
-  int getRestSide() {
-    return (int) mOut[OUT_SIDE];
-  }
+  int getRestSide() { return (int)mOut[OUT_SIDE]; }
 
-  boolean isRestFull() {
-    return mOut[OUT_FULL] != 0.0;
-  }
+  boolean isRestFull() { return mOut[OUT_FULL] != 0.0; }
 
-  double getRestOffset() {
-    return mOut[OUT_OFFSET];
-  }
+  double getRestOffset() { return mOut[OUT_OFFSET]; }
 
   /*
    * The core's swipeButtonSize: the title's fitted size with room around it, at least the
    * narrowest button, scaled to pixels.
    */
-  static double buttonSize(double fitted, double scale) {
-    return nativeButtonSize(fitted, scale);
-  }
+  static double buttonSize(double fitted, double scale) { return nativeButtonSize(fitted, scale); }
 
   /*
    * The core's swipeButtonSpans and swipeRevealedSpan into out: the revealed span's start and
@@ -143,13 +129,8 @@ final class ShadowListSwipeReveal {
 
   private static native double[] nativeConstants();
   private static native double nativeButtonSize(double fitted, double scale);
-  private static native void nativeButtonSpans(
-    double[] sizes,
-    int count,
-    double offset,
-    boolean full,
-    double crossSize,
-    double[] out);
+  private static native void
+  nativeButtonSpans(double[] sizes, int count, double offset, boolean full, double crossSize, double[] out);
   private static native long nativeCreate();
   private static native void nativeDestroy(long handle);
   private static native void nativeBegin(
@@ -162,5 +143,6 @@ final class ShadowListSwipeReveal {
     double startOffset);
   private static native double nativeDrag(long handle, double translation);
   private static native boolean nativeIsPastFullSwipe(long handle, double offset);
-  private static native void nativeSettle(long handle, double offset, double velocity, double flingVelocity, double[] out);
+  private static native void
+  nativeSettle(long handle, double offset, double velocity, double flingVelocity, double[] out);
 }

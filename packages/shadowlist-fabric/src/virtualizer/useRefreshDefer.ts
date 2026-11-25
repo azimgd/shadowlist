@@ -1,4 +1,5 @@
 import {
+  type ComponentRef,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -6,6 +7,7 @@ import {
   useRef,
 } from 'react';
 import { Platform } from 'react-native';
+import ShadowListView, { Commands } from '../ShadowListViewNativeComponent';
 import { slTrace, slTraceEnabled } from './helpers';
 
 /*
@@ -21,6 +23,7 @@ interface UseRefreshDeferOptions<RowsT extends Rows> {
   onRefresh: (() => void) | undefined;
   inverted: boolean;
   horizontal: boolean;
+  viewRef: { current: ComponentRef<typeof ShadowListView> | null };
 }
 
 interface UseRefreshDeferResult<RowsT extends Rows> {
@@ -28,11 +31,89 @@ interface UseRefreshDeferResult<RowsT extends Rows> {
   handleRefreshSettle: () => void;
 }
 
+type RefreshState<RowsT> =
+  | { phase: 'idle' }
+  | { phase: 'refreshing' | 'ended' | 'awaiting'; shown: RowsT | null }
+  | {
+      phase: 'refreshingHeld' | 'endedHeld' | 'awaitingHeld';
+      shown: RowsT;
+      held: RowsT;
+    };
+
+type RefreshEvent<RowsT> =
+  | {
+      type: 'render';
+      enabled: boolean;
+      refreshing: boolean;
+      shown: RowsT;
+      data: RowsT;
+    }
+  | { type: 'request' }
+  | { type: 'settle' };
+
 /*
- * Hold data that arrives during a refresh until the spinner is fully gone, then apply it as
- * a normal prepend so the visible content stays in place. Every data change is held while
- * refreshing, deletes and edits included, and the newest data shows once it settles.
- * Only for vertical, non inverted lists with onRefresh.
+ * A held phase records that data actually changed, even if it later returns to the shown
+ * rows. Its last held value deduplicates the trace; release always uses the current prop.
+ */
+function transitionRefresh<RowsT>(
+  state: RefreshState<RowsT>,
+  event: RefreshEvent<RowsT>
+): RefreshState<RowsT> {
+  const refreshing =
+    state.phase === 'refreshing' || state.phase === 'refreshingHeld';
+  if (event.type === 'settle') {
+    return refreshing
+      ? { phase: 'refreshing', shown: null }
+      : { phase: 'idle' };
+  }
+  if (event.type === 'request') {
+    if (state.phase === 'endedHeld') return { ...state, phase: 'awaitingHeld' };
+    return state.phase === 'ended' ? { ...state, phase: 'awaiting' } : state;
+  }
+  if (!event.enabled) {
+    return event.refreshing
+      ? { phase: 'refreshing', shown: null }
+      : { phase: 'idle' };
+  }
+  if (event.refreshing && !refreshing) {
+    state =
+      'held' in state
+        ? { ...state, phase: 'refreshingHeld' }
+        : {
+            phase: 'refreshing',
+            shown:
+              state.phase === 'idle'
+                ? event.shown
+                : (state.shown ?? event.shown),
+          };
+  } else if (!event.refreshing && refreshing) {
+    state =
+      'held' in state
+        ? { ...state, phase: 'endedHeld' }
+        : {
+            phase: 'ended',
+            shown: state.phase === 'idle' ? null : state.shown,
+          };
+  }
+  if (
+    state.phase !== 'idle' &&
+    state.shown !== null &&
+    event.data !== state.shown
+  ) {
+    const phase =
+      state.phase === 'refreshing' || state.phase === 'refreshingHeld'
+        ? 'refreshingHeld'
+        : state.phase === 'ended' || state.phase === 'endedHeld'
+          ? 'endedHeld'
+          : 'awaitingHeld';
+    return { phase, shown: state.shown, held: event.data };
+  }
+  return state;
+}
+
+/*
+ * Hold changes during refresh until native reports that the spinner and list are at rest.
+ * Only vertical, non inverted lists with onRefresh defer their data.
  */
 export function useRefreshDefer<RowsT extends Rows>({
   data: dataProp,
@@ -40,78 +121,67 @@ export function useRefreshDefer<RowsT extends Rows>({
   onRefresh,
   inverted,
   horizontal,
+  viewRef,
 }: UseRefreshDeferOptions<RowsT>): UseRefreshDeferResult<RowsT> {
   const refreshDeferEnabled =
     Platform.OS !== 'macos' && !!onRefresh && !inverted && !horizontal;
-
-  const refreshHoldingRef = useRef(false);
-  const refreshHeldDataRef = useRef<RowsT | null>(null);
-  const previousRefreshingRef = useRef(refreshing);
-  /*
-   * The data the last commit showed. Kept in a ref, not state. A normal data change
-   * renders once. Setting state here during render would make React run the whole list twice.
-   */
+  const refreshRef = useRef<RefreshState<RowsT>>(
+    refreshing ? { phase: 'refreshing', shown: null } : { phase: 'idle' }
+  );
   const shownDataRef = useRef(dataProp);
   const [, forceRender] = useReducer((count: number) => count + 1, 0);
-
-  if (refreshDeferEnabled && !previousRefreshingRef.current && refreshing) {
-    // A refresh just started. Hold data changes until it settles.
-    refreshHoldingRef.current = true;
-  } else if (!refreshDeferEnabled && refreshHoldingRef.current) {
-    /*
-     * onRefresh went away, or the list turned inverted or horizontal, while holding. No
-     * settle or fallback comes for such a list. The newest data shows now.
-     */
-    refreshHoldingRef.current = false;
-    refreshHeldDataRef.current = null;
+  const previous = refreshRef.current;
+  refreshRef.current = transitionRefresh(previous, {
+    type: 'render',
+    enabled: refreshDeferEnabled,
+    refreshing,
+    shown: shownDataRef.current,
+    data: dataProp,
+  });
+  const state = refreshRef.current;
+  if (
+    'held' in state &&
+    (!('held' in previous) || previous.held !== state.held) &&
+    slTraceEnabled()
+  ) {
+    slTrace(`refresh hold n=${state.held.count}`);
   }
-  previousRefreshingRef.current = refreshing;
-
-  let data = dataProp;
-  if (refreshHoldingRef.current && dataProp !== shownDataRef.current) {
-    if (slTraceEnabled() && refreshHeldDataRef.current !== dataProp) {
-      slTrace(`refresh hold n=${dataProp.count}`);
-    }
-    refreshHeldDataRef.current = dataProp;
-    data = shownDataRef.current;
-  }
+  const data = state.phase === 'idle' ? dataProp : (state.shown ?? dataProp);
 
   useLayoutEffect(() => {
     shownDataRef.current = data;
   });
 
-  // Apply the held data once native says the spinner is gone.
   const handleRefreshSettle = useCallback(() => {
+    const current = refreshRef.current;
+    const held = 'held' in current;
+    refreshRef.current = transitionRefresh(current, { type: 'settle' });
     if (slTraceEnabled()) {
-      slTrace(
-        `refresh settle held=${refreshHeldDataRef.current !== null ? 1 : 0}`
-      );
+      slTrace(`refresh settle held=${held ? 1 : 0}`);
     }
-    refreshHoldingRef.current = false;
-    if (refreshHeldDataRef.current !== null) {
-      /*
-       * Render again with holding off, which shows the newest data prop. That is the held
-       * data, or something newer the caller passed since.
-       */
-      refreshHeldDataRef.current = null;
-      forceRender();
-    }
+    if (held) forceRender();
   }, []);
 
   /*
-   * Fallback in case onRefreshSettle never comes. Release the held data shortly after the
-   * refresh ends. On iOS the settle event fires first. This does nothing there.
+   * Request even when a refresh was too short to mount its native prop. Without a view,
+   * nothing can move and the data can be released immediately.
    */
-  const previousRefreshingForFallbackRef = useRef(refreshing);
   useEffect(() => {
-    const wasRefreshing = previousRefreshingForFallbackRef.current;
-    previousRefreshingForFallbackRef.current = refreshing;
-    if (refreshDeferEnabled && wasRefreshing && !refreshing) {
-      const timer = setTimeout(handleRefreshSettle, 1200);
-      return () => clearTimeout(timer);
+    if (
+      refreshRef.current.phase !== 'ended' &&
+      refreshRef.current.phase !== 'endedHeld'
+    )
+      return;
+    refreshRef.current = transitionRefresh(refreshRef.current, {
+      type: 'request',
+    });
+    const view = viewRef.current;
+    if (view) {
+      Commands.awaitRefreshSettle(view);
+    } else {
+      handleRefreshSettle();
     }
-    return undefined;
-  }, [refreshing, refreshDeferEnabled, handleRefreshSettle]);
+  });
 
   return { data, handleRefreshSettle };
 }

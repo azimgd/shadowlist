@@ -13,12 +13,12 @@ import android.view.FrameMetrics
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
-import org.json.JSONObject
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToLong
+import org.json.JSONObject
 
 /*
  * A view that draws its content after its rows show, like tiles drawn in the background, tells
@@ -35,13 +35,14 @@ interface ShadowListKitBenchProbe {
  * logs one JSON line per axis with frame intervals, janky frames, UI thread, RenderThread and
  * process CPU, memory, and how much of the viewport no row covers. The same metrics as the iOS
  * ShadowListKitBench. Extras: SLBench 1, SLBenchAxes (y, x or xy, comma separated, default y),
- * SLBenchSpeed (dp/s), SLBenchSeconds per leg, SLBenchDelay, SLBenchLabel, SLBenchExit 1.
+ * SLBenchSpeed (dp/s), SLBenchSpeeds (dp/s, comma separated, one run each per axis, in place of
+ * SLBenchSpeed), SLBenchSeconds per leg, SLBenchDelay, SLBenchLabel, SLBenchExit 1.
  * An axis without a scroll view logs a line with skipped set.
  */
-class ShadowListKitBench private constructor(private val activity: Activity, intent: Intent) : Choreographer.FrameCallback {
+class ShadowListKitBench private constructor(private val activity: Activity, intent: Intent) :
+  Choreographer.FrameCallback {
   companion object {
     private const val TAG = "SLBENCH"
-    private const val EXIT_DELAY_MS = 300L
 
     /*
      * Pause between two axis runs, which lets the previous run's work settle.
@@ -57,7 +58,14 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
     private fun Intent.double(name: String, fallback: Double) = getStringExtra(name)?.toDoubleOrNull() ?: fallback
   }
 
-  private val speed = intent.double("SLBenchSpeed", 4000.0) * activity.resources.displayMetrics.density
+  private val speeds = (
+    intent.getStringExtra(
+      "SLBenchSpeeds"
+    ) ?: intent.getStringExtra("SLBenchSpeed") ?: "4000"
+    ).split(',')
+    .mapNotNull { it.trim().toDoubleOrNull()?.takeIf { speed -> speed > 0 } }.ifEmpty { listOf(4000.0) }
+    .map { it * activity.resources.displayMetrics.density }
+  private var speed = speeds[0]
   private val legSeconds = intent.double("SLBenchSeconds", 6.0)
   private val delay = intent.double("SLBenchDelay", 3.0)
   private val label = intent.getStringExtra("SLBenchLabel") ?: ""
@@ -100,22 +108,45 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
    */
   @Suppress("DEPRECATION")
   private fun refreshRate(): Float {
-    val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) activity.display else activity.windowManager.defaultDisplay
+    val display = if (Build.VERSION.SDK_INT >=
+      Build.VERSION_CODES.R
+    ) {
+      activity.display
+    } else {
+      activity.windowManager.defaultDisplay
+    }
     return display?.refreshRate?.takeIf { it > 0f } ?: 60f
   }
 
+  /*
+   * Every speed runs on every axis, the speeds of one axis one after another.
+   */
+  private val runCount get() = axes.size * speeds.size
+
   private fun startRun() {
-    axis = axes[run]
+    axis = axes[run / speeds.size]
+    speed = speeds[run % speeds.size]
     val root = activity.window.decorView
     vertical = if ('y' in axis) findScrollView(root, alongX = false) else null
     horizontal = if ('x' in axis) findScrollView(root, alongX = true) else null
     if (('y' in axis && vertical == null) || ('x' in axis && horizontal == null)) {
-      emit(JSONObject().apply {
-        put("label", label)
-        put("axis", axis)
-        put("speed", speed / activity.resources.displayMetrics.density)
-        put("skipped", if ('y' in axis && vertical == null) "no vertical scroll view" else "no horizontal scroll view")
-      })
+      emit(
+        JSONObject().apply {
+          put("label", label)
+          put("axis", axis)
+          put("speed", speed / activity.resources.displayMetrics.density)
+          put(
+            "skipped",
+            if ('y' in axis &&
+              vertical == null
+            ) {
+              "no vertical scroll view"
+            } else {
+              "no horizontal scroll view"
+            }
+          )
+        }
+      )
       nextRun()
       return
     }
@@ -147,8 +178,11 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
     var best: View? = null
     var bestRange = 0
     fun visit(view: View) {
-      val scrolls = if (alongX) view.canScrollHorizontally(1) || view.canScrollHorizontally(-1)
-      else view.canScrollVertically(1) || view.canScrollVertically(-1)
+      val scrolls = if (alongX) {
+        view.canScrollHorizontally(1) || view.canScrollHorizontally(-1)
+      } else {
+        view.canScrollVertically(1) || view.canScrollVertically(-1)
+      }
       if (view.isShown && view.width > root.width / 2 && scrolls) {
         val range = view.width * view.height
         if (best == null || range >= bestRange) {
@@ -245,7 +279,11 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
       put("axis", axis)
       put("scrollView", primary?.javaClass?.simpleName ?: "")
       val separate = horizontal
-      if (vertical != null && separate != null && separate !== vertical) put("horizontalScrollView", separate.javaClass.simpleName)
+      if (vertical != null && separate != null &&
+        separate !== vertical
+      ) {
+        put("horizontalScrollView", separate.javaClass.simpleName)
+      }
       put("speed", speed / activity.resources.displayMetrics.density)
       put("travel", travel.roundToLong())
       put("mainCpuMsPerS", uiCpu * 1000 / max(1.0, getDouble("seconds") * 1000))
@@ -254,6 +292,8 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
       put("mainCpuUsPerFrame", if (intervals.isEmpty()) 0.0 else uiCpu * 1000 / intervals.size)
       put("peakMB", peakMB)
       put("pssMB", MemorySampler.pssMB())
+      put("javaHeapMB", MemorySampler.javaMB())
+      put("nativeHeapMB", MemorySampler.nativeMB())
       probe?.let { put("probe", it.javaClass.simpleName) }
       blank.write(this)
       frameMetrics.write(this, nominal)
@@ -264,7 +304,11 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
       if (drawDelayMs > 0) {
         put("drawDelayMs", drawDelayMs)
         put("selfTest", if (getDouble("blankAvg") > 0) "pass" else "fail")
-        if (getString("selfTest") == "fail") Log.e(TAG, "self-test failed: rows drawn ${drawDelayMs}ms late reported no blank")
+        if (getString("selfTest") ==
+          "fail"
+        ) {
+          Log.e(TAG, "self-test failed: rows drawn ${drawDelayMs}ms late reported no blank")
+        }
       }
     }
     emit(result)
@@ -283,11 +327,17 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
   private fun nextRun() {
     ++run
     val handler = Handler(Looper.getMainLooper())
-    if (run < axes.size) {
+    if (run < runCount) {
       handler.postDelayed({ startRun() }, RUN_GAP_MS)
       return
     }
-    if (exit) handler.postDelayed({ activity.finishAndRemoveTask(); Process.killProcess(Process.myPid()) }, EXIT_DELAY_MS)
+    // The result is in the log and the file before emit returns.
+    if (exit) {
+      handler.post {
+        activity.finishAndRemoveTask()
+        Process.killProcess(Process.myPid())
+      }
+    }
   }
 }
 
@@ -309,7 +359,8 @@ private class FrameStats(private val intervals: List<Double>, private val nomina
         ++hitches
       }
     }
-    fun percentile(p: Double) = if (sorted.isEmpty()) 0.0 else sorted[min(sorted.size - 1, (p * (sorted.size - 1)).toInt())]
+    fun percentile(p: Double) =
+      if (sorted.isEmpty()) 0.0 else sorted[min(sorted.size - 1, (p * (sorted.size - 1)).toInt())]
     val seconds = total / 1000
     return JSONObject().apply {
       put("hz", (1000 / nominal).roundToLong())
@@ -345,15 +396,17 @@ private class FrameMetricsCollector : Window.OnFrameMetricsAvailableListener {
     val total = metrics.getMetric(FrameMetrics.TOTAL_DURATION)
     totals.add(total / 1e6)
     if (Build.VERSION.SDK_INT >= 31 && total > metrics.getMetric(FrameMetrics.DEADLINE)) ++overDeadline
-    val ui = metrics.getMetric(FrameMetrics.INPUT_HANDLING_DURATION) + metrics.getMetric(FrameMetrics.ANIMATION_DURATION) +
-      metrics.getMetric(FrameMetrics.LAYOUT_MEASURE_DURATION) + metrics.getMetric(FrameMetrics.DRAW_DURATION)
+    val ui =
+      metrics.getMetric(FrameMetrics.INPUT_HANDLING_DURATION) + metrics.getMetric(FrameMetrics.ANIMATION_DURATION) +
+        metrics.getMetric(FrameMetrics.LAYOUT_MEASURE_DURATION) + metrics.getMetric(FrameMetrics.DRAW_DURATION)
     uiDurations.add(ui / 1e6)
   }
 
   fun write(json: JSONObject, nominal: Double) {
     val sorted = totals.sorted()
     val uiSorted = uiDurations.sorted()
-    fun at(list: List<Double>, p: Double) = if (list.isEmpty()) 0.0 else list[min(list.size - 1, (p * (list.size - 1)).toInt())]
+    fun at(list: List<Double>, p: Double) =
+      if (list.isEmpty()) 0.0 else list[min(list.size - 1, (p * (list.size - 1)).toInt())]
     json.put("drawnFrames", totals.size)
     // A frame that missed its deadline. Before Android 12 the deadline is one vsync.
     json.put("jankyFrames", if (Build.VERSION.SDK_INT >= 31) overDeadline else totals.count { it > nominal })
@@ -463,6 +516,10 @@ private object MemorySampler {
   }
 
   fun pssMB(): Double = Debug.getPss() / 1024.0
+
+  fun javaMB(): Double = Runtime.getRuntime().let { it.totalMemory() - it.freeMemory() } / 1048576.0
+
+  fun nativeMB(): Double = Debug.getNativeHeapAllocatedSize() / 1048576.0
 }
 
 /*
@@ -479,7 +536,8 @@ private object ThreadCpu {
       val stat = runCatching { File(task, "stat").readText() }.getOrNull() ?: return 0
       val fields = stat.substringAfterLast(')').trim().split(' ')
       // utime and stime are fields 14 and 15 of stat, 12 and 13 after the name.
-      val ticks = (fields.getOrNull(11)?.toLongOrNull() ?: return 0) + (fields.getOrNull(12)?.toLongOrNull() ?: return 0)
+      val ticks =
+        (fields.getOrNull(11)?.toLongOrNull() ?: return 0) + (fields.getOrNull(12)?.toLongOrNull() ?: return 0)
       return (ticks * 1000 / TICKS_PER_SECOND).toLong()
     }
     return 0

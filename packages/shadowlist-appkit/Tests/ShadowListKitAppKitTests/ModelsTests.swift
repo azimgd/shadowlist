@@ -8,7 +8,9 @@ import XCTest
 final class ModelsTests: XCTestCase {
   func testSwipeActionColorFollowsItsStyle() {
     let normal = ShadowListKitSwipeAction(style: .normal, title: "Flag") { _, completion in completion(true) }
-    let destructive = ShadowListKitSwipeAction(style: .destructive, title: "Delete") { _, completion in completion(true) }
+    let destructive = ShadowListKitSwipeAction(style: .destructive, title: "Delete") { _, completion in
+      completion(true)
+    }
     XCTAssertEqual(normal.backgroundColor, NSColor.systemGray)
     XCTAssertEqual(destructive.backgroundColor, NSColor.systemRed)
     destructive.backgroundColor = .systemBlue

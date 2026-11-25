@@ -33,7 +33,7 @@
 RCT_EXPORT_MODULE()
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
-    (const facebook::react::ObjCTurboModule::InitParams&)params
+  (const facebook::react::ObjCTurboModule::InitParams&)params
 {
   return std::make_shared<facebook::react::NativeShadowListKeyboardSpecJSI>(params);
 }
@@ -52,9 +52,7 @@ RCT_EXPORT_MODULE()
   if ([NSThread isMainThread]) {
     [self applyEnabled:enabled];
   } else {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self applyEnabled:enabled];
-    });
+    dispatch_async(dispatch_get_main_queue(), ^{ [self applyEnabled:enabled]; });
   }
 }
 
@@ -84,10 +82,7 @@ RCT_EXPORT_MODULE()
                selector:@selector(keyboardWillChangeFrame:)
                    name:UIKeyboardWillChangeFrameNotification
                  object:nil];
-    [center addObserver:self
-               selector:@selector(keyboardWillHide:)
-                   name:UIKeyboardWillHideNotification
-                 object:nil];
+    [center addObserver:self selector:@selector(keyboardWillHide:) name:UIKeyboardWillHideNotification object:nil];
   } else {
     [center removeObserver:self];
     [self stopDisplayLink];
@@ -223,7 +218,7 @@ RCT_EXPORT_MODULE()
 {
   _currentHeight = height;
   CGFloat progress = _targetHeight > 0 ? MIN(1.0, MAX(0.0, height / _targetHeight)) : 0.0;
-  [self emitOnKeyboardMove:@{ @"height" : @(height), @"progress" : @(progress) }];
+  [self emitOnKeyboardMove:@{@"height" : @(height), @"progress" : @(progress)}];
 }
 #endif // !TARGET_OS_OSX
 

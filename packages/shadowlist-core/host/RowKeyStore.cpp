@@ -106,7 +106,8 @@ bool RowKeyStore::publish(std::shared_ptr<RowKeysSnapshot> snapshot) {
   return true;
 }
 
-std::shared_ptr<const RowKeysSnapshot> RowKeyStore::baseOf(std::uint64_t baseVersion, RowKeysSnapshot::Kind kind) const {
+std::shared_ptr<const RowKeysSnapshot>
+RowKeyStore::baseOf(std::uint64_t baseVersion, RowKeysSnapshot::Kind kind) const {
   auto base = keys_.find(baseVersion);
   return base && base->kind_ == kind ? base : nullptr;
 }
@@ -171,8 +172,9 @@ bool RowKeyStore::setSections(std::uint64_t version, std::uint64_t baseVersion, 
     std::size_t from = update.reuse[section];
     std::size_t rows = sections.rowCountInSection(section);
     if (from != UNDEFINED_INDEX) {
-      if (!base || base->qualifiedItems_ != update.qualifyItems || from >= base->sections_.getSectionCount() ||
-          base->sections_.rowCountInSection(from) != rows || base->sectionKeys_[from] != update.sectionKeys[section]) {
+      if (
+        !base || base->qualifiedItems_ != update.qualifyItems || from >= base->sections_.getSectionCount() ||
+        base->sections_.rowCountInSection(from) != rows || base->sectionKeys_[from] != update.sectionKeys[section]) {
         return false;
       }
       keys.append(base->sections_.rowStartOfSection(from), rows);

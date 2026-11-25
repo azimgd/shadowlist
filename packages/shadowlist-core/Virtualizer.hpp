@@ -46,9 +46,7 @@ struct FrameInput {
   std::vector<std::string> keys;
   std::optional<KeyList> keysRef;
 
-  KeyList getKeyList() const {
-    return keysRef ? *keysRef : KeyList(keys);
-  }
+  KeyList getKeyList() const { return keysRef ? *keysRef : KeyList(keys); }
 
   /*
    * Set only when these are provably the same key list the last update used, the very same
@@ -89,9 +87,7 @@ struct FrameInput {
   const std::vector<std::size_t>* rowSpansRef = nullptr;
   bool rowSpansUnchanged = false;
 
-  const std::vector<std::size_t>& getRowSpanList() const {
-    return rowSpansRef ? *rowSpansRef : rowSpans;
-  }
+  const std::vector<std::size_t>& getRowSpanList() const { return rowSpansRef ? *rowSpansRef : rowSpans; }
 
   /*
    * Extra rows past the viewport, in viewport sizes. 1 means one screen on each side.
@@ -234,10 +230,7 @@ public:
    * Match the rows to a new key list. Existing rows keep their sizes, new keys get new rows.
    * Returns how many previous rows survived, zero when the whole dataset was swapped.
    */
-  static std::size_t reconcileRows(
-    Container& container,
-    const KeyList& nextKeys,
-    KeyEdit edit = {});
+  static std::size_t reconcileRows(Container& container, const KeyList& nextKeys, KeyEdit edit = {});
 
   /*
    * Set a row's measured size and move the rows after it. Same as applyRowSize then
@@ -289,10 +282,8 @@ public:
    */
   static void applyWindowSizeChange(Container& container, double previousWindowSize);
 
-  static void recomputeRowOffsets(
-    Container& container,
-    std::size_t fromIndex,
-    std::size_t changedThroughIndex = UNDEFINED_INDEX);
+  static void
+  recomputeRowOffsets(Container& container, std::size_t fromIndex, std::size_t changedThroughIndex = UNDEFINED_INDEX);
 
 private:
   /*
@@ -304,20 +295,14 @@ private:
   /*
    * Let a gesture cancel or move the running correction. Returns true when the user took over.
    */
-  static bool applyGestureState(
-    Container& container,
-    const FrameInput& input,
-    double inputOffset,
-    bool coreOffsetWrite);
+  static bool
+  applyGestureState(Container& container, const FrameInput& input, double inputOffset, bool coreOffsetWrite);
 
   /*
    * Pin or release the inverted list's bottom. Returns true when it rests at the bottom.
    */
-  static bool applyInvertedBottomPin(
-    Container& container,
-    const FrameInput& input,
-    double inputOffset,
-    bool gestureTakeover);
+  static bool
+  applyInvertedBottomPin(Container& container, const FrameInput& input, double inputOffset, bool gestureTakeover);
 
   /*
    * Match the rows to the frame's keys when they changed. Moves the anchor to a fallback row

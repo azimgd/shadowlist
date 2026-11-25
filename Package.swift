@@ -18,7 +18,7 @@ let package = Package(
   products: [
     .library(name: "ShadowListKit", targets: ["ShadowListKit"]),
     .library(name: "ShadowListKitAppKit", targets: ["ShadowListKitAppKit"]),
-    .library(name: "ShadowListCore", targets: ["ShadowListCore"]),
+    .library(name: "ShadowListCore", targets: ["ShadowListCore"])
   ],
   targets: [
     .target(
@@ -42,7 +42,7 @@ let package = Package(
       cxxSettings: [
         .headerSearchPath("../../..")
       ]
-    ),
+    )
   ],
   cxxLanguageStandard: .cxx20
 )

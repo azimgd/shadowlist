@@ -35,8 +35,8 @@ using namespace slt;
  */
 TEST(fuzz_idle_data_changes_hold_the_first_visible_row) {
   const FuzzKinds kinds = {
-    {"prepend", "append", "insert", "delete", "refresh", "insert in view", "scroll",
-      "core maintain anchor", "core shrink clamp"},
+    {"prepend", "append", "insert", "delete", "refresh", "insert in view", "scroll", "core maintain anchor",
+     "core shrink clamp"},
     {},
   };
   forEachFuzzSeed(__func__, 300, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -61,13 +61,13 @@ TEST(fuzz_idle_data_changes_hold_the_first_visible_row) {
       } else if (roll < 55) {
         episode.reach("insert");
         std::size_t at = pickSize(host.rng, 0, size);
-        changeAndHold(host, withInsert(host, at, count), "insert " + std::to_string(count) + " at " +
-          std::to_string(at));
+        changeAndHold(
+          host, withInsert(host, at, count), "insert " + std::to_string(count) + " at " + std::to_string(at));
       } else if (roll < 70) {
         episode.reach("delete");
         std::size_t at = pickSize(host.rng, 0, size - 1);
-        changeAndHold(host, withRemove(host, at, count), "remove " + std::to_string(count) + " at " +
-          std::to_string(at));
+        changeAndHold(
+          host, withRemove(host, at, count), "remove " + std::to_string(count) + " at " + std::to_string(at));
       } else if (roll < 80 && visLow != UNDEFINED_INDEX) {
         episode.reach("refresh");
         // Remove the row at the top of the screen along with a prepend, like a refresh.
@@ -98,8 +98,8 @@ TEST(fuzz_idle_data_changes_hold_the_first_visible_row) {
  */
 TEST(fuzz_inverted_history_and_incoming_hold_the_reader) {
   const FuzzKinds kinds = {
-    {"history", "incoming", "delete", "scroll", "scroll to end",
-      "core maintain anchor", "core scroll to end", "core bottom pin"},
+    {"history", "incoming", "delete", "scroll", "scroll to end", "core maintain anchor", "core scroll to end",
+     "core bottom pin"},
     {},
   };
   forEachFuzzSeed(__func__, 300, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -109,7 +109,8 @@ TEST(fuzz_inverted_history_and_incoming_hold_the_reader) {
     host.header = chance(host.rng, 60) ? 0.0 : 48.0;
     open(host, pickSize(host.rng, 15, 54));
     if (std::fabs(host.hostOffset - host.maxOffset()) > FUZZ_TOLERANCE) {
-      host.failWith("inverted list did not open at the bottom: off=" + std::to_string(host.hostOffset) +
+      host.failWith(
+        "inverted list did not open at the bottom: off=" + std::to_string(host.hostOffset) +
         " max=" + std::to_string(host.maxOffset()));
     }
 
@@ -147,8 +148,7 @@ TEST(fuzz_inverted_history_and_incoming_hold_the_reader) {
  */
 TEST(fuzz_header_and_footer_changes_keep_the_rows) {
   const FuzzKinds kinds = {
-    {"scroll", "footer", "header",
-      "core shrink clamp"},
+    {"scroll", "footer", "header", "core shrink clamp"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -173,7 +173,8 @@ TEST(fuzz_header_and_footer_changes_keep_the_rows) {
       } else {
         episode.reach("header");
         host.header = pickPercent(host.rng) * 2.0;
-        host.note("header " + std::to_string(previousHeader) + " -> " + std::to_string(host.header) +
+        host.note(
+          "header " + std::to_string(previousHeader) + " -> " + std::to_string(host.header) +
           " off=" + std::to_string(host.hostOffset));
       }
       // The header changes in a layout pass with no data change. Run just that and settle.
@@ -192,8 +193,9 @@ TEST(fuzz_header_and_footer_changes_keep_the_rows) {
       double expected = footerChange || headerOffScreen ? row.screen : row.screen + delta;
       bool clamped = isHoldClamped(host, row.key, expected);
       if (std::fabs(after - expected) > FUZZ_TOLERANCE && !clamped) {
-        host.failWith("row " + row.key + " at " + std::to_string(after) + " expected " + std::to_string(expected) +
-          " (host " + std::to_string(host.hostOffset) + ")");
+        host.failWith(
+          "row " + row.key + " at " + std::to_string(after) + " expected " + std::to_string(expected) + " (host " +
+          std::to_string(host.hostOffset) + ")");
       }
     }
   });
@@ -204,8 +206,8 @@ TEST(fuzz_header_and_footer_changes_keep_the_rows) {
  */
 TEST(fuzz_scroll_commands_land_and_settle) {
   const FuzzKinds kinds = {
-    {"command to row", "command to end", "command to start", "prepend", "append",
-      "core maintain anchor", "core scroll to key", "core scroll to start", "core scroll to end", "core bottom pin"},
+    {"command to row", "command to end", "command to start", "prepend", "append", "core maintain anchor",
+     "core scroll to key", "core scroll to start", "core scroll to end", "core bottom pin"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -229,8 +231,8 @@ TEST(fuzz_scroll_commands_land_and_settle) {
         checkFrame(host, true);
         double wanted = landingOf(host, key, viewPosition);
         if (std::fabs(host.hostOffset - wanted) > FUZZ_TOLERANCE) {
-          host.failWith("scrollToRow landed at " + std::to_string(host.hostOffset) + " wanted " +
-            std::to_string(wanted));
+          host.failWith(
+            "scrollToRow landed at " + std::to_string(host.hostOffset) + " wanted " + std::to_string(wanted));
         }
       } else if (roll < 55) {
         episode.reach("command to end");
@@ -257,8 +259,7 @@ TEST(fuzz_scroll_commands_land_and_settle) {
  */
 TEST(fuzz_dataset_swaps_and_shrinks_stay_in_range) {
   const FuzzKinds kinds = {
-    {"scroll", "shrink", "swap", "refill", "append",
-      "core bottom pin", "core shrink clamp"},
+    {"scroll", "shrink", "swap", "refill", "append", "core bottom pin", "core shrink clamp"},
     {"core maintain anchor"},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -274,8 +275,8 @@ TEST(fuzz_dataset_swaps_and_shrinks_stay_in_range) {
       } else if (roll < 55) {
         episode.reach("shrink");
         std::size_t keep = pickSize(host.rng, 0, 5);
-        std::vector<std::string> next(host.keys.begin(), host.keys.begin() + static_cast<std::ptrdiff_t>(std::min(keep,
-          host.keys.size())));
+        std::vector<std::string> next(
+          host.keys.begin(), host.keys.begin() + static_cast<std::ptrdiff_t>(std::min(keep, host.keys.size())));
         host.keys = next;
         host.note("shrink to " + std::to_string(keep) + " off=" + std::to_string(host.hostOffset));
         host.commit(false);
@@ -285,7 +286,8 @@ TEST(fuzz_dataset_swaps_and_shrinks_stay_in_range) {
         }
         checkFrame(host, true);
         if (host.hostOffset > host.maxOffset() + FUZZ_TOLERANCE) {
-          host.failWith("rests past the end after shrink: off=" + std::to_string(host.hostOffset) +
+          host.failWith(
+            "rests past the end after shrink: off=" + std::to_string(host.hostOffset) +
             " max=" + std::to_string(host.maxOffset()));
         }
       } else if (roll < 80) {
@@ -303,7 +305,8 @@ TEST(fuzz_dataset_swaps_and_shrinks_stay_in_range) {
           host.failWith("rests past the end after swap: off=" + std::to_string(host.hostOffset));
         }
         if (host.inverted && host.hostOffset < host.maxOffset() - FUZZ_TOLERANCE) {
-          host.failWith("inverted swap did not rest at the bottom: off=" + std::to_string(host.hostOffset) +
+          host.failWith(
+            "inverted swap did not rest at the bottom: off=" + std::to_string(host.hostOffset) +
             " max=" + std::to_string(host.maxOffset()));
         }
       } else {
@@ -332,8 +335,7 @@ TEST(fuzz_dataset_swaps_and_shrinks_stay_in_range) {
  */
 TEST(fuzz_changes_during_gestures_follow_the_finger) {
   const FuzzKinds kinds = {
-    {"prepend", "append", "insert",
-      "core maintain anchor", "core bottom pin"},
+    {"prepend", "append", "insert", "core maintain anchor", "core bottom pin"},
     {"core shrink clamp"},
   };
   forEachFuzzSeed(__func__, 300, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -379,8 +381,8 @@ TEST(fuzz_changes_during_gestures_follow_the_finger) {
             host.keys = withInsert(host, at, count);
             what = "insert " + std::to_string(count) + " at " + std::to_string(at);
           }
-          host.note(what + " mid gesture at off=" + std::to_string(host.hostOffset) + " travel=" +
-            std::to_string(travel));
+          host.note(
+            what + " mid gesture at off=" + std::to_string(host.hostOffset) + " travel=" + std::to_string(travel));
           changed = true;
         } else {
           host.note("gesture frame off=" + std::to_string(host.hostOffset));
@@ -415,10 +417,10 @@ TEST(fuzz_changes_during_gestures_follow_the_finger) {
         if (isHoldClamped(host, row.key, expected)) {
           break;
         }
-        host.failWith(what + ": row " + row.key + " at " + std::to_string(after) + " expected " +
-          std::to_string(expected) + " (travel " + std::to_string(travel) + ", host " +
-            std::to_string(host.hostOffset) +
-          ", max " + std::to_string(host.maxOffset()) + ")");
+        host.failWith(
+          what + ": row " + row.key + " at " + std::to_string(after) + " expected " + std::to_string(expected) +
+          " (travel " + std::to_string(travel) + ", host " + std::to_string(host.hostOffset) + ", max " +
+          std::to_string(host.maxOffset()) + ")");
       }
     }
   });
@@ -430,8 +432,8 @@ TEST(fuzz_changes_during_gestures_follow_the_finger) {
  */
 TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
   const FuzzKinds kinds = {
-    {"prepend with pills", "append with pills", "drop pills", "scroll",
-      "core maintain anchor", "core bottom pin", "core shrink clamp"},
+    {"prepend with pills", "append with pills", "drop pills", "scroll", "core maintain anchor", "core bottom pin",
+     "core shrink clamp"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -521,8 +523,9 @@ TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
       }
       checkFrame(host, true);
       const std::string& anchorKey = host.container.state.anchor.key;
-      if (host.container.isAnchorable(anchorKey) == false && !anchorKey.empty() &&
-          host.container.state.anchor.key.rfind("pill", 0) == 0) {
+      if (
+        host.container.isAnchorable(anchorKey) == false && !anchorKey.empty() &&
+        host.container.state.anchor.key.rfind("pill", 0) == 0) {
         // Only allowed when nothing else is on screen.
         bool contentVisible = false;
         for (const ScreenRow& row : visibleRows(host)) {
@@ -551,8 +554,9 @@ TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
         if (host.inverted && std::fabs(host.hostOffset - host.maxOffset()) <= FUZZ_TOLERANCE) {
           break;
         }
-        host.failWith(what + ": content row " + row.key + " moved from " + std::to_string(row.screen) +
-          " to " + std::to_string(after));
+        host.failWith(
+          what + ": content row " + row.key + " moved from " + std::to_string(row.screen) + " to " +
+          std::to_string(after));
       }
     }
   });
@@ -565,8 +569,7 @@ TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
  */
 TEST(fuzz_window_resizes_keep_the_reader) {
   const FuzzKinds kinds = {
-    {"scroll", "append", "resize",
-      "core bottom pin", "core shrink clamp"},
+    {"scroll", "append", "resize", "core bottom pin", "core shrink clamp"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -588,14 +591,15 @@ TEST(fuzz_window_resizes_keep_the_reader) {
       }
       double previousWindow = host.windowSize;
       bool atBottom = host.inverted && host.hostOffset >= host.maxOffset() - INVERTED_FOLLOW_BAND &&
-        !host.container.state.invertedBottomReleased;
+                      !host.container.state.invertedBottomReleased;
       ScreenRow row = firstVisibleRow(host);
       host.windowSize = chance(host.rng, 50) ? WINDOW_HEIGHT : WINDOW_HEIGHT - 300.0 - pickPercent(host.rng);
       if (host.windowSize == previousWindow) {
         continue;
       }
       episode.reach("resize");
-      host.note("window " + std::to_string(previousWindow) + " -> " + std::to_string(host.windowSize) +
+      host.note(
+        "window " + std::to_string(previousWindow) + " -> " + std::to_string(host.windowSize) +
         " off=" + std::to_string(host.hostOffset) + (atBottom ? " at bottom" : ""));
       // The resize comes through the layout pass, like the Fabric host.
       host.commit(false);
@@ -605,12 +609,14 @@ TEST(fuzz_window_resizes_keep_the_reader) {
       }
       checkFrame(host, true);
       if (host.hostOffset > host.maxOffset() + FUZZ_TOLERANCE) {
-        host.failWith("rests past the end after a resize: off=" + std::to_string(host.hostOffset) +
+        host.failWith(
+          "rests past the end after a resize: off=" + std::to_string(host.hostOffset) +
           " max=" + std::to_string(host.maxOffset()));
       }
       if (atBottom) {
         if (std::fabs(host.hostOffset - host.maxOffset()) > FUZZ_TOLERANCE) {
-          host.failWith("inverted list left the bottom on a resize: off=" + std::to_string(host.hostOffset) +
+          host.failWith(
+            "inverted list left the bottom on a resize: off=" + std::to_string(host.hostOffset) +
             " max=" + std::to_string(host.maxOffset()));
         }
         continue;
@@ -625,7 +631,8 @@ TEST(fuzz_window_resizes_keep_the_reader) {
       if (isHoldClamped(host, row.key, row.screen)) {
         continue;
       }
-      host.failWith("row " + row.key + " moved from " + std::to_string(row.screen) + " to " + std::to_string(after) +
+      host.failWith(
+        "row " + row.key + " moved from " + std::to_string(row.screen) + " to " + std::to_string(after) +
         " on a resize (host " + std::to_string(host.hostOffset) + ")");
     }
   });
@@ -638,8 +645,8 @@ TEST(fuzz_window_resizes_keep_the_reader) {
  */
 TEST(fuzz_predicted_sizes_never_move_the_reader) {
   const FuzzKinds kinds = {
-    {"scroll", "predicted prepend", "predict", "invalidate", "append",
-      "core maintain anchor", "core bottom pin", "core shrink clamp"},
+    {"scroll", "predicted prepend", "predict", "invalidate", "append", "core maintain anchor", "core bottom pin",
+     "core shrink clamp"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -676,8 +683,8 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
           if (placed.measured || chance(host.rng, 50)) {
             continue;
           }
-          Virtualizer::applyPredictedRowSize(host.container, placed.key, {WINDOW_WIDTH, host.trueSizes[placed.key] +
-            10.0});
+          Virtualizer::applyPredictedRowSize(
+            host.container, placed.key, {WINDOW_WIDTH, host.trueSizes[placed.key] + 10.0});
         }
         host.note("predict unmeasured rows off=" + std::to_string(host.hostOffset));
         host.commit(false);
@@ -690,7 +697,8 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
           bool clamped = isHoldClamped(host, row.key, row.screen);
           bool bottomHeld = host.inverted && std::fabs(host.hostOffset - host.maxOffset()) <= FUZZ_TOLERANCE;
           if (!std::isnan(after) && std::fabs(after - row.screen) > FUZZ_TOLERANCE && !clamped && !bottomHeld) {
-            host.failWith("predictions moved row " + row.key + " from " + std::to_string(row.screen) + " to " +
+            host.failWith(
+              "predictions moved row " + row.key + " from " + std::to_string(row.screen) + " to " +
               std::to_string(after));
           }
         }
@@ -716,7 +724,8 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
           bool clamped = isHoldClamped(host, row.key, row.screen);
           bool bottomHeld = host.inverted && std::fabs(host.hostOffset - host.maxOffset()) <= FUZZ_TOLERANCE;
           if (!std::isnan(after) && std::fabs(after - row.screen) > FUZZ_TOLERANCE && !clamped && !bottomHeld) {
-            host.failWith("invalidation moved row " + row.key + " from " + std::to_string(row.screen) + " to " +
+            host.failWith(
+              "invalidation moved row " + row.key + " from " + std::to_string(row.screen) + " to " +
               std::to_string(after));
           }
         }
@@ -741,8 +750,7 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
  */
 TEST(fuzz_flings_never_blank_or_jump) {
   const FuzzKinds kinds = {
-    {"fling forward", "fling back",
-      "core bottom pin"},
+    {"fling forward", "fling back", "core bottom pin"},
     {"core shrink clamp"},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -786,13 +794,14 @@ TEST(fuzz_flings_never_blank_or_jump) {
         if (!coverage.empty()) {
           host.failWith("blank during fling after mount: " + coverage);
         }
-        bool atEdge = host.hostOffset <= FUZZ_TOLERANCE ||
-          std::fabs(host.hostOffset - host.maxOffset()) <= FUZZ_TOLERANCE;
+        bool atEdge =
+          host.hostOffset <= FUZZ_TOLERANCE || std::fabs(host.hostOffset - host.maxOffset()) <= FUZZ_TOLERANCE;
         if (!held.key.empty() && !clamped && !atEdge) {
           double after = screenOf(host, held.key);
           if (std::fabs(after - held.screen) > FUZZ_TOLERANCE) {
-            host.failWith("row " + held.key + " jumped from " + std::to_string(held.screen) + " to " +
-              std::to_string(after) + " mid fling");
+            host.failWith(
+              "row " + held.key + " jumped from " + std::to_string(held.screen) + " to " + std::to_string(after) +
+              " mid fling");
           }
         }
         if (clamped) {
@@ -820,7 +829,7 @@ TEST(fuzz_flings_never_blank_or_jump) {
 TEST(fuzz_lists_grow_from_small_and_shrink_back) {
   const FuzzKinds kinds = {
     {"scroll to end", "load next page", "scroll to start", "load previous page", "append", "shrink", "grow",
-      "core maintain anchor", "core scroll to end", "core bottom pin", "core shrink clamp"},
+     "core maintain anchor", "core scroll to end", "core bottom pin", "core shrink clamp"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -874,7 +883,8 @@ TEST(fuzz_lists_grow_from_small_and_shrink_back) {
 
     auto checkRange = [&](const std::string& what) {
       if (host.hostOffset < -FUZZ_TOLERANCE || host.hostOffset > host.maxOffset() + FUZZ_TOLERANCE) {
-        host.failWith(what + ": rests outside the range off=" + std::to_string(host.hostOffset) +
+        host.failWith(
+          what + ": rests outside the range off=" + std::to_string(host.hostOffset) +
           " max=" + std::to_string(host.maxOffset()));
       }
       if (host.maxOffset() <= 0.0 && std::fabs(host.hostOffset) > FUZZ_TOLERANCE) {
@@ -928,11 +938,12 @@ TEST(fuzz_lists_grow_from_small_and_shrink_back) {
         std::size_t keep = pickSize(host.rng, 0, 3);
         keep = std::min(keep, host.keys.size());
         bool fromStart = chance(host.rng, 50);
-        std::vector<std::string> next = fromStart
-          ? std::vector<std::string>(host.keys.begin(), host.keys.begin() + static_cast<std::ptrdiff_t>(keep))
-          : std::vector<std::string>(host.keys.end() - static_cast<std::ptrdiff_t>(keep), host.keys.end());
+        std::vector<std::string> next =
+          fromStart ? std::vector<std::string>(host.keys.begin(), host.keys.begin() + static_cast<std::ptrdiff_t>(keep))
+                    : std::vector<std::string>(host.keys.end() - static_cast<std::ptrdiff_t>(keep), host.keys.end());
         host.keys = next;
-        host.note(std::string("shrink to ") + std::to_string(keep) + (fromStart ? " from start" : " from end") +
+        host.note(
+          std::string("shrink to ") + std::to_string(keep) + (fromStart ? " from start" : " from end") +
           " off=" + std::to_string(host.hostOffset));
         host.commit(false);
         checkFrame(host);
@@ -961,8 +972,7 @@ TEST(fuzz_lists_grow_from_small_and_shrink_back) {
  */
 TEST(fuzz_inverted_header_and_footer_changes_keep_the_reader) {
   const FuzzKinds kinds = {
-    {"scroll", "footer", "header",
-      "core bottom pin"},
+    {"scroll", "footer", "header", "core bottom pin"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -1008,7 +1018,8 @@ TEST(fuzz_inverted_header_and_footer_changes_keep_the_reader) {
        */
       if (openingPin || (atBottom && !row.key.empty() && row.key == host.keys.back())) {
         if (std::fabs(host.hostOffset - host.maxOffset()) > FUZZ_TOLERANCE) {
-          host.failWith("left the opening bottom: off=" + std::to_string(host.hostOffset) +
+          host.failWith(
+            "left the opening bottom: off=" + std::to_string(host.hostOffset) +
             " max=" + std::to_string(host.maxOffset()));
         }
         continue;

@@ -122,10 +122,7 @@ struct SectionOverlayPosition {
  * Where the section header overlay goes, given the section headers' offsets and sizes in order.
  * The active header is the last at or above the top, and the next one pushes it up.
  */
-SectionOverlayPosition sectionOverlayPosition(
-  const double* offsets,
-  const double* sizes,
-  std::size_t count,
-  double offset);
+SectionOverlayPosition
+sectionOverlayPosition(const double* offsets, const double* sizes, std::size_t count, double offset);
 
 }

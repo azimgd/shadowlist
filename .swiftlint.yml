@@ -1,0 +1,25 @@
+# Swift lint for the kits' tests, benches and package manifests. swiftformat owns layout, so the
+# layout rules it already enforces are off here.
+excluded:
+  - '**/.build'
+  - '**/build'
+  - '**/node_modules'
+  - '**/DerivedData'
+disabled_rules:
+  - trailing_comma
+  - opening_brace
+  - statement_position
+  # All Swift here is test code: long test classes, casts of known cells and the UIKit-style
+  # performBatchUpdates(_:completion:) call shape are expected.
+  - file_length
+  - type_body_length
+  - force_cast
+  - multiple_closures_with_trailing_closure
+identifier_name:
+  excluded: [x, y, up, at, id]
+large_tuple:
+  warning: 3
+line_length:
+  warning: 120
+  ignores_comments: true
+  ignores_urls: true
