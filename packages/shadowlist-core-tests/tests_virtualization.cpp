@@ -109,7 +109,7 @@ TEST(measured_range_keeps_row_straddling_the_lower_bound) {
   Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   std::vector<double> heights(keys.size(), 100.0);
-  heights[10] = 5000.0;  // one row far taller than the screen
+  heights[10] = 5000.0; // one row far taller than the screen
   measureRows(container, heights);
 
   // Scroll into the middle of the very tall row.
@@ -291,8 +291,7 @@ TEST(key_index_map_matches_the_row_list_after_every_mutation) {
       std::size_t found = container.indexOfKey(key);
       // A duplicate key resolves to its first occurrence. Only that direction is checked.
       if (found > index) {
-        fail(context + ": key '" + key + "' at " + std::to_string(index) +
-          " resolves to " + std::to_string(found));
+        fail(context + ": key '" + key + "' at " + std::to_string(index) + " resolves to " + std::to_string(found));
       }
       CHECK_EQ(container.revision.rows[found].key, key);
     }

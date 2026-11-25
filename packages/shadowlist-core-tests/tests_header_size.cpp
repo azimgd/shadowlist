@@ -41,9 +41,9 @@ constexpr double OLDER_ROW_HEIGHT = 174.0;
  * How a layout pass treats the rows of a loaded page.
  */
 enum class OlderRows {
-  AtEstimate,  // Sized like every other row, at the estimate
-  Unmounted,   // Not mounted yet. The core gets no size for them
-  Mounting,    // Mounting in this pass, sized to zero first and then to their real size
+  AtEstimate, // Sized like every other row, at the estimate
+  Unmounted, // Not mounted yet. The core gets no size for them
+  Mounting, // Mounting in this pass, sized to zero first and then to their real size
 };
 
 bool isOlder(const Row& row) {

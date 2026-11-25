@@ -62,22 +62,18 @@ StickySpans stickySpans(const StickyInput& input) {
   return spans;
 }
 
-SectionOverlayPosition sectionOverlayPosition(
-  const double* offsets,
-  const double* sizes,
-  std::size_t count,
-  double offset) {
+SectionOverlayPosition
+sectionOverlayPosition(const double* offsets, const double* sizes, std::size_t count, double offset) {
   SectionOverlayPosition result;
   offset = std::max(offset, 0.0);
-  std::size_t active =
-    pinnedSectionIndex(count, offset, [offsets](std::size_t position) { return offsets[position]; });
+  std::size_t active = pinnedSectionIndex(count, offset, [offsets](std::size_t position) { return offsets[position]; });
   if (active == UNDEFINED_INDEX) {
     return result;
   }
   std::size_t next = active + 1;
   result.visible = true;
-  result.translation = pinnedSectionLeading(offsets[active], sizes[active], offset, next < count,
-    next < count ? offsets[next] : 0.0);
+  result.translation =
+    pinnedSectionLeading(offsets[active], sizes[active], offset, next < count, next < count ? offsets[next] : 0.0);
   return result;
 }
 

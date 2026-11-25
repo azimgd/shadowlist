@@ -35,8 +35,7 @@ bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& upda
   if (!update.changed) {
     return false;
   }
-  bool continuesCorrection =
-    update.commitToken != 0 && state.commitToken == update.commitToken;
+  bool continuesCorrection = update.commitToken != 0 && state.commitToken == update.commitToken;
   if (!continuesCorrection) {
     state.baseX = state.offsetX;
     state.baseY = state.offsetY;

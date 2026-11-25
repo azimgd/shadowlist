@@ -135,11 +135,8 @@ public:
    * is the held row's center where it shows now in its home list, which is where the picture
    * starts on lift out.
    */
-  DragBoardFrame frame(
-    DragPoint finger,
-    DragPoint shownCenter,
-    const std::vector<std::string>& candidates,
-    double nowMs);
+  DragBoardFrame
+  frame(DragPoint finger, DragPoint shownCenter, const std::vector<std::string>& candidates, double nowMs);
 
   /*
    * After the row came back over its home list, the offset the host adds to the held row's
@@ -159,11 +156,8 @@ public:
    * with no target, no drop spot or no held key. A drop starts Landing, with getTargetId the
    * list it lands in. Every other release ends the flight.
    */
-  DragBoardRelease release(
-    std::size_t insertionIndex,
-    const std::string& insertionKey,
-    std::size_t rowCount,
-    double nowMs = 0.0);
+  DragBoardRelease
+  release(std::size_t insertionIndex, const std::string& insertionKey, std::size_t rowCount, double nowMs = 0.0);
 
   /*
    * While Landing, whether the row has landed in listId, whose current keys are keys. The

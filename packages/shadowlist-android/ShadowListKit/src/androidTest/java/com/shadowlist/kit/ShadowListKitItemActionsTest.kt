@@ -11,15 +11,24 @@ import androidx.core.view.ViewCompat
 import androidx.test.platform.app.InstrumentationRegistry
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ShadowListKitItemActionsTest {
   private fun attached(body: (ShadowListKitItemActionsView, Button) -> Unit) {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     instrumentation.uiAutomation
-    val activity = instrumentation.startActivitySync(Intent().setClassName(instrumentation.context.packageName,
-      ShadowListKitBoardTestActivity::class.java.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    val activity = instrumentation.startActivitySync(
+      Intent().setClassName(
+        instrumentation.context.packageName,
+        ShadowListKitBoardTestActivity::class.java.name
+      ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
     lateinit var actions: ShadowListKitItemActionsView
     lateinit var button: Button
     val focused = CountDownLatch(1)
@@ -46,12 +55,18 @@ class ShadowListKitItemActionsTest {
 
   private fun touch(view: ShadowListKitItemActionsView, action: Int, down: Long, x: Float, y: Float) {
     val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0)
-    try { view.dispatchTouchEvent(event) } finally { event.recycle() }
+    try {
+      view.dispatchTouchEvent(event)
+    } finally {
+      event.recycle()
+    }
   }
 
   @Test fun reveal_owns_only_its_surface_and_cancel_preserves_caller_state() = attached { view, button ->
     InstrumentationRegistry.getInstrumentation().runOnMainSync {
-      button.translationX = 7f; button.rotation = 3f; button.alpha = 0.8f
+      button.translationX = 7f
+      button.rotation = 3f
+      button.alpha = 0.8f
       val action = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") { _, done -> done(true) }
       view.leadingSwipeActions = ShadowListKitSwipeActionsConfiguration(listOf(action))
       val down = SystemClock.uptimeMillis()
@@ -59,27 +74,47 @@ class ShadowListKitItemActionsTest {
       touch(view, MotionEvent.ACTION_MOVE, down, 170f, 50f)
       assertTrue(view.cell.translationX > 0)
       assertEquals(ShadowListKitListCell.NO_INDEX, view.cell.index)
-      assertEquals(7f, button.translationX); assertEquals(3f, button.rotation); assertEquals(0.8f, button.alpha)
+      assertEquals(7f, button.translationX)
+      assertEquals(3f, button.rotation)
+      assertEquals(0.8f, button.alpha)
       touch(view, MotionEvent.ACTION_CANCEL, down, 170f, 50f)
       view.closeSwipeActions(false)
       assertEquals(0f, view.cell.translationX)
-      assertEquals(7f, button.translationX); assertEquals(3f, button.rotation); assertEquals(0.8f, button.alpha)
+      assertEquals(7f, button.translationX)
+      assertEquals(3f, button.rotation)
+      assertEquals(0.8f, button.alpha)
     }
   }
 
-  @Test fun native_accessibility_actions_preserve_caller_entries_and_read_current_configuration() = attached { view, _ ->
+  @Test fun native_accessibility_actions_preserve_caller_entries_and_read_current_configuration() = attached {
+      view,
+      _
+    ->
     InstrumentationRegistry.getInstrumentation().runOnMainSync {
       var caller = 0
       var archived = 0
-      val callerId = ViewCompat.addAccessibilityAction(view, "Inspect") { _, _ -> caller++; true }
-      view.trailingSwipeActions = ShadowListKitSwipeActionsConfiguration(listOf(
-        ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") { _, done -> archived++; done(true) }))
+      val callerId = ViewCompat.addAccessibilityAction(view, "Inspect") { _, _ ->
+        caller++
+        true
+      }
+      view.trailingSwipeActions = ShadowListKitSwipeActionsConfiguration(
+        listOf(
+          ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") {
+              _,
+              done
+            ->
+            archived++
+            done(true)
+          }
+        )
+      )
       val info = view.createAccessibilityNodeInfo()
       val archive = info.actionList.first { it.label == "Archive" }
       assertTrue(info.actionList.any { it.id == callerId && it.label == "Inspect" })
       assertTrue(view.performAccessibilityAction(archive.id, null))
       assertTrue(view.performAccessibilityAction(callerId, null))
-      assertEquals(1, archived); assertEquals(1, caller)
+      assertEquals(1, archived)
+      assertEquals(1, caller)
       info.recycle()
       view.trailingSwipeActions = null
       assertFalse(view.performAccessibilityAction(archive.id, null))
@@ -97,8 +132,17 @@ class ShadowListKitItemActionsTest {
         }
       }
       ViewCompat.addAccessibilityAction(button, "Inspect") { _, _ -> true }
-      view.trailingSwipeActions = ShadowListKitSwipeActionsConfiguration(listOf(
-        ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") { _, done -> archived++; done(true) }))
+      view.trailingSwipeActions = ShadowListKitSwipeActionsConfiguration(
+        listOf(
+          ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") {
+              _,
+              done
+            ->
+            archived++
+            done(true)
+          }
+        )
+      )
     }
     instrumentation.waitForIdleSync()
     instrumentation.uiAutomation.waitForIdle(100, 3000)
@@ -115,12 +159,20 @@ class ShadowListKitItemActionsTest {
       }
       for (index in 0 until node.childCount) {
         val child = node.getChild(index) ?: continue
-        try { visit(child) } finally { child.recycle() }
+        try {
+          visit(child)
+        } finally {
+          child.recycle()
+        }
       }
     }
     val root = instrumentation.uiAutomation.rootInActiveWindow
     assertNotNull(root)
-    try { visit(root) } finally { root.recycle() }
+    try {
+      visit(root)
+    } finally {
+      root.recycle()
+    }
     assertTrue("The actual native window must expose the content button", reached)
     val owner = requireNotNull(exposed)
     val archiveId = owner.actionList.first { it.label == "Archive" }.id
@@ -147,7 +199,10 @@ class ShadowListKitItemActionsTest {
     var down = 0L
     instrumentation.runOnMainSync {
       button.setOnClickListener { presses++ }
-      view.contextMenu = { menu -> menu.add("Inspect"); true }
+      view.contextMenu = { menu ->
+        menu.add("Inspect")
+        true
+      }
       view.onContextMenuWillShow = { shown.countDown() }
       down = SystemClock.uptimeMillis()
       touch(view, MotionEvent.ACTION_DOWN, down, 100f, 50f)
@@ -199,7 +254,10 @@ class ShadowListKitItemActionsTest {
       touch(view, MotionEvent.ACTION_DOWN, SystemClock.uptimeMillis(), 100f, 50f)
     }
     assertTrue(configured.await(3, TimeUnit.SECONDS))
-    instrumentation.runOnMainSync { assertEquals(0, willShow); assertNull(view.contextMenu) }
+    instrumentation.runOnMainSync {
+      assertEquals(0, willShow)
+      assertNull(view.contextMenu)
+    }
   }
 
   @Test fun will_show_cancellation_still_owns_the_primary_release() = attached { view, button ->
@@ -209,8 +267,14 @@ class ShadowListKitItemActionsTest {
     var down = 0L
     instrumentation.runOnMainSync {
       button.setOnClickListener { presses++ }
-      view.contextMenu = { menu -> menu.add("Inspect"); true }
-      view.onContextMenuWillShow = { view.contextMenu = null; attempted.countDown() }
+      view.contextMenu = { menu ->
+        menu.add("Inspect")
+        true
+      }
+      view.onContextMenuWillShow = {
+        view.contextMenu = null
+        attempted.countDown()
+      }
       down = SystemClock.uptimeMillis()
       touch(view, MotionEvent.ACTION_DOWN, down, 100f, 50f)
     }
@@ -236,22 +300,37 @@ class ShadowListKitItemActionsTest {
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
         ViewCompat.setScreenReaderFocusable(this, true)
       }
-      hidden = FrameLayout(view.context).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
+      hidden =
+        FrameLayout(view.context).apply {
+          importantForAccessibility =
+            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        }
       parent.addView(group, FrameLayout.LayoutParams(300, 100))
       group.addView(hidden, FrameLayout.LayoutParams(-1, -1))
       hidden.addView(view, FrameLayout.LayoutParams(-1, -1))
       ViewCompat.addAccessibilityAction(group, "Inspect group") { _, _ -> true }
-      configuration = ShadowListKitSwipeActionsConfiguration(listOf(
-        ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") { _, done -> performed++; done(true) }))
+      configuration = ShadowListKitSwipeActionsConfiguration(
+        listOf(
+          ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") {
+              _,
+              done
+            ->
+            performed++
+            done(true)
+          }
+        )
+      )
       view.trailingSwipeActions = configuration
     }
-    instrumentation.waitForIdleSync(); instrumentation.uiAutomation.waitForIdle(100, 3000)
+    instrumentation.waitForIdleSync()
+    instrumentation.uiAutomation.waitForIdle(100, 3000)
     val root = requireNotNull(instrumentation.uiAutomation.rootInActiveWindow)
     val groups = root.findAccessibilityNodeInfosByText("Reservations")
     val exposed = requireNotNull(groups.firstOrNull { it.contentDescription == "Reservations" })
     assertTrue(exposed.actionList.any { it.label == "Inspect group" })
     assertFalse(exposed.actionList.any { it.label == "Archive" })
-    groups.forEach { it.recycle() }; root.recycle()
+    groups.forEach { it.recycle() }
+    root.recycle()
     instrumentation.runOnMainSync {
       hidden.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
       view.trailingSwipeActions = configuration
@@ -263,7 +342,10 @@ class ShadowListKitItemActionsTest {
       assertFalse(group.performAccessibilityAction(archiveId, null))
       assertEquals(0, performed)
       view.requestLayout()
-      view.measure(View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY))
+      view.measure(
+        View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY)
+      )
       view.layout(0, 0, 300, 100)
       val removed = group.createAccessibilityNodeInfo()
       assertFalse(removed.actionList.any { it.label == "Archive" })

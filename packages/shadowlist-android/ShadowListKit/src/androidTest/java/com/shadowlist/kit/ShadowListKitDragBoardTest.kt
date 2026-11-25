@@ -21,10 +21,12 @@ class ShadowListKitBoardTestActivity : Activity()
 
 class ShadowListKitDragBoardTest {
   private class Rows(val keys: MutableList<String>) :
-    ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+    ShadowListKitListView.DataSource,
+    ShadowListKitListView.Sizing {
     override fun numberOfItems(listView: ShadowListKitListView): Int = keys.size
     override fun keyForItem(listView: ShadowListKitListView, index: Int): String = keys[index]
-    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell = listView.dequeueReusableCell("row")
+    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+      listView.dequeueReusableCell("row")
     override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = 100
   }
 
@@ -41,7 +43,10 @@ class ShadowListKitDragBoardTest {
     var outer: ShadowListKitListView? = null
 
     init {
-      for ((list, rows, key) in listOf(Triple(source, sourceRows, "source"), Triple(destination, destinationRows, "destination"))) {
+      for ((list, rows, key) in listOf(
+        Triple(source, sourceRows, "source"),
+        Triple(destination, destinationRows, "destination")
+      )) {
         list.registerCell("row") { ShadowListKitListCell(it, "row") }
         list.dataSource = rows
         list.reorderEnabled = true
@@ -50,8 +55,13 @@ class ShadowListKitDragBoardTest {
       }
       source.delegate = object : ShadowListKitListView.Delegate {
         override fun canMoveItem(listView: ShadowListKitListView, index: Int): Boolean = canMove
-        override fun moveItemToList(listView: ShadowListKitListView, sourceIndex: Int, destinationListId: String,
-          destinationIndex: Int, destinationKey: String) {
+        override fun moveItemToList(
+          listView: ShadowListKitListView,
+          sourceIndex: Int,
+          destinationListId: String,
+          destinationIndex: Int,
+          destinationKey: String
+        ) {
           ++requests
           assertEquals("destination", destinationListId)
           if (detach) {
@@ -72,22 +82,46 @@ class ShadowListKitDragBoardTest {
         val columns = listOf(source, destination)
         for ((index, list) in columns.withIndex()) {
           strip.registerCell("column$index") {
-            ShadowListKitListCell(it, "column$index").apply { addView(list, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)) }
+            ShadowListKitListCell(it, "column$index").apply {
+              addView(
+                list,
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+              )
+            }
           }
         }
         strip.dataSource = object : ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
           override fun numberOfItems(listView: ShadowListKitListView): Int = columns.size
           override fun keyForItem(listView: ShadowListKitListView, index: Int): String = "column$index"
-          override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell = listView.dequeueReusableCell("column$index")
-          override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = (activity.resources.displayMetrics.widthPixels * 0.6).toInt()
+          override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+            listView.dequeueReusableCell("column$index")
+          override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = (
+            activity.resources.displayMetrics.widthPixels *
+              0.6
+            ).toInt()
         }
-        root.addView(strip, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        root.addView(
+          strip,
+          FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        )
         strip.reloadData()
       } else {
-        root.addView(source, FrameLayout.LayoutParams(activity.resources.displayMetrics.widthPixels / 2, ViewGroup.LayoutParams.MATCH_PARENT))
-        root.addView(destination, FrameLayout.LayoutParams(activity.resources.displayMetrics.widthPixels / 2, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-          leftMargin = activity.resources.displayMetrics.widthPixels / 2
-        })
+        root.addView(
+          source,
+          FrameLayout.LayoutParams(
+            activity.resources.displayMetrics.widthPixels / 2,
+            ViewGroup.LayoutParams.MATCH_PARENT
+          )
+        )
+        root.addView(
+          destination,
+          FrameLayout.LayoutParams(
+            activity.resources.displayMetrics.widthPixels / 2,
+            ViewGroup.LayoutParams.MATCH_PARENT
+          ).apply {
+            leftMargin = activity.resources.displayMetrics.widthPixels / 2
+          }
+        )
       }
       activity.setContentView(root)
       source.reloadData()
@@ -102,8 +136,14 @@ class ShadowListKitDragBoardTest {
       val to = IntArray(2)
       source.getLocationOnScreen(from)
       destination.getLocationOnScreen(to)
-      val event = MotionEvent.obtain(SystemClock.uptimeMillis(), SystemClock.uptimeMillis(), MotionEvent.ACTION_MOVE,
-        to[0] - from[0] + destination.width / 2f, to[1] - from[1] + 20f, 0)
+      val event = MotionEvent.obtain(
+        SystemClock.uptimeMillis(),
+        SystemClock.uptimeMillis(),
+        MotionEvent.ACTION_MOVE,
+        to[0] - from[0] + destination.width / 2f,
+        to[1] - from[1] + 20f,
+        0
+      )
       try {
         source.drag.handle(event)
       } finally {
@@ -124,8 +164,12 @@ class ShadowListKitDragBoardTest {
   private fun withBoard(empty: Boolean = false, nested: Boolean = false, body: (Board) -> Unit) {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     val context = instrumentation.context
-    val activity = instrumentation.startActivitySync(Intent().setClassName(context.packageName,
-      ShadowListKitBoardTestActivity::class.java.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    val activity = instrumentation.startActivitySync(
+      Intent().setClassName(
+        context.packageName,
+        ShadowListKitBoardTestActivity::class.java.name
+      ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
     var board: Board? = null
     try {
       onMain { board = Board(activity, empty, nested) }
@@ -140,7 +184,11 @@ class ShadowListKitDragBoardTest {
   private fun onMain(body: () -> Unit) {
     var failure: Throwable? = null
     InstrumentationRegistry.getInstrumentation().runOnMainSync {
-      try { body() } catch (thrown: Throwable) { failure = thrown }
+      try {
+        body()
+      } catch (thrown: Throwable) {
+        failure = thrown
+      }
     }
     failure?.let { throw it }
   }
@@ -242,20 +290,21 @@ class ShadowListKitDragBoardTest {
     info.recycle()
   }
 
-  @Test fun a_horizontal_kit_host_scrolls_under_the_same_finger_without_detaching_columns() = withBoard(nested = true) { board ->
-    board.hover()
-    val outer = board.outer!!
-    val peer = board.source.core.handle
-    val cell = board.source.heldCell
-    val time = System.nanoTime()
-    // Drive the existing frame callback with a held finger near the board's trailing edge.
-    for (frame in 1..20) board.source.drag.doFrame(time + frame * 16_666_667L)
-    assertTrue(outer.offset > 0)
-    assertEquals(peer, board.source.core.handle)
-    assertTrue(board.source.isAttachedToWindow)
-    assertTrue(board.destination.isAttachedToWindow)
-    assertTrue(board.source.heldCell === cell)
-    board.source.drag.end(false)
-    board.assertEnded()
-  }
+  @Test fun a_horizontal_kit_host_scrolls_under_the_same_finger_without_detaching_columns() =
+    withBoard(nested = true) { board ->
+      board.hover()
+      val outer = board.outer!!
+      val peer = board.source.core.handle
+      val cell = board.source.heldCell
+      val time = System.nanoTime()
+      // Drive the existing frame callback with a held finger near the board's trailing edge.
+      for (frame in 1..20) board.source.drag.doFrame(time + frame * 16_666_667L)
+      assertTrue(outer.offset > 0)
+      assertEquals(peer, board.source.core.handle)
+      assertTrue(board.source.isAttachedToWindow)
+      assertTrue(board.destination.isAttachedToWindow)
+      assertTrue(board.source.heldCell === cell)
+      board.source.drag.end(false)
+      board.assertEnded()
+    }
 }

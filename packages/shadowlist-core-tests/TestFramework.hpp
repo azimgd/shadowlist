@@ -96,7 +96,7 @@ struct RunFilter {
 
   bool admits(const std::string& name) const {
     return (only.empty() || name.find(only) != std::string::npos) &&
-      (skip.empty() || name.find(skip) == std::string::npos);
+           (skip.empty() || name.find(skip) == std::string::npos);
   }
 };
 
@@ -212,8 +212,7 @@ inline int run(const std::string& program) {
       ok = false;
       error = "threw unknown exception";
     }
-    double ms = std::chrono::duration<double, std::milli>(
-                  std::chrono::steady_clock::now() - started).count();
+    double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
     totalMs += ms;
 
     char timing[24];
@@ -251,38 +250,36 @@ inline int run(const std::string& program) {
 
 }
 
-#define TEST(name)                                                   \
-  static void name();                                                \
-  static ::slt::Registrar slt_registrar_##name(#name, name);         \
+#define TEST(name)                                                                                                     \
+  static void name();                                                                                                  \
+  static ::slt::Registrar slt_registrar_##name(#name, name);                                                           \
   static void name()
 
-#define CHECK(cond)                                                  \
-  do {                                                               \
-    if (!(cond)) {                                                   \
-      ::slt::fail(std::string("CHECK failed: " #cond) +              \
-        "  @ " __FILE__ ":" + std::to_string(__LINE__));             \
-    }                                                                \
+#define CHECK(cond)                                                                                                    \
+  do {                                                                                                                 \
+    if (!(cond)) {                                                                                                     \
+      ::slt::fail(std::string("CHECK failed: " #cond) + "  @ " __FILE__ ":" + std::to_string(__LINE__));               \
+    }                                                                                                                  \
   } while (0)
 
-#define CHECK_EQ(a, b)                                               \
-  do {                                                               \
-    auto slt_a = (a);                                                \
-    auto slt_b = (b);                                                \
-    if (!(slt_a == slt_b)) {                                         \
-      ::slt::fail(std::string("CHECK_EQ failed: " #a " == " #b) +    \
-        "  [" + ::slt::toStr(slt_a) + " != " + ::slt::toStr(slt_b) + \
-        "]  @ " __FILE__ ":" + std::to_string(__LINE__));           \
-    }                                                                \
+#define CHECK_EQ(a, b)                                                                                                 \
+  do {                                                                                                                 \
+    auto slt_a = (a);                                                                                                  \
+    auto slt_b = (b);                                                                                                  \
+    if (!(slt_a == slt_b)) {                                                                                           \
+      ::slt::fail(                                                                                                     \
+        std::string("CHECK_EQ failed: " #a " == " #b) + "  [" + ::slt::toStr(slt_a) + " != " + ::slt::toStr(slt_b) +   \
+        "]  @ " __FILE__ ":" + std::to_string(__LINE__));                                                              \
+    }                                                                                                                  \
   } while (0)
 
-#define CHECK_NEAR(a, b, eps)                                        \
-  do {                                                               \
-    double slt_a = (a);                                              \
-    double slt_b = (b);                                              \
-    if (std::fabs(slt_a - slt_b) > (eps)) {                          \
-      ::slt::fail(std::string("CHECK_NEAR failed: " #a " ~= " #b) +  \
-        "  [" + ::slt::toStr(slt_a) + " vs " + ::slt::toStr(slt_b) + \
-        ", eps " #eps "]  @ " __FILE__ ":" + std::to_string(__LINE__)); \
-    }                                                                \
+#define CHECK_NEAR(a, b, eps)                                                                                          \
+  do {                                                                                                                 \
+    double slt_a = (a);                                                                                                \
+    double slt_b = (b);                                                                                                \
+    if (std::fabs(slt_a - slt_b) > (eps)) {                                                                            \
+      ::slt::fail(                                                                                                     \
+        std::string("CHECK_NEAR failed: " #a " ~= " #b) + "  [" + ::slt::toStr(slt_a) + " vs " + ::slt::toStr(slt_b) + \
+        ", eps " #eps "]  @ " __FILE__ ":" + std::to_string(__LINE__));                                                \
+    }                                                                                                                  \
   } while (0)
-

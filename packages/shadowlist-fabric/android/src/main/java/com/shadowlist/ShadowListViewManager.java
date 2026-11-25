@@ -20,16 +20,13 @@ import com.facebook.react.viewmanagers.ShadowListViewManagerDelegate;
 import java.util.Map;
 
 @ReactModule(name = ShadowListViewManager.NAME)
-public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
-  implements ShadowListViewManagerInterface<ShadowListView> {
-
+public class ShadowListViewManager
+  extends ViewGroupManager<ShadowListView> implements ShadowListViewManagerInterface<ShadowListView> {
   public static final String NAME = "ShadowListView";
 
   private final ViewManagerDelegate<ShadowListView> mDelegate;
 
-  public ShadowListViewManager() {
-    mDelegate = new ShadowListViewManagerDelegate(this);
-  }
+  public ShadowListViewManager() { mDelegate = new ShadowListViewManagerDelegate(this); }
 
   @Nullable
   @Override
@@ -89,7 +86,7 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "keysStore")
   public void setKeysStore(ShadowListView view, double keysStore) {
-    view.setKeysStore((long) keysStore);
+    view.setKeysStore((long)keysStore);
   }
 
   @Override
@@ -106,15 +103,13 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
 
   @Override
   @ReactProp(name = "nonAnchorKeys")
-  public void setNonAnchorKeys(
-      ShadowListView view, @Nullable ReadableArray nonAnchorKeys) {
+  public void setNonAnchorKeys(ShadowListView view, @Nullable ReadableArray nonAnchorKeys) {
     // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "rowSizeSpecs")
-  public void setRowSizeSpecs(
-      ShadowListView view, @Nullable String rowSizeSpecs) {
+  public void setRowSizeSpecs(ShadowListView view, @Nullable String rowSizeSpecs) {
     // Only the core reads this prop.
   }
 
@@ -236,27 +231,13 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
     // Hook the events this view sends itself up to their JS handlers.
     return MapBuilder.<String, Object>builder()
-      .put(
-        ShadowListRefreshEvent.EVENT_NAME,
-        MapBuilder.of("registrationName", "onRefresh"))
-      .put(
-        ShadowListRefreshEvent.SETTLE_EVENT_NAME,
-        MapBuilder.of("registrationName", "onRefreshSettle"))
-      .put(
-        ShadowListScrollEvent.SCROLL,
-        MapBuilder.of("registrationName", "onScroll"))
-      .put(
-        ShadowListScrollEvent.BEGIN_DRAG,
-        MapBuilder.of("registrationName", "onScrollBeginDrag"))
-      .put(
-        ShadowListScrollEvent.END_DRAG,
-        MapBuilder.of("registrationName", "onScrollEndDrag"))
-      .put(
-        ShadowListScrollEvent.MOMENTUM_BEGIN,
-        MapBuilder.of("registrationName", "onMomentumScrollBegin"))
-      .put(
-        ShadowListScrollEvent.MOMENTUM_END,
-        MapBuilder.of("registrationName", "onMomentumScrollEnd"))
+      .put(ShadowListRefreshEvent.EVENT_NAME, MapBuilder.of("registrationName", "onRefresh"))
+      .put(ShadowListRefreshEvent.SETTLE_EVENT_NAME, MapBuilder.of("registrationName", "onRefreshSettle"))
+      .put(ShadowListScrollEvent.SCROLL, MapBuilder.of("registrationName", "onScroll"))
+      .put(ShadowListScrollEvent.BEGIN_DRAG, MapBuilder.of("registrationName", "onScrollBeginDrag"))
+      .put(ShadowListScrollEvent.END_DRAG, MapBuilder.of("registrationName", "onScrollEndDrag"))
+      .put(ShadowListScrollEvent.MOMENTUM_BEGIN, MapBuilder.of("registrationName", "onMomentumScrollBegin"))
+      .put(ShadowListScrollEvent.MOMENTUM_END, MapBuilder.of("registrationName", "onMomentumScrollEnd"))
       .build();
   }
 
@@ -483,10 +464,8 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
 
   @Nullable
   @Override
-  public Object updateState(
-    @NonNull ShadowListView view,
-    @Nullable ReactStylesDiffMap props,
-    @Nullable StateWrapper stateWrapper) {
+  public Object
+  updateState(@NonNull ShadowListView view, @Nullable ReactStylesDiffMap props, @Nullable StateWrapper stateWrapper) {
     view.updateState(stateWrapper);
     return super.updateState(view, props, stateWrapper);
   }

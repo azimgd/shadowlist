@@ -241,8 +241,8 @@ TEST(a_window_resize_through_update_publishes_the_bottom_follow) {
   Virtualizer::update(container, input);
   CHECK(container.state.offsetCorrected);
   CHECK_NEAR(container.revision.offsetY, bottom + 300.0, 1.0);
-  ContainerStateUpdate state = container.resolveStateUpdate(offset, offset,
-    container.revision.contentWidth, container.revision.contentHeight);
+  ContainerStateUpdate state =
+    container.resolveStateUpdate(offset, offset, container.revision.contentWidth, container.revision.contentHeight);
   CHECK(state.applyOffset);
   CHECK_NEAR(state.offsetY, bottom + 300.0, 1.0);
 }

@@ -26,7 +26,8 @@ static double ShadowListKitBenchThreadSeconds(thread_act_t thread)
   if (thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count) != KERN_SUCCESS) {
     return 0;
   }
-  return info.user_time.seconds + info.user_time.microseconds / 1e6 + info.system_time.seconds + info.system_time.microseconds / 1e6;
+  return info.user_time.seconds + info.user_time.microseconds / 1e6 + info.system_time.seconds +
+         info.system_time.microseconds / 1e6;
 }
 
 static double ShadowListKitBenchProcessSeconds(void)
@@ -114,10 +115,9 @@ static double ShadowListKitBenchFootprintMB(void)
                                                   }
                                                   bench = [ShadowListKitBench new];
                                                   double delay = [self setting:@"SLBenchDelay" fallback:3];
-                                                  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
-                                                    dispatch_get_main_queue(), ^{
-                                                      [bench start];
-                                                    });
+                                                  dispatch_after(
+                                                    dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
+                                                    dispatch_get_main_queue(), ^{ [bench start]; });
                                                 }];
 }
 
@@ -176,9 +176,7 @@ static double ShadowListKitBenchFootprintMB(void)
     for (UIView *view = start; view; view = view.superview) {
       if ([view respondsToSelector:@selector(shadowListKit_benchBlankFraction)]) {
         id<ShadowListKitBenchProbe> probe = (id<ShadowListKitBenchProbe>)view;
-        _probe = ^double {
-          return [probe shadowListKit_benchBlankFraction];
-        };
+        _probe = ^double { return [probe shadowListKit_benchBlankFraction]; };
         _probeName = NSStringFromClass([view class]);
         return;
       }
@@ -187,7 +185,8 @@ static double ShadowListKitBenchFootprintMB(void)
   Class textView = NSClassFromString(@"ShadowListKitTextView");
   SEL fraction = NSSelectorFromString(@"shadowListKit_benchBlankFractionIn:");
   if ([textView respondsToSelector:fraction]) {
-    double (*call)(id, SEL, UIScrollView *) = (double (*)(id, SEL, UIScrollView *))[textView methodForSelector:fraction];
+    double (*call)(id, SEL, UIScrollView *) =
+      (double (*)(id, SEL, UIScrollView *))[textView methodForSelector:fraction];
     __weak ShadowListKitBench *weakSelf = self;
     _probe = ^double {
       ShadowListKitBench *bench = weakSelf;
@@ -389,8 +388,9 @@ static double ShadowListKitBenchFootprintMB(void)
     return NO;
   }
   CALayer *layer = view.layer;
-  if (layer.contents != nil || (layer.backgroundColor && CGColorGetAlpha(layer.backgroundColor) > 0.01) ||
-      layer.sublayers.count > view.subviews.count) {
+  if (
+    layer.contents != nil || (layer.backgroundColor && CGColorGetAlpha(layer.backgroundColor) > 0.01) ||
+    layer.sublayers.count > view.subviews.count) {
     return YES;
   }
   if (depth >= 8) {
@@ -415,7 +415,7 @@ static double ShadowListKitBenchFootprintMB(void)
 {
   UIScrollView *scrollView = _coverage;
   BOOL alongX = scrollView == _horizontal && scrollView != _vertical &&
-    scrollView.contentSize.height <= scrollView.bounds.size.height;
+                scrollView.contentSize.height <= scrollView.bounds.size.height;
   CGRect visible = scrollView.bounds;
   UIEdgeInsets inset = scrollView.adjustedContentInset;
   if (alongX) {
@@ -480,9 +480,11 @@ static double ShadowListKitBenchFootprintMB(void)
   if ([[NSUserDefaults standardUserDefaults] boolForKey:@"SLBenchDebugBlank"] && _blankSamples % 20 == 0) {
     NSMutableString *tree = [NSMutableString new];
     for (UIView *child in scrollView.subviews) {
-      [tree appendFormat:@" %@%@(%lu)", NSStringFromClass([child class]), NSStringFromCGRect(child.frame), (unsigned long)child.subviews.count];
+      [tree appendFormat:@" %@%@(%lu)", NSStringFromClass([child class]), NSStringFromCGRect(child.frame),
+                         (unsigned long)child.subviews.count];
     }
-    NSLog(@"[SLBENCH-BLANK] visible=%@ spans=%lu covered=%.0f blank=%.3f tree=%@", NSStringFromCGRect(visible),
+    NSLog(
+      @"[SLBENCH-BLANK] visible=%@ spans=%lu covered=%.0f blank=%.3f tree=%@", NSStringFromCGRect(visible),
       (unsigned long)spans.count, covered, blank, tree);
   }
   _blankSum += blank;
@@ -615,7 +617,8 @@ static double ShadowListKitBenchFootprintMB(void)
   NSLog(@"[SLBENCH] %@", line);
   printf("[SLBENCH] %s\n", line.UTF8String);
   fflush(stdout);
-  NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
+  NSURL *documents =
+    [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
   [json writeToURL:[documents URLByAppendingPathComponent:@"slbench.json"] atomically:YES];
 }
 
@@ -623,16 +626,14 @@ static double ShadowListKitBenchFootprintMB(void)
 {
   ++_run;
   if (_run < _axes.count) {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SHADOWLIST_KIT_BENCH_RUN_GAP * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      [self startRun];
-    });
+    dispatch_after(
+      dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SHADOWLIST_KIT_BENCH_RUN_GAP * NSEC_PER_SEC)),
+      dispatch_get_main_queue(), ^{ [self startRun]; });
     return;
   }
   // The result is written and flushed already. Quit once this display frame's work returns.
   if ([[NSUserDefaults standardUserDefaults] boolForKey:@"SLBenchExit"]) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      exit(0);
-    });
+    dispatch_async(dispatch_get_main_queue(), ^{ exit(0); });
   }
 }
 

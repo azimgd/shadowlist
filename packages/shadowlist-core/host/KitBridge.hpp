@@ -95,8 +95,12 @@ inline std::vector<ViewabilityConfig> readViewabilityConfigs(const std::vector<d
   std::vector<ViewabilityConfig> configs;
   for (std::size_t offset = 0; offset + VIEWABILITY_CONFIG_SLOTS <= slots.size(); offset += VIEWABILITY_CONFIG_SLOTS) {
     ViewabilityConfig config;
-    if (slots[offset + VIEWABILITY_HAS_ITEM_PERCENT] != 0) config.itemVisiblePercentThreshold = slots[offset + VIEWABILITY_ITEM_PERCENT];
-    if (slots[offset + VIEWABILITY_HAS_AREA_PERCENT] != 0) config.viewAreaCoveragePercentThreshold = slots[offset + VIEWABILITY_AREA_PERCENT];
+    if (slots[offset + VIEWABILITY_HAS_ITEM_PERCENT] != 0) {
+      config.itemVisiblePercentThreshold = slots[offset + VIEWABILITY_ITEM_PERCENT];
+    }
+    if (slots[offset + VIEWABILITY_HAS_AREA_PERCENT] != 0) {
+      config.viewAreaCoveragePercentThreshold = slots[offset + VIEWABILITY_AREA_PERCENT];
+    }
     config.minimumViewTime = slots[offset + VIEWABILITY_MINIMUM_VIEW_TIME];
     config.waitForInteraction = slots[offset + VIEWABILITY_WAIT_FOR_INTERACTION] != 0;
     configs.push_back(config);
@@ -145,29 +149,30 @@ enum CommitFlag : int {
 /*
  * The bridges number the core's enums in declaration order. These hold the order fixed.
  */
-static_assert(static_cast<int>(ScrollPhase::Idle) == 0 && static_cast<int>(ScrollPhase::Dragging) == 1 &&
+static_assert(
+  static_cast<int>(ScrollPhase::Idle) == 0 && static_cast<int>(ScrollPhase::Dragging) == 1 &&
   static_cast<int>(ScrollPhase::Settling) == 2);
-static_assert(static_cast<int>(ScrollLanding::Target::None) == 0 && static_cast<int>(ScrollLanding::Target::Row) == 1 &&
+static_assert(
+  static_cast<int>(ScrollLanding::Target::None) == 0 && static_cast<int>(ScrollLanding::Target::Row) == 1 &&
   static_cast<int>(ScrollLanding::Target::Start) == 2 && static_cast<int>(ScrollLanding::Target::End) == 3);
-static_assert(static_cast<int>(SnapAlignment::Start) == 0 && static_cast<int>(SnapAlignment::Center) == 1 &&
+static_assert(
+  static_cast<int>(SnapAlignment::Start) == 0 && static_cast<int>(SnapAlignment::Center) == 1 &&
   static_cast<int>(SnapAlignment::End) == 2);
 
 /*
  * A bridge's index as the core's: negative or unrepresentable values are UNDEFINED_INDEX.
  */
 inline std::size_t indexFrom(std::int64_t value) {
-  return value < 0 || static_cast<std::uint64_t>(value) >= UNDEFINED_INDEX
-    ? UNDEFINED_INDEX
-    : static_cast<std::size_t>(value);
+  return value < 0 || static_cast<std::uint64_t>(value) >= UNDEFINED_INDEX ? UNDEFINED_INDEX
+                                                                           : static_cast<std::size_t>(value);
 }
 
 /*
  * The core's index as a bridge's: a missing or unrepresentable index is -1.
  */
 inline std::int32_t intFrom(std::size_t index) {
-  return index > static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max())
-    ? -1
-    : static_cast<std::int32_t>(index);
+  return index > static_cast<std::size_t>(std::numeric_limits<std::int32_t>::max()) ? -1
+                                                                                    : static_cast<std::int32_t>(index);
 }
 
 /*
@@ -268,8 +273,9 @@ inline std::uint64_t versionFrom(double value) {
  * An index carried in a double slot. Only finite whole numbers below UNDEFINED_INDEX name rows.
  */
 inline std::size_t indexFromSlot(double value) {
-  if (!std::isfinite(value) || value < 0.0 || value >= static_cast<double>(UNDEFINED_INDEX) ||
-      std::trunc(value) != value) {
+  if (
+    !std::isfinite(value) || value < 0.0 || value >= static_cast<double>(UNDEFINED_INDEX) ||
+    std::trunc(value) != value) {
     return UNDEFINED_INDEX;
   }
   return static_cast<std::size_t>(value);

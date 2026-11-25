@@ -97,7 +97,8 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
       shiftedToken_ = token;
       delta = unapplied;
     }
-    double shifted = std::min(std::max(along(view.shiftFromX, view.shiftFromY) + delta, view.minOffset),
+    double shifted = std::min(
+      std::max(along(view.shiftFromX, view.shiftFromY) + delta, view.minOffset),
       std::max(view.minOffset, view.maxOffset));
     if (token != 0) {
       // A clamp may apply only part of the requested correction. Keep the remainder.
@@ -110,8 +111,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
      * The write applies the whole correction. A later mount of the same token that shifts,
      * like Android mounting the state again once the write moved the view, adds only what is left.
      */
-    double written = std::min(std::max(target, view.minOffset),
-      std::max(view.minOffset, view.maxOffset));
+    double written = std::min(std::max(target, view.minOffset), std::max(view.minOffset, view.maxOffset));
     offsetX = horizontal_ ? written : view.offsetX;
     offsetY = horizontal_ ? view.offsetY : written;
     writtenToken_ = token;
@@ -134,7 +134,8 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
 }
 
 void ScrollSync::willWrite(const MountAction& action) {
-  arm(action.offsetX, action.offsetY, false, action.commitToken, !action.shifted && options_.exactEcho,
+  arm(
+    action.offsetX, action.offsetY, false, action.commitToken, !action.shifted && options_.exactEcho,
     action.commitRevision);
 }
 
@@ -169,7 +170,7 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
     userScrolled = false;
     ourMove = true;
     bool landed = std::fabs(offsetX - armedX_) <= options_.landingTolerance &&
-      std::fabs(offsetY - armedY_) <= options_.landingTolerance;
+                  std::fabs(offsetY - armedY_) <= options_.landingTolerance;
     if (armedAnimated_) {
       if (landed) {
         echoedToken_ = armedToken_;
@@ -188,8 +189,8 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
     }
   }
 
-  LiveScroll::Report report = writeReport(offsetX, offsetY, userScrolled, frame.scrollPhase,
-    echoedToken_, mounted_.concealGeneration, echoedRevision_);
+  LiveScroll::Report report = writeReport(
+    offsetX, offsetY, userScrolled, frame.scrollPhase, echoedToken_, mounted_.concealGeneration, echoedRevision_);
   result.userScrolled = userScrolled;
   result.needsCommit = ourMove || reportNeedsCommit(report, frame.commitEveryFrame);
   if (result.needsCommit) {
@@ -201,7 +202,12 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
   return result;
 }
 
-void ScrollSync::arm(double offsetX, double offsetY, bool animated, std::uint64_t token, bool exact,
+void ScrollSync::arm(
+  double offsetX,
+  double offsetY,
+  bool animated,
+  std::uint64_t token,
+  bool exact,
   std::uint64_t revision) {
   armed_ = true;
   armedAnimated_ = animated;
@@ -247,10 +253,10 @@ bool ScrollSync::reportNeedsCommit(const LiveScroll::Report& report, bool commit
     return true;
   }
   // The gesture changed, a correction was echoed, or a hide was acknowledged.
-  if (report.userScrolled != pushedReport_.userScrolled || report.scrollPhase != pushedReport_.scrollPhase ||
-      report.commitToken != pushedReport_.commitToken ||
-      report.commitRevision != pushedReport_.commitRevision ||
-      report.concealGenerationAck != pushedReport_.concealGenerationAck) {
+  if (
+    report.userScrolled != pushedReport_.userScrolled || report.scrollPhase != pushedReport_.scrollPhase ||
+    report.commitToken != pushedReport_.commitToken || report.commitRevision != pushedReport_.commitRevision ||
+    report.concealGenerationAck != pushedReport_.concealGenerationAck) {
     return true;
   }
   // The view clamped the offset to a new content size, or a mount moved it.
@@ -304,8 +310,8 @@ ScrollPatch ScrollSync::push(const LiveScroll::Report& report) {
 }
 
 ScrollPatch ScrollSync::livePatch(double offsetX, double offsetY, bool userScrolled, double scrollPhase) {
-  return push(writeReport(offsetX, offsetY, userScrolled, scrollPhase, echoedToken_,
-    mounted_.concealGeneration, echoedRevision_));
+  return push(writeReport(
+    offsetX, offsetY, userScrolled, scrollPhase, echoedToken_, mounted_.concealGeneration, echoedRevision_));
 }
 
 ScrollPatch ScrollSync::livePatch(double offsetX, double offsetY) {
@@ -313,8 +319,9 @@ ScrollPatch ScrollSync::livePatch(double offsetX, double offsetY) {
 }
 
 ScrollPatch ScrollSync::reportPatch(const LiveScroll::Report& report) {
-  return push(writeReport(report.offsetX, report.offsetY, report.userScrolled, report.scrollPhase,
-    report.commitToken, report.concealGenerationAck, report.commitRevision));
+  return push(writeReport(
+    report.offsetX, report.offsetY, report.userScrolled, report.scrollPhase, report.commitToken,
+    report.concealGenerationAck, report.commitRevision));
 }
 
 std::optional<ScrollPatch> ScrollSync::clearUserScrolled(double offsetX, double offsetY) {
@@ -328,11 +335,8 @@ std::optional<ScrollPatch> ScrollSync::clearUserScrolled(double offsetX, double 
   return livePatch(offsetX, offsetY, false, SCROLL_PHASE_IDLE);
 }
 
-ScrollPatch ScrollSync::issueCommand(
-  const ScrollCommand& command,
-  double offsetX,
-  double offsetY,
-  bool momentumYielded) {
+ScrollPatch
+ScrollSync::issueCommand(const ScrollCommand& command, double offsetX, double offsetY, bool momentumYielded) {
   // A command replaces an animated one still on its way.
   landing_ = false;
   if (commandAnimated_) {
@@ -343,8 +347,8 @@ ScrollPatch ScrollSync::issueCommand(
   commandViewOffset_ = command.viewOffset;
   commandAnimated_ = command.animated;
   commandSequence_ = std::max(mounted_.commandSequence, commandSequence_) + 1;
-  ScrollPatch patch = momentumYielded ? livePatch(offsetX, offsetY, false, SCROLL_PHASE_IDLE)
-                                      : livePatch(offsetX, offsetY);
+  ScrollPatch patch =
+    momentumYielded ? livePatch(offsetX, offsetY, false, SCROLL_PHASE_IDLE) : livePatch(offsetX, offsetY);
   // An animated command moves nothing yet. The core only estimates where it lands.
   patch.offsetEnabled = !command.animated;
   return patch;

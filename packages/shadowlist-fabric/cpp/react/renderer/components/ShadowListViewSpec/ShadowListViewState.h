@@ -168,22 +168,22 @@ public:
     double dragEventSequence,
     double dragEventType,
     std::string dragSourceKey,
-    std::string dragDestinationKey) :
-    windowHeight_(windowHeight),
-    windowWidth_(windowWidth),
-    offsetY_(offsetY),
-    offsetX_(offsetX),
-    scrollIndex_(scrollIndex),
-    scrollIndexSequence_(scrollIndexSequence),
-    contentHeight_(contentHeight),
-    contentWidth_(contentWidth),
-    startReachedEnabled_(startReachedEnabled),
-    endReachedEnabled_(endReachedEnabled),
-    offsetEnabled_(offsetEnabled),
-    dragEventSequence_(dragEventSequence),
-    dragEventType_(dragEventType),
-    dragSourceKey_(std::move(dragSourceKey)),
-    dragDestinationKey_(std::move(dragDestinationKey)) {}
+    std::string dragDestinationKey)
+    : windowHeight_(windowHeight),
+      windowWidth_(windowWidth),
+      offsetY_(offsetY),
+      offsetX_(offsetX),
+      scrollIndex_(scrollIndex),
+      scrollIndexSequence_(scrollIndexSequence),
+      contentHeight_(contentHeight),
+      contentWidth_(contentWidth),
+      startReachedEnabled_(startReachedEnabled),
+      endReachedEnabled_(endReachedEnabled),
+      offsetEnabled_(offsetEnabled),
+      dragEventSequence_(dragEventSequence),
+      dragEventType_(dragEventType),
+      dragSourceKey_(std::move(dragSourceKey)),
+      dragDestinationKey_(std::move(dragDestinationKey)) {}
 
 #ifdef ANDROID
   ShadowListViewState(const ShadowListViewState& previousState, folly::dynamic data);
@@ -262,9 +262,8 @@ public:
    * The host reports again once it mounts this state.
    */
   bool awaitsMountBefore(const azimgd::shadowlist::ScrollPatch& patch) const {
-    return offsetEnabled_ && concealGeneration_ > patch.report.concealGenerationAck &&
-      !patch.offsetEnabled && !patch.hasCommand && !patch.hasAnchorRequest &&
-      !patch.hasStartReachedEnabled && !patch.hasEndReachedEnabled;
+    return offsetEnabled_ && concealGeneration_ > patch.report.concealGenerationAck && !patch.offsetEnabled &&
+           !patch.hasCommand && !patch.hasAnchorRequest && !patch.hasStartReachedEnabled && !patch.hasEndReachedEnabled;
   }
 
   /*
@@ -277,18 +276,16 @@ public:
     if (offsetEnabled_ || patch.offsetEnabled || concealGeneration_ != 0.0) {
       return false;
     }
-    return offsetX_ == report.offsetX && offsetY_ == report.offsetY &&
-      commitToken_ == report.commitToken && commitRevision_ == report.commitRevision &&
-      concealGenerationAck_ == report.concealGenerationAck &&
-      userScrolled_ == report.userScrolled && scrollPhase_ == report.scrollPhase &&
-      (!patch.hasCommand ||
-       (scrollIndex_ == patch.commandIndex && scrollIndexSequence_ == patch.commandSequence &&
-        scrollIndexViewPosition_ == patch.commandViewPosition &&
-        scrollIndexViewOffset_ == patch.commandViewOffset &&
-        scrollIndexAnimated_ == patch.commandAnimated)) &&
-      (!patch.hasAnchorRequest || anchorRequestSequence_ == patch.anchorRequestSequence) &&
-      (!patch.hasStartReachedEnabled || startReachedEnabled_ == patch.startReachedEnabled) &&
-      (!patch.hasEndReachedEnabled || endReachedEnabled_ == patch.endReachedEnabled);
+    return offsetX_ == report.offsetX && offsetY_ == report.offsetY && commitToken_ == report.commitToken &&
+           commitRevision_ == report.commitRevision && concealGenerationAck_ == report.concealGenerationAck &&
+           userScrolled_ == report.userScrolled && scrollPhase_ == report.scrollPhase &&
+           (!patch.hasCommand ||
+            (scrollIndex_ == patch.commandIndex && scrollIndexSequence_ == patch.commandSequence &&
+             scrollIndexViewPosition_ == patch.commandViewPosition &&
+             scrollIndexViewOffset_ == patch.commandViewOffset && scrollIndexAnimated_ == patch.commandAnimated)) &&
+           (!patch.hasAnchorRequest || anchorRequestSequence_ == patch.anchorRequestSequence) &&
+           (!patch.hasStartReachedEnabled || startReachedEnabled_ == patch.startReachedEnabled) &&
+           (!patch.hasEndReachedEnabled || endReachedEnabled_ == patch.endReachedEnabled);
   }
 
   /*

@@ -119,8 +119,7 @@ JNIEXPORT jdouble JNICALL SL_DRAG_JNI(nativeAutoScrollOffset)(
   jdouble dtSeconds) {
   // Android's edge and speed are in dp.
   sl::DragAutoScrollConfig config{
-    sl::DRAG_AUTO_SCROLL_ANDROID.edge * pixelsPerDp,
-    sl::DRAG_AUTO_SCROLL_ANDROID.maxSpeed * pixelsPerDp};
+    sl::DRAG_AUTO_SCROLL_ANDROID.edge * pixelsPerDp, sl::DRAG_AUTO_SCROLL_ANDROID.maxSpeed * pixelsPerDp};
   return sl::dragAutoScrollOffset(config, touch, windowSize, offset, maxOffset, dtSeconds);
 }
 
@@ -169,8 +168,7 @@ JNIEXPORT void JNICALL SL_DRAG_JNI(nativePlaceRow)(
   resting.extent = extent;
   resting.crossLeading = crossLeading;
   resting.crossExtent = crossExtent;
-  sl::DragOffset offset =
-    peerOf(handle)->drag.placeRow(touchAlong, touchCross, resting, contentSize, crossContentSize);
+  sl::DragOffset offset = peerOf(handle)->drag.placeRow(touchAlong, touchCross, resting, contentSize, crossContentSize);
   if (out != nullptr && env->GetArrayLength(out) >= 2) {
     jdouble values[2] = {offset.leading, offset.cross};
     env->SetDoubleArrayRegion(out, 0, 2, values);
@@ -192,9 +190,10 @@ JNIEXPORT jboolean JNICALL SL_DRAG_JNI(nativeUpdateInsertion)(
   jint count) {
   Peer* peer = peerOf(handle);
   auto size = count > 0 ? static_cast<std::size_t>(count) : 0;
-  if (indicesArray == nullptr || keysArray == nullptr || framesArray == nullptr ||
-      env->GetArrayLength(indicesArray) < count || env->GetArrayLength(keysArray) < count ||
-      env->GetArrayLength(framesArray) < count * ROW_SLOTS) {
+  if (
+    indicesArray == nullptr || keysArray == nullptr || framesArray == nullptr ||
+    env->GetArrayLength(indicesArray) < count || env->GetArrayLength(keysArray) < count ||
+    env->GetArrayLength(framesArray) < count * ROW_SLOTS) {
     size = 0;
   }
   peer->rows.resize(size);
@@ -222,16 +221,25 @@ JNIEXPORT jboolean JNICALL SL_DRAG_JNI(nativeUpdateInsertion)(
   }
   auto driver = facebook::react::ShadowListMountDriver::find(mountHandle);
   auto core = driver ? driver->getContainerManager() : nullptr;
-  if (!core) return JNI_FALSE;
+  if (!core) {
+    return JNI_FALSE;
+  }
   // All Java reads are finished. Only shared geometry runs under the core lock.
   std::lock_guard<std::recursive_mutex> lock(core->coreMutex);
-  if (!peer->drag.isForeign() && !peer->drag.getOriginKey().empty() &&
-      core->indexOfKey(peer->drag.getOriginKey()) == sl::UNDEFINED_INDEX) return JNI_FALSE;
+  if (
+    !peer->drag.isForeign() && !peer->drag.getOriginKey().empty() &&
+    core->indexOfKey(peer->drag.getOriginKey()) == sl::UNDEFINED_INDEX) {
+    return JNI_FALSE;
+  }
   auto& rows = peer->rows;
-  rows.erase(std::remove_if(rows.begin(), rows.end(), [&](sl::DragRow& row) {
-    row.index = core->indexOfKey(row.key);
-    return row.index == sl::UNDEFINED_INDEX;
-  }), rows.end());
+  rows.erase(
+    std::remove_if(
+      rows.begin(), rows.end(),
+      [&](sl::DragRow& row) {
+        row.index = core->indexOfKey(row.key);
+        return row.index == sl::UNDEFINED_INDEX;
+      }),
+    rows.end());
   std::sort(rows.begin(), rows.end(), [](const sl::DragRow& a, const sl::DragRow& b) { return a.index < b.index; });
   peer->drag.updateInsertion(rows);
   peer->drag.updateSpanOffsets(*core, rows);
@@ -254,24 +262,15 @@ JNIEXPORT jboolean JNICALL SL_DRAG_JNI(nativeIsHeldAway)(JNIEnv*, jclass, jlong 
   return peerOf(handle)->drag.isHeldAway() ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL SL_DRAG_JNI(nativeBeginForeign)(
-  JNIEnv*,
-  jclass,
-  jlong handle,
-  jdouble extent,
-  jdouble crossExtent,
-  jint columns) {
+JNIEXPORT void JNICALL
+SL_DRAG_JNI(nativeBeginForeign)(JNIEnv*, jclass, jlong handle, jdouble extent, jdouble crossExtent, jint columns) {
   Peer* peer = peerOf(handle);
   peer->drag.beginForeign(extent, crossExtent, columns > 0 ? static_cast<std::size_t>(columns) : 1);
   peer->feedback.reset();
 }
 
-JNIEXPORT void JNICALL SL_DRAG_JNI(nativePlaceForeignCenter)(
-  JNIEnv*,
-  jclass,
-  jlong handle,
-  jdouble center,
-  jdouble crossCenter) {
+JNIEXPORT void JNICALL
+SL_DRAG_JNI(nativePlaceForeignCenter)(JNIEnv*, jclass, jlong handle, jdouble center, jdouble crossCenter) {
   peerOf(handle)->drag.placeForeignCenter(center, crossCenter);
 }
 
@@ -320,7 +319,8 @@ JNIEXPORT jboolean JNICALL SL_DRAG_JNI(nativeShouldTick)(JNIEnv*, jclass, jlong 
   return peer->feedback.shouldTick(peer->drag.getInsertionIndex(), nowMs) ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT void JNICALL SL_DRAG_JNI(nativeBeginSettle)(JNIEnv*, jclass, jlong handle, jint insertionIndex, jdouble nowMs) {
+JNIEXPORT void JNICALL
+SL_DRAG_JNI(nativeBeginSettle)(JNIEnv*, jclass, jlong handle, jint insertionIndex, jdouble nowMs) {
   peerOf(handle)->settle.begin(indexFromJint(insertionIndex), nowMs);
 }
 
@@ -334,5 +334,4 @@ JNIEXPORT jint JNICALL SL_DRAG_JNI(nativeTickSettle)(JNIEnv*, jclass, jlong hand
 JNIEXPORT void JNICALL SL_DRAG_JNI(nativeResetSettle)(JNIEnv*, jclass, jlong handle) {
   peerOf(handle)->settle.reset();
 }
-
 }

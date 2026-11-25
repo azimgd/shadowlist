@@ -366,8 +366,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   // _props still has the previous props until super updateProps swaps them.
   const auto& previousProps = *std::static_pointer_cast<const ShadowListViewProps>(_props);
   // Turning pinning on must raise the sticky views on the next pin.
-  if (_stickyHeader != nextProps.stickyHeader || _stickyFooter != nextProps.stickyFooter ||
-      _autoHideHeader != nextProps.autoHideHeader || _autoHideFooter != nextProps.autoHideFooter) {
+  if (
+    _stickyHeader != nextProps.stickyHeader || _stickyFooter != nextProps.stickyFooter ||
+    _autoHideHeader != nextProps.autoHideHeader || _autoHideFooter != nextProps.autoHideFooter) {
     _stickyOrderDirty = YES;
   }
   _stickyHeader = nextProps.stickyHeader;
@@ -382,8 +383,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _reorderEnabled = nextProps.reorderEnabled;
   _numberOfColumns = nextProps.numberOfColumns;
   // A new throttle starts over, like a list that just began listening.
-  if (_scrollEventEnabled != nextProps.scrollEventEnabled ||
-      previousProps.scrollEventThrottle != nextProps.scrollEventThrottle) {
+  if (
+    _scrollEventEnabled != nextProps.scrollEventEnabled ||
+    previousProps.scrollEventThrottle != nextProps.scrollEventThrottle) {
     _scrollTracker = ShadowListScrollTracker(nextProps.scrollEventThrottle);
   }
   _scrollEventEnabled = nextProps.scrollEventEnabled;
@@ -401,8 +403,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     _dragRecognizer.enabled = _reorderEnabled;
   }
   // Only a new id or label, or a board this list has not joined yet, needs the strings.
-  if (nextProps.dragBoardId != previousProps.dragBoardId || nextProps.dragListId != previousProps.dragListId ||
-      nextProps.dragListLabel != previousProps.dragListLabel || (!_dragBoard && !nextProps.dragBoardId.empty())) {
+  if (
+    nextProps.dragBoardId != previousProps.dragBoardId || nextProps.dragListId != previousProps.dragListId ||
+    nextProps.dragListLabel != previousProps.dragListLabel || (!_dragBoard && !nextProps.dragBoardId.empty())) {
     [self applyDragBoardId:[NSString stringWithUTF8String:nextProps.dragBoardId.c_str()] ?: @""
                     listId:[NSString stringWithUTF8String:nextProps.dragListId.c_str()] ?: @""
                      label:[NSString stringWithUTF8String:nextProps.dragListLabel.c_str()] ?: @""];
@@ -425,8 +428,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     _scrollView.decelerationRate = _decelerationRate > 0.0 ? _decelerationRate : UIScrollViewDecelerationRateNormal;
   }
   UIColor *refreshColor = _refreshColor && nextProps.refreshColor == previousProps.refreshColor
-    ? _refreshColor
-    : RCTUIColorFromSharedColor(nextProps.refreshColor);
+                            ? _refreshColor
+                            : RCTUIColorFromSharedColor(nextProps.refreshColor);
   [self applyRefreshState:nextProps.refreshEnabled refreshing:nextProps.refreshing color:refreshColor];
 #endif
 
@@ -508,9 +511,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
    * and a too wide vertical list would scroll sideways under the finger.
    * Write only on a change. Most mounts keep the size, and each write costs UIKit a layout.
    */
-  CGSize contentSize = _horizontal
-    ? CGSizeMake(nextStateData.contentWidth_, 0)
-    : CGSizeMake(0, nextStateData.contentHeight_);
+  CGSize contentSize =
+    _horizontal ? CGSizeMake(nextStateData.contentWidth_, 0) : CGSizeMake(0, nextStateData.contentHeight_);
   CGRect contentFrame = CGRectMake(0, 0, nextStateData.contentWidth_, nextStateData.contentHeight_);
 #if TARGET_OS_OSX
   /*
@@ -519,8 +521,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
    */
   contentSize = contentFrame.size;
 #endif
-  BOOL contentSizeChanged = !CGSizeEqualToSize(_scrollView.contentSize, contentSize) ||
-    !CGRectEqualToRect(_contentView.frame, contentFrame);
+  BOOL contentSizeChanged =
+    !CGSizeEqualToSize(_scrollView.contentSize, contentSize) || !CGRectEqualToRect(_contentView.frame, contentFrame);
   CGPoint offsetBeforeSizeWrite = _scrollView.contentOffset;
   if (contentSizeChanged) {
     // If these writes clamp the offset, UIKit reports it right away, and that is not the user.
@@ -533,11 +535,10 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   }
   CGPoint offsetBeforeCorrection = _scrollView.contentOffset;
 
-  SHADOWLIST_LOG("mm.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
-    nextStateData.contentWidth_, nextStateData.contentHeight_,
-    nextStateData.offsetEnabled_ ? 1 : 0,
-    nextStateData.offsetX_, nextStateData.offsetY_,
-    _scrollView.contentOffset.x, _scrollView.contentOffset.y);
+  SHADOWLIST_LOG(
+    "mm.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
+    nextStateData.contentWidth_, nextStateData.contentHeight_, nextStateData.offsetEnabled_ ? 1 : 0,
+    nextStateData.offsetX_, nextStateData.offsetY_, _scrollView.contentOffset.x, _scrollView.contentOffset.y);
 
   /*
    * Decide what the mounted correction does, see azimgd::shadowlist::ScrollSync::correction.
@@ -554,17 +555,17 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   motion.shiftFromY = shiftFrom.y;
 #if !TARGET_OS_OSX
   motion.minOffset = _horizontal ? -_scrollView.contentInset.left : -_scrollView.contentInset.top;
-  motion.maxOffset = _horizontal
-    ? _scrollView.contentSize.width - _scrollView.bounds.size.width + _scrollView.contentInset.right
-    : _scrollView.contentSize.height - _scrollView.bounds.size.height + _scrollView.contentInset.bottom;
+  motion.maxOffset =
+    _horizontal ? _scrollView.contentSize.width - _scrollView.bounds.size.width + _scrollView.contentInset.right
+                : _scrollView.contentSize.height - _scrollView.bounds.size.height + _scrollView.contentInset.bottom;
   motion.touching = _scrollView.isTracking;
   motion.moving = _scrollingToTop || _scrollView.isDragging || _scrollView.isDecelerating;
 #else
   ShadowListMacScrollPhase macPhase = ((ShadowListMacScrollView *)_scrollView).phase;
   motion.minOffset = 0;
-  motion.maxOffset = MAX(0, _horizontal
-    ? _scrollView.contentSize.width - _scrollView.contentView.bounds.size.width
-    : _scrollView.contentSize.height - _scrollView.contentView.bounds.size.height);
+  motion.maxOffset = MAX(
+    0, _horizontal ? _scrollView.contentSize.width - _scrollView.contentView.bounds.size.width
+                   : _scrollView.contentSize.height - _scrollView.contentView.bounds.size.height);
   motion.touching = macPhase == ShadowListMacScrollPhaseDragging;
   // Fingers on the trackpad move the view like a UIKit drag. A correction shifts the live offset.
   motion.moving = macPhase != ShadowListMacScrollPhaseIdle;
@@ -597,15 +598,15 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     [self reportConcealedRowsMounted];
   }
 
-  SLF_TRACE("ev=state cs=%.1f->%.1f off=%.1f->%.1f enabled=%d core=%.1f base=%.1f token=%llu user=%d phase=%.0f stt=%d jumpPending=%d retarget=%d conceal=%.0f",
-    traceBeforeHeight, _horizontal ? nextStateData.contentWidth_ : nextStateData.contentHeight_,
-    traceBeforeY, _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y,
-    nextStateData.offsetEnabled_ ? 1 : 0,
+  SLF_TRACE(
+    "ev=state cs=%.1f->%.1f off=%.1f->%.1f enabled=%d core=%.1f base=%.1f token=%llu user=%d phase=%.0f stt=%d jumpPending=%d retarget=%d conceal=%.0f",
+    traceBeforeHeight, _horizontal ? nextStateData.contentWidth_ : nextStateData.contentHeight_, traceBeforeY,
+    _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y, nextStateData.offsetEnabled_ ? 1 : 0,
     _horizontal ? nextStateData.offsetX_ : nextStateData.offsetY_,
     _horizontal ? nextStateData.offsetBaseX_ : nextStateData.offsetBaseY_,
-    (unsigned long long)nextStateData.commitToken_,
-    nextStateData.userScrolled_ ? 1 : 0, nextStateData.scrollPhase_, _scrollingToTop ? 1 : 0,
-    _scrollToTopJumpPending ? 1 : 0, retargetsScrollToTopJump ? 1 : 0, nextStateData.concealGeneration_);
+    (unsigned long long)nextStateData.commitToken_, nextStateData.userScrolled_ ? 1 : 0, nextStateData.scrollPhase_,
+    _scrollingToTop ? 1 : 0, _scrollToTopJumpPending ? 1 : 0, retargetsScrollToTopJump ? 1 : 0,
+    nextStateData.concealGeneration_);
 
   /*
    * Pin again after the size, offset or section positions changed so a sticky footer stays
@@ -613,8 +614,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
    * finalizeUpdates pin on their own.
    */
   CGPoint offsetAfterCorrection = _scrollView.contentOffset;
-  if (contentSizeChanged || stickyGeometryChanged ||
-      !CGPointEqualToPoint(offsetBeforeCorrection, offsetAfterCorrection)) {
+  if (
+    contentSizeChanged || stickyGeometryChanged ||
+    !CGPointEqualToPoint(offsetBeforeCorrection, offsetAfterCorrection)) {
     [self applyStickyTransforms:NO];
   }
 
@@ -631,8 +633,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _inStateUpdate = NO;
 
   // The landing command mounted and wrote its exact offset. The animation ends here.
-  if (_landCommandSequence > 0 && nextStateData.mountedScroll().commandSequence >= _landCommandSequence &&
-      !nextStateData.commandPending_) {
+  if (
+    _landCommandSequence > 0 && nextStateData.mountedScroll().commandSequence >= _landCommandSequence &&
+    !nextStateData.commandPending_) {
     _landCommandSequence = 0;
     [self emitMomentumEndAfterLand];
 #if !TARGET_OS_OSX
@@ -712,8 +715,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   frame.scrollPhase = [self currentScrollPhase];
   // Pull to refresh, scroll to top and drag to reorder all lean on every frame.
   frame.commitEveryFrame = [self refreshInProgress] || [self refreshSettleRequested] ||
-    (_refreshControl && _refreshControl.isRefreshing) || _scrollingToTop || _scrollToTopJumpPending ||
-    [self dragOwnsScrollOffset];
+                           (_refreshControl && _refreshControl.isRefreshing) || _scrollingToTop ||
+                           _scrollToTopJumpPending || [self dragOwnsScrollOffset];
 #else
   frame.scrollPhase = SLScrollPhaseForMacPhase(((ShadowListMacScrollView *)scrollView).phase);
   frame.commitEveryFrame = [self dragOwnsScrollOffset];
@@ -735,7 +738,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     return;
   }
 
-  SHADOWLIST_LOG("mm.scrollViewDidScroll: offset=(%.1f,%.1f) userScrolled=%d token=%llu seq=%llu commit=%d",
+  SHADOWLIST_LOG(
+    "mm.scrollViewDidScroll: offset=(%.1f,%.1f) userScrolled=%d token=%llu seq=%llu commit=%d",
     scrollView.contentOffset.x, scrollView.contentOffset.y, userScrolled ? 1 : 0,
     (unsigned long long)_scrollSync.getEchoedToken(), (unsigned long long)report.patch.report.sequence,
     report.needsCommit ? 1 : 0);
@@ -912,7 +916,11 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 
 - (void)commitDragEventType:(int)type sourceKey:(NSString *)sourceKey destinationKey:(NSString *)destinationKey
 {
-  [self commitDragEventType:type sourceKey:sourceKey destinationKey:destinationKey destinationListId:@"" destinationIndex:-1];
+  [self commitDragEventType:type
+                  sourceKey:sourceKey
+             destinationKey:destinationKey
+          destinationListId:@""
+           destinationIndex:-1];
 }
 
 - (void)commitDragEventType:(int)type
@@ -955,8 +963,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   double dragDestinationIndex = (double)destinationIndex;
   // The sequence goes past the newest state's. Each event fires once.
   _state->updateState(
-    [patch, type, dragSourceKey, dragDestinationKey, dragDestinationListId, dragDestinationIndex](
-      const ShadowListStateData& oldData) -> StateData::Shared {
+    [patch, type, dragSourceKey, dragDestinationKey, dragDestinationListId,
+     dragDestinationIndex](const ShadowListStateData& oldData) -> StateData::Shared {
       auto nextData = std::make_shared<ShadowListStateData>(oldData);
       nextData->applyPatch(patch);
       nextData->dragEventSequence_ = oldData.dragEventSequence_ + 1;
@@ -1037,8 +1045,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 {
   if (gesture == _dragRecognizer) {
     __weak UIGestureRecognizer *weakGesture = gesture;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_DRAG_PREPARE_DELAY * NSEC_PER_SEC)),
-      dispatch_get_main_queue(), ^{
+    dispatch_after(
+      dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_DRAG_PREPARE_DELAY * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         UIGestureRecognizer *press = weakGesture;
         if (press && press.state == UIGestureRecognizerStatePossible && press.numberOfTouches > 0) {
           SLPrepareDragFeedback();
@@ -1064,7 +1072,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     return YES;
   }
   return _dragBoard != nil && [other isKindOfClass:[UIPanGestureRecognizer class]] &&
-    [_ancestorPans containsObject:(UIPanGestureRecognizer *)other];
+         [_ancestorPans containsObject:(UIPanGestureRecognizer *)other];
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
@@ -1089,7 +1097,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
 {
-  SLF_TRACE("ev=drag-end off=%.1f,%.1f decel=%d", scrollView.contentOffset.x, scrollView.contentOffset.y, decelerate ? 1 : 0);
+  SLF_TRACE(
+    "ev=drag-end off=%.1f,%.1f decel=%d", scrollView.contentOffset.x, scrollView.contentOffset.y, decelerate ? 1 : 0);
   [self emitScrollEvent:"scrollEndDrag" velocity:_endDragVelocity];
   _endDragVelocity = CGPointZero;
   if (!decelerate) {
@@ -1223,7 +1232,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   if (![view conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
     return NSNotFound;
   }
-  auto props = std::static_pointer_cast<const ShadowListCellViewProps>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
+  auto props =
+    std::static_pointer_cast<const ShadowListCellViewProps>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
   if (!props || props->rowKey.empty()) {
     return NSNotFound;
   }
@@ -1310,7 +1320,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   if (![view conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
     return nil;
   }
-  auto props = std::static_pointer_cast<const ShadowListCellViewProps>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
+  auto props =
+    std::static_pointer_cast<const ShadowListCellViewProps>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
   if (!props) {
     return nil;
   }

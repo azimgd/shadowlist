@@ -10,6 +10,9 @@ import android.view.View.MeasureSpec
 import android.widget.FrameLayout
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,9 +22,6 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import kotlin.math.abs
-import kotlin.math.ceil
-import kotlin.math.roundToInt
 
 /*
  * What a view that hosts the list relies on: exact item sizes, driven mode and the scroll
@@ -45,7 +45,8 @@ class ShadowListKitHostTest {
   // region Fixtures
 
   private class Rows(count: Int, private val size: Double) :
-    ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+    ShadowListKitListView.DataSource,
+    ShadowListKitListView.Sizing {
     val keys = MutableList(count) { "row$it" }
     private var nextKey = count
 
@@ -63,7 +64,8 @@ class ShadowListKitHostTest {
    * Rows whose sizes a test changes one by one.
    */
   private class SizedRows(count: Int, size: Double) :
-    ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+    ShadowListKitListView.DataSource,
+    ShadowListKitListView.Sizing {
     val keys = MutableList(count) { "row$it" }
     val sizes = MutableList(count) { size }
 
@@ -71,7 +73,8 @@ class ShadowListKitHostTest {
     override fun keyForItem(listView: ShadowListKitListView, index: Int): String = keys[index]
     override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
       listView.dequeueReusableCell("row")
-    override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = sizes[index].roundToInt()
+    override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int =
+      sizes[index].roundToInt()
     override fun exactSizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Double = sizes[index]
   }
 
@@ -131,7 +134,10 @@ class ShadowListKitHostTest {
 
   private fun template(size: Int): View = View(context).apply { minimumHeight = size }
 
-  private fun makeSizedList(rows: SizedRows, list: ShadowListKitListView = ShadowListKitListView(context)): ShadowListKitListView {
+  private fun makeSizedList(
+    rows: SizedRows,
+    list: ShadowListKitListView = ShadowListKitListView(context)
+  ): ShadowListKitListView {
     list.registerCell("row") { ShadowListKitListCell(it, "row") }
     list.dataSource = rows
     list.reloadData()
@@ -151,7 +157,10 @@ class ShadowListKitHostTest {
     }
   }
 
-  private fun makeList(rows: Rows, list: ShadowListKitListView = ShadowListKitListView(context)): ShadowListKitListView {
+  private fun makeList(
+    rows: Rows,
+    list: ShadowListKitListView = ShadowListKitListView(context)
+  ): ShadowListKitListView {
     list.registerCell("row") { ShadowListKitListCell(it, "row") }
     list.dataSource = rows
     list.reloadData()
@@ -162,7 +171,8 @@ class ShadowListKitHostTest {
   private fun layOut(view: View, height: Int = HEIGHT) {
     view.measure(
       MeasureSpec.makeMeasureSpec(WIDTH, MeasureSpec.EXACTLY),
-      MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+      MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY)
+    )
     view.layout(0, 0, WIDTH, height)
   }
 
@@ -792,7 +802,9 @@ class ShadowListKitHostTest {
    * Rows with a content version a test bumps by key.
    */
   private class VersionedRows(count: Int) :
-    ShadowListKitListView.DataSource, ShadowListKitListView.Sizing, ShadowListKitListView.ContentVersions {
+    ShadowListKitListView.DataSource,
+    ShadowListKitListView.Sizing,
+    ShadowListKitListView.ContentVersions {
     val keys = MutableList(count) { "row$it" }
     val versions = HashMap<String, Long>()
 
@@ -912,8 +924,14 @@ class ShadowListKitHostTest {
       override fun numberOfItems(listView: ShadowListKitListView) = keys.size
       override fun keyForItem(listView: ShadowListKitListView, index: Int) = keys[index]
       override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int) = 100
-      override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell = listView.dequeueReusableCell("row")
-      override fun reconfigureCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int, payload: Any?): Boolean {
+      override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+        listView.dequeueReusableCell("row")
+      override fun reconfigureCell(
+        listView: ShadowListKitListView,
+        cell: ShadowListKitListCell,
+        index: Int,
+        payload: Any?
+      ): Boolean {
         cell.contentDescription = payload as? String
         return true
       }
@@ -947,7 +965,10 @@ class ShadowListKitHostTest {
     list.persistentKeys = setOf("row150")
     makeSizedList(SizedRows(200, 100.0), list)
     assertEquals(WIDTH, requireNotNull(list.cellForItem(150)).width)
-    list.measure(MeasureSpec.makeMeasureSpec(800, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(HEIGHT, MeasureSpec.EXACTLY))
+    list.measure(
+      MeasureSpec.makeMeasureSpec(800, MeasureSpec.EXACTLY),
+      MeasureSpec.makeMeasureSpec(HEIGHT, MeasureSpec.EXACTLY)
+    )
     list.layout(0, 0, 800, HEIGHT)
     assertEquals(800, requireNotNull(list.cellForItem(150)).width)
     list.horizontal = true
@@ -987,13 +1008,26 @@ class ShadowListKitHostTest {
     val calls = HashMap<Int, Int>()
     list.getItemSizeSpec = { index ->
       calls[index] = (calls[index] ?: 0) + 1
-      if (index == 61) null else ShadowListKitItemSizeSpec("word ".repeat(60), fontSize = 14.0,
-        lineHeight = 20.0, insetWidth = 30.0, insetHeight = 12.0, widthFraction = 0.75)
+      if (index == 61) {
+        null
+      } else {
+        ShadowListKitItemSizeSpec(
+          "word ".repeat(60),
+          fontSize = 14.0,
+          lineHeight = 20.0,
+          insetWidth = 30.0,
+          insetHeight = 12.0,
+          widthFraction = 0.75
+        )
+      }
     }
     makeSizedList(SizedRows(200, 100.0), list)
     repeat(8) { list.layoutPass() }
     val narrow = list.rectForItem(60)!!.height()
-    list.measure(MeasureSpec.makeMeasureSpec(1600, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(HEIGHT, MeasureSpec.EXACTLY))
+    list.measure(
+      MeasureSpec.makeMeasureSpec(1600, MeasureSpec.EXACTLY),
+      MeasureSpec.makeMeasureSpec(HEIGHT, MeasureSpec.EXACTLY)
+    )
     list.layout(0, 0, 1600, HEIGHT)
     repeat(8) { list.layoutPass() }
     assertTrue(list.rectForItem(60)!!.height() < narrow)
@@ -1408,7 +1442,10 @@ class ShadowListKitHostTest {
     val text = "People ask why I still print paper boarding passes. It is not nostalgia, " +
       "I tell them; it is insurance. Phones die, apps crash, and airport wifi is a rumour. " +
       "A folded piece of paper tucked in my jacket pocket has rescued me at more boarding gates than I can count."
-    val paint = TextPaint().apply { textSize = 45f; letterSpacing = -0.41f * 2.625f / textSize }
+    val paint = TextPaint().apply {
+      textSize = 45f
+      letterSpacing = -0.41f * 2.625f / textSize
+    }
     val width = 690
     val layout = ShadowListKitTextLayout.make(text, paint, width).layout
     val expected = android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
@@ -1451,8 +1488,12 @@ class ShadowListKitHostTest {
 
   @Test
   fun a_swipe_action_without_a_color_takes_the_cores_gray_or_red() {
-    val normal = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") { _, completion -> completion(true) }
-    val destructive = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.DESTRUCTIVE, "Delete") { _, completion -> completion(true) }
+    val normal =
+      ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Archive") { _, completion -> completion(true) }
+    val destructive =
+      ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.DESTRUCTIVE, "Delete") { _, completion ->
+        completion(true)
+      }
     assertEquals(0xFF8E8E93.toInt(), normal.shownColor)
     assertEquals(0xFFFF3B30.toInt(), destructive.shownColor)
     assertEquals(ShadowListKitCore.SWIPE_ACTION_COLOR_NORMAL, normal.shownColor)
@@ -1497,9 +1538,8 @@ class ShadowListKitHostTest {
     val list = makeList(rows)
     list.scrollTo(0, (10 * ROW_SIZE + 7).roundToInt())
     list.delegate = object : ShadowListKitListView.Delegate {
-      override fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int) {
+      override fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int): Unit =
         throw IllegalStateException("rejected move")
-      }
     }
     assertThrows(IllegalStateException::class.java) { list.commitMove(10, 14) }
     val before = list.scrollY
@@ -1508,5 +1548,4 @@ class ShadowListKitHostTest {
     layOut(list)
     assertEquals((before + 4 * ROW_SIZE).roundToInt(), list.scrollY)
   }
-
 }

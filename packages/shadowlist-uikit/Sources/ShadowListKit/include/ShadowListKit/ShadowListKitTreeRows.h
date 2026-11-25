@@ -15,7 +15,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, getter=isExpanded) BOOL expanded;
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
-- (instancetype)initWithKey:(NSString *)key depth:(NSUInteger)depth hasChildren:(BOOL)hasChildren expanded:(BOOL)expanded;
+- (instancetype)initWithKey:(NSString *)key
+                      depth:(NSUInteger)depth
+                hasChildren:(BOOL)hasChildren
+                   expanded:(BOOL)expanded;
 @end
 
 /*

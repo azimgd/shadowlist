@@ -65,7 +65,9 @@ int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
 
   container.onStartReachedCallback = [&]() {
     requested++;
-    if (busyConsumer && fetchInFlight) return;
+    if (busyConsumer && fetchInFlight) {
+      return;
+    }
     fetchInFlight = true;
     fetchDueIn = FETCH_FRAMES;
   };
@@ -80,8 +82,7 @@ int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
 
   for (int frame = 0; frame < frames; ++frame) {
     if (fetchInFlight && --fetchDueIn <= 0) {
-      std::vector<std::string> older =
-        keysFor(PAGE_ROWS, "p" + std::to_string(pagesDelivered) + "_");
+      std::vector<std::string> older = keysFor(PAGE_ROWS, "p" + std::to_string(pagesDelivered) + "_");
       older.insert(older.end(), keys.begin(), keys.end());
       keys = older;
       pagesDelivered++;
@@ -94,7 +95,9 @@ int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
     }
 
     double offset = container.revision.offsetY - pixelsPerFrame;
-    if (offset < 0.0) offset = 0.0;
+    if (offset < 0.0) {
+      offset = 0.0;
+    }
     FrameInput input = chatInput(keys, offset);
     input.userScrolled = true;
     Virtualizer::update(container, input);
@@ -350,8 +353,7 @@ TEST(scroll_to_index_view_position_converges_as_the_target_is_measured) {
   }
 
   double freeSpace = WINDOW_HEIGHT - TALL_ROW;
-  CHECK_NEAR(container.revision.offsetY,
-    container.getRowOffset(target) - freeSpace * 0.5, 1.0);
+  CHECK_NEAR(container.revision.offsetY, container.getRowOffset(target) - freeSpace * 0.5, 1.0);
 }
 
 /*
@@ -375,8 +377,7 @@ TEST(scroll_to_index_view_position_survives_a_commit_before_the_window_is_measur
     Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
   }
 
-  CHECK_NEAR(container.revision.offsetY,
-    container.getRowOffset(target) - (WINDOW_HEIGHT - ROW_HEIGHT), 1.0);
+  CHECK_NEAR(container.revision.offsetY, container.getRowOffset(target) - (WINDOW_HEIGHT - ROW_HEIGHT), 1.0);
 }
 
 /*

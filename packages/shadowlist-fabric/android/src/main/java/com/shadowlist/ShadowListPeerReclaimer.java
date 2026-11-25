@@ -30,9 +30,7 @@ final class ShadowListPeerReclaimer {
    */
   private final HashMap<Long, Entry> mEntries = new HashMap<>();
 
-  ShadowListPeerReclaimer(LongConsumer free) {
-    mFree = free;
-  }
+  ShadowListPeerReclaimer(LongConsumer free) { mFree = free; }
 
   /*
    * Track owner's peer and free the peers of owners collected since the last call.
@@ -55,7 +53,7 @@ final class ShadowListPeerReclaimer {
 
   private void drain() {
     while (true) {
-      Entry entry = (Entry) mQueue.poll();
+      Entry entry = (Entry)mQueue.poll();
       if (entry == null) {
         return;
       }

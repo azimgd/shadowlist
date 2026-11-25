@@ -46,3 +46,6 @@ DerivedData/
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Python bytecode
+__pycache__/

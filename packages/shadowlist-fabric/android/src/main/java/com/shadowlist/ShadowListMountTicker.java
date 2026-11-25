@@ -11,9 +11,7 @@ import com.facebook.soloader.SoLoader;
  * only.
  */
 final class ShadowListMountTicker implements Choreographer.FrameCallback {
-  static {
-    SoLoader.loadLibrary("react_codegen_ShadowListViewSpec");
-  }
+  static { SoLoader.loadLibrary("react_codegen_ShadowListViewSpec"); }
 
   private long mHandle = 0;
   private boolean mPosted = false;

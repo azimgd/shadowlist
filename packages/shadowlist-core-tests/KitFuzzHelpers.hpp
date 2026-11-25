@@ -74,8 +74,8 @@ inline void rest(KitHost& host) {
     host.failWith("correction never settled at rest");
   }
   if (host.offset < -FUZZ_TOLERANCE || host.offset > host.maxOffset() + FUZZ_TOLERANCE) {
-    host.failWith("rests outside the range: off=" + std::to_string(host.offset) + " max=" +
-      std::to_string(host.maxOffset()));
+    host.failWith(
+      "rests outside the range: off=" + std::to_string(host.offset) + " max=" + std::to_string(host.maxOffset()));
   }
   std::string geometry = host.checkGeometry(true);
   if (!geometry.empty()) {
@@ -97,8 +97,8 @@ inline void rest(KitHost& host) {
   host.needsFrame = true;
   host.layoutPass();
   if (host.settleScheduled || std::fabs(host.offset - before) > 0.01) {
-    host.failWith("a frame at rest moved the list from " + std::to_string(before) + " to " +
-      std::to_string(host.offset));
+    host.failWith(
+      "a frame at rest moved the list from " + std::to_string(before) + " to " + std::to_string(host.offset));
   }
 }
 
@@ -116,7 +116,8 @@ inline void open(KitHost& host, std::size_t count) {
       ++host.sectionModel[item * host.sectionModel.size() / count].itemCount;
     }
   }
-  host.note("open n=" + std::to_string(count) + (host.settings.inverted ? " inverted" : "") +
+  host.note(
+    "open n=" + std::to_string(count) + (host.settings.inverted ? " inverted" : "") +
     (host.settings.horizontal ? " horizontal" : "") + " cols=" + std::to_string(host.getColumns()) +
     " sections=" + std::to_string(host.sectionModel.size()));
   host.reloadData();
@@ -159,8 +160,8 @@ inline Edit deleteEdit(KitHost& host, std::size_t at, std::size_t count) {
   edit.next = host.items;
   at = std::min(at, edit.next.size() - 1);
   count = std::min(count, edit.next.size() - at);
-  edit.next.erase(edit.next.begin() + static_cast<std::ptrdiff_t>(at), edit.next.begin() +
-    static_cast<std::ptrdiff_t>(at + count));
+  edit.next.erase(
+    edit.next.begin() + static_cast<std::ptrdiff_t>(at), edit.next.begin() + static_cast<std::ptrdiff_t>(at + count));
   for (std::size_t index = 0; index < count; ++index) {
     edit.update.deleted.push_back(at + index);
   }
@@ -231,7 +232,7 @@ inline Edit scatterEdit(KitHost& host, std::size_t deletes, std::size_t inserts)
     edit.update.inserted.push_back(index);
   }
   edit.what = "scatter " + std::to_string(edit.update.deleted.size()) + " out and " +
-    std::to_string(edit.update.inserted.size()) + " in";
+              std::to_string(edit.update.inserted.size()) + " in";
   return edit;
 }
 
@@ -269,7 +270,7 @@ inline constexpr const char* EDIT_ROUTE_NAMES[] = {"own call", "batch", "diff", 
 inline void applyEdit(KitHost& host, const Edit& edit) {
   const BatchUpdate& update = edit.update;
   int parts = (update.deleted.empty() ? 0 : 1) + (update.inserted.empty() ? 0 : 1) + (update.reloaded.empty() ? 0 : 1) +
-    (update.moved.empty() ? 0 : 1);
+              (update.moved.empty() ? 0 : 1);
   bool single = parts == 1 && update.moved.empty();
   std::vector<EditRoute> routes = {EditRoute::Batch, EditRoute::Diff};
   if (single) {
@@ -286,8 +287,8 @@ inline void applyEdit(KitHost& host, const Edit& edit) {
     host.leftBottom = false;
   }
   host.episode.reach(through);
-  host.note(edit.what + " " + through + " n=" + std::to_string(edit.next.size()) + " off=" +
-    std::to_string(host.offset));
+  host.note(
+    edit.what + " " + through + " n=" + std::to_string(edit.next.size()) + " off=" + std::to_string(host.offset));
   switch (route) {
     case EditRoute::OwnCall:
       if (!update.inserted.empty()) {
@@ -332,7 +333,8 @@ inline void changeAndHold(KitHost& host, const Edit& edit) {
 
   if (followsToBottom) {
     if (!atEnd(host)) {
-      host.failWith(edit.what + ": followAppends did not reach the bottom, off=" + std::to_string(host.offset) +
+      host.failWith(
+        edit.what + ": followAppends did not reach the bottom, off=" + std::to_string(host.offset) +
         " max=" + std::to_string(host.maxOffset()));
     }
     return;
@@ -362,8 +364,8 @@ inline void changeAndHold(KitHost& host, const Edit& edit) {
     double wanted = host.driver.getLeadingAt(host.driver.indexOfKey(row.key)) - row.screen;
     if (moved.empty()) {
       moved = "row " + row.key + " moved from " + std::to_string(row.screen) + " to " + std::to_string(after) +
-        " (wanted offset " + std::to_string(wanted) + ", host " + std::to_string(host.offset) + ", max " +
-        std::to_string(host.maxOffset()) + ", frames " + std::to_string(frames) + ")";
+              " (wanted offset " + std::to_string(wanted) + ", host " + std::to_string(host.offset) + ", max " +
+              std::to_string(host.maxOffset()) + ", frames " + std::to_string(frames) + ")";
     }
     if (host.getColumns() == 1) {
       break;
@@ -418,7 +420,8 @@ inline void scrollFrame(KitHost& host, double delta, ScrollPhase phase, bool pas
   bool atEdge = host.offset <= FUZZ_TOLERANCE || atEnd(host) || next <= 0.0 || next >= host.maxOffset();
   double after = screenOf(host, held.key);
   if (!atEdge && std::fabs(after - held.screen) > FUZZ_TOLERANCE) {
-    host.failWith("row " + held.key + " jumped from " + std::to_string(held.screen) + " to " + std::to_string(after) +
+    host.failWith(
+      "row " + held.key + " jumped from " + std::to_string(held.screen) + " to " + std::to_string(after) +
       " in a scroll frame");
   }
 }
@@ -453,8 +456,8 @@ inline void scrollTo(KitHost& host, double target) {
  * Where a scroll to a row rests, see landingOffset.
  */
 inline double landingOf(const KitHost& host, std::size_t row, double viewPosition) {
-  return landingOffset(host.driver.getLeadingAt(row), host.driver.getExtentAt(row), viewPosition, host.windowAlong,
-    host.maxOffset());
+  return landingOffset(
+    host.driver.getLeadingAt(row), host.driver.getExtentAt(row), viewPosition, host.windowAlong, host.maxOffset());
 }
 
 /*
@@ -496,25 +499,28 @@ inline void runCommand(KitHost& host, bool animated, double estimate, const Scro
 inline void scrollToItem(KitHost& host, std::size_t item, double viewPosition, bool animated) {
   std::size_t row = host.sections.rowForItem(item);
   std::string key = host.driver.getKeyAt(row);
-  host.note(std::string(animated ? "animated " : "") + "scrollToItem " + std::to_string(item) + " pos " +
+  host.note(
+    std::string(animated ? "animated " : "") + "scrollToItem " + std::to_string(item) + " pos " +
     std::to_string(viewPosition));
   double estimate = host.driver.animatedTargetOffset(row, viewPosition, host.windowAlong, host.maxOffset());
-  runCommand(host, animated, estimate, {ScrollLanding::Target::Row, row, viewPosition},
-    [&] { host.driver.scrollToRow(row, viewPosition); });
+  runCommand(host, animated, estimate, {ScrollLanding::Target::Row, row, viewPosition}, [&] {
+    host.driver.scrollToRow(row, viewPosition);
+  });
   std::size_t landed = host.driver.indexOfKey(key);
   double wanted = landingOf(host, landed, viewPosition);
   if (std::fabs(host.offset - wanted) > FUZZ_TOLERANCE) {
-    host.failWith("scrollToItem landed at " + std::to_string(host.offset) + " wanted " + std::to_string(wanted) +
-      " (row at " + std::to_string(host.driver.getLeadingAt(landed)) + ", size " +
-      std::to_string(host.driver.getExtentAt(landed)) + ")");
+    host.failWith(
+      "scrollToItem landed at " + std::to_string(host.offset) + " wanted " + std::to_string(wanted) + " (row at " +
+      std::to_string(host.driver.getLeadingAt(landed)) + ", size " + std::to_string(host.driver.getExtentAt(landed)) +
+      ")");
   }
 }
 
 inline void scrollToEnd(KitHost& host, bool animated) {
   host.note(std::string(animated ? "animated " : "") + "scrollToEnd");
   double from = host.offset;
-  runCommand(host, animated, host.maxOffset(), {ScrollLanding::Target::End, 0, 0.0},
-    [&] { host.driver.scrollToEnd(); });
+  runCommand(
+    host, animated, host.maxOffset(), {ScrollLanding::Target::End, 0, 0.0}, [&] { host.driver.scrollToEnd(); });
   if (!atEnd(host)) {
     host.failWith("scrollToEnd landed at " + std::to_string(host.offset) + " max " + std::to_string(host.maxOffset()));
   }

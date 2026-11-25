@@ -11,9 +11,7 @@ import com.facebook.soloader.SoLoader;
  * update allocates nothing.
  */
 final class ShadowListScrollSync {
-  static {
-    SoLoader.loadLibrary("react_codegen_ShadowListViewSpec");
-  }
+  static { SoLoader.loadLibrary("react_codegen_ShadowListViewSpec"); }
 
   /*
    * The core's scroll phases a host reports, SCROLL_PHASE_* in host/LiveScroll.hpp, and the
@@ -39,9 +37,9 @@ final class ShadowListScrollSync {
   static {
     double[] constants = new double[CONSTANT_SLOTS];
     nativeConstants(constants);
-    SCROLL_PHASE_IDLE = (int) constants[CONSTANT_SCROLL_PHASE_IDLE];
-    SCROLL_PHASE_DRAGGING = (int) constants[CONSTANT_SCROLL_PHASE_DRAGGING];
-    SCROLL_PHASE_SETTLING = (int) constants[CONSTANT_SCROLL_PHASE_SETTLING];
+    SCROLL_PHASE_IDLE = (int)constants[CONSTANT_SCROLL_PHASE_IDLE];
+    SCROLL_PHASE_DRAGGING = (int)constants[CONSTANT_SCROLL_PHASE_DRAGGING];
+    SCROLL_PHASE_SETTLING = (int)constants[CONSTANT_SCROLL_PHASE_SETTLING];
     SCROLL_TO_END_SLOT = constants[CONSTANT_SCROLL_TO_END_SLOT];
     SCROLL_TO_OFFSET_SLOT = constants[CONSTANT_SCROLL_TO_OFFSET_SLOT];
   }
@@ -124,9 +122,7 @@ final class ShadowListScrollSync {
   /*
    * landingTolerance is how close, in dp, our own scroll must land to count as reaching its target.
    */
-  ShadowListScrollSync(double landingTolerance) {
-    mLandingTolerance = landingTolerance;
-  }
+  ShadowListScrollSync(double landingTolerance) { mLandingTolerance = landingTolerance; }
 
   /*
    * Free the native peer. The next call creates a fresh one. The view calls this when Fabric
@@ -177,85 +173,66 @@ final class ShadowListScrollSync {
     double animationOffset,
     double bandLow,
     double bandHigh) {
-    nativeBeginMount(handle(), liveHandle, offsetEnabled, offsetX, offsetY, baseX, baseY, commitToken, commitRevision,
-      userScrolled, scrollPhase, concealGeneration, commandSequence, animationSequence, animationOffset,
-      bandLow, bandHigh);
+    nativeBeginMount(
+      handle(), liveHandle, offsetEnabled, offsetX, offsetY, baseX, baseY, commitToken, commitRevision, userScrolled,
+      scrollPhase, concealGeneration, commandSequence, animationSequence, animationOffset, bandLow, bandHigh);
   }
 
-  void setApplyingContentSize(boolean applying) {
-    nativeSetApplyingContentSize(handle(), applying);
-  }
+  void setApplyingContentSize(boolean applying) { nativeSetApplyingContentSize(handle(), applying); }
 
   /*
    * What the mounted correction does, ACTION_NONE, ACTION_WRITE or ACTION_ANIMATE. The target and flags are
    * then in getActionX() and the rest. Offsets and the range are in dp along both axes.
    */
   int correction(
-    double offsetX, double offsetY, double minOffset, double maxOffset,
-    boolean touching, boolean moving, boolean ownsOffset) {
+    double offsetX,
+    double offsetY,
+    double minOffset,
+    double maxOffset,
+    boolean touching,
+    boolean moving,
+    boolean ownsOffset) {
     return nativeCorrection(handle(), offsetX, offsetY, minOffset, maxOffset, touching, moving, ownsOffset, mOut);
   }
 
-  double getActionX() {
-    return mOut[OUT_ACTION_X];
-  }
+  double getActionX() { return mOut[OUT_ACTION_X]; }
 
-  double getActionY() {
-    return mOut[OUT_ACTION_Y];
-  }
+  double getActionY() { return mOut[OUT_ACTION_Y]; }
 
-  boolean actionPreservesMomentum() {
-    return mOut[OUT_ACTION_PRESERVE_MOMENTUM] != 0.0;
-  }
+  boolean actionPreservesMomentum() { return mOut[OUT_ACTION_PRESERVE_MOMENTUM] != 0.0; }
 
   /*
    * Right before writing the correction. Its scroll callback then counts as ours.
    */
-  void willWrite() {
-    nativeWillWrite(handle());
-  }
+  void willWrite() { nativeWillWrite(handle()); }
 
-  void didWrite(boolean moved) {
-    nativeDidWrite(handle(), moved);
-  }
+  void didWrite(boolean moved) { nativeDidWrite(handle(), moved); }
 
-  void endMount() {
-    nativeEndMount(handle());
-  }
+  void endMount() { nativeEndMount(handle()); }
 
   /*
    * One scroll callback in dp. Returns whether it must become a state update, which is then
    * patchMap(). isFrameUserScrolled() tells whether the user moved the view.
    */
   boolean onScroll(double offsetX, double offsetY, int scrollPhase, boolean commitEveryFrame) {
-    return nativeOnScroll(handle(), offsetX, offsetY, (double) scrollPhase, commitEveryFrame, mOut);
+    return nativeOnScroll(handle(), offsetX, offsetY, (double)scrollPhase, commitEveryFrame, mOut);
   }
 
-  boolean isFrameUserScrolled() {
-    return mOut[OUT_FRAME_USER_SCROLLED] != 0.0;
-  }
+  boolean isFrameUserScrolled() { return mOut[OUT_FRAME_USER_SCROLLED] != 0.0; }
 
   /*
    * Whether the last frame ended an animated move of ours on its target.
    */
-  boolean isFrameLanded() {
-    return mOut[OUT_FRAME_LANDED] != 0.0;
-  }
+  boolean isFrameLanded() { return mOut[OUT_FRAME_LANDED] != 0.0; }
 
   /*
    * Mark a scroll we start, like a snap or scrollToOffset. Its frames are not the user.
    */
-  void arm(double offsetX, double offsetY, boolean animated) {
-    nativeArm(handle(), offsetX, offsetY, animated);
-  }
+  void arm(double offsetX, double offsetY, boolean animated) { nativeArm(handle(), offsetX, offsetY, animated); }
 
-  void disarm() {
-    nativeDisarm(handle());
-  }
+  void disarm() { nativeDisarm(handle()); }
 
-  void momentumStopped() {
-    nativeMomentumStopped(handle());
-  }
+  void momentumStopped() { nativeMomentumStopped(handle()); }
 
   /*
    * An update with the live offset and the last echoed token, with the newest report's
@@ -266,7 +243,7 @@ final class ShadowListScrollSync {
   }
 
   void livePatch(double offsetX, double offsetY, boolean userScrolled, int scrollPhase) {
-    nativeLivePatch(handle(), offsetX, offsetY, false, userScrolled, (double) scrollPhase, mOut);
+    nativeLivePatch(handle(), offsetX, offsetY, false, userScrolled, (double)scrollPhase, mOut);
   }
 
   /*
@@ -277,8 +254,13 @@ final class ShadowListScrollSync {
   }
 
   void issueCommand(
-    double index, double viewPosition, double viewOffset, boolean animated,
-    double offsetX, double offsetY, boolean momentumYielded) {
+    double index,
+    double viewPosition,
+    double viewOffset,
+    boolean animated,
+    double offsetX,
+    double offsetY,
+    boolean momentumYielded) {
     nativeIssueCommand(handle(), index, viewPosition, viewOffset, animated, offsetX, offsetY, momentumYielded, mOut);
   }
 
@@ -286,32 +268,20 @@ final class ShadowListScrollSync {
    * An animated command's animation ended. Returns false when none waits. Otherwise the
    * command without the animation is patchMap().
    */
-  boolean land(double offsetX, double offsetY) {
-    return nativeLand(handle(), offsetX, offsetY, mOut);
-  }
+  boolean land(double offsetX, double offsetY) { return nativeLand(handle(), offsetX, offsetY, mOut); }
 
-  double getCommandSequence() {
-    return mOut[OUT_COMMAND_SEQUENCE];
-  }
+  double getCommandSequence() { return mOut[OUT_COMMAND_SEQUENCE]; }
 
-  boolean isLanding() {
-    return mHandle != 0 && nativeIsLanding(mHandle);
-  }
+  boolean isLanding() { return mHandle != 0 && nativeIsLanding(mHandle); }
 
   /*
    * Ask the core for the anchor at the live offset. The update is patchMap().
    */
-  void requestAnchor(double offsetX, double offsetY) {
-    nativeRequestAnchor(handle(), offsetX, offsetY, mOut);
-  }
+  void requestAnchor(double offsetX, double offsetY) { nativeRequestAnchor(handle(), offsetX, offsetY, mOut); }
 
-  boolean isCurrentUserScrolled() {
-    return nativeIsCurrentUserScrolled(handle());
-  }
+  boolean isCurrentUserScrolled() { return nativeIsCurrentUserScrolled(handle()); }
 
-  int getCurrentScrollPhase() {
-    return (int) nativeGetCurrentScrollPhase(handle());
-  }
+  int getCurrentScrollPhase() { return (int)nativeGetCurrentScrollPhase(handle()); }
 
   /*
    * The last patch as a state update: one "patch" array in the order of PATCH_SLOTS, which
@@ -364,16 +334,34 @@ final class ShadowListScrollSync {
   private static native void nativeDidWrite(long handle, boolean moved);
   private static native void nativeEndMount(long handle);
   private static native boolean nativeOnScroll(
-    long handle, double offsetX, double offsetY, double scrollPhase, boolean commitEveryFrame, double[] out);
+    long handle,
+    double offsetX,
+    double offsetY,
+    double scrollPhase,
+    boolean commitEveryFrame,
+    double[] out);
   private static native void nativeArm(long handle, double offsetX, double offsetY, boolean animated);
   private static native void nativeDisarm(long handle);
   private static native void nativeMomentumStopped(long handle);
   private static native void nativeLivePatch(
-    long handle, double offsetX, double offsetY, boolean current, boolean userScrolled, double scrollPhase, double[] out);
+    long handle,
+    double offsetX,
+    double offsetY,
+    boolean current,
+    boolean userScrolled,
+    double scrollPhase,
+    double[] out);
   private static native boolean nativeClearUserScrolled(long handle, double offsetX, double offsetY, double[] out);
   private static native void nativeIssueCommand(
-    long handle, double index, double viewPosition, double viewOffset, boolean animated,
-    double offsetX, double offsetY, boolean momentumYielded, double[] out);
+    long handle,
+    double index,
+    double viewPosition,
+    double viewOffset,
+    boolean animated,
+    double offsetX,
+    double offsetY,
+    boolean momentumYielded,
+    double[] out);
   private static native boolean nativeLand(long handle, double offsetX, double offsetY, double[] out);
   private static native boolean nativeIsLanding(long handle);
   private static native void nativeRequestAnchor(long handle, double offsetX, double offsetY, double[] out);

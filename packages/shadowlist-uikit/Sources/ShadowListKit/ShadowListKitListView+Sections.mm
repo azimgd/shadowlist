@@ -108,7 +108,8 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
 
 - (void)updateStickyRows
 {
-  std::vector<std::size_t> items = _stickyIndices.count > 0 ? ShadowListKitIndices(_stickyIndices) : std::vector<std::size_t>();
+  std::vector<std::size_t> items =
+    _stickyIndices.count > 0 ? ShadowListKitIndices(_stickyIndices) : std::vector<std::size_t>();
   _driver.setStickyIndices(_sections.stickyRows(items, _stickySectionHeaders));
 }
 
@@ -143,9 +144,7 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
     _sectionIndex = [ShadowListKitSectionIndexView new];
     _sectionIndex.layer.zPosition = 10;
     __weak ShadowListKitListView *weakSelf = self;
-    _sectionIndex.onSelect = ^(NSInteger index) {
-      [weakSelf scrollToSectionIndexTitleAtIndex:index];
-    };
+    _sectionIndex.onSelect = ^(NSInteger index) { [weakSelf scrollToSectionIndexTitleAtIndex:index]; };
     [self addSubview:_sectionIndex];
   }
   _sectionIndex.titles = titles;

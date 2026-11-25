@@ -16,10 +16,11 @@ extern NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER;
  */
 static inline NSString *ShadowListKitRowsShownAnnouncement(NSRange visible, NSUInteger count)
 {
-  NSString *format = NSLocalizedStringWithDefaultValue(@"ShadowListKitRowsShown", @"ShadowListKit", NSBundle.mainBundle,
-    @"Rows %lu to %lu of %lu", @"The first and last item that show and the item count, after a page scroll");
-  return [NSString localizedStringWithFormat:format, (unsigned long)visible.location + 1, (unsigned long)NSMaxRange(visible),
-    (unsigned long)count];
+  NSString *format = NSLocalizedStringWithDefaultValue(
+    @"ShadowListKitRowsShown", @"ShadowListKit", NSBundle.mainBundle, @"Rows %lu to %lu of %lu",
+    @"The first and last item that show and the item count, after a page scroll");
+  return [NSString localizedStringWithFormat:format, (unsigned long)visible.location + 1,
+                                             (unsigned long)NSMaxRange(visible), (unsigned long)count];
 }
 
 /*

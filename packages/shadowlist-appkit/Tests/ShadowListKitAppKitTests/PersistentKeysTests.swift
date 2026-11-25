@@ -32,7 +32,7 @@ final class PersistentKeysTests: XCTestCase {
     XCTAssertNil(list.cellForItem(at: 170))
   }
 
-  func testRetainedRowsMeasureAtTheCurrentCrossSize() throws {
+  func testRetainedRowsMeasureAtTheCurrentCrossSize() {
     let source = SizedTestSource(count: 200)
     let harness = ListHarness(source: source) { $0.persistentKeys = ["item-150"] }
     XCTAssertEqual(harness.list.cellForItem(at: 150)?.bounds.width, 320)

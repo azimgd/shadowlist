@@ -70,8 +70,9 @@ std::optional<MountMessage> MountDriver::process(const KeyList& keys, const Inde
       std::optional<MountedRange> previousMeasured = previousMeasured_;
       previousMeasured_ = measured;
       MountedRange current = currentRange(size);
-      auto reported = reportedMountedRange(current, measured, previousMeasured, basis_.sequence == 0, size,
-        settings_.overscanRows, settings_.overscanRowsLeading, settings_.minimumStep);
+      auto reported = reportedMountedRange(
+        current, measured, previousMeasured, basis_.sequence == 0, size, settings_.overscanRows,
+        settings_.overscanRowsLeading, settings_.minimumStep);
       if (reported) {
         const MountedRange& target = reported->target;
         if (reported->range == target) {
@@ -87,8 +88,8 @@ std::optional<MountMessage> MountDriver::process(const KeyList& keys, const Inde
          * The range is kept. The steps on their way go to where this report wants the range, and
          * pace from its measured rows.
          */
-        MountedRange target = visibleTargetRange(measured, previousMeasured, size, settings_.overscanRows,
-          settings_.overscanRowsLeading);
+        MountedRange target =
+          visibleTargetRange(measured, previousMeasured, size, settings_.overscanRows, settings_.overscanRowsLeading);
         if (target == current) {
           target_.reset();
         } else {
@@ -122,8 +123,9 @@ void MountDriver::prepareStep(const KeyList& keys, const IndexOfKey& indexOfKey)
   std::size_t high = indexOfKey(target_->highKey);
   std::size_t measuredLow = indexOfKey(target_->measuredLowKey);
   std::size_t measuredHigh = indexOfKey(target_->measuredHighKey);
-  if (low == UNDEFINED_INDEX || high == UNDEFINED_INDEX || measuredLow == UNDEFINED_INDEX ||
-      measuredHigh == UNDEFINED_INDEX || low > high) {
+  if (
+    low == UNDEFINED_INDEX || high == UNDEFINED_INDEX || measuredLow == UNDEFINED_INDEX ||
+    measuredHigh == UNDEFINED_INDEX || low > high) {
     target_.reset();
     return;
   }

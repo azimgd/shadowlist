@@ -42,7 +42,7 @@ final class ListBasicsTests: XCTestCase {
     let harness = ListHarness(source: source)
     let list = harness.list
     let made = source.cellsMade
-    for step in 1...40 {
+    for step in 1 ... 40 {
       list.contentOffset = CGPoint(x: 0, y: CGFloat(step) * 200)
       harness.layout()
     }
@@ -60,8 +60,15 @@ final class ListBasicsTests: XCTestCase {
     let harness = ListHarness(source: SizedTestSource(count: 40))
     let list = harness.list
     func wheel(_ delta: Int32) throws {
-      let cgEvent = try XCTUnwrap(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: delta, wheel2: 0, wheel3: 0))
-      list.scrollWheel(with: try XCTUnwrap(NSEvent(cgEvent: cgEvent)))
+      let cgEvent = try XCTUnwrap(CGEvent(
+        scrollWheelEvent2Source: nil,
+        units: .pixel,
+        wheelCount: 1,
+        wheel1: delta,
+        wheel2: 0,
+        wheel3: 0
+      ))
+      try list.scrollWheel(with: XCTUnwrap(NSEvent(cgEvent: cgEvent)))
       harness.layout()
     }
     try wheel(-40)
@@ -69,7 +76,7 @@ final class ListBasicsTests: XCTestCase {
     XCTAssertEqual(harness.delegate.scrolls, 1)
     try wheel(200)
     XCTAssertEqual(list.contentOffset.y, 0, accuracy: 0.01)
-    for _ in 0..<60 {
+    for _ in 0 ..< 60 {
       try wheel(-100)
     }
     XCTAssertEqual(list.contentOffset.y, 40 * 44 - 480, accuracy: 0.01)
@@ -114,7 +121,7 @@ final class ListBasicsTests: XCTestCase {
       label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
       label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
       label.topAnchor.constraint(equalTo: cell.topAnchor, constant: 10),
-      label.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -10),
+      label.bottomAnchor.constraint(equalTo: cell.bottomAnchor, constant: -10)
     ])
     let narrow = cell.sizeThatFits(NSSize(width: 160, height: CGFloat.greatestFiniteMagnitude))
     let wide = cell.sizeThatFits(NSSize(width: 480, height: CGFloat.greatestFiniteMagnitude))
@@ -128,13 +135,18 @@ final class ListBasicsTests: XCTestCase {
     final class Prefetch: NSObject, ShadowListKitListViewPrefetchDataSource {
       var prefetched = IndexSet()
       var cancelled = IndexSet()
-      func listView(_ listView: ShadowListKitListView, prefetchItemsAt indices: IndexSet) { prefetched.formUnion(indices) }
-      func listView(_ listView: ShadowListKitListView, cancelPrefetchingForItemsAt indices: IndexSet) { cancelled.formUnion(indices) }
+      func listView(_ listView: ShadowListKitListView, prefetchItemsAt indices: IndexSet) {
+        prefetched.formUnion(indices)
+      }
+
+      func listView(_ listView: ShadowListKitListView, cancelPrefetchingForItemsAt indices: IndexSet) {
+        cancelled.formUnion(indices)
+      }
     }
     let prefetch = Prefetch()
     let harness = ListHarness(source: SizedTestSource(count: 300)) { $0.prefetchDataSource = prefetch }
     let list = harness.list
-    for step in 1...10 {
+    for step in 1 ... 10 {
       list.contentOffset = CGPoint(x: 0, y: CGFloat(step) * 100)
       harness.layout()
     }
@@ -165,7 +177,8 @@ final class ListBasicsTests: XCTestCase {
   }
 
   func testAGridMountsAgainWhenItsWindowGrowsOverMoreRows() throws {
-    let harness = ListHarness(source: makeGridSource(), size: NSSize(width: 320, height: 200)) { $0.numberOfColumns = 4 }
+    let harness = ListHarness(source: makeGridSource(), size: NSSize(width: 320, height: 200)) { $0.numberOfColumns = 4
+    }
     let list = harness.list
     list.contentOffset = CGPoint(x: 0, y: 1300)
     harness.layout()
@@ -185,12 +198,13 @@ final class ListBasicsTests: XCTestCase {
     let source = SizedTestSource(count: 3000)
     source.defaultHeight = 10
     let window = ScaleWindow(
-      contentRect: NSRect(x: -10_000, y: -10_000, width: 320, height: 480), styleMask: [.borderless],
-      backing: .buffered, defer: false)
+      contentRect: NSRect(x: -10000, y: -10000, width: 320, height: 480), styleMask: [.borderless],
+      backing: .buffered, defer: false
+    )
     window.isReleasedWhenClosed = false
     let list = ShadowListKitListView(frame: window.contentView!.bounds)
     list.register(TestCell.self, forCellReuseIdentifier: "cell")
-    list.estimatedItemSize = 10_000
+    list.estimatedItemSize = 10000
     list.dataSource = source
     window.contentView!.addSubview(list)
     list.reloadData()
@@ -202,7 +216,9 @@ final class ListBasicsTests: XCTestCase {
   func testAPropertySetAtRestLaysOutAgain() {
     final class Edges: NSObject, ShadowListKitListViewDelegate {
       var ends = 0
-      func listViewDidReachEnd(_ listView: ShadowListKitListView) { ends += 1 }
+      func listViewDidReachEnd(_ listView: ShadowListKitListView) {
+        ends += 1
+      }
     }
     let edges = Edges()
     let harness = ListHarness(source: SizedTestSource(count: 100))
@@ -223,11 +239,22 @@ final class ListBasicsTests: XCTestCase {
     XCTAssertEqual(edges.ends, 1)
   }
 
-  func testSectionTitlesShowInTitleCellsBetweenItems() throws {
+  func testSectionTitlesShowInTitleCellsBetweenItems() {
     final class Sections: TestSource {
-      func numberOfSections(in listView: ShadowListKitListView) -> Int { 3 }
-      func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { 4 }
-      func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { "Section \(section)" }
+      func numberOfSections(in listView: ShadowListKitListView) -> Int {
+        3
+      }
+
+      func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int {
+        4
+      }
+
+      func listView(
+        _ listView: ShadowListKitListView,
+        titleForHeaderInSection section: Int
+      ) -> String? {
+        "Section \(section)"
+      }
     }
     let harness = ListHarness(source: Sections(count: 12))
     let list = harness.list

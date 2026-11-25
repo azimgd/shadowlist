@@ -9,12 +9,10 @@ namespace facebook::react {
 
 class ShadowListCellViewComponentDescriptor final : public ConcreteComponentDescriptor<ShadowListCellViewShadowNode> {
 public:
-  ShadowListCellViewComponentDescriptor(const ComponentDescriptorParameters& parameters) :
-    ConcreteComponentDescriptor<ShadowListCellViewShadowNode>(parameters) {}
+  ShadowListCellViewComponentDescriptor(const ComponentDescriptorParameters& parameters)
+    : ConcreteComponentDescriptor<ShadowListCellViewShadowNode>(parameters) {}
 
-  void adopt(ShadowNode& shadowNode) const override {
-    ConcreteComponentDescriptor::adopt(shadowNode);
-  }
+  void adopt(ShadowNode& shadowNode) const override { ConcreteComponentDescriptor::adopt(shadowNode); }
 };
 
 void ShadowListCellViewSpec_registerComponentDescriptorsFromCodegen(

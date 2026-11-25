@@ -99,9 +99,7 @@ public class ShadowListCellView extends ViewGroup {
    * row's single child chain, such as a rounded card inside padding, or the row's bounds when
    * the chain branches first. The row's own background counts as the first view.
    */
-  private void updateOutline() {
-    setOutlineProvider(CONTENT_OUTLINE);
-  }
+  private void updateOutline() { setOutlineProvider(CONTENT_OUTLINE); }
 
   /*
    * Takes the outline of that view's background, moved into the row's space, or that view's
@@ -113,9 +111,7 @@ public class ShadowListCellView extends ViewGroup {
   /*
    * The shape a drag board's floating picture of view casts its shadow in.
    */
-  static void getLiftOutline(View view, Outline outline) {
-    CONTENT_OUTLINE.getOutline(view, outline);
-  }
+  static void getLiftOutline(View view, Outline outline) { CONTENT_OUTLINE.getOutline(view, outline); }
 
   private static final ViewOutlineProvider CONTENT_OUTLINE = new ViewOutlineProvider() {
     @Override
@@ -125,11 +121,11 @@ public class ShadowListCellView extends ViewGroup {
       int left = 0;
       int top = 0;
       while (current != null && current.getBackground() == null) {
-        if (!(current instanceof ViewGroup) || ((ViewGroup) current).getChildCount() != 1) {
+        if (!(current instanceof ViewGroup) || ((ViewGroup)current).getChildCount() != 1) {
           current = null;
           break;
         }
-        current = ((ViewGroup) current).getChildAt(0);
+        current = ((ViewGroup)current).getChildAt(0);
         left += current.getLeft();
         top += current.getTop();
       }
@@ -163,22 +159,16 @@ public class ShadowListCellView extends ViewGroup {
     mRowIndexGeneration = generation;
   }
 
-  boolean hasRowIndex(int generation) {
-    return mRowIndexGeneration == generation;
-  }
+  boolean hasRowIndex(int generation) { return mRowIndexGeneration == generation; }
 
-  int getRowIndex() {
-    return mRowIndex;
-  }
+  int getRowIndex() { return mRowIndex; }
 
   public void setRowKey(String key) {
     mRowKey = key != null ? key : "";
     mRowIndexGeneration = -1;
   }
 
-  public String getRowKey() {
-    return mRowKey;
-  }
+  public String getRowKey() { return mRowKey; }
 
   // region Swipe actions
 
@@ -268,13 +258,9 @@ public class ShadowListCellView extends ViewGroup {
     updateAccessibilityActions();
   }
 
-  public void setLeadingFullSwipe(boolean fullSwipe) {
-    mLeadingFullSwipe = fullSwipe;
-  }
+  public void setLeadingFullSwipe(boolean fullSwipe) { mLeadingFullSwipe = fullSwipe; }
 
-  public void setTrailingFullSwipe(boolean fullSwipe) {
-    mTrailingFullSwipe = fullSwipe;
-  }
+  public void setTrailingFullSwipe(boolean fullSwipe) { mTrailingFullSwipe = fullSwipe; }
 
   /*
    * Slide a swiped row back.
@@ -301,16 +287,12 @@ public class ShadowListCellView extends ViewGroup {
     }
   }
 
-  boolean isSwipeOpen() {
-    return mSwipeOffset != 0f || mSwipeAnimator != null;
-  }
+  boolean isSwipeOpen() { return mSwipeOffset != 0f || mSwipeAnimator != null; }
 
   /*
    * Whether the row slid all the way out and waits for its action.
    */
-  boolean isSwipedOut() {
-    return mSwipedOut;
-  }
+  boolean isSwipedOut() { return mSwipedOut; }
 
   @Override
   public boolean onInterceptTouchEvent(MotionEvent event) {
@@ -396,7 +378,7 @@ public class ShadowListCellView extends ViewGroup {
       claimTouch(event);
     }
     boolean wasPast = mSwipe.isPastFullSwipe(mSwipeOffset);
-    applySwipeOffset((float) mSwipe.drag(deltaX));
+    applySwipeOffset((float)mSwipe.drag(deltaX));
     if (mSwipe.isPastFullSwipe(mSwipeOffset) != wasPast) {
       performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
     }
@@ -449,7 +431,7 @@ public class ShadowListCellView extends ViewGroup {
     ViewParent parent = getParent();
     while (parent != null) {
       if (parent instanceof ShadowListView) {
-        return (ShadowListView) parent;
+        return (ShadowListView)parent;
       }
       parent = parent.getParent();
     }
@@ -490,12 +472,8 @@ public class ShadowListCellView extends ViewGroup {
     }
     cancelSwipeAnimator();
     mSwipe.begin(
-      sum(mLeadingSizes),
-      sum(mTrailingSizes),
-      mLeadingFullSwipe && mLeadingSizes.length > 0,
-      mTrailingFullSwipe && mTrailingSizes.length > 0,
-      getWidth(),
-      mSwipeOffset);
+      sum(mLeadingSizes), sum(mTrailingSizes), mLeadingFullSwipe && mLeadingSizes.length > 0,
+      mTrailingFullSwipe && mTrailingSizes.length > 0, getWidth(), mSwipeOffset);
     return true;
   }
 
@@ -540,13 +518,9 @@ public class ShadowListCellView extends ViewGroup {
     ShadowListSwipeReveal.buttonSpans(sizes, mShownCount, mSwipeOffset, full, getWidth(), mSpans);
   }
 
-  private float buttonStart(int index) {
-    return (float) mSpans[SPAN_FIRST_BUTTON + index * SPAN_BUTTON_STRIDE];
-  }
+  private float buttonStart(int index) { return (float)mSpans[SPAN_FIRST_BUTTON + index * SPAN_BUTTON_STRIDE]; }
 
-  private float buttonSize(int index) {
-    return (float) mSpans[SPAN_FIRST_BUTTON + index * SPAN_BUTTON_STRIDE + 1];
-  }
+  private float buttonSize(int index) { return (float)mSpans[SPAN_FIRST_BUTTON + index * SPAN_BUTTON_STRIDE + 1]; }
 
   /*
    * The shown button under x, or -1.
@@ -568,7 +542,7 @@ public class ShadowListCellView extends ViewGroup {
   private void settleSwipe(float velocity) {
     double flingVelocity = ShadowListSwipeReveal.FLING_VELOCITY_DP * getResources().getDisplayMetrics().density;
     mSwipe.settle(mSwipeOffset, velocity, flingVelocity);
-    float target = (float) mSwipe.getRestOffset();
+    float target = (float)mSwipe.getRestOffset();
     if (!mSwipe.isRestFull()) {
       animateSwipe(target, null);
       return;
@@ -586,7 +560,7 @@ public class ShadowListCellView extends ViewGroup {
     animator.setInterpolator(new DecelerateInterpolator());
     animator.addUpdateListener(animation -> {
       if (mSwipeAnimator == animation) {
-        applySwipeOffset((float) animation.getAnimatedValue());
+        applySwipeOffset((float)animation.getAnimatedValue());
       }
     });
     animator.addListener(new AnimatorListenerAdapter() {
@@ -671,8 +645,8 @@ public class ShadowListCellView extends ViewGroup {
       return;
     }
     float height = getHeight();
-    float gapStart = (float) mSpans[SPAN_GAP_START];
-    float gap = (float) mSpans[SPAN_GAP_SIZE];
+    float gapStart = (float)mSpans[SPAN_GAP_START];
+    float gap = (float)mSpans[SPAN_GAP_SIZE];
     int saved = canvas.save();
     // Only the gap shows the buttons' color.
     canvas.clipRect(gapStart, 0f, gapStart + gap, height);
@@ -695,9 +669,7 @@ public class ShadowListCellView extends ViewGroup {
     canvas.restoreToCount(saved);
   }
 
-  private static int actionCount(@Nullable ReadableArray actions) {
-    return actions != null ? actions.size() : 0;
-  }
+  private static int actionCount(@Nullable ReadableArray actions) { return actions != null ? actions.size() : 0; }
 
   private static String actionTitle(@Nullable ReadableArray actions, int index) {
     ReadableMap action = actions != null ? actions.getMap(index) : null;
@@ -726,7 +698,7 @@ public class ShadowListCellView extends ViewGroup {
       return fallback;
     }
     if (action.getType("backgroundColor") == ReadableType.Number) {
-      return (int) (long) action.getDouble("backgroundColor");
+      return (int)(long)action.getDouble("backgroundColor");
     }
     return ColorPropConverter.getColor(action.getMap("backgroundColor"), getContext(), fallback);
   }
@@ -772,9 +744,7 @@ public class ShadowListCellView extends ViewGroup {
     return handled || (watchesMenu && event.getActionMasked() == MotionEvent.ACTION_DOWN);
   }
 
-  public void setContextMenuTitle(@Nullable String title) {
-    mContextMenuTitle = title;
-  }
+  public void setContextMenuTitle(@Nullable String title) { mContextMenuTitle = title; }
 
   public void setContextMenuActions(@Nullable ReadableArray actions) {
     mContextMenuActions = actions;
@@ -796,7 +766,8 @@ public class ShadowListCellView extends ViewGroup {
       CharSequence title = actionTitle(mContextMenuActions, index);
       if (actionDestructive(mContextMenuActions, index)) {
         SpannableString tinted = new SpannableString(title);
-        tinted.setSpan(new ForegroundColorSpan(DESTRUCTIVE_COLOR), 0, tinted.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        tinted.setSpan(
+          new ForegroundColorSpan(DESTRUCTIVE_COLOR), 0, tinted.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         title = tinted;
       }
       MenuItem item = menu.add(Menu.NONE, index, index, title);
@@ -815,8 +786,8 @@ public class ShadowListCellView extends ViewGroup {
   private void dispatchContextMenuAction(int actionIndex) {
     EventDispatcher dispatcher = eventDispatcher();
     if (dispatcher != null) {
-      dispatcher.dispatchEvent(ShadowListActionEvent.contextMenuAction(
-        UIManagerHelper.getSurfaceId(this), getId(), actionIndex));
+      dispatcher.dispatchEvent(
+        ShadowListActionEvent.contextMenuAction(UIManagerHelper.getSurfaceId(this), getId(), actionIndex));
     }
   }
 
@@ -845,12 +816,13 @@ public class ShadowListCellView extends ViewGroup {
      */
     ShadowListView list = listView();
     if (list != null && list.isReorderEnabled()) {
-      addAccessibilityAction(getContext().getString(R.string.shadowlist_move_up),
-        () -> list.performAccessibilityMove(this, true));
-      addAccessibilityAction(getContext().getString(R.string.shadowlist_move_down),
-        () -> list.performAccessibilityMove(this, false));
+      addAccessibilityAction(
+        getContext().getString(R.string.shadowlist_move_up), () -> list.performAccessibilityMove(this, true));
+      addAccessibilityAction(
+        getContext().getString(R.string.shadowlist_move_down), () -> list.performAccessibilityMove(this, false));
       for (ShadowListDragController target : list.dragBoardMoveTargets()) {
-        addAccessibilityAction(getContext().getString(R.string.shadowlist_move_to, target.getDragListLabel()),
+        addAccessibilityAction(
+          getContext().getString(R.string.shadowlist_move_to, target.getDragListLabel()),
           () -> list.performAccessibilityMoveToList(this, target));
       }
     }
@@ -886,7 +858,7 @@ public class ShadowListCellView extends ViewGroup {
 
   @Nullable
   private EventDispatcher eventDispatcher() {
-    return UIManagerHelper.getEventDispatcherForReactTag((ReactContext) getContext(), getId());
+    return UIManagerHelper.getEventDispatcherForReactTag((ReactContext)getContext(), getId());
   }
 
   /*
@@ -900,7 +872,7 @@ public class ShadowListCellView extends ViewGroup {
     removeAllViews();
     ViewParent parent = getParent();
     if (parent instanceof ViewGroup) {
-      ((ViewGroup) parent).removeView(this);
+      ((ViewGroup)parent).removeView(this);
     }
   }
 

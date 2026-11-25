@@ -71,12 +71,13 @@ mavenPublishing {
     coordinates(
       groupId = "${System.getenv("GROUP") ?: "com.github.azimgd"}.${System.getenv("ARTIFACT") ?: "shadowlist"}",
       artifactId = property("POM_ARTIFACT_ID").toString(),
-      version = System.getenv("VERSION") ?: property("VERSION_NAME").toString(),
+      version = System.getenv("VERSION") ?: property("VERSION_NAME").toString()
     )
   }
   publishToMavenCentral()
   // Signing needs a key. Without one, publishToMavenLocal still works and Maven Central refuses the upload.
-  val signingKey = providers.gradleProperty("signingInMemoryKey").orNull ?: providers.gradleProperty("signing.keyId").orNull
+  val signingKey =
+    providers.gradleProperty("signingInMemoryKey").orNull ?: providers.gradleProperty("signing.keyId").orNull
   if (!signingKey.isNullOrBlank()) {
     signAllPublications()
   }

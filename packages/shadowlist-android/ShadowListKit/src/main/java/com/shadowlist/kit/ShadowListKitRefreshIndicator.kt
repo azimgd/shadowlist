@@ -29,7 +29,10 @@ internal class ShadowListKitRefreshIndicator(private val list: ShadowListKitList
    * Read from the resources. The list's own density field is not set yet while it builds this.
    */
   private val density = list.resources.displayMetrics.density
-  private val circle = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; setShadowLayer(4 * density, 0f, density, 0x40000000) }
+  private val circle = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    color = Color.WHITE
+    setShadowLayer(4 * density, 0f, density, 0x40000000)
+  }
   private val arc = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     style = Paint.Style.STROKE
     strokeWidth = STROKE_DP * density
@@ -52,7 +55,9 @@ internal class ShadowListKitRefreshIndicator(private val list: ShadowListKitList
 
   var color: Int
     get() = arc.color
-    set(value) { arc.color = value }
+    set(value) {
+      arc.color = value
+    }
 
   /*
    * The finger moved past the start by distance pixels. Returns the part it took.

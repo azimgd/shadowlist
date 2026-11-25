@@ -11,7 +11,7 @@ import kotlin.math.max
 internal class ShadowListKitCore(
   private val measure: (row: Int, crossSize: Double) -> Double,
   private val prefetched: () -> Unit,
-  private val sizeSpecForRow: ((Int) -> ShadowListKitItemSizeSpec?)? = null,
+  private val sizeSpecForRow: ((Int) -> ShadowListKitItemSizeSpec?)? = null
 ) {
   companion object {
     init {
@@ -257,102 +257,271 @@ internal class ShadowListKitCore(
     const val BOARD_RELEASE_SLOTS = 1
 
     @JvmStatic external fun nativeDragBoardCreate(): Long
+
     @JvmStatic external fun nativeDragBoardDestroy(handle: Long)
-    @JvmStatic external fun nativeDragBoardBegin(handle: Long, home: String, key: String, x: Double, y: Double, centerX: Double, centerY: Double)
-    @JvmStatic external fun nativeDragBoardScrollDelta(handle: Long, finger: Double, touch: Double, windowSize: Double, density: Double, dtSeconds: Double): Double
-    @JvmStatic external fun nativeDragBoardFrame(handle: Long, x: Double, y: Double, centerX: Double, centerY: Double, candidate: String, nowMs: Double, out: DoubleArray)
-    @JvmStatic external fun nativeDragBoardRelease(handle: Long, index: Int, key: String, count: Int, nowMs: Double, out: DoubleArray): Int
+
+    @JvmStatic external fun nativeDragBoardBegin(
+      handle: Long,
+      home: String,
+      key: String,
+      x: Double,
+      y: Double,
+      centerX: Double,
+      centerY: Double
+    )
+
+    @JvmStatic external fun nativeDragBoardScrollDelta(
+      handle: Long,
+      finger: Double,
+      touch: Double,
+      windowSize: Double,
+      density: Double,
+      dtSeconds: Double
+    ): Double
+
+    @JvmStatic external fun nativeDragBoardFrame(
+      handle: Long,
+      x: Double,
+      y: Double,
+      centerX: Double,
+      centerY: Double,
+      candidate: String,
+      nowMs: Double,
+      out: DoubleArray
+    )
+
+    @JvmStatic external fun nativeDragBoardRelease(
+      handle: Long,
+      index: Int,
+      key: String,
+      count: Int,
+      nowMs: Double,
+      out: DoubleArray
+    ): Int
+
     @JvmStatic external fun nativeDragBoardEnd(handle: Long)
+
     @JvmStatic external fun nativeDragBoardLeave(handle: Long, listId: String)
-    @JvmStatic external fun nativeDragBoardReturnOffset(handle: Long, x: Double, y: Double, nowMs: Double, out: DoubleArray)
+
+    @JvmStatic
+    external fun nativeDragBoardReturnOffset(handle: Long, x: Double, y: Double, nowMs: Double, out: DoubleArray)
+
     @JvmStatic external fun nativeDragBoardLanded(handle: Long, listId: String, holdsKey: Boolean): Boolean
+
     @JvmStatic external fun nativeDragBoardBeginOverlaySettle(handle: Long): Boolean
+
     @JvmStatic external fun nativeDragBoardFlight(handle: Long): Long
+
     @JvmStatic external fun nativeDragBoardIsIdle(handle: Long): Boolean
 
     @JvmStatic private external fun nativeDestroy(handle: Long)
+
     @JvmStatic private external fun nativeSetSettings(
-      handle: Long, estimatedRowSize: Double, overscan: Double, startReachedThreshold: Double,
-      endReachedThreshold: Double, numberOfColumns: Int, inverted: Boolean, followAppends: Boolean, horizontal: Boolean,
-      snapToItem: Boolean, snapAlignment: Int)
+      handle: Long,
+      estimatedRowSize: Double,
+      overscan: Double,
+      startReachedThreshold: Double,
+      endReachedThreshold: Double,
+      numberOfColumns: Int,
+      inverted: Boolean,
+      followAppends: Boolean,
+      horizontal: Boolean,
+      snapToItem: Boolean,
+      snapAlignment: Int
+    )
+
     @JvmStatic private external fun nativeSetStickyIndices(handle: Long, indices: IntArray)
+
     @JvmStatic private external fun nativeSetNonAnchorKeys(handle: Long, packed: CharArray, ends: IntArray)
+
     @JvmStatic private external fun nativeSetPersistentKeys(handle: Long, packed: CharArray, ends: IntArray)
+
     @JvmStatic private external fun nativeSetRowSpans(handle: Long, spans: IntArray)
+
     @JvmStatic private external fun nativePersistentIndices(handle: Long): IntArray
+
     @JvmStatic private external fun nativeStickyLayout(handle: Long, io: DoubleArray)
-    @JvmStatic private external fun nativeSetViewabilityConfigs(handle: Long, slots: DoubleArray, now: Double): IntArray
-    @JvmStatic private external fun nativeUpdateViewability(handle: Long, offset: Double, windowAlong: Double, now: Double): Array<ShadowListKitViewabilityReport>?
+
+    @JvmStatic
+    private external fun nativeSetViewabilityConfigs(handle: Long, slots: DoubleArray, now: Double): IntArray
+
+    @JvmStatic private external fun nativeUpdateViewability(
+      handle: Long,
+      offset: Double,
+      windowAlong: Double,
+      now: Double
+    ): Array<ShadowListKitViewabilityReport>?
+
     @JvmStatic private external fun nativeRecordInteraction(handle: Long, now: Double)
+
     @JvmStatic private external fun nativeIsViewabilityWaiting(handle: Long): Boolean
 
     @JvmStatic private external fun nativeSetSizeSpecsEnabled(handle: Long, enabled: Boolean)
+
     @JvmStatic private external fun nativeSetMeasureLookaheadRows(handle: Long, rows: Int)
+
     @JvmStatic private external fun nativeInvalidateSizeSpecs(handle: Long)
+
     @JvmStatic private external fun nativeMarkRemeasure(handle: Long, indices: IntArray)
+
     @JvmStatic private external fun nativeResetKeepingPosition(handle: Long)
+
     @JvmStatic private external fun nativeRowCount(handle: Long): Int
+
     @JvmStatic private external fun nativeCopyRowRects(handle: Long, low: Int, high: Int, out: DoubleArray)
+
     @JvmStatic private external fun nativeRowRect(handle: Long, index: Int, out: DoubleArray): Boolean
+
     @JvmStatic private external fun nativeVisibleRange(handle: Long): Long
+
     @JvmStatic private external fun nativeIndexOfKey(handle: Long, key: String): Int
+
     @JvmStatic private external fun nativeStickyLeading(handle: Long, row: Int, offset: Double, extent: Double): Double
+
     @JvmStatic private external fun nativeCopyStickyFrames(handle: Long, out: DoubleArray): Boolean
+
     @JvmStatic private external fun nativeScrollToRow(handle: Long, row: Int, viewPosition: Double)
+
     @JvmStatic private external fun nativeScrollToStart(handle: Long)
+
     @JvmStatic private external fun nativeScrollToEnd(handle: Long)
+
     @JvmStatic private external fun nativeNearestSnapOffset(handle: Long, target: Double): Double
+
     @JvmStatic private external fun nativeAnimatedTargetOffset(
-      handle: Long, index: Int, viewPosition: Double, windowAlong: Double, maxOffset: Double): Double
+      handle: Long,
+      index: Int,
+      viewPosition: Double,
+      windowAlong: Double,
+      maxOffset: Double
+    ): Double
+
     @JvmStatic private external fun nativeSetLanding(handle: Long, target: Int, index: Int, viewPosition: Double)
+
     @JvmStatic private external fun nativeCancelLanding(handle: Long)
+
     @JvmStatic private external fun nativeLand(handle: Long): Boolean
+
     @JvmStatic private external fun nativeDragBegin(handle: Long, index: Int, touchAlong: Double, touchCross: Double)
+
     @JvmStatic private external fun nativeDragEnd(handle: Long)
+
     @JvmStatic private external fun nativeDragSetHeldAway(handle: Long, away: Boolean)
+
     @JvmStatic private external fun nativeDragBeginForeign(handle: Long, extent: Double, crossExtent: Double)
+
     @JvmStatic private external fun nativeIsDragForeign(handle: Long): Boolean
+
     @JvmStatic private external fun nativeDragInsertionKey(handle: Long): String
+
     @JvmStatic private external fun nativeSetDropHint(handle: Long, kind: Int, key: String)
+
     @JvmStatic private external fun nativeHeldIndex(handle: Long): Int
+
     @JvmStatic private external fun nativeDragFrame(
-      handle: Long, touchAlong: Double, touchCross: Double, rows: IntArray, count: Int, nowMs: Double, out: DoubleArray): Int
+      handle: Long,
+      touchAlong: Double,
+      touchCross: Double,
+      rows: IntArray,
+      count: Int,
+      nowMs: Double,
+      out: DoubleArray
+    ): Int
+
     @JvmStatic private external fun nativeDragPressHolds(along: Double, cross: Double): Boolean
+
     @JvmStatic private external fun nativeDragOriginIndex(handle: Long): Int
+
     @JvmStatic private external fun nativeDragInsertionIndex(handle: Long): Int
+
     @JvmStatic private external fun nativeDragAutoScrollOffset(
-      touch: Double, windowSize: Double, offset: Double, maxOffset: Double, density: Double, dtSeconds: Double): Double
+      touch: Double,
+      windowSize: Double,
+      offset: Double,
+      maxOffset: Double,
+      density: Double,
+      dtSeconds: Double
+    ): Double
+
     @JvmStatic private external fun nativeSetSections(handle: Long, count: Int, counts: IntArray?, flags: IntArray?)
-    @JvmStatic private external fun nativeCopyRows(handle: Long, items: IntArray, separators: BooleanArray, places: IntArray)
+
+    @JvmStatic
+    private external fun nativeCopyRows(handle: Long, items: IntArray, separators: BooleanArray, places: IntArray)
+
     @JvmStatic private external fun nativeItemForDrop(handle: Long, fromRow: Int, toRow: Int): Int
+
     @JvmStatic private external fun nativeRowForItem(handle: Long, item: Int): Int
+
     @JvmStatic private external fun nativeSectionForItem(handle: Long, item: Int): Int
+
     @JvmStatic private external fun nativeFirstItemInSection(handle: Long, section: Int): Int
+
     @JvmStatic private external fun nativeHeaderRow(handle: Long, section: Int): Int
+
     @JvmStatic private external fun nativeFooterRow(handle: Long, section: Int): Int
+
     @JvmStatic private external fun nativeFirstRowInSection(handle: Long, section: Int): Int
+
     @JvmStatic private external fun nativePlaceOfRow(handle: Long, row: Int): Int
+
     @JvmStatic private external fun nativeStickyRows(handle: Long, items: IntArray, sectionHeaders: Boolean): IntArray
+
     @JvmStatic private external fun nativeEdgeRowKeys(
-      handle: Long, sectionKeys: Array<String?>, firstItemKeys: Array<String>): Array<String>
+      handle: Long,
+      sectionKeys: Array<String?>,
+      firstItemKeys: Array<String>
+    ): Array<String>
+
     @JvmStatic private external fun nativeUpdatePrefetch(handle: Long, low: Int, high: Int, out: IntArray): Int
+
     @JvmStatic private external fun nativeCopyPrefetch(handle: Long, out: IntArray)
+
     @JvmStatic private external fun nativeAnchorState(handle: Long, offset: Double, out: DoubleArray): String?
+
     @JvmStatic private external fun nativeRestoreAnchorState(handle: Long, key: String, offset: Double): Boolean
+
     @JvmStatic private external fun nativeCaptureChange(
-      handle: Long, deletedPacked: CharArray, deletedEnds: IntArray, insertedPacked: CharArray, insertedEnds: IntArray,
-      mountedPacked: CharArray, mountedEnds: IntArray, mountedPositions: DoubleArray)
+      handle: Long,
+      deletedPacked: CharArray,
+      deletedEnds: IntArray,
+      insertedPacked: CharArray,
+      insertedEnds: IntArray,
+      mountedPacked: CharArray,
+      mountedEnds: IntArray,
+      mountedPositions: DoubleArray
+    )
+
     @JvmStatic private external fun nativeDeletedPosition(handle: Long, key: String, out: DoubleArray): Boolean
-    @JvmStatic private external fun nativeRunChange(handle: Long, rows: IntArray, count: Int, positions: DoubleArray): DoubleArray?
+
+    @JvmStatic
+    private external fun nativeRunChange(handle: Long, rows: IntArray, count: Int, positions: DoubleArray): DoubleArray?
+
     @JvmStatic private external fun nativeInsertionIndices(indices: IntArray, previousCount: Int): IntArray
+
     @JvmStatic private external fun nativeDeletionIndices(indices: IntArray, previousCount: Int): IntArray
+
     @JvmStatic private external fun nativeConstants(): DoubleArray
+
     @JvmStatic private external fun nativeShouldSkipMount(
-      previous: DoubleArray, next: DoubleArray, offset: Double, numberOfColumns: Int, holdsRow: Boolean): Boolean
+      previous: DoubleArray,
+      next: DoubleArray,
+      offset: Double,
+      numberOfColumns: Int,
+      holdsRow: Boolean
+    ): Boolean
+
     @JvmStatic private external fun nativePageScrollTarget(
-      offset: Double, windowAlong: Double, maxOffset: Double, direction: Int): Double
+      offset: Double,
+      windowAlong: Double,
+      maxOffset: Double,
+      direction: Int
+    ): Double
+
     @JvmStatic private external fun nativeSectionIndexTitlesTop(areaHeight: Double, count: Int, scale: Double): Double
-    @JvmStatic private external fun nativeSectionIndexTitleAt(y: Double, areaHeight: Double, count: Int, scale: Double): Int
+
+    @JvmStatic
+    private external fun nativeSectionIndexTitleAt(y: Double, areaHeight: Double, count: Int, scale: Double): Int
+
     @JvmStatic private external fun nativeSwipeButtonSize(fitted: Double, scale: Double): Double
 
     /*
@@ -365,14 +534,20 @@ internal class ShadowListKitCore(
     fun dragPressHolds(along: Double, cross: Double): Boolean = nativeDragPressHolds(along, cross)
 
     fun dragAutoScrollOffset(
-      touch: Double, windowSize: Double, offset: Double, maxOffset: Double, density: Double, dtSeconds: Double,
+      touch: Double,
+      windowSize: Double,
+      offset: Double,
+      maxOffset: Double,
+      density: Double,
+      dtSeconds: Double
     ): Double = nativeDragAutoScrollOffset(touch, windowSize, offset, maxOffset, density, dtSeconds)
 
     /*
      * The core's insertionIndices and deletionIndices: sorted, each once, an insert past the
      * end at the end, a delete past the end dropped. Negative indices name no row.
      */
-    fun insertionIndices(indices: IntArray, previousCount: Int): IntArray = nativeInsertionIndices(indices, previousCount)
+    fun insertionIndices(indices: IntArray, previousCount: Int): IntArray =
+      nativeInsertionIndices(indices, previousCount)
     fun deletionIndices(indices: IntArray, previousCount: Int): IntArray = nativeDeletionIndices(indices, previousCount)
 
     /*
@@ -386,7 +561,11 @@ internal class ShadowListKitCore(
      * next covers what the pass of previous did.
      */
     fun shouldSkipMount(
-      previous: DoubleArray, next: DoubleArray, offset: Double, numberOfColumns: Int, holdsRow: Boolean,
+      previous: DoubleArray,
+      next: DoubleArray,
+      offset: Double,
+      numberOfColumns: Int,
+      holdsRow: Boolean
     ): Boolean = nativeShouldSkipMount(previous, next, offset, numberOfColumns, holdsRow)
 
     /*
@@ -460,11 +639,20 @@ internal class ShadowListKitCore(
   }
 
   fun setSettings(
-    estimatedRowSize: Double, overscan: Double, startReachedThreshold: Double, endReachedThreshold: Double,
-    numberOfColumns: Int, inverted: Boolean, followAppends: Boolean, horizontal: Boolean, snapToItem: Boolean,
-    snapAlignment: Int,
-  ) = nativeSetSettings(handle, estimatedRowSize, overscan, startReachedThreshold, endReachedThreshold, numberOfColumns,
-    inverted, followAppends, horizontal, snapToItem, snapAlignment)
+    estimatedRowSize: Double,
+    overscan: Double,
+    startReachedThreshold: Double,
+    endReachedThreshold: Double,
+    numberOfColumns: Int,
+    inverted: Boolean,
+    followAppends: Boolean,
+    horizontal: Boolean,
+    snapToItem: Boolean,
+    snapAlignment: Int
+  ) = nativeSetSettings(
+    handle, estimatedRowSize, overscan, startReachedThreshold, endReachedThreshold, numberOfColumns,
+    inverted, followAppends, horizontal, snapToItem, snapAlignment
+  )
 
   fun setStickyIndices(indices: IntArray) = nativeSetStickyIndices(handle, indices)
 
@@ -568,8 +756,14 @@ internal class ShadowListKitCore(
    * for them. DRAG_FRAME_TICK says whether a new drop spot ticks at nowMs. Returns the held row,
    * or -1 when its key is gone.
    */
-  fun dragFrame(touchAlong: Double, touchCross: Double, rows: IntArray, count: Int, nowMs: Double, out: DoubleArray): Int =
-    nativeDragFrame(handle, touchAlong, touchCross, rows, count, nowMs, out)
+  fun dragFrame(
+    touchAlong: Double,
+    touchCross: Double,
+    rows: IntArray,
+    count: Int,
+    nowMs: Double,
+    out: DoubleArray
+  ): Int = nativeDragFrame(handle, touchAlong, touchCross, rows, count, nowMs, out)
   val dragOriginIndex: Int get() = nativeDragOriginIndex(handle)
   val dragInsertionIndex: Int get() = nativeDragInsertionIndex(handle)
 
@@ -660,8 +854,16 @@ internal class ShadowListKitCore(
     val deletedEnds = packer.pack(deleted)
     val insertedEnds = insertedPacker.pack(inserted)
     val mountedEnds = mountedPacker.pack(mounted)
-    nativeCaptureChange(handle, packer.chars, deletedEnds, insertedPacker.chars, insertedEnds, mountedPacker.chars,
-      mountedEnds, positions)
+    nativeCaptureChange(
+      handle,
+      packer.chars,
+      deletedEnds,
+      insertedPacker.chars,
+      insertedEnds,
+      mountedPacker.chars,
+      mountedEnds,
+      positions
+    )
   }
 
   /*

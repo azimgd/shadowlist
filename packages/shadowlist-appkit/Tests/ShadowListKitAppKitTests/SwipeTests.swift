@@ -26,33 +26,44 @@ final class SwipeTests: XCTestCase {
       self.source = source
     }
 
-    private func action(_ title: String, _ style: ShadowListKitSwipeActionStyle, _ listView: ShadowListKitListView, _ index: Int)
+    private func action(
+      _ title: String,
+      _ style: ShadowListKitSwipeActionStyle,
+      _ listView: ShadowListKitListView,
+      _ index: Int
+    )
       -> ShadowListKitSwipeAction
     {
       ShadowListKitSwipeAction(style: style, title: title) { [weak self, weak listView] _, completion in
         guard let self else { return }
-        self.performed.append("\(title)-\(index)")
-        if title == "Delete", self.deletes, let listView {
-          self.source.keys.remove(at: index)
+        performed.append("\(title)-\(index)")
+        if title == "Delete", deletes, let listView {
+          source.keys.remove(at: index)
           listView.deleteItems(at: IndexSet(integer: index))
         }
-        if self.completes {
+        if completes {
           completion(true)
         } else {
-          self.held.append(completion)
+          held.append(completion)
         }
       }
     }
 
-    func listView(_ listView: ShadowListKitListView, leadingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
+    func listView(
+      _ listView: ShadowListKitListView,
+      leadingSwipeActionsForItemAt index: Int
+    ) -> ShadowListKitSwipeActionsConfiguration? {
       index == 7 ? nil : ShadowListKitSwipeActionsConfiguration(actions: [action("Pin", .normal, listView, index)])
     }
 
-    func listView(_ listView: ShadowListKitListView, trailingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
+    func listView(
+      _ listView: ShadowListKitListView,
+      trailingSwipeActionsForItemAt index: Int
+    ) -> ShadowListKitSwipeActionsConfiguration? {
       index == 7
         ? nil
         : ShadowListKitSwipeActionsConfiguration(actions: [
-          action("Delete", .destructive, listView, index), action("Archive", .normal, listView, index),
+          action("Delete", .destructive, listView, index), action("Archive", .normal, listView, index)
         ])
     }
 
@@ -60,7 +71,9 @@ final class SwipeTests: XCTestCase {
       menus && index == 2 ? NSMenu(title: "own") : nil
     }
 
-    func listView(_ listView: ShadowListKitListView, canMoveItemAt index: Int) -> Bool { true }
+    func listView(_ listView: ShadowListKitListView, canMoveItemAt index: Int) -> Bool {
+      true
+    }
 
     func listView(_ listView: ShadowListKitListView, moveItemAt sourceIndex: Int, to destinationIndex: Int) {
       source.keys.insert(source.keys.remove(at: sourceIndex), at: destinationIndex)
@@ -86,7 +99,8 @@ final class SwipeTests: XCTestCase {
   /*
    * 600 items of 44 points in a 320 by 480 list, with a host that swipes them.
    */
-  private func makeHarness(configure: (ShadowListKitListView) -> Void = { _ in }) -> (ListHarness, Host, WheelRecorder) {
+  private func makeHarness(configure: (ShadowListKitListView) -> Void = { _ in
+  }) -> (ListHarness, Host, WheelRecorder) {
     let source = SizedTestSource(count: 600)
     let harness = ListHarness(source: source, configure: configure)
     let host = Host(source: source)
@@ -112,7 +126,9 @@ final class SwipeTests: XCTestCase {
     _ list: ShadowListKitListView, _ index: Int, _ deltas: [CGFloat], momentum: [CGFloat] = [], horizontal: Bool = false
   ) throws {
     let point = try center(list, index)
-    func delta(_ value: CGFloat) -> CGPoint { horizontal ? CGPoint(x: 0, y: value) : CGPoint(x: value, y: 0) }
+    func delta(_ value: CGFloat) -> CGPoint {
+      horizontal ? CGPoint(x: 0, y: value) : CGPoint(x: value, y: 0)
+    }
     list.shadowListKit_swipeWheelDelta(.zero, phase: .began, momentumPhase: [], at: point)
     for value in deltas {
       list.shadowListKit_swipeWheelDelta(delta(value), phase: .changed, momentumPhase: [], at: point)
@@ -133,7 +149,8 @@ final class SwipeTests: XCTestCase {
   }
 
   private func swipeShift(_ cell: ShadowListKitListCell?) -> CGPoint? {
-    (cell?.layer?.animation(forKey: "shadowListKitSwipe") as? CABasicAnimation)?.toValue.map { ($0 as! NSValue).pointValue }
+    (cell?.layer?.animation(forKey: "shadowListKitSwipe") as? CABasicAnimation)?.toValue
+      .map { ($0 as! NSValue).pointValue }
   }
 
   // Runs the main queue past every block queued before it. An action's completion closes its row from there.
@@ -156,7 +173,7 @@ final class SwipeTests: XCTestCase {
     // The cell shows moved through its own animation. Its frame and transform stay the list's.
     XCTAssertEqual(swipeShift(list.cellForItem(at: 3))?.x ?? 0, -width, accuracy: 0.5)
     XCTAssertEqual(list.cellForItem(at: 3)?.frame, frame)
-    XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(list.cellForItem(at: 3)?.layer).transform))
+    XCTAssertTrue(try CATransform3DIsIdentity(XCTUnwrap(list.cellForItem(at: 3)?.layer).transform))
     XCTAssertEqual(host.performed, [])
     XCTAssertEqual(recorder.events.count, 0)
   }
@@ -177,7 +194,7 @@ final class SwipeTests: XCTestCase {
     try swipe(list, 3, [-12, -12, -12])
     list.shadowListKit_runSwipeFrames(for: 0.5)
     XCTAssertEqual(list.shadowListKit_swipedIndex, 3)
-    XCTAssertEqual(list.shadowListKit_swipeOffset, -(try shownButtonsWidth(list)), accuracy: 0.5)
+    XCTAssertEqual(list.shadowListKit_swipeOffset, try -shownButtonsWidth(list), accuracy: 0.5)
     try swipe(list, 3, [12, 12, 12])
     list.shadowListKit_runSwipeFrames(for: 0.5)
     XCTAssertEqual(list.shadowListKit_swipedIndex, NSNotFound)
@@ -190,11 +207,12 @@ final class SwipeTests: XCTestCase {
     list.shadowListKit_runSwipeFrames(for: 0.5)
     XCTAssertEqual(list.shadowListKit_swipedIndex, 2)
     XCTAssertGreaterThan(list.shadowListKit_swipeOffset, 0)
-    let titles = try XCTUnwrap(list.shadowListKit_swipeActionsView).subviews.compactMap { $0.isHidden ? nil : ($0 as? NSButton)?.title }
+    let titles = try XCTUnwrap(list.shadowListKit_swipeActionsView).subviews
+      .compactMap { $0.isHidden ? nil : ($0 as? NSButton)?.title }
     XCTAssertEqual(titles, ["Pin"])
   }
 
-  func testAFullSwipePerformsTheFirstActionAndClosesOnItsCompletion() throws {
+  func testAFullSwipePerformsTheFirstActionAndClosesOnItsCompletion() {
     let (harness, host, _) = makeHarness()
     let list = harness.list
     list.shadowListKit_swipeItem(at: 4, distance: -300, velocity: 0)
@@ -221,8 +239,14 @@ final class SwipeTests: XCTestCase {
 
   func testAFullSwipeWithoutItsSwitchRubberBandsAndRestsOpen() throws {
     final class NoFull: NSObject, ShadowListKitListViewDelegate {
-      func listView(_ listView: ShadowListKitListView, trailingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
-        let configuration = ShadowListKitSwipeActionsConfiguration(actions: [ShadowListKitSwipeAction(style: .normal, title: "Flag") { _, _ in }])
+      func listView(
+        _ listView: ShadowListKitListView,
+        trailingSwipeActionsForItemAt index: Int
+      ) -> ShadowListKitSwipeActionsConfiguration? {
+        let configuration = ShadowListKitSwipeActionsConfiguration(actions: [ShadowListKitSwipeAction(
+          style: .normal,
+          title: "Flag"
+        ) { _, _ in }])
         configuration.performsFirstActionWithFullSwipe = false
         return configuration
       }
@@ -233,7 +257,7 @@ final class SwipeTests: XCTestCase {
     harness.list.delegate = host
     harness.list.shadowListKit_swipeItem(at: 1, distance: -300, velocity: 0)
     harness.list.shadowListKit_runSwipeFrames(for: 0.5)
-    XCTAssertEqual(harness.list.shadowListKit_swipeOffset, -(try shownButtonsWidth(harness.list)), accuracy: 0.5)
+    XCTAssertEqual(harness.list.shadowListKit_swipeOffset, try -shownButtonsWidth(harness.list), accuracy: 0.5)
   }
 
   func testClickingAnActionPerformsItAndCloses() throws {
@@ -289,7 +313,7 @@ final class SwipeTests: XCTestCase {
     XCTAssertTrue(container.hitTest(list.convert(point, to: container)) === list.cellForItem(at: 6))
   }
 
-  func testScrollingCloses() throws {
+  func testScrollingCloses() {
     let (harness, _, _) = makeHarness()
     let list = harness.list
     list.shadowListKit_swipeItem(at: 3, distance: -100, velocity: 0)
@@ -300,7 +324,7 @@ final class SwipeTests: XCTestCase {
     XCTAssertEqual(list.shadowListKit_swipedIndex, NSNotFound)
   }
 
-  func testEscapeCloses() throws {
+  func testEscapeCloses() {
     let (harness, _, _) = makeHarness()
     let list = harness.list
     list.shadowListKit_clickItem(at: 1, modifierFlags: [], clickCount: 1)
@@ -318,14 +342,14 @@ final class SwipeTests: XCTestCase {
     let list = harness.list
     list.shadowListKit_swipeItem(at: 3, distance: -100, velocity: 0)
     list.shadowListKit_runSwipeFrames(for: 0.5)
-    list.shadowListKit_beginDrag(at: try center(list, 6))
+    try list.shadowListKit_beginDrag(at: center(list, 6))
     XCTAssertEqual(list.shadowListKit_heldIndex, 6)
     list.shadowListKit_runSwipeFrames(for: 0.5)
     XCTAssertEqual(list.shadowListKit_swipedIndex, NSNotFound)
     list.shadowListKit_endDrag()
   }
 
-  func testCloseSwipeActionsClosesAndADataChangeToo() throws {
+  func testCloseSwipeActionsClosesAndADataChangeToo() {
     let (harness, host, _) = makeHarness()
     let list = harness.list
     list.shadowListKit_swipeItem(at: 3, distance: -100, velocity: 0)
@@ -344,7 +368,7 @@ final class SwipeTests: XCTestCase {
     let (harness, _, recorder) = makeHarness()
     let list = harness.list
     let point = try center(list, 3)
-    for _ in 0..<5 {
+    for _ in 0 ..< 5 {
       list.shadowListKit_swipeWheelDelta(CGPoint(x: -20, y: 0), phase: [], momentumPhase: [], at: point)
     }
     XCTAssertEqual(list.shadowListKit_swipedIndex, NSNotFound)

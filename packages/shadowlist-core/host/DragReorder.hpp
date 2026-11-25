@@ -363,11 +363,8 @@ double dragForeignShift(std::size_t insertionIndex, double extent, std::size_t i
  * in its row, or when insertionIndex is UNDEFINED_INDEX. Over no cell otherwise it keeps
  * insertionIndex and returns that cell's position, or UNDEFINED_INDEX when it is not mounted.
  */
-std::size_t dragGridForeignInsertionIndex(
-  const DragCells& cells,
-  std::size_t insertionIndex,
-  double center,
-  double crossCenter);
+std::size_t
+dragGridForeignInsertionIndex(const DragCells& cells, std::size_t insertionIndex, double center, double crossCenter);
 
 /*
  * How far each grid cell slides to open the gap for an incoming cell of extent and
@@ -414,12 +411,8 @@ public:
    * Move the held row or grid cell under the finger and return its translation from its
    * resting place. The same as place or placeCell, picked by the kind of drag.
    */
-  DragOffset placeRow(
-    double touchAlong,
-    double touchCross,
-    const DragRow& resting,
-    double contentSize,
-    double crossExtent);
+  DragOffset
+  placeRow(double touchAlong, double touchCross, const DragRow& resting, double contentSize, double crossExtent);
 
   /*
    * A data change during the drag can move the held row. Take its current index and key.

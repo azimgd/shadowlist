@@ -41,11 +41,8 @@ double rowTargetOffset(
  * it before the core lands exactly. SCROLL_TO_END_INDEX aims at the end and SCROLL_TO_OFFSET_INDEX
  * at the offset in viewOffset. Returns nothing for an index past the rows.
  */
-std::optional<double> commandTargetOffset(
-  const Container& core,
-  std::size_t commandIndex,
-  double viewPosition,
-  double viewOffset);
+std::optional<double>
+commandTargetOffset(const Container& core, std::size_t commandIndex, double viewPosition, double viewOffset);
 
 /*
  * Where a page scroll lands: one window toward the end for a positive direction, toward the

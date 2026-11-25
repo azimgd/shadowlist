@@ -5,15 +5,30 @@ import XCTest
 @MainActor
 final class PersistentKeysTests: XCTestCase {
   private final class Source: NSObject, ShadowListKitListViewDataSource {
-    var keys = (0..<200).map { "row-\($0)" }
+    var keys = (0 ..< 200).map { "row-\($0)" }
     var reconfigured = 0
-    func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
-    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 40 }
+    func numberOfItems(in listView: ShadowListKitListView) -> Int {
+      keys.count
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+      keys[index]
+    }
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      40
+    }
+
     func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
       listView.dequeueReusableCell(withIdentifier: "cell")
     }
-    func listView(_ listView: ShadowListKitListView, reconfigureCell cell: ShadowListKitListCell, at index: Int, payload: Any?) -> Bool {
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      reconfigureCell cell: ShadowListKitListCell,
+      at index: Int,
+      payload: Any?
+    ) -> Bool {
       reconfigured += 1
       cell.accessibilityLabel = payload as? String
       return true
@@ -58,7 +73,7 @@ final class PersistentKeysTests: XCTestCase {
     XCTAssertNil(list.cellForItem(at: 170))
   }
 
-  func testRetainedMeasurementFollowsViewportWidthAndOrientation() throws {
+  func testRetainedMeasurementFollowsViewportWidthAndOrientation() {
     let (list, source) = makeList()
     withExtendedLifetime(source) {
       XCTAssertEqual(list.cellForItem(at: 150)?.bounds.width, 320)

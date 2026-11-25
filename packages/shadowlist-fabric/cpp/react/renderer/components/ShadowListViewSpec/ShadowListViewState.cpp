@@ -61,8 +61,8 @@ std::shared_ptr<const std::vector<Value>> numbersFrom(const folly::dynamic& valu
  * The Android view sends the scroll patch as one "patch" array of numbers, plus the few keys a
  * drag or an edge switch adds. Every other field carries over. Only the keys present are read.
  */
-ShadowListViewState::ShadowListViewState(const ShadowListViewState& previousState, folly::dynamic data) :
-  ShadowListViewState(previousState) {
+ShadowListViewState::ShadowListViewState(const ShadowListViewState& previousState, folly::dynamic data)
+  : ShadowListViewState(previousState) {
   if (!data.isObject()) {
     return;
   }

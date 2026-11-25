@@ -192,10 +192,10 @@ enum class ShadowListKitViewabilityPhase { Idle, Updating, UpdatePending, Invali
  */
 @interface ShadowListKitListView ()
 #if !TARGET_OS_OSX
-<UIScrollViewDelegate>
+  <UIScrollViewDelegate>
 #endif
 {
- @package
+@package
   azimgd::shadowlist::ListDriver _driver;
   azimgd::shadowlist::ListSections _sections;
   __weak id<ShadowListKitListViewDataSource> _dataSource;
@@ -245,7 +245,7 @@ enum class ShadowListKitViewabilityPhase { Idle, Updating, UpdatePending, Invali
   NSIndexSet *_stickyIndices;
   BOOL _stickySectionHeaders;
   ShadowListKitListCell *_stickyCell;
-  ShadowListKitView * _Nullable (^_renderStickyHeaderOverlay)(NSString * _Nullable, NSInteger, NSInteger);
+  ShadowListKitView *_Nullable (^_renderStickyHeaderOverlay)(NSString *_Nullable, NSInteger, NSInteger);
   ShadowListKitView *_stickyHeaderOverlay;
   ShadowListKitListCell *_stickyHeaderOverlayCell;
   BOOL _stickyHeaderOverlayCellHidden;
@@ -255,7 +255,7 @@ enum class ShadowListKitViewabilityPhase { Idle, Updating, UpdatePending, Invali
 
   NSSet<NSString *> *_nonAnchorKeys;
   NSSet<NSString *> *_persistentKeys;
-  ShadowListKitItemSizeSpec * _Nullable (^_getItemSizeSpec)(NSInteger);
+  ShadowListKitItemSizeSpec *_Nullable (^_getItemSizeSpec)(NSInteger);
   NSUInteger _measureLookaheadRows;
   NSInteger (^_getItemSpan)(NSInteger);
   NSUInteger _rowSpansRevision;
@@ -699,7 +699,10 @@ enum class ShadowListKitViewabilityPhase { Idle, Updating, UpdatePending, Invali
 - (CGPoint)dragBoardReturnOffsetForCenter:(CGPoint)center;
 - (void)leaveDragBoard;
 - (void)joinDragBoard;
-- (BOOL)moveDragBoardItemAtIndex:(NSInteger)source toList:(ShadowListKitListView *)target destinationIndex:(NSInteger)index destinationKey:(NSString *)key;
+- (BOOL)moveDragBoardItemAtIndex:(NSInteger)source
+                          toList:(ShadowListKitListView *)target
+                destinationIndex:(NSInteger)index
+                  destinationKey:(NSString *)key;
 
 @end
 

@@ -57,9 +57,7 @@ void checkPrependHoldsFirstVisibleRow(const Fixture& fixture, double headerSize,
     input.headerSize = headerSize;
     Virtualizer::update(container, input);
   };
-  auto currentOffset = [&]() {
-    return fixture.horizontal ? container.revision.offsetX : container.revision.offsetY;
-  };
+  auto currentOffset = [&]() { return fixture.horizontal ? container.revision.offsetX : container.revision.offsetY; };
 
   auto measureAll = [&](std::size_t count) {
     for (std::size_t index = 0; index < count; ++index) {
@@ -988,10 +986,8 @@ namespace {
  * A chat with followAppends rests at its bottom. A jump to an older row takes it away, then the
  * host animates back to the bottom on its own with plain reports. Returns the bottom.
  */
-double jumpAwayThenAnimateBackToTheBottom(
-  Container& container,
-  const std::vector<std::string>& keys,
-  const Fixture& fixture) {
+double
+jumpAwayThenAnimateBackToTheBottom(Container& container, const std::vector<std::string>& keys, const Fixture& fixture) {
   Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture);

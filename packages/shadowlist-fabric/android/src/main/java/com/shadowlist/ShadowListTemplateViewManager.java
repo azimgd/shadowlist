@@ -16,8 +16,7 @@ import com.facebook.react.viewmanagers.ShadowListTemplateViewManagerDelegate;
 
 @ReactModule(name = ShadowListTemplateViewManager.NAME)
 public class ShadowListTemplateViewManager extends ViewGroupManager<ShadowListTemplateView>
-    implements ShadowListTemplateViewManagerInterface<ShadowListTemplateView> {
-
+  implements ShadowListTemplateViewManagerInterface<ShadowListTemplateView> {
   public static final String NAME = "ShadowListTemplateView";
 
   private final ViewManagerDelegate<ShadowListTemplateView> mDelegate;
@@ -54,8 +53,8 @@ public class ShadowListTemplateViewManager extends ViewGroupManager<ShadowListTe
    */
   @Nullable
   @Override
-  protected ShadowListTemplateView prepareToRecycleView(
-      @NonNull ThemedReactContext reactContext, @NonNull ShadowListTemplateView view) {
+  protected ShadowListTemplateView
+  prepareToRecycleView(@NonNull ThemedReactContext reactContext, @NonNull ShadowListTemplateView view) {
     // A template still animating out with its screen keeps its parent, see detachForRecycle.
     if (!ShadowListCellViewManager.detachForRecycle(view)) {
       return null;

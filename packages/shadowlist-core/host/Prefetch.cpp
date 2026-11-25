@@ -4,7 +4,8 @@
 
 namespace azimgd::shadowlist {
 
-std::optional<MountedRange> prefetchRange(const std::optional<MountedRange>& mounted, std::size_t rows, std::size_t count) {
+std::optional<MountedRange>
+prefetchRange(const std::optional<MountedRange>& mounted, std::size_t rows, std::size_t count) {
   if (!mounted || mounted->isEmpty() || count == 0 || rows == 0) {
     return std::nullopt;
   }

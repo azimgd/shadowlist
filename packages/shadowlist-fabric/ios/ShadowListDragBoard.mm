@@ -111,15 +111,13 @@ static void SLDragBoardAnimateOverlay(RCTUIView *overlay, CGRect frame, void (^c
     completionHandler:completion];
 #else
   [UIView animateWithDuration:SL_DROP_SETTLE_DURATION
-                        delay:0.0
-                      options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
-                   animations:^{
-                     overlay.frame = frame;
-                   }
-                   completion:^(BOOL finished) {
-                     (void)finished;
-                     completion();
-                   }];
+    delay:0.0
+    options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
+    animations:^{ overlay.frame = frame; }
+    completion:^(BOOL finished) {
+      (void)finished;
+      completion();
+    }];
 #endif
 }
 
@@ -173,9 +171,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 {
   static NSMapTable<NSString *, ShadowListDragBoard *> *boards;
   static dispatch_once_t once;
-  dispatch_once(&once, ^{
-    boards = [NSMapTable strongToWeakObjectsMapTable];
-  });
+  dispatch_once(&once, ^{ boards = [NSMapTable strongToWeakObjectsMapTable]; });
   return boards;
 }
 
@@ -366,10 +362,8 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   CGRect resting = [self restingFrameForView:view];
   CGPoint center = [_contentView convertPoint:CGPointMake(CGRectGetMidX(resting), CGRectGetMidY(resting)) toView:nil];
   board->_core.begin(
-    _dragBoardToken,
-    heldKey ? std::string(heldKey.UTF8String) : std::string(),
-    {_dragTouchInWindow.x, _dragTouchInWindow.y},
-    {center.x, center.y});
+    _dragBoardToken, heldKey ? std::string(heldKey.UTF8String) : std::string(),
+    {_dragTouchInWindow.x, _dragTouchInWindow.y}, {center.x, center.y});
   board.windowSize = SLDragBoardWindowSize(self);
   board.sidewaysScrollView = nil;
   _dragBoardScroll.begin(_dragTouchInWindow.x);
@@ -402,8 +396,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
     if (list->_dragBoard != _dragBoard || list.hidden || !list->_reorderEnabled) {
       continue;
     }
-    if (list != self &&
-        (!list->_state || list->_dragging || list->_dragDropPending || list->_dragListId.length == 0)) {
+    if (list != self && (!list->_state || list->_dragging || list->_dragDropPending || list->_dragListId.length == 0)) {
       continue;
     }
     candidates.push_back(list->_dragBoardToken);
@@ -611,8 +604,9 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 #else
     CGFloat touch = [outer convertPoint:finger fromView:nil].x - offset;
 #endif
-    double delta = _dragBoardScroll.delta(azimgd::shadowlist::DRAG_BOARD_SCROLL_IOS,
-      azimgd::shadowlist::DRAG_BOARD_SCROLL_ARM_IOS, finger.x, touch, windowSize, dtSeconds);
+    double delta = _dragBoardScroll.delta(
+      azimgd::shadowlist::DRAG_BOARD_SCROLL_IOS, azimgd::shadowlist::DRAG_BOARD_SCROLL_ARM_IOS, finger.x, touch,
+      windowSize, dtSeconds);
     CGFloat next = MIN(MAX(offset + delta, minOffset), maxOffset);
     if (next != offset) {
       outer.contentOffset = CGPointMake(next, outer.contentOffset.y);
@@ -696,8 +690,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   azimgd::shadowlist::DragBoardRelease release = core.release(
     foreign ? target->_drag.getInsertionIndex() : azimgd::shadowlist::UNDEFINED_INDEX,
     foreign ? target->_drag.getInsertionKey() : std::string(),
-    foreign ? [target rowKeyCount] : azimgd::shadowlist::UNDEFINED_INDEX,
-    SLDragNowMs());
+    foreign ? [target rowKeyCount] : azimgd::shadowlist::UNDEFINED_INDEX, SLDragNowMs());
   using Kind = azimgd::shadowlist::DragBoardRelease::Kind;
   if (release.kind == Kind::Home) {
     return NO;
@@ -732,8 +725,9 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
    */
   std::uint64_t flight = core.getFlight();
   __weak ShadowListDragBoard *weakBoard = board;
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                   (int64_t)((azimgd::shadowlist::DRAG_BOARD_LAND_TIMEOUT_MS + 50.0) * NSEC_PER_MSEC)),
+  dispatch_after(
+    dispatch_time(
+      DISPATCH_TIME_NOW, (int64_t)((azimgd::shadowlist::DRAG_BOARD_LAND_TIMEOUT_MS + 50.0) * NSEC_PER_MSEC)),
     dispatch_get_main_queue(), ^{
       ShadowListDragBoard *strongBoard = weakBoard;
       if (!strongBoard || strongBoard->_core.getFlight() != flight) {
@@ -811,8 +805,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   // The first drop spot here ticks for the move into this list.
   _dragFeedback.reset();
   _drag.beginForeign(
-    _horizontal ? size.width : size.height,
-    _horizontal ? size.height : size.width,
+    _horizontal ? size.width : size.height, _horizontal ? size.height : size.width,
     (std::size_t)MAX(_numberOfColumns, 1));
 }
 
@@ -869,8 +862,8 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   [self announceDragBoardMoveIfLanded];
   auto& core = board->_core;
   NSString *heldKey = core.getHeldKey().empty() ? nil : SLDragKey(core.getHeldKey());
-  BOOL hiddenHoldsHeldRow = _dragBoardHiddenView && heldKey &&
-    [[self keyOfCellView:_dragBoardHiddenView] isEqualToString:heldKey];
+  BOOL hiddenHoldsHeldRow =
+    _dragBoardHiddenView && heldKey && [[self keyOfCellView:_dragBoardHiddenView] isEqualToString:heldKey];
   if (_dragBoardHiddenView && !hiddenHoldsHeldRow) {
     _dragBoardHiddenView.hidden = NO;
     _dragBoardHiddenView = nil;
@@ -880,7 +873,9 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
       return;
     }
   }
-  if (_dragBoardDropPending && (!heldKey || (![self rowKeysContainKey:heldKey] && ![self dragBoardCellViewForKey:heldKey]))) {
+  if (
+    _dragBoardDropPending &&
+    (!heldKey || (![self rowKeysContainKey:heldKey] && ![self dragBoardCellViewForKey:heldKey]))) {
     _dragBoardDropPending = NO;
     if (!_dragging) {
       [self clearDragTransforms];
@@ -889,13 +884,15 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   if (!_dragBoardLandingKey) {
     return;
   }
-  if (core.getPhase() == azimgd::shadowlist::DragBoardPhase::Landing &&
-      core.landed(_dragBoardToken, [self rowKeysContainKey:_dragBoardLandingKey])) {
+  if (
+    core.getPhase() == azimgd::shadowlist::DragBoardPhase::Landing &&
+    core.landed(_dragBoardToken, [self rowKeysContainKey:_dragBoardLandingKey])) {
     _drag.end();
     [self clearDragTransforms];
   }
-  if (core.getPhase() == azimgd::shadowlist::DragBoardPhase::Settling && core.getTargetId() == _dragBoardToken &&
-      !core.isOverlaySettling()) {
+  if (
+    core.getPhase() == azimgd::shadowlist::DragBoardPhase::Settling && core.getTargetId() == _dragBoardToken &&
+    !core.isOverlaySettling()) {
     RCTUIView *cell = [self dragBoardCellViewForKey:_dragBoardLandingKey];
     if (cell) {
       [self landDragBoardOnView:cell];
@@ -973,18 +970,18 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 - (CGPoint)dragBoardReturnOffsetForPlacedCenter:(CGPoint)placed
 {
   ShadowListDragBoard *board = _dragBoard;
-  if (!board || !self.window || board->_core.getPhase() != azimgd::shadowlist::DragBoardPhase::AtHome ||
-      board->_core.getHomeId() != _dragBoardToken) {
+  if (
+    !board || !self.window || board->_core.getPhase() != azimgd::shadowlist::DragBoardPhase::AtHome ||
+    board->_core.getHomeId() != _dragBoardToken) {
     return CGPointZero;
   }
   CGPoint placedInWindow = [_contentView convertPoint:placed toView:nil];
-  azimgd::shadowlist::DragPoint offset =
-    board->_core.returnOffset({placedInWindow.x, placedInWindow.y}, SLDragNowMs());
+  azimgd::shadowlist::DragPoint offset = board->_core.returnOffset({placedInWindow.x, placedInWindow.y}, SLDragNowMs());
   if (offset.x == 0.0 && offset.y == 0.0) {
     return CGPointZero;
   }
-  CGPoint shown =
-    [_contentView convertPoint:CGPointMake(placedInWindow.x + offset.x, placedInWindow.y + offset.y) fromView:nil];
+  CGPoint shown = [_contentView convertPoint:CGPointMake(placedInWindow.x + offset.x, placedInWindow.y + offset.y)
+                                    fromView:nil];
   return CGPointMake(shown.x - placed.x, shown.y - placed.y);
 }
 
@@ -997,7 +994,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 - (BOOL)canMoveDragBoardRowsToList:(ShadowListView *)list
 {
   return list != self && _dragBoard && list->_dragBoard == _dragBoard && list->_state && list->_reorderEnabled &&
-    list->_dragListId.length > 0 && list.window && !list.hidden;
+         list->_dragListId.length > 0 && list.window && !list.hidden;
 }
 
 /*
@@ -1053,16 +1050,16 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
     NSString *name =
       [NSString stringWithFormat:NSLocalizedString(@"Move to %@", nil), [list dragBoardAccessibilityName]];
 #if TARGET_OS_OSX
-    NSAccessibilityCustomAction *action = [[NSAccessibilityCustomAction alloc] initWithName:name handler:^BOOL {
-      return [weakSelf performAccessibilityMove:weakView toList:weakList];
-    }];
+    NSAccessibilityCustomAction *action = [[NSAccessibilityCustomAction alloc]
+      initWithName:name
+           handler:^BOOL { return [weakSelf performAccessibilityMove:weakView toList:weakList]; }];
 #else
-    UIAccessibilityCustomAction *action = [[UIAccessibilityCustomAction alloc]
-       initWithName:name
-      actionHandler:^BOOL(UIAccessibilityCustomAction *customAction) {
-        (void)customAction;
-        return [weakSelf performAccessibilityMove:weakView toList:weakList];
-      }];
+    UIAccessibilityCustomAction *action =
+      [[UIAccessibilityCustomAction alloc] initWithName:name
+                                          actionHandler:^BOOL(UIAccessibilityCustomAction *customAction) {
+                                            (void)customAction;
+                                            return [weakSelf performAccessibilityMove:weakView toList:weakList];
+                                          }];
 #endif
     [actions addObject:action];
   }

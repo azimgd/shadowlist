@@ -55,9 +55,7 @@ final class ShadowListStickyController {
   private @Nullable View mOverlayView = null;
   private boolean mTemplatesDirty = true;
 
-  ShadowListStickyController(ShadowListView view) {
-    mView = view;
-  }
+  ShadowListStickyController(ShadowListView view) { mView = view; }
 
   void setStickyHeader(boolean stickyHeader) {
     mStickyHeader = stickyHeader;
@@ -105,10 +103,10 @@ final class ShadowListStickyController {
    * remove call, for example when it was recycled with its list.
    */
   private void resolveTemplates(ViewGroup contentView) {
-    if (!mTemplatesDirty
-        && (mHeaderView == null || mHeaderView.getParent() == contentView)
-        && (mFooterView == null || mFooterView.getParent() == contentView)
-        && (mOverlayView == null || mOverlayView.getParent() == contentView)) {
+    if (
+      !mTemplatesDirty && (mHeaderView == null || mHeaderView.getParent() == contentView) &&
+      (mFooterView == null || mFooterView.getParent() == contentView) &&
+      (mOverlayView == null || mOverlayView.getParent() == contentView)) {
       return;
     }
     mTemplatesDirty = false;
@@ -120,7 +118,7 @@ final class ShadowListStickyController {
       if (!(child instanceof ShadowListTemplateView)) {
         continue;
       }
-      String type = ((ShadowListTemplateView) child).getTemplateType();
+      String type = ((ShadowListTemplateView)child).getTemplateType();
       if ("footer".equals(type)) {
         mFooterView = child;
       } else if ("header".equals(type)) {
@@ -148,9 +146,7 @@ final class ShadowListStickyController {
   /*
    * Pin the header and footer by moving them from where they normally sit.
    */
-  void applyStickyTransforms() {
-    applyStickyTransforms(false);
-  }
+  void applyStickyTransforms() { applyStickyTransforms(false); }
 
   /*
    * Pass accumulate only for real user scrolls. Programmatic offset fixes must not
@@ -199,11 +195,13 @@ final class ShadowListStickyController {
     ShadowListGeometry.stickyTranslations(slots);
 
     if (header != null) {
-      placeBar(header, horizontal, (float) slots[ShadowListGeometry.STICKY_HEADER_TRANSLATION],
+      placeBar(
+        header, horizontal, (float)slots[ShadowListGeometry.STICKY_HEADER_TRANSLATION],
         mStickyHeader || mAutoHideHeader, stickyLift);
     }
     if (footer != null) {
-      placeBar(footer, horizontal, (float) slots[ShadowListGeometry.STICKY_FOOTER_TRANSLATION],
+      placeBar(
+        footer, horizontal, (float)slots[ShadowListGeometry.STICKY_FOOTER_TRANSLATION],
         mStickyFooter || mAutoHideFooter, stickyLift);
     }
 
@@ -246,13 +244,13 @@ final class ShadowListStickyController {
 
     boolean horizontal = mView.isHorizontal();
     double axisOffset = PixelUtil.toDIPFromPixel(horizontal ? scrollView.getScrollX() : scrollView.getScrollY());
-    double translation = ShadowListGeometry.sectionOverlayTranslation(
-      mStickyOffsets, mStickySizes, mStickyCount, axisOffset);
+    double translation =
+      ShadowListGeometry.sectionOverlayTranslation(mStickyOffsets, mStickySizes, mStickyCount, axisOffset);
     if (Double.isNaN(translation)) {
       overlay.setVisibility(View.GONE);
       return;
     }
-    float translationPx = PixelUtil.toPixelFromDIP((float) translation);
+    float translationPx = PixelUtil.toPixelFromDIP((float)translation);
 
     overlay.setVisibility(View.VISIBLE);
     if (horizontal) {

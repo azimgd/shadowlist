@@ -18,24 +18,53 @@ final class SectionRotorTests: XCTestCase {
       label.accessibilityTraits = .header
       addSubview(label)
     }
-    override func layoutSubviews() { super.layoutSubviews(); label.frame = bounds }
+
+    override func layoutSubviews() {
+      super.layoutSubviews(); label.frame = bounds
+    }
   }
 
   private class Source: NSObject, ShadowListKitListViewDataSource {
     var sections = [Section(key: "A"), Section(key: "B"), Section(key: "C")]
-    var keys: [String] { sections.flatMap { section in (0..<section.count).map { "\(section.key)-\($0)" } } }
-    func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
-    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+    var keys: [String] {
+      sections.flatMap { section in (0 ..< section.count).map { "\(section.key)-\($0)" } }
+    }
+
+    func numberOfItems(in listView: ShadowListKitListView) -> Int {
+      keys.count
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+      keys[index]
+    }
+
     func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
       listView.dequeueReusableCell(withIdentifier: "row")
     }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 40 }
-    func numberOfSections(in listView: ShadowListKitListView) -> Int { sections.count }
-    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { sections[section].count }
-    func listView(_ listView: ShadowListKitListView, keyForSection section: Int) -> String { sections[section].key }
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      40
+    }
+
+    func numberOfSections(in listView: ShadowListKitListView) -> Int {
+      sections.count
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      numberOfItemsInSection section: Int
+    ) -> Int {
+      sections[section].count
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForSection section: Int) -> String {
+      sections[section].key
+    }
+
     func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? {
       sections[section].header ? "Header \(sections[section].key)" : nil
     }
+
     func listView(_ listView: ShadowListKitListView, cellForHeaderInSection section: Int) -> ShadowListKitListCell {
       let cell = listView.dequeueReusableCell(withIdentifier: "header") as! HeaderCell
       cell.label.text = "Header \(sections[section].key)"
@@ -43,11 +72,21 @@ final class SectionRotorTests: XCTestCase {
       cell.label.accessibilityLabel = cell.label.text
       return cell
     }
-    func listView(_ listView: ShadowListKitListView, sizeForHeaderInSection section: Int, crossSize: CGFloat) -> CGFloat { 40 }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      sizeForHeaderInSection section: Int,
+      crossSize: CGFloat
+    ) -> CGFloat {
+      40
+    }
   }
 
   private final class UnlabelledFirstHeader: Source {
-    override func listView(_ listView: ShadowListKitListView, cellForHeaderInSection section: Int) -> ShadowListKitListCell {
+    override func listView(
+      _ listView: ShadowListKitListView,
+      cellForHeaderInSection section: Int
+    ) -> ShadowListKitListCell {
       let cell = listView.dequeueReusableCell(withIdentifier: "row")
       cell.isAccessibilityElement = section > 0
       cell.accessibilityLabel = section > 0 ? "Custom \(sections[section].key)" : nil
@@ -69,10 +108,17 @@ final class SectionRotorTests: XCTestCase {
     try XCTUnwrap(list.accessibilityCustomRotors?.first { $0.systemRotorType == .heading })
   }
 
-  private func search(_ rotor: UIAccessibilityCustomRotor, _ direction: UIAccessibilityCustomRotor.Direction,
-                      from current: UIAccessibilityCustomRotorItemResult? = nil) -> UIAccessibilityCustomRotorItemResult? {
+  private func search(
+    _ rotor: UIAccessibilityCustomRotor,
+    _ direction: UIAccessibilityCustomRotor.Direction,
+    from current: UIAccessibilityCustomRotorItemResult? = nil
+  )
+    -> UIAccessibilityCustomRotorItemResult?
+  {
     let predicate = UIAccessibilityCustomRotorSearchPredicate()
-    if let current { predicate.currentItem = current }
+    if let current {
+      predicate.currentItem = current
+    }
     predicate.searchDirection = direction
     return rotor.itemSearchBlock(predicate)
   }
@@ -100,7 +146,11 @@ final class SectionRotorTests: XCTestCase {
 
   func testEmptySectionsRemainHeadingsAndMissingHeadersAreSkipped() throws {
     let source = Source()
-    source.sections = [Section(key: "A", count: 0), Section(key: "B", count: 3, header: false), Section(key: "C", count: 0)]
+    source.sections = [
+      Section(key: "A", count: 0),
+      Section(key: "B", count: 3, header: false),
+      Section(key: "C", count: 0)
+    ]
     let (list, window) = fixture(source)
     let heading = try rotor(list)
     let first = search(heading, .next)
@@ -119,7 +169,7 @@ final class SectionRotorTests: XCTestCase {
     let source = UnlabelledFirstHeader()
     source.sections = [Section(key: "A", count: 0), Section(key: "B", count: 0)]
     let (list, window) = fixture(source)
-    XCTAssertEqual(label(search(try rotor(list), .next)), "Custom B")
+    XCTAssertEqual(try label(search(rotor(list), .next)), "Custom B")
     withExtendedLifetime((source, window)) {}
   }
 
@@ -225,6 +275,6 @@ final class SectionRotorTests: XCTestCase {
       window.isHidden = true
     }
     XCTAssertNil(weakList)
-    XCTAssertNil(search(try XCTUnwrap(heading), .next))
+    XCTAssertNil(try search(XCTUnwrap(heading), .next))
   }
 }

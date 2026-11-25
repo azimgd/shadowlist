@@ -24,7 +24,8 @@ final class TextTests: XCTestCase {
     func layout(_ text: String, width: CGFloat, maximumLines: UInt = 0) -> ShadowListKitTextLayout {
       ShadowListKitTextLayout(
         string: text, font: font, lineHeight: lineHeight, kern: kern, width: width,
-        maximumLines: maximumLines, alignment: .natural)
+        maximumLines: maximumLines, alignment: .natural
+      )
     }
   }
 
@@ -32,11 +33,12 @@ final class TextTests: XCTestCase {
     Style(name: "body", font: .systemFont(ofSize: 13), lineHeight: 16, kern: 0),
     Style(name: "headline", font: .systemFont(ofSize: 13, weight: .semibold), lineHeight: 16, kern: -0.08),
     Style(name: "subhead", font: .systemFont(ofSize: 11), lineHeight: 14, kern: 0.06),
-    Style(name: "large", font: .systemFont(ofSize: 17), lineHeight: 22, kern: -0.43),
+    Style(name: "large", font: .systemFont(ofSize: 17), lineHeight: 22, kern: -0.43)
   ]
 
   private static let widths: [CGFloat] = [306, 262, 233.5, 240, 120]
 
+  // swiftlint:disable line_length
   private static let texts = [
     "Window seat, clear skies, the mountains below. Perfect.",
     "Stuck on the runway for the third de-icing pass\u{2014}at least the sunrise is free.",
@@ -45,8 +47,9 @@ final class TextTests: XCTestCase {
     "Missed my connection by six minutes. The desk put me on the next flight, found me a lounge pass and apologised twice.",
     "Every trip is a small reset. Phone off, window open, nothing to fix.",
     "Supercalifragilisticexpialidocious-and-then-some-unbreakable-words-to-wrap",
-    "",
+    ""
   ]
+  // swiftlint:enable line_length
 
   /*
    * Height NSAttributedString measures for text wrapped at width.
@@ -55,7 +58,8 @@ final class TextTests: XCTestCase {
     let string = NSAttributedString(string: text, attributes: style.attributes())
     let bounds = string.boundingRect(
       with: CGSize(width: width, height: .greatestFiniteMagnitude),
-      options: [.usesLineFragmentOrigin, .usesFontLeading])
+      options: [.usesLineFragmentOrigin, .usesFontLeading]
+    )
     return ceil(bounds.height)
   }
 
@@ -121,7 +125,7 @@ final class TextTests: XCTestCase {
       for text in Self.texts where !text.isEmpty {
         let layout = style.layout(text, width: 240)
         var widest: CGFloat = 0
-        for line in 0..<Int(layout.lineCount) {
+        for line in 0 ..< Int(layout.lineCount) {
           let rect = layout.rectForLine(at: UInt(line))
           XCTAssertEqual(rect.minX, 0, accuracy: 0.01)
           XCTAssertEqual(rect.minY, style.lineHeight * CGFloat(line))
@@ -141,7 +145,8 @@ final class TextTests: XCTestCase {
     // A line set to the right starts where its text does.
     let right = ShadowListKitTextLayout(
       string: "Right", font: style.font, lineHeight: style.lineHeight, kern: style.kern, width: 240, maximumLines: 0,
-      alignment: .right)
+      alignment: .right
+    )
     XCTAssertEqual(right.rectForLine(at: 0).maxX, 240, accuracy: 0.5)
   }
 

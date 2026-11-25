@@ -23,5 +23,4 @@ JNIEXPORT jboolean JNICALL SL_MOUNT_JNI(nativeTick)(JNIEnv*, jclass, jlong handl
   auto driver = facebook::react::ShadowListMountDriver::find(static_cast<std::int64_t>(handle));
   return driver && driver->tick() ? JNI_TRUE : JNI_FALSE;
 }
-
 }

@@ -5,9 +5,17 @@ import XCTest
 @MainActor
 final class ItemActionsViewTests: XCTestCase {
   private final class Animator: NSObject, UIContextMenuInteractionAnimating {
-    var previewViewController: UIViewController? { nil }
-    func addAnimations(_ animations: @escaping () -> Void) { animations() }
-    func addCompletion(_ completion: @escaping () -> Void) { completion() }
+    var previewViewController: UIViewController? {
+      nil
+    }
+
+    func addAnimations(_ animations: @escaping () -> Void) {
+      animations()
+    }
+
+    func addCompletion(_ completion: @escaping () -> Void) {
+      completion()
+    }
   }
 
   private func attached(_ view: UIView) -> UIWindow {
@@ -21,11 +29,13 @@ final class ItemActionsViewTests: XCTestCase {
     return window
   }
 
-  private func configuration(_ title: String, full: Bool = false,
+  private func configuration(
+    _ title: String,
+    full: Bool = false,
     handler: @escaping (ShadowListKitSwipeAction, @escaping (Bool) -> Void) -> Void
   ) -> ShadowListKitSwipeActionsConfiguration {
     let configuration = ShadowListKitSwipeActionsConfiguration(actions: [
-      ShadowListKitSwipeAction(style: .normal, title: title, handler: handler),
+      ShadowListKitSwipeAction(style: .normal, title: title, handler: handler)
     ])
     configuration.performsFirstActionWithFullSwipe = full
     return configuration
@@ -60,7 +70,7 @@ final class ItemActionsViewTests: XCTestCase {
     let window = attached(view)
     defer { window.isHidden = true }
     view.shadowListKit_swipeDistance(-80, velocity: 0)
-    let buttons = view.subviews.flatMap { $0.subviews }.compactMap { $0 as? UIButton }
+    let buttons = view.subviews.flatMap(\.subviews).compactMap { $0 as? UIButton }
     let button = try XCTUnwrap(buttons.first { $0.currentTitle == "Delete" })
     button.sendActions(for: .touchUpInside)
     XCTAssertEqual(titles, ["Delete"])
@@ -142,21 +152,29 @@ final class ItemActionsViewTests: XCTestCase {
     let window = attached(view)
     defer { window.isHidden = true }
     let interaction = try XCTUnwrap(view.interactions.compactMap { $0 as? UIContextMenuInteraction }.first)
-    let configuration = try XCTUnwrap(interaction.delegate?.contextMenuInteraction(interaction,
-      configurationForMenuAtLocation: CGPoint(x: 100, y: 30)))
+    let configuration = try XCTUnwrap(interaction.delegate?.contextMenuInteraction(
+      interaction,
+      configurationForMenuAtLocation: CGPoint(
+        x: 100,
+        y: 30
+      )
+    ))
     XCTAssertEqual(presentations, 0)
     interaction.delegate?.contextMenuInteraction?(interaction, willDisplayMenuFor: configuration, animator: Animator())
     XCTAssertEqual(presentations, 1)
     view.leadingSwipeActions = self.configuration("Archive") { _, _ in }
     view.shadowListKit_swipeDistance(100, velocity: 0)
-    XCTAssertNil(interaction.delegate?.contextMenuInteraction(interaction,
-      configurationForMenuAtLocation: CGPoint(x: 100, y: 30)))
+    XCTAssertNil(interaction.delegate?.contextMenuInteraction(
+      interaction,
+      configurationForMenuAtLocation: CGPoint(x: 100, y: 30)
+    ))
     view.contextMenu = UIMenu(children: [])
     XCTAssertFalse(view.interactions.contains { $0 is UIContextMenuInteraction })
     view.contextMenu = nil
     XCTAssertFalse(view.interactions.contains { $0 is UIContextMenuInteraction })
     XCTAssertEqual(presentations, 1)
   }
+
   func testAccessibleNativeChildOwnsStandaloneActionsWithoutAnExtraElement() throws {
     let view = ShadowListKitItemActionsView()
     let button = UIButton(type: .system)

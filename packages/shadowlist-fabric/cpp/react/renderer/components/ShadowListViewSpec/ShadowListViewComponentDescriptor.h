@@ -23,20 +23,20 @@ namespace facebook::react {
 
 class ShadowListViewComponentDescriptor final : public ConcreteComponentDescriptor<ShadowListViewShadowNode> {
 public:
-  ShadowListViewComponentDescriptor(const ComponentDescriptorParameters& parameters) :
-    ConcreteComponentDescriptor<ShadowListViewShadowNode>(parameters),
-    /*
+  ShadowListViewComponentDescriptor(const ComponentDescriptorParameters& parameters)
+    : ConcreteComponentDescriptor<ShadowListViewShadowNode>(parameters),
+      /*
      * Done in the constructor on purpose. It puts the instance in the ContextContainer so
      * React Native's Paragraph descriptor, if built after us, shares our measure cache.
      * Doing it later at measure time would be too late. See getSharedTextLayoutManager.
      */
-    textLayoutManager_(getSharedTextLayoutManager(contextContainer_)) {}
+      textLayoutManager_(getSharedTextLayoutManager(contextContainer_)) {}
 
   /*
    * Counts commits for the perf suite. Layout only clones are skipped.
    */
-  std::shared_ptr<ShadowNode> cloneShadowNode(const ShadowNode& sourceShadowNode, const ShadowNodeFragment& fragment)
-    const override {
+  std::shared_ptr<ShadowNode>
+  cloneShadowNode(const ShadowNode& sourceShadowNode, const ShadowNodeFragment& fragment) const override {
     auto shadowNode = ConcreteComponentDescriptor::cloneShadowNode(sourceShadowNode, fragment);
     if (fragment.props || fragment.children || fragment.state) {
       SL_TRACE_COMMIT(shadowNode->getTag());
@@ -64,9 +64,8 @@ private:
     ShadowListViewGeometryCache* geometryCache,
     const ShadowListViewShadowNode::ConcreteProps& shadowlistViewProps);
 
-  static void viewableRulesFromProps(
-    const std::vector<double>& values,
-    std::vector<azimgd::shadowlist::ViewableRule>& rules);
+  static void
+  viewableRulesFromProps(const std::vector<double>& values, std::vector<azimgd::shadowlist::ViewableRule>& rules);
 
   /*
    * Write the host's live scroll report into the node's state when it is newer than

@@ -157,7 +157,8 @@ TEST(section_overlay_hides_without_an_active_header) {
 std::pair<double, double> pinnedInSpans(const StickyInput& input) {
   StickySpans spans = stickySpans(input);
   double header = std::min(std::max(input.offset, spans.header.start), spans.header.end - input.headerSize);
-  double footer = std::min(std::max(input.offset + input.windowSize - input.footerSize, spans.footer.start),
+  double footer = std::min(
+    std::max(input.offset + input.windowSize - input.footerSize, spans.footer.start),
     spans.footer.end - input.footerSize);
   return {header, footer};
 }

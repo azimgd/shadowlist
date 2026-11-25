@@ -15,15 +15,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ShadowListKitEditingMenuTest {
-  private class Rows(val offerMenu: Boolean) : ShadowListKitListView.DataSource,
-    ShadowListKitListView.Sizing, ShadowListKitListView.Delegate {
+  private class Rows(val offerMenu: Boolean) :
+    ShadowListKitListView.DataSource,
+    ShadowListKitListView.Sizing,
+    ShadowListKitListView.Delegate {
     val held = CountDownLatch(1)
     var menus = 0
     var longPresses = 0
     var selections = 0
     override fun numberOfItems(listView: ShadowListKitListView): Int = 10
     override fun keyForItem(listView: ShadowListKitListView, index: Int): String = "item-$index"
-    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell = listView.dequeueReusableCell("row")
+    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+      listView.dequeueReusableCell("row")
     override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = 40
     override fun contextMenuForItem(listView: ShadowListKitListView, index: Int, menu: Menu): Boolean {
       menus++
@@ -37,21 +40,31 @@ class ShadowListKitEditingMenuTest {
       held.countDown()
       return !offerMenu
     }
-    override fun didSelectItem(listView: ShadowListKitListView, index: Int) { selections++ }
+    override fun didSelectItem(listView: ShadowListKitListView, index: Int) {
+      selections++
+    }
   }
 
   private fun hold(editing: Boolean, offerMenu: Boolean) {
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     val context = instrumentation.context
-    val activity = instrumentation.startActivitySync(Intent().setClassName(context.packageName,
-      ShadowListKitBoardTestActivity::class.java.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    val activity = instrumentation.startActivitySync(
+      Intent().setClassName(
+        context.packageName,
+        ShadowListKitBoardTestActivity::class.java.name
+      ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
     val rows = Rows(offerMenu)
     lateinit var list: ShadowListKitListView
     var downTime = 0L
     fun touch(action: Int) {
       val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, 100f, 20f, 0)
       event.source = InputDevice.SOURCE_TOUCHSCREEN
-      try { list.dispatchTouchEvent(event) } finally { event.recycle() }
+      try {
+        list.dispatchTouchEvent(event)
+      } finally {
+        event.recycle()
+      }
     }
     try {
       instrumentation.runOnMainSync {
@@ -89,6 +102,8 @@ class ShadowListKitEditingMenuTest {
   }
 
   @Test fun a_supplied_menu_owns_the_hold_without_selecting() = hold(editing = false, offerMenu = true)
+
   @Test fun editing_disables_reorder_but_keeps_the_supplied_menu() = hold(editing = true, offerMenu = true)
+
   @Test fun a_declined_menu_preserves_the_consumed_long_press_while_editing() = hold(editing = true, offerMenu = false)
 }

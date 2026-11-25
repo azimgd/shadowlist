@@ -16,14 +16,16 @@ public:
   class Iterator;
 
   KeyList() = default;
-  KeyList(const std::vector<std::string>& keys) : strings_(keys.data()), size_(keys.size()) {}
-  KeyList(const std::string* const* keys, std::size_t size) : refs_(keys), size_(size) {}
+  KeyList(const std::vector<std::string>& keys)
+    : strings_(keys.data()),
+      size_(keys.size()) {}
+  KeyList(const std::string* const* keys, std::size_t size)
+    : refs_(keys),
+      size_(size) {}
 
   std::size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
-  const std::string& operator[](std::size_t index) const {
-    return refs_ != nullptr ? *refs_[index] : strings_[index];
-  }
+  const std::string& operator[](std::size_t index) const { return refs_ != nullptr ? *refs_[index] : strings_[index]; }
   const std::string& front() const { return (*this)[0]; }
   const std::string& back() const { return (*this)[size_ - 1]; }
 
@@ -72,7 +74,9 @@ public:
   using reference = const std::string&;
 
   Iterator() = default;
-  Iterator(KeyList list, std::size_t index) : list_(list), index_(index) {}
+  Iterator(KeyList list, std::size_t index)
+    : list_(list),
+      index_(index) {}
 
   reference operator*() const { return list_[index_]; }
   pointer operator->() const { return &list_[index_]; }

@@ -28,7 +28,9 @@ FOUNDATION_EXPORT NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventP
 @property (nonatomic, readonly) NSUInteger shadowListKit_mountPassCount;
 @property (nonatomic, readonly) BOOL shadowListKit_viewsBehind;
 
-- (void)shadowListKit_scrollWheelDelta:(CGPoint)delta phase:(NSEventPhase)phase momentumPhase:(NSEventPhase)momentumPhase;
+- (void)shadowListKit_scrollWheelDelta:(CGPoint)delta
+                                 phase:(NSEventPhase)phase
+                         momentumPhase:(NSEventPhase)momentumPhase;
 - (void)shadowListKit_runScrollFramesFor:(NSTimeInterval)duration;
 
 @end
@@ -40,8 +42,12 @@ FOUNDATION_EXPORT NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventP
  */
 @interface ShadowListKitListView (SelectionTesting)
 
-- (void)shadowListKit_pressKey:(NSString *)characters keyCode:(unsigned short)keyCode modifierFlags:(NSEventModifierFlags)flags;
-- (void)shadowListKit_clickItemAtIndex:(NSInteger)index modifierFlags:(NSEventModifierFlags)flags clickCount:(NSInteger)clickCount;
+- (void)shadowListKit_pressKey:(NSString *)characters
+                       keyCode:(unsigned short)keyCode
+                 modifierFlags:(NSEventModifierFlags)flags;
+- (void)shadowListKit_clickItemAtIndex:(NSInteger)index
+                         modifierFlags:(NSEventModifierFlags)flags
+                            clickCount:(NSInteger)clickCount;
 - (void)shadowListKit_moveMouseToPoint:(CGPoint)point;
 - (void)shadowListKit_mouseExited;
 
@@ -102,7 +108,8 @@ FOUNDATION_EXPORT NSEvent *ShadowListKitScrollWheelEvent(CGPoint delta, NSEventP
  */
 @interface ShadowListKitListView (AccessibilityTesting)
 
-@property (nonatomic, copy, nullable) void (^shadowListKit_accessibilityNotificationHandler)(NSAccessibilityNotificationName name, NSDictionary *_Nullable userInfo);
+@property (nonatomic, copy, nullable) void (^shadowListKit_accessibilityNotificationHandler)
+  (NSAccessibilityNotificationName name, NSDictionary *_Nullable userInfo);
 
 @end
 

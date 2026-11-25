@@ -43,10 +43,11 @@ struct AxisHost : SimHost {
   std::size_t numberOfColumns = 1;
   bool horizontal = false;
 
-  AxisHost(std::uint32_t seed, FuzzEpisode& episode, const HostFaults& faults = {}) : SimHost(seed, episode, faults) {
+  AxisHost(std::uint32_t seed, FuzzEpisode& episode, const HostFaults& faults = {})
+    : SimHost(seed, episode, faults) {
     for (const HostFault& fault : HOST_FAULTS) {
-      bool modelled = std::find(std::begin(AXIS_HOST_FAULTS), std::end(AXIS_HOST_FAULTS), fault.flag) !=
-        std::end(AXIS_HOST_FAULTS);
+      bool modelled =
+        std::find(std::begin(AXIS_HOST_FAULTS), std::end(AXIS_HOST_FAULTS), fault.flag) != std::end(AXIS_HOST_FAULTS);
       if (faults.*fault.flag && !modelled) {
         fail(std::string("AxisHost has no model of the fault '") + fault.kind + "'");
       }
@@ -86,8 +87,8 @@ inline bool axisCommit(AxisHost& host, bool ownWrite) {
   host.measureMountedRows();
 
   bool corrected = core.state.offsetCorrected;
-  ContainerStateUpdate state = core.resolveStateUpdate(host.stateOffset, host.stateOffset,
-    core.revision.contentWidth, core.revision.contentHeight);
+  ContainerStateUpdate state = core.resolveStateUpdate(
+    host.stateOffset, host.stateOffset, core.revision.contentWidth, core.revision.contentHeight);
   double maxOffset = host.maxOffset();
   if (host.hostOffset > maxOffset) {
     host.hostOffset = maxOffset;
@@ -116,8 +117,8 @@ inline bool axisCommit(AxisHost& host, bool ownWrite) {
       state.applyOffset ? 1 : 0, core.state.anchor.key.c_str(), core.state.anchor.offset,
       static_cast<std::ptrdiff_t>(measured.low), static_cast<std::ptrdiff_t>(measured.high));
     if (core.state.operation) {
-      std::printf("      target=%s sub=%.1f\n", core.state.operation->target.key.c_str(),
-        core.state.operation->target.offset);
+      std::printf(
+        "      target=%s sub=%.1f\n", core.state.operation->target.key.c_str(), core.state.operation->target.offset);
     }
   }
   return corrected;
@@ -127,8 +128,9 @@ inline int axisSettle(AxisHost& host) {
   for (int frame = 0; frame < FUZZ_MAX_SETTLE_FRAMES; ++frame) {
     bool corrected = axisCommit(host, true);
     bool reported = axisCommit(host, false);
-    if (!corrected && !reported && !host.container.state.operation && !host.container.state.pendingScrollToEnd &&
-        !host.measuresPending) {
+    if (
+      !corrected && !reported && !host.container.state.operation && !host.container.state.pendingScrollToEnd &&
+      !host.measuresPending) {
       return frame;
     }
   }
@@ -213,14 +215,15 @@ inline void axisChangeAndHold(AxisHost& host, const std::vector<std::string>& ne
   if (isHoldClamped(wanted, host.hostOffset, host.maxOffset())) {
     return;
   }
-  host.failWith(what + ": row " + row.key + " moved from " + std::to_string(row.screen) + " to " +
-    std::to_string(after) + " (host " + std::to_string(host.hostOffset) + ", max " + std::to_string(host.maxOffset()) +
-    ")");
+  host.failWith(
+    what + ": row " + row.key + " moved from " + std::to_string(row.screen) + " to " + std::to_string(after) +
+    " (host " + std::to_string(host.hostOffset) + ", max " + std::to_string(host.maxOffset()) + ")");
 }
 
 inline void axisOpen(AxisHost& host, std::size_t count) {
   host.keys = host.makeKeys(count);
-  host.note("open n=" + std::to_string(count) + " cols=" + std::to_string(host.numberOfColumns) +
+  host.note(
+    "open n=" + std::to_string(count) + " cols=" + std::to_string(host.numberOfColumns) +
     (host.horizontal ? " horizontal" : ""));
   FrameInput first = host.axisInput(false);
   first.windowWidth = 0.0;

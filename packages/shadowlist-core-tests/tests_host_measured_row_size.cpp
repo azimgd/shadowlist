@@ -49,8 +49,11 @@ TEST(measured_row_size_normalizes_fractional_cross_reports_without_masking_along
       CHECK(!core.state.measuredRangeStale);
       CHECK_EQ(core.state.geometryVersion, geometry);
     }
-    if (horizontal) row.width += 1;
-    else row.height += 1;
+    if (horizontal) {
+      row.width += 1;
+    } else {
+      row.height += 1;
+    }
     Virtualizer::updateRowAtIndex(core, row.index, measuredRowSize(core, row, horizontal));
     CHECK(core.state.measuredRangeStale);
     CHECK(core.state.geometryVersion > geometry);

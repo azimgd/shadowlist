@@ -22,8 +22,13 @@ final class AccessibilityTests: XCTestCase {
       self.source = source
     }
 
-    func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) { selected.append(index) }
-    func listView(_ listView: ShadowListKitListView, canMoveItemAt index: Int) -> Bool { !fixed.contains(index) }
+    func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) {
+      selected.append(index)
+    }
+
+    func listView(_ listView: ShadowListKitListView, canMoveItemAt index: Int) -> Bool {
+      !fixed.contains(index)
+    }
 
     func listView(_ listView: ShadowListKitListView, moveItemAt sourceIndex: Int, to destinationIndex: Int) {
       moves.append([sourceIndex, destinationIndex])
@@ -36,11 +41,32 @@ final class AccessibilityTests: XCTestCase {
    * Three sections of four 44 point items under a 30 point titled header.
    */
   private final class Sections: TestSource {
-    func numberOfSections(in listView: ShadowListKitListView) -> Int { 3 }
-    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { 4 }
-    func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { "Section \(section)" }
-    func listView(_ listView: ShadowListKitListView, sizeForHeaderInSection section: Int, crossSize: CGFloat) -> CGFloat { 30 }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 44 }
+    func numberOfSections(in listView: ShadowListKitListView) -> Int {
+      3
+    }
+
+    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int {
+      4
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      titleForHeaderInSection section: Int
+    ) -> String? {
+      "Section \(section)"
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      sizeForHeaderInSection section: Int,
+      crossSize: CGFloat
+    ) -> CGFloat {
+      30
+    }
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      44
+    }
   }
 
   private static let scrollToVisible = "AXScrollToVisible"
@@ -87,8 +113,10 @@ final class AccessibilityTests: XCTestCase {
     return { posted }
   }
 
-  private func names(_ posted: [(NSAccessibility.Notification, [AnyHashable: Any]?)]) -> [NSAccessibility.Notification] {
-    posted.map { $0.0 }
+  private func names(_ posted: [(NSAccessibility.Notification, [AnyHashable: Any]?)])
+    -> [NSAccessibility.Notification]
+  {
+    posted.map(\.0)
   }
 
   private func spin(_ seconds: TimeInterval = 0.05) {
@@ -125,11 +153,11 @@ final class AccessibilityTests: XCTestCase {
     XCTAssertEqual((children.last as? NSAccessibilityElement)?.accessibilityRole(), .scrollBar)
   }
 
-  func testTheVisibleRowsAreTheRowsOverTheViewport() throws {
+  func testTheVisibleRowsAreTheRowsOverTheViewport() {
     let (harness, _) = makeHarness()
     let list = harness.list
     let visible = (list.accessibilityVisibleRows() ?? []).compactMap { $0 as? NSAccessibilityElement }
-    XCTAssertEqual(visible.map { $0.accessibilityIndex() }, Array(0..<11))
+    XCTAssertEqual(visible.map { $0.accessibilityIndex() }, Array(0 ..< 11))
     list.contentOffset = CGPoint(x: 0, y: 44 * 100 + 10)
     harness.layout()
     let scrolled = (list.accessibilityVisibleRows() ?? []).compactMap { $0 as? NSAccessibilityElement }
@@ -163,10 +191,11 @@ final class AccessibilityTests: XCTestCase {
     XCTAssertLessThanOrEqual(frame.maxY, list.bounds.height + 0.5)
     let layout = try XCTUnwrap(posted().last)
     XCTAssertEqual(layout.0, .layoutChanged)
-    XCTAssertTrue((layout.1?[NSAccessibility.NotificationUserInfoKey.uiElements] as? [Any])?.first as? NSAccessibilityElement === far)
+    XCTAssertTrue((layout.1?[NSAccessibility.NotificationUserInfoKey.uiElements] as? [Any])?
+      .first as? NSAccessibilityElement === far)
     // A row on screen stays where it is.
     let offset = list.contentOffset
-    scrollToVisible(try row(list, 299))
+    try scrollToVisible(row(list, 299))
     XCTAssertEqual(list.contentOffset, offset)
   }
 
@@ -179,7 +208,7 @@ final class AccessibilityTests: XCTestCase {
     XCTAssertEqual(selected.map { $0.accessibilityIndex() }, [3])
     XCTAssertTrue(try row(list, 3).isAccessibilitySelected())
     XCTAssertTrue(list.isAccessibilitySelectorAllowed(#selector(NSView.setAccessibilitySelectedRows(_:))))
-    list.setAccessibilitySelectedRows([try row(list, 5), try row(list, 400)])
+    try list.setAccessibilitySelectedRows([row(list, 5), row(list, 400)])
     XCTAssertEqual(Array(list.selectedIndices), [5, 400])
     XCTAssertEqual(host.selected, [3, 5, 400])
     // A row element selects and deselects itself.
@@ -188,17 +217,17 @@ final class AccessibilityTests: XCTestCase {
     XCTAssertEqual(Array(list.selectedIndices), [7, 400])
     // Without multiple selection one row stays.
     list.allowsMultipleSelection = false
-    list.setAccessibilitySelectedRows([try row(list, 8), try row(list, 9)])
+    try list.setAccessibilitySelectedRows([row(list, 8), row(list, 9)])
     XCTAssertEqual(Array(list.selectedIndices), [8])
     // Without selection nothing selects.
     list.allowsSelection = false
     XCTAssertFalse(list.isAccessibilitySelectorAllowed(#selector(NSView.setAccessibilitySelectedRows(_:))))
-    list.setAccessibilitySelectedRows([try row(list, 2)])
+    try list.setAccessibilitySelectedRows([row(list, 2)])
     try row(list, 2).setAccessibilitySelected(true)
     XCTAssertTrue(list.selectedIndices.isEmpty)
   }
 
-  func testSelectionAndDataChangesPostTheirNotifications() throws {
+  func testSelectionAndDataChangesPostTheirNotifications() {
     let (harness, _) = makeHarness { $0.allowsMultipleSelection = true }
     let list = harness.list
     let posted = record(list)
@@ -228,7 +257,8 @@ final class AccessibilityTests: XCTestCase {
     let (harness, _) = makeHarness()
     let list = harness.list
     let posted = record(list)
-    let bars = (list.shadowListKit_scrollerView.accessibilityChildren() ?? []).compactMap { $0 as? NSAccessibilityElement }
+    let bars = (list.shadowListKit_scrollerView.accessibilityChildren() ?? [])
+      .compactMap { $0 as? NSAccessibilityElement }
     XCTAssertEqual(bars.count, 1)
     let bar = try XCTUnwrap(bars.first)
     XCTAssertEqual(bar.accessibilityRole(), .scrollBar)
@@ -252,9 +282,10 @@ final class AccessibilityTests: XCTestCase {
     XCTAssertEqual(list.contentOffset.y, maxOffset - 480, accuracy: 0.5)
   }
 
-  func testAHorizontalListHasAHorizontalScrollBarAndNoneWhenItFits() throws {
+  func testAHorizontalListHasAHorizontalScrollBarAndNoneWhenItFits() {
     let (harness, _) = makeHarness { $0.isHorizontal = true }
-    let bars = (harness.list.shadowListKit_scrollerView.accessibilityChildren() ?? []).compactMap { $0 as? NSAccessibilityElement }
+    let bars = (harness.list.shadowListKit_scrollerView.accessibilityChildren() ?? [])
+      .compactMap { $0 as? NSAccessibilityElement }
     XCTAssertEqual(bars.map { $0.accessibilityOrientation() }, [.horizontal])
     let (short, _) = makeHarness(count: 3)
     XCTAssertEqual(short.list.shadowListKit_scrollerView.accessibilityChildren()?.count, 0)
@@ -265,9 +296,9 @@ final class AccessibilityTests: XCTestCase {
     let list = harness.list
     let key = harness.source.keys[2]
     let element = try row(list, 2)
-    XCTAssertEqual(element.accessibilityCustomActions()?.map { $0.name }, ["Move up", "Move down"])
-    XCTAssertEqual(try row(list, 0).accessibilityCustomActions()?.map { $0.name }, ["Move down"])
-    XCTAssertEqual(try row(list, 599).accessibilityCustomActions()?.map { $0.name }, ["Move up"])
+    XCTAssertEqual(element.accessibilityCustomActions()?.map(\.name), ["Move up", "Move down"])
+    XCTAssertEqual(try row(list, 0).accessibilityCustomActions()?.map(\.name), ["Move down"])
+    XCTAssertEqual(try row(list, 599).accessibilityCustomActions()?.map(\.name), ["Move up"])
     let posted = record(list)
     let down = try XCTUnwrap(element.accessibilityCustomActions()?.last?.handler)
     XCTAssertTrue(down())
@@ -294,7 +325,7 @@ final class AccessibilityTests: XCTestCase {
     }
     let element = try row(harness.list, 4)
     let actions = element.accessibilityCustomActions() ?? []
-    XCTAssertEqual(actions.map { $0.name }, ["Move left", "Move right", "Move up", "Move down"])
+    XCTAssertEqual(actions.map(\.name), ["Move left", "Move right", "Move up", "Move down"])
     XCTAssertTrue(try XCTUnwrap(actions.last?.handler)())
     XCTAssertEqual(host.moves, [[4, 7]])
   }
@@ -322,8 +353,8 @@ final class AccessibilityTests: XCTestCase {
     title.setAccessibilitySelected(true)
     XCTAssertTrue(list.selectedIndices.isEmpty)
     // The last item of the first section moves up only.
-    XCTAssertEqual(try row(list, 4).accessibilityCustomActions()?.map { $0.name }, ["Move up"])
-    XCTAssertEqual(try row(list, 1).accessibilityCustomActions()?.map { $0.name }, ["Move down"])
+    XCTAssertEqual(try row(list, 4).accessibilityCustomActions()?.map(\.name), ["Move up"])
+    XCTAssertEqual(try row(list, 1).accessibilityCustomActions()?.map(\.name), ["Move down"])
   }
 
   func testACellFadingOutAfterADeleteIsLeftOut() throws {
@@ -358,7 +389,8 @@ final class AccessibilityTests: XCTestCase {
       rows(list)[3].setAccessibilityIdentifier("kept")
     }
     XCTAssertEqual(try row(list, 3).accessibilityIdentifier(), "kept")
-    XCTAssertTrue(list.cellForItem(at: 3)?.accessibilityParent() as? NSAccessibilityElement === (try row(list, 3)))
+    let keptRow = try row(list, 3)
+    XCTAssertTrue(list.cellForItem(at: 3)?.accessibilityParent() as? NSAccessibilityElement === keptRow)
     let key = harness.source.keys.remove(at: 3)
     list.deleteItems(at: IndexSet(integer: 3))
     harness.layout()
@@ -388,7 +420,7 @@ final class AccessibilityTests: XCTestCase {
     XCTAssertEqual(hit?.accessibilityRole(), .scrollBar)
   }
 
-  func testAHostHidesTheListAndItsRows() throws {
+  func testAHostHidesTheListAndItsRows() {
     let (harness, _) = makeHarness {
       $0.isScrollDriven = true
       $0.allowsSelection = false

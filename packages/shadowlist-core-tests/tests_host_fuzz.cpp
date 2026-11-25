@@ -39,7 +39,7 @@ using namespace slt;
 TEST(fuzz_kit_data_changes_hold_the_first_visible_row) {
   const FuzzKinds kinds = {
     {"prepend", "append", "insert", "delete", "move", "refresh", "scatter", "resize", "insert in view", "scroll",
-      "non anchor rows", "through own call", "through batch", "through diff", "through reload"},
+     "non anchor rows", "through own call", "through batch", "through diff", "through reload"},
     {},
   };
   forEachFuzzSeed(__func__, KIT_FUZZ_SEEDS, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -115,7 +115,7 @@ TEST(fuzz_kit_data_changes_hold_the_first_visible_row) {
 TEST(fuzz_kit_inverted_history_and_incoming_hold_the_reader) {
   const FuzzKinds kinds = {
     {"history", "incoming", "delete", "scroll", "scroll to end", "command to end", "animated command to end",
-      "through own call", "through batch", "through diff", "through reload"},
+     "through own call", "through batch", "through diff", "through reload"},
     {},
     {},
   };
@@ -126,8 +126,9 @@ TEST(fuzz_kit_inverted_history_and_incoming_hold_the_reader) {
     host.headerView = chance(host.rng, 60) ? 0.0 : 48.0;
     open(host, pickSize(host.rng, 15, 54));
     if (!atEnd(host)) {
-      host.failWith("inverted list did not open at the bottom: off=" + std::to_string(host.offset) + " max=" +
-        std::to_string(host.maxOffset()));
+      host.failWith(
+        "inverted list did not open at the bottom: off=" + std::to_string(host.offset) +
+        " max=" + std::to_string(host.maxOffset()));
     }
 
     /*
@@ -195,8 +196,8 @@ TEST(fuzz_kit_inverted_history_and_incoming_hold_the_reader) {
 TEST(fuzz_kit_scroll_commands_land_where_they_aim) {
   const FuzzKinds kinds = {
     {"command to item", "command to end", "command to start", "animated command", "restore position",
-      "interrupted animation", "prepend", "append", "scroll",
-      "through own call", "through batch", "through diff", "through reload"},
+     "interrupted animation", "prepend", "append", "scroll", "through own call", "through batch", "through diff",
+     "through reload"},
     {},
     {},
   };
@@ -257,8 +258,8 @@ TEST(fuzz_kit_scroll_commands_land_where_they_aim) {
           std::size_t row = host.driver.indexOfKey(saved->key);
           double wanted = std::min(std::max(host.driver.getLeadingAt(row) + saved->offset, 0.0), host.maxOffset());
           if (std::fabs(host.offset - wanted) > FUZZ_TOLERANCE) {
-            host.failWith("restored position landed at " + std::to_string(host.offset) + " wanted " +
-              std::to_string(wanted));
+            host.failWith(
+              "restored position landed at " + std::to_string(host.offset) + " wanted " + std::to_string(wanted));
           }
         }
         saved = host.driver.getAnchorState(host.offset);
@@ -283,9 +284,8 @@ TEST(fuzz_kit_scroll_commands_land_where_they_aim) {
  */
 TEST(fuzz_kit_gestures_keep_the_viewport_mounted) {
   const FuzzKinds kinds = {
-    {"drag", "fling forward", "fling back", "pull past the start", "pull past the end",
-      "prepend", "append", "insert",
-      "through own call", "through batch", "through diff", "through reload"},
+    {"drag", "fling forward", "fling back", "pull past the start", "pull past the end", "prepend", "append", "insert",
+     "through own call", "through batch", "through diff", "through reload"},
     {},
   };
   forEachFuzzSeed(__func__, KIT_FUZZ_SEEDS, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -352,9 +352,10 @@ TEST(fuzz_kit_gestures_keep_the_viewport_mounted) {
           if (host.settings.inverted && atEnd(host)) {
             break;
           }
-          host.failWith(what + ": row " + row.key + " at " + std::to_string(after) + " expected " +
-            std::to_string(expected) + " (travel " + std::to_string(travel) + ", host " + std::to_string(host.offset) +
-            ", max " + std::to_string(host.maxOffset()) + ")");
+          host.failWith(
+            what + ": row " + row.key + " at " + std::to_string(after) + " expected " + std::to_string(expected) +
+            " (travel " + std::to_string(travel) + ", host " + std::to_string(host.offset) + ", max " +
+            std::to_string(host.maxOffset()) + ")");
         }
       } else if (roll < 85) {
         double velocity = 1500.0 + pickPercent(host.rng) * 45.0;
@@ -403,8 +404,8 @@ TEST(fuzz_kit_gestures_keep_the_viewport_mounted) {
  */
 TEST(fuzz_kit_grids_and_horizontal_lists_hold_through_changes_and_resizes) {
   const FuzzKinds kinds = {
-    {"prepend", "append", "ragged delete", "scroll", "resize along", "resize across",
-      "through own call", "through batch", "through diff", "through reload"},
+    {"prepend", "append", "ragged delete", "scroll", "resize along", "resize across", "through own call",
+     "through batch", "through diff", "through reload"},
     {},
   };
   forEachFuzzSeed(__func__, KIT_FUZZ_SEEDS, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -439,8 +440,8 @@ TEST(fuzz_kit_grids_and_horizontal_lists_hold_through_changes_and_resizes) {
       } else {
         episode.reach("resize across");
         std::vector<ScreenRow> before = visibleRows(host);
-        host.boundsCross = host.boundsCross == WINDOW_WIDTH ? WINDOW_WIDTH - 60.0 - pickPercent(host.rng) :
-          WINDOW_WIDTH;
+        host.boundsCross =
+          host.boundsCross == WINDOW_WIDTH ? WINDOW_WIDTH - 60.0 - pickPercent(host.rng) : WINDOW_WIDTH;
         host.note("across -> " + std::to_string(host.boundsCross) + " off=" + std::to_string(host.offset));
         host.layoutPass();
         if (host.settle() < 0) {
@@ -454,7 +455,8 @@ TEST(fuzz_kit_grids_and_horizontal_lists_hold_through_changes_and_resizes) {
         const ScreenRow& row = before.front();
         double after = screenOf(host, row.key);
         if (std::fabs(after - row.screen) > FUZZ_TOLERANCE && !isHoldClamped(host, row.key, row.screen)) {
-          host.failWith("resize across: row " + row.key + " moved from " + std::to_string(row.screen) + " to " +
+          host.failWith(
+            "resize across: row " + row.key + " moved from " + std::to_string(row.screen) + " to " +
             std::to_string(after));
         }
       }
@@ -470,7 +472,7 @@ TEST(fuzz_kit_grids_and_horizontal_lists_hold_through_changes_and_resizes) {
 TEST(fuzz_kit_sections_pin_one_header_and_hold_the_reader) {
   const FuzzKinds kinds = {
     {"add items", "delete items", "add section", "empty section", "toggle header", "scroll", "scroll to section",
-      "through own call", "through batch", "through diff", "through reload"},
+     "through own call", "through batch", "through diff", "through reload"},
     {},
   };
   forEachFuzzSeed(__func__, KIT_FUZZ_SEEDS, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -552,7 +554,8 @@ TEST(fuzz_kit_sections_pin_one_header_and_hold_the_reader) {
       } else if (roll < 58) {
         episode.reach("empty section");
         std::vector<std::string> next = host.items;
-        next.erase(next.begin() + static_cast<std::ptrdiff_t>(first),
+        next.erase(
+          next.begin() + static_cast<std::ptrdiff_t>(first),
           next.begin() + static_cast<std::ptrdiff_t>(first + host.sectionModel[section].itemCount));
         host.sectionModel[section].itemCount = 0;
         changeSections("empty section " + std::to_string(section), std::move(next));
@@ -576,8 +579,8 @@ TEST(fuzz_kit_sections_pin_one_header_and_hold_the_reader) {
         runCommand(host, false, 0.0, {}, [&] { host.driver.scrollToRow(row, 0.0); });
         double wanted = landingOf(host, host.driver.indexOfKey(key), 0.0);
         if (std::fabs(host.offset - wanted) > FUZZ_TOLERANCE) {
-          host.failWith("scroll to section landed at " + std::to_string(host.offset) + " wanted " +
-            std::to_string(wanted));
+          host.failWith(
+            "scroll to section landed at " + std::to_string(host.offset) + " wanted " + std::to_string(wanted));
         }
       }
     }
@@ -594,7 +597,7 @@ TEST(fuzz_kit_sections_pin_one_header_and_hold_the_reader) {
 TEST(fuzz_kit_lists_grow_from_small_and_report_the_edge_they_rest_on) {
   const FuzzKinds kinds = {
     {"scroll to end", "load next page", "scroll to start", "load previous page", "append", "shrink", "grow", "empty",
-      "through own call", "through batch", "through diff", "through reload"},
+     "through own call", "through batch", "through diff", "through reload"},
     {},
   };
   forEachFuzzSeed(__func__, KIT_FUZZ_SEEDS, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -662,9 +665,10 @@ TEST(fuzz_kit_lists_grow_from_small_and_report_the_edge_they_rest_on) {
         std::size_t keep = std::min(pickSize(host.rng, 0, 3), host.items.size());
         bool fromStart = chance(host.rng, 50);
         Edit edit;
-        edit.next = fromStart
-          ? std::vector<std::string>(host.items.begin(), host.items.begin() + static_cast<std::ptrdiff_t>(keep))
-          : std::vector<std::string>(host.items.end() - static_cast<std::ptrdiff_t>(keep), host.items.end());
+        edit.next =
+          fromStart
+            ? std::vector<std::string>(host.items.begin(), host.items.begin() + static_cast<std::ptrdiff_t>(keep))
+            : std::vector<std::string>(host.items.end() - static_cast<std::ptrdiff_t>(keep), host.items.end());
         for (std::size_t index = 0; index + keep < host.items.size(); ++index) {
           edit.update.deleted.push_back(fromStart ? keep + index : index);
         }

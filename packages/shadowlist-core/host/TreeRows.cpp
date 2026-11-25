@@ -7,8 +7,10 @@ namespace azimgd::shadowlist {
 namespace {
 
 std::uint8_t flagsOf(const TreeRow& row) {
-  return static_cast<std::uint8_t>((row.hasChildren ? TREE_ROW_HAS_CHILDREN : 0) |
-    (row.hasChildren && row.expanded ? TREE_ROW_EXPANDED : 0));
+  const std::uint8_t none = 0;
+  const std::uint8_t hasChildren = row.hasChildren ? TREE_ROW_HAS_CHILDREN : none;
+  const std::uint8_t expanded = row.hasChildren && row.expanded ? TREE_ROW_EXPANDED : none;
+  return static_cast<std::uint8_t>(hasChildren | expanded);
 }
 
 }

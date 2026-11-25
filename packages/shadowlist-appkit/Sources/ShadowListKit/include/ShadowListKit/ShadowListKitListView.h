@@ -241,11 +241,12 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
 @property (nonatomic, getter=isHorizontal) BOOL horizontal;
 @property (nonatomic) NSInteger numberOfColumns;
 @property (nonatomic) CGFloat estimatedItemSize;
-@property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec * _Nullable (^getItemSizeSpec)(NSInteger index);
+@property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec *_Nullable (^getItemSizeSpec)(NSInteger index);
 @property (nonatomic) NSUInteger measureLookaheadRows;
 @property (nonatomic, copy, nullable) NSInteger (^getItemSpan)(NSInteger index);
 @property (nonatomic, copy, nullable) ShadowListKitViewabilityConfig *viewabilityConfig;
-@property (nonatomic, copy, nullable) NSArray<ShadowListKitViewabilityConfigCallbackPair *> *viewabilityConfigCallbackPairs;
+@property (nonatomic, copy, nullable)
+  NSArray<ShadowListKitViewabilityConfigCallbackPair *> *viewabilityConfigCallbackPairs;
 @property (nonatomic, copy, nullable) void (^onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *info);
 - (void)recordInteraction;
 @property (nonatomic) CGFloat overscan;
@@ -258,7 +259,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
 @property (nonatomic) BOOL animatesChanges;
 @property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
 @property (nonatomic) BOOL stickySectionHeaders;
-@property (nonatomic, copy, nullable) NSView * _Nullable (^renderStickyHeaderOverlay)(NSString * _Nullable key, NSInteger index, NSInteger section);
+@property (nonatomic, copy, nullable) NSView *_Nullable (^renderStickyHeaderOverlay)
+  (NSString *_Nullable key, NSInteger index, NSInteger section);
 @property (nonatomic, strong, nullable) NSView *headerView;
 @property (nonatomic, strong, nullable) NSView *footerView;
 @property (nonatomic) BOOL stickyHeader;
@@ -312,7 +314,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitScrollPhase) {
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices;
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices payload:(nullable id)payload;
 - (void)moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
-- (void)performBatchUpdates:(void (NS_NOESCAPE ^_Nullable)(void))updates completion:(void (^_Nullable)(BOOL finished))completion;
+- (void)performBatchUpdates:(void(NS_NOESCAPE ^ _Nullable)(void))updates
+                 completion:(void (^_Nullable)(BOOL finished))completion;
 - (ShadowListKitListChanges *)applyChanges;
 
 - (void)restoreAnchorState:(ShadowListKitAnchorState *)state NS_SWIFT_NAME(restoreAnchorState(_:));

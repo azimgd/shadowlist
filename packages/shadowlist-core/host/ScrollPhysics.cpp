@@ -18,7 +18,7 @@ bool isPast(double value, double max) {
 
 AxisLock lockAxes(double deltaX, double deltaY, double lockDegrees) {
   double degrees = std::atan2(std::fabs(deltaY), std::fabs(deltaX)) * 180.0 / PI;
-  return {degrees < 90.0 - lockDegrees, degrees > lockDegrees};
+  return {degrees<90.0 - lockDegrees, degrees> lockDegrees};
 }
 
 double elasticStep(double value, double delta, double max, double dimension, double limitShare) {
@@ -56,13 +56,8 @@ double easeOut(double t) {
   return 1.0 - std::pow(1.0 - t, 3);
 }
 
-ScrollerThumb scrollerThumb(
-  double total,
-  double view,
-  double offset,
-  double trackStart,
-  double inset,
-  double minLength) {
+ScrollerThumb
+scrollerThumb(double total, double view, double offset, double trackStart, double inset, double minLength) {
   ScrollerThumb thumb;
   if (!(total > view && view > 0.0)) {
     return thumb;

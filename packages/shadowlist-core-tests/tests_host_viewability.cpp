@@ -13,7 +13,9 @@ struct Host {
   double offset = 0.0;
   Host() {
     std::vector<std::string> keys;
-    for (std::size_t index = 0; index < 20; ++index) keys.push_back("k" + std::to_string(index));
+    for (std::size_t index = 0; index < 20; ++index) {
+      keys.push_back("k" + std::to_string(index));
+    }
     driver.setKeys(std::move(keys));
     driver.setMeasureRow([](std::size_t, const std::string&, double) { return 100.0; });
     layout();

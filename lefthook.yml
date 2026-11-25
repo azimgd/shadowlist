@@ -11,6 +11,9 @@ pre-commit:
     - name: format
       glob: '*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}'
       run: packages/node_modules/.bin/prettier --check --config packages/.prettierrc --ignore-path .gitignore --ignore-path packages/.prettierignore {staged_files}
+    - name: format-native
+      glob: '*.{c,cc,cpp,h,hpp,m,mm,java,swift,kt,kts}'
+      run: packages/scripts/native-format.sh --check {staged_files}
 
 pre-push:
   jobs:

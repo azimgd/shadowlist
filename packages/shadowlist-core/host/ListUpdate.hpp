@@ -42,9 +42,7 @@ struct KeySplice {
   std::size_t deleted = 0;
   std::size_t inserted = 0;
 
-  bool isEmpty() const {
-    return deleted == 0 && inserted == 0;
-  }
+  bool isEmpty() const { return deleted == 0 && inserted == 0; }
 };
 
 KeySplice keySplice(const std::vector<std::string>& previous, const std::vector<std::string>& next);
@@ -52,26 +50,21 @@ KeySplice keySplice(const std::vector<std::string>& previous, const std::vector<
 /*
  * The keys of the given rows. Rows past the end are skipped.
  */
-std::unordered_set<std::string> keysOfRows(
-  const std::vector<std::string>& keys,
-  const std::vector<std::size_t>& rows);
+std::unordered_set<std::string> keysOfRows(const std::vector<std::string>& keys, const std::vector<std::size_t>& rows);
 
 /*
  * The rows whose key is in wanted, low to high.
  */
-std::vector<std::size_t> rowsOfKeys(
-  const std::vector<std::string>& keys,
-  const std::unordered_set<std::string>& wanted);
+std::vector<std::size_t>
+rowsOfKeys(const std::vector<std::string>& keys, const std::unordered_set<std::string>& wanted);
 
 /*
  * The keys after a planned batch. A kept row takes its previous key and an inserted row reads
  * its own through readKey, called with its index in the next data.
  */
 template <typename ReadKey>
-std::vector<std::string> keysFromPlan(
-  const BatchPlan& plan,
-  const std::vector<std::string>& previous,
-  ReadKey readKey) {
+std::vector<std::string>
+keysFromPlan(const BatchPlan& plan, const std::vector<std::string>& previous, ReadKey readKey) {
   std::vector<std::string> next;
   next.reserve(plan.sources.size());
   for (std::size_t index = 0; index < plan.sources.size(); ++index) {
@@ -98,9 +91,7 @@ struct CollectedBatch {
   BatchUpdate update;
   bool needsReload = false;
 
-  bool isEmpty() const {
-    return update.isEmpty() && !needsReload;
-  }
+  bool isEmpty() const { return update.isEmpty() && !needsReload; }
 };
 
 /*
@@ -170,7 +161,9 @@ public:
    * A copy keeps the versions. Its positions would point into the other's entries, and it starts
    * without them.
    */
-  ContentVersions(const ContentVersions& other) : versions_(other.versions_), round_(other.round_) {}
+  ContentVersions(const ContentVersions& other)
+    : versions_(other.versions_),
+      round_(other.round_) {}
   ContentVersions& operator=(const ContentVersions& other) {
     if (this != &other) {
       versions_ = other.versions_;

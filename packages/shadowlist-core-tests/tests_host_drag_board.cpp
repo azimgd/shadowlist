@@ -367,8 +367,8 @@ TEST(grid_drag_board_foreign_matches_the_core_layout) {
   // The incoming cell is k30, laid out at MASONRY_HEIGHTS[30 % 7].
   std::string incoming = "k30";
   double extent = MASONRY_HEIGHTS[30 % 7];
-  for (std::size_t to : {std::size_t{0}, std::size_t{5}, std::size_t{13}, std::size_t{28}, std::size_t{29},
-         std::size_t{30}}) {
+  for (std::size_t to :
+       {std::size_t{0}, std::size_t{5}, std::size_t{13}, std::size_t{28}, std::size_t{29}, std::size_t{30}}) {
     std::vector<double> shifts(rows.size());
     std::vector<double> crossShifts(rows.size());
     dragGridForeignShifts(cells, extent, WINDOW_WIDTH / 3.0, to, 3, shifts.data(), crossShifts.data());
@@ -841,13 +841,9 @@ struct BoardModel {
   DragPoint returnDelta;
   double returnShare = 1.0;
 
-  bool isDeciding() const {
-    return phase == DragBoardPhase::AtHome || phase == DragBoardPhase::Floating;
-  }
+  bool isDeciding() const { return phase == DragBoardPhase::AtHome || phase == DragBoardPhase::Floating; }
 
-  bool isLanding() const {
-    return phase == DragBoardPhase::Landing || phase == DragBoardPhase::Settling;
-  }
+  bool isLanding() const { return phase == DragBoardPhase::Landing || phase == DragBoardPhase::Settling; }
 
   void goIdle() {
     phase = DragBoardPhase::Idle;
@@ -967,8 +963,8 @@ double shareAlong(const Trail& trail, DragPoint start, DragPoint end, DragPoint 
 TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leaves) {
   const FuzzKinds kinds = {
     {"pickup", "pickup over a flight", "stay", "lift out", "return home", "retarget", "return offset",
-      "release at home", "release without a spot", "drop", "landed", "not landed", "settle", "settle refused",
-      "expired", "not expired", "end flight", "cancel", "leave"},
+     "release at home", "release without a spot", "drop", "landed", "not landed", "settle", "settle refused", "expired",
+     "not expired", "end flight", "cancel", "leave"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -1035,11 +1031,13 @@ TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leav
           frame.step = board.hover(candidates);
         }
         episode.reach(nameOf(expected.kind));
-        if (frame.step.kind != expected.kind || frame.step.previous != expected.previous ||
-            frame.step.next != expected.next) {
-          trail.failWith(std::string("the hover answered ") + nameOf(frame.step.kind) + " from '" +
-            frame.step.previous + "' to '" + frame.step.next + "' expected " + nameOf(expected.kind) + " from '" +
-            expected.previous + "' to '" + expected.next + "'");
+        if (
+          frame.step.kind != expected.kind || frame.step.previous != expected.previous ||
+          frame.step.next != expected.next) {
+          trail.failWith(
+            std::string("the hover answered ") + nameOf(frame.step.kind) + " from '" + frame.step.previous + "' to '" +
+            frame.step.next + "' expected " + nameOf(expected.kind) + " from '" + expected.previous + "' to '" +
+            expected.next + "'");
         }
         if (!pictures) {
           continue;
@@ -1061,7 +1059,8 @@ TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leav
         bool floating = model.phase == DragBoardPhase::Floating;
         bool hides = model.phase != DragBoardPhase::Idle && model.phase != DragBoardPhase::AtHome;
         if (frame.floating != floating || frame.hideHeld != hides) {
-          trail.failWith("the frame says floating " + std::to_string(frame.floating) + " and hidden " +
+          trail.failWith(
+            "the frame says floating " + std::to_string(frame.floating) + " and hidden " +
             std::to_string(frame.hideHeld) + " in phase " + nameOf(model.phase));
         }
         if (!floating) {
@@ -1078,17 +1077,18 @@ TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leav
         }
         if (!model.lifting) {
           if (!samePoint(frame.overlayCenter, under)) {
-            trail.failWith("the picture is at " + describe(frame.overlayCenter) + " expected " + describe(under) +
+            trail.failWith(
+              "the picture is at " + describe(frame.overlayCenter) + " expected " + describe(under) +
               " under the finger");
           }
         } else {
-          DragPoint from{model.liftFrom.x + finger.x - model.liftFinger.x,
-            model.liftFrom.y + finger.y - model.liftFinger.y};
+          DragPoint from{
+            model.liftFrom.x + finger.x - model.liftFinger.x, model.liftFrom.y + finger.y - model.liftFinger.y};
           double share = shareAlong(trail, from, under, frame.overlayCenter, "the picture lifting out");
           bool startsOff = now == model.liftAt && !samePoint(frame.overlayCenter, from);
           if (share < model.liftShare - 1e-9 || share > 1.0 + 1e-9 || startsOff) {
-            trail.failWith("the picture is " + std::to_string(share) + " of its way out after " +
-              std::to_string(model.liftShare));
+            trail.failWith(
+              "the picture is " + std::to_string(share) + " of its way out after " + std::to_string(model.liftShare));
           }
           model.liftShare = share;
         }
@@ -1118,8 +1118,8 @@ TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leav
         double share = shareAlong(trail, {}, model.returnDelta, offset, "the return offset");
         bool startsOff = now == model.returnAt && !samePoint(offset, model.returnDelta);
         if (share > model.returnShare + 1e-9 || share < -1e-9 || startsOff) {
-          trail.failWith("the return offset is " + std::to_string(share) + " of the way after " +
-            std::to_string(model.returnShare));
+          trail.failWith(
+            "the return offset is " + std::to_string(share) + " of the way after " + std::to_string(model.returnShare));
         }
         model.returnShare = share;
       } else if (roll < 70) {
@@ -1127,8 +1127,9 @@ TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leav
         std::string key = chance(rng, 30) ? std::string() : "t" + std::to_string(pickInt(rng, 0, 12));
         std::size_t rowCount = chance(rng, 15) ? UNDEFINED_INDEX : pickSize(rng, 0, 10);
         now += pickInt(rng, 0, 60);
-        trail.note("release at " + std::to_string(static_cast<std::ptrdiff_t>(insertion)) + " before '" + key +
-          "' of " + std::to_string(static_cast<std::ptrdiff_t>(rowCount)) + " rows");
+        trail.note(
+          "release at " + std::to_string(static_cast<std::ptrdiff_t>(insertion)) + " before '" + key + "' of " +
+          std::to_string(static_cast<std::ptrdiff_t>(rowCount)) + " rows");
         DragBoardRelease release = board.release(insertion, key, rowCount, now);
         DragBoardRelease expected;
         if (model.phase != DragBoardPhase::Floating) {
@@ -1151,10 +1152,12 @@ TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leav
             model.lifting = false;
           }
         }
-        if (release.kind != expected.kind || release.listId != expected.listId || release.index != expected.index ||
-            release.key != expected.key) {
-          trail.failWith("the release answered kind " + std::to_string(static_cast<int>(release.kind)) + " into '" +
-            release.listId + "' at " + std::to_string(static_cast<std::ptrdiff_t>(release.index)) + " expected kind " +
+        if (
+          release.kind != expected.kind || release.listId != expected.listId || release.index != expected.index ||
+          release.key != expected.key) {
+          trail.failWith(
+            "the release answered kind " + std::to_string(static_cast<int>(release.kind)) + " into '" + release.listId +
+            "' at " + std::to_string(static_cast<std::ptrdiff_t>(release.index)) + " expected kind " +
             std::to_string(static_cast<int>(expected.kind)) + " into '" + expected.listId + "' at " +
             std::to_string(static_cast<std::ptrdiff_t>(expected.index)));
         }
@@ -1187,21 +1190,22 @@ TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leav
         episode.reach(expected ? "settle" : "settle refused");
         trail.note("begin overlay settle");
         if (board.beginOverlaySettle() != expected) {
-          trail.failWith(std::string("the picture ") + (expected ? "did not start" : "started") +
-            " to settle in phase " + nameOf(model.phase));
+          trail.failWith(
+            std::string("the picture ") + (expected ? "did not start" : "started") + " to settle in phase " +
+            nameOf(model.phase));
         }
         model.overlaySettling = model.overlaySettling || expected;
       } else if (roll < 92) {
         now += chance(rng, 40) ? pickInt(rng, 400, 1400) : pickInt(rng, 0, 60);
-        bool waiting = model.phase == DragBoardPhase::Landing ||
-          (model.phase == DragBoardPhase::Settling && !model.overlaySettling);
+        bool waiting =
+          model.phase == DragBoardPhase::Landing || (model.phase == DragBoardPhase::Settling && !model.overlaySettling);
         bool expected = waiting && now >= model.landDeadline;
         episode.reach(expected ? "expired" : "not expired");
         trail.note("expired at " + std::to_string(now));
         if (board.expired(now) != expected) {
-          trail.failWith(std::string("the wait ") + (expected ? "did not run out" : "ran out") + " at " +
-            std::to_string(now) + " for a deadline of " + std::to_string(model.landDeadline) + " in phase " +
-            nameOf(model.phase));
+          trail.failWith(
+            std::string("the wait ") + (expected ? "did not run out" : "ran out") + " at " + std::to_string(now) +
+            " for a deadline of " + std::to_string(model.landDeadline) + " in phase " + nameOf(model.phase));
         }
         if (expected) {
           model.goIdle();
@@ -1241,18 +1245,21 @@ TEST(fuzz_drag_board_is_what_its_calls_say_through_pickups_hovers_drops_and_leav
         trail.failWith(std::string("the board is ") + nameOf(board.getPhase()) + " expected " + nameOf(model.phase));
       }
       if (board.getHomeId() != model.home || board.getHeldKey() != model.held || board.getTargetId() != model.target) {
-        trail.failWith("the board holds '" + board.getHeldKey() + "' of '" + board.getHomeId() + "' over '" +
-          board.getTargetId() + "' expected '" + model.held + "' of '" + model.home + "' over '" + model.target + "'");
+        trail.failWith(
+          "the board holds '" + board.getHeldKey() + "' of '" + board.getHomeId() + "' over '" + board.getTargetId() +
+          "' expected '" + model.held + "' of '" + model.home + "' over '" + model.target + "'");
       }
       if (board.getFlight() != model.flight) {
         trail.failWith("flight " + std::to_string(board.getFlight()) + " expected " + std::to_string(model.flight));
       }
       if (board.isOverlaySettling() != model.overlaySettling) {
-        trail.failWith(std::string("the picture ") + (board.isOverlaySettling() ? "flies" : "does not fly") +
+        trail.failWith(
+          std::string("the picture ") + (board.isOverlaySettling() ? "flies" : "does not fly") +
           " onto the row in phase " + nameOf(model.phase));
       }
-      if (board.isFloating() != (model.phase == DragBoardPhase::Floating) || board.isDeciding() != model.isDeciding() ||
-          board.isLanding() != model.isLanding()) {
+      if (
+        board.isFloating() != (model.phase == DragBoardPhase::Floating) || board.isDeciding() != model.isDeciding() ||
+        board.isLanding() != model.isLanding()) {
         trail.failWith(std::string("the board's questions disagree with phase ") + nameOf(model.phase));
       }
       episode.observe(static_cast<int>(board.getPhase()));

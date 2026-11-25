@@ -62,7 +62,8 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   private var batchPayload: Any? = null
 
   /* Inner batches keep collecting animations until the outer commit has laid out. */
-  private val batchAnimations = ArrayList<Pair<ShadowListKitDefaultItemAnimator, ShadowListKitDefaultItemAnimator.Batch>>()
+  private val batchAnimations =
+    ArrayList<Pair<ShadowListKitDefaultItemAnimator, ShadowListKitDefaultItemAnimator.Batch>>()
 
   /*
    * Read the sections and every key into next and return the item keys. A list with sections
@@ -89,7 +90,9 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
       val hasHeader = sections.titleForHeaderInSection(list, section) != null
       val hasFooter = sections.titleForFooterInSection(list, section) != null
       counts[section] = count
-      flags[section] = (if (hasHeader) ShadowListKitCore.SECTION_HEADER else 0) or (if (hasFooter) ShadowListKitCore.SECTION_FOOTER else 0)
+      flags[section] =
+        (if (hasHeader) ShadowListKitCore.SECTION_HEADER else 0) or
+        (if (hasFooter) ShadowListKitCore.SECTION_FOOTER else 0)
       sectionKeys[section] = sections.keyForSection(list, section)
       val first = items.size
       for (local in 0 until count) items.add(source.keyForItem(list, first + local))
@@ -180,13 +183,22 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
    * sections. Returns what ShadowListKitListState.commitKeys returns.
    */
   private fun commitRowKeys(
-    previousItems: List<String>, next: ArrayList<String>, nextItems: List<String>, flags: Int,
+    previousItems: List<String>,
+    next: ArrayList<String>,
+    nextItems: List<String>,
+    flags: Int
   ): IntArray {
     val splice = keySplice(keys, next)
     val start = splice.start
     val end = keys.size - start - splice.deleted
     if (list.animatesChanges && (start < keys.size || start < next.size)) {
-      list.changes.capture(deleted = keys.subList(start, keys.size - end), inserted = next.subList(start, next.size - end))
+      list.changes.capture(
+        deleted = keys.subList(start, keys.size - end),
+        inserted = next.subList(
+          start,
+          next.size - end
+        )
+      )
     }
     val separate = nextItems !== next || previousItems !== keys
     val itemSplice = if (separate) keySplice(previousItems, nextItems) else splice
@@ -194,10 +206,15 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     val itemEnd = previousItems.size - itemStart - itemSplice.deleted
     val versioned = list.dataSource as? ContentVersions
     val versionFlags = ShadowListKitListState.COMMIT_RECORD_VERSIONS or ShadowListKitListState.COMMIT_UPDATE_VERSIONS
-    val versions = if (versioned == null || flags and versionFlags == 0) null
-      else LongArray(nextItems.size) { versioned.contentVersionForItem(list, it) }
-    val committed = state.commitKeys(list.liveCore, next, start, end, if (separate) nextItems else null, itemStart, itemEnd,
-      versions, if (versions != null) flags else flags and versionFlags.inv())
+    val versions = if (versioned == null || flags and versionFlags == 0) {
+      null
+    } else {
+      LongArray(nextItems.size) { versioned.contentVersionForItem(list, it) }
+    }
+    val committed = state.commitKeys(
+      list.liveCore, next, start, end, if (separate) nextItems else null, itemStart, itemEnd,
+      versions, if (versions != null) flags else flags and versionFlags.inv()
+    )
     spareKeys = keys
     keys = next
     return committed
@@ -300,7 +317,9 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     }
     val animator = if (completion != null && list.animatesChanges && list.isAttachedToWindow) {
       list.itemAnimator as? ShadowListKitDefaultItemAnimator
-    } else null
+    } else {
+      null
+    }
     val batch = animator?.beginBatch(list) { completion?.invoke(true) }
     if (animator != null && batch != null) batchAnimations.add(animator to batch)
     try {
@@ -402,14 +421,22 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
 
   fun applyChanges(): ShadowListKitListChanges {
     // Without a data source readRowKeys leaves the spare list as it was. Nothing is read, the same as reloadData.
-    if (list.dataSource == null) return ShadowListKitListChanges(IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
+    if (list.dataSource ==
+      null
+    ) {
+      return ShadowListKitListChanges(IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
+    }
     // readRowKeys fills the spare list. The keys held stay as they are until commitRowKeys.
     val previousItems = itemKeys
     val next = spareKeys
     val nextItems = readRowKeys(next)
     // The state diffs the items and finds the ones whose content version changed under the same key.
-    val diff = commitRowKeys(previousItems, next, nextItems,
-      ShadowListKitListState.COMMIT_DIFF or ShadowListKitListState.COMMIT_UPDATE_VERSIONS)
+    val diff = commitRowKeys(
+      previousItems,
+      next,
+      nextItems,
+      ShadowListKitListState.COMMIT_DIFF or ShadowListKitListState.COMMIT_UPDATE_VERSIONS
+    )
 
     var at = 0
     val deleted = IntArray(diff[at]) { diff[at + 1 + it] }

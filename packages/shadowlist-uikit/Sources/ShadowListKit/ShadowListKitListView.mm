@@ -127,14 +127,19 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 - (void)didMoveToWindow
 {
   [super didMoveToWindow];
-  if (self.window) { [self updateViewability]; }
-  else { [self detachViewability]; [self clearStickyHeaderOverlay]; }
+  if (self.window) {
+    [self updateViewability];
+  } else {
+    [self detachViewability];
+    [self clearStickyHeaderOverlay];
+  }
 }
 
 - (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection
 {
   [super traitCollectionDidChange:previousTraitCollection];
-  if (![previousTraitCollection.preferredContentSizeCategory isEqualToString:self.traitCollection.preferredContentSizeCategory]) {
+  if (![previousTraitCollection.preferredContentSizeCategory
+        isEqualToString:self.traitCollection.preferredContentSizeCategory]) {
     _driver.invalidateSizeSpecs();
     [self invalidateFrame];
   }
@@ -232,7 +237,7 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 - (BOOL)restsOnWrittenOffset:(CGFloat)along
 {
   return _hasWrittenOffset && std::fabs(along - _writtenAlong) < 1e-3 &&
-    std::fabs([self leadingInset] - _writtenInset) < 1e-3;
+         std::fabs([self leadingInset] - _writtenInset) < 1e-3;
 }
 
 /*
@@ -423,7 +428,9 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
 - (void)setReorderEnabled:(BOOL)reorderEnabled
 {
   _reorderEnabled = reorderEnabled;
-  if (!reorderEnabled) [self cancelHeldRow];
+  if (!reorderEnabled) {
+    [self cancelHeldRow];
+  }
   [self enableDragPress:reorderEnabled];
 }
 
@@ -499,18 +506,21 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   [self invalidateFrame];
 }
 
-- (ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+- (ShadowListKitItemSizeSpec *_Nullable (^)(NSInteger))getItemSizeSpec
 {
   return _getItemSizeSpec;
 }
 
-- (void)setGetItemSizeSpec:(ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+- (void)setGetItemSizeSpec:(ShadowListKitItemSizeSpec *_Nullable (^)(NSInteger))getItemSizeSpec
 {
   _getItemSizeSpec = [getItemSizeSpec copy];
   [self sendSizeSpecSource];
 }
 
-- (NSInteger (^)(NSInteger))getItemSpan { return _getItemSpan; }
+- (NSInteger (^)(NSInteger))getItemSpan
+{
+  return _getItemSpan;
+}
 - (void)setGetItemSpan:(NSInteger (^)(NSInteger))getItemSpan
 {
   _getItemSpan = [getItemSpan copy];
@@ -518,7 +528,10 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   [self invalidateFrame];
 }
 
-- (NSUInteger)measureLookaheadRows { return _measureLookaheadRows; }
+- (NSUInteger)measureLookaheadRows
+{
+  return _measureLookaheadRows;
+}
 - (void)setMeasureLookaheadRows:(NSUInteger)measureLookaheadRows
 {
   _measureLookaheadRows = measureLookaheadRows;
@@ -526,31 +539,40 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   [self invalidateFrame];
 }
 
-- (UIView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))renderStickyHeaderOverlay
+- (UIView *_Nullable (^)(NSString *_Nullable, NSInteger, NSInteger))renderStickyHeaderOverlay
 {
   return _renderStickyHeaderOverlay;
 }
 
-- (void)setRenderStickyHeaderOverlay:(UIView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))render
+- (void)setRenderStickyHeaderOverlay:(UIView *_Nullable (^)(NSString *_Nullable, NSInteger, NSInteger))render
 {
   [self clearStickyHeaderOverlay];
   _renderStickyHeaderOverlay = [render copy];
   [self invalidateFrame];
 }
 
-- (ShadowListKitViewabilityConfig *)viewabilityConfig { return _viewabilityConfig; }
+- (ShadowListKitViewabilityConfig *)viewabilityConfig
+{
+  return _viewabilityConfig;
+}
 - (void)setViewabilityConfig:(ShadowListKitViewabilityConfig *)viewabilityConfig
 {
   _viewabilityConfig = [viewabilityConfig copy];
   [self sendViewabilityConfigs];
 }
-- (NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)viewabilityConfigCallbackPairs { return _viewabilityConfigCallbackPairs; }
+- (NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)viewabilityConfigCallbackPairs
+{
+  return _viewabilityConfigCallbackPairs;
+}
 - (void)setViewabilityConfigCallbackPairs:(NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)pairs
 {
   _viewabilityConfigCallbackPairs = [pairs copy];
   [self sendViewabilityConfigs];
 }
-- (void (^)(ShadowListKitViewableItemsChangedInfo *))onViewableItemsChanged { return _onViewableItemsChanged; }
+- (void (^)(ShadowListKitViewableItemsChangedInfo *))onViewableItemsChanged
+{
+  return _onViewableItemsChanged;
+}
 - (void)setOnViewableItemsChanged:(void (^)(ShadowListKitViewableItemsChangedInfo *))callback
 {
   _onViewableItemsChanged = [callback copy];
@@ -794,7 +816,9 @@ void ShadowListKitPlace(UIView *view, CGRect frame)
   if ([self isUnderPinnedTemplate:point]) {
     return nil;
   }
-  if (_stickyCell && !_stickyCell.hidden && _stickyCell.row != NSNotFound && CGRectContainsPoint(_stickyCell.frame, point)) {
+  if (
+    _stickyCell && !_stickyCell.hidden && _stickyCell.row != NSNotFound &&
+    CGRectContainsPoint(_stickyCell.frame, point)) {
     return _stickyCell;
   }
   for (auto& entry : _mounted) {

@@ -5,13 +5,20 @@ import XCTest
 @MainActor
 final class ItemSpanTests: XCTestCase {
   private class Source: NSObject, ShadowListKitListViewDataSource {
-    var keys = (0..<200).map { "span-\($0)" }
+    var keys = (0 ..< 200).map { "span-\($0)" }
     var crosses: [Int: CGFloat] = [:]
-    func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
-    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+    func numberOfItems(in listView: ShadowListKitListView) -> Int {
+      keys.count
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+      keys[index]
+    }
+
     func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
       listView.dequeueReusableCell(withIdentifier: "cell")
     }
+
     func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
       crosses[index] = crossSize
       return 40
@@ -19,17 +26,53 @@ final class ItemSpanTests: XCTestCase {
   }
 
   private final class Sections: Source {
-    override init() { super.init(); keys = (0..<4).map { "section-item-\($0)" } }
-    func numberOfSections(in listView: ShadowListKitListView) -> Int { 3 }
-    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { section == 1 ? 0 : 2 }
-    func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { "Header \(section)" }
-    func listView(_ listView: ShadowListKitListView, titleForFooterInSection section: Int) -> String? { section == 0 ? "Footer" : nil }
-    func listView(_ listView: ShadowListKitListView, sizeForHeaderInSection section: Int, crossSize: CGFloat) -> CGFloat { section == 1 ? 0 : 10 }
-    func listView(_ listView: ShadowListKitListView, sizeForFooterInSection section: Int, crossSize: CGFloat) -> CGFloat { 0 }
+    override init() {
+      super.init(); keys = (0 ..< 4).map { "section-item-\($0)" }
+    }
+
+    func numberOfSections(in listView: ShadowListKitListView) -> Int {
+      3
+    }
+
+    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int {
+      section == 1 ? 0 : 2
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      titleForHeaderInSection section: Int
+    ) -> String? {
+      "Header \(section)"
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      titleForFooterInSection section: Int
+    ) -> String? {
+      section == 0 ? "Footer" : nil
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      sizeForHeaderInSection section: Int,
+      crossSize: CGFloat
+    ) -> CGFloat {
+      section == 1 ? 0 : 10
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      sizeForFooterInSection section: Int,
+      crossSize: CGFloat
+    ) -> CGFloat {
+      0
+    }
   }
 
   private func drain(_ list: ShadowListKitListView) {
-    for _ in 0..<6 { list.setNeedsLayout(); list.layoutIfNeeded() }
+    for _ in 0 ..< 6 {
+      list.setNeedsLayout(); list.layoutIfNeeded()
+    }
   }
 
   func testSpansReachOffscreenRowsAndUseTheSameWidthForMeasurement() {

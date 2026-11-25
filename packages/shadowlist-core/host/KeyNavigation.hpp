@@ -55,15 +55,19 @@ std::size_t endRow(bool end, std::size_t count, CanSelect canSelect) {
  * Returned indices let the host apply its existing selection policy after this pure query.
  */
 template <typename RectAt>
-std::vector<std::size_t> neighborRows(
-  std::size_t lead, int direction, bool vertical, std::size_t count, RectAt rectAt) {
-  if (lead == UNDEFINED_INDEX || lead >= count || direction == 0) return {};
+std::vector<std::size_t>
+neighborRows(std::size_t lead, int direction, bool vertical, std::size_t count, RectAt rectAt) {
+  if (lead == UNDEFINED_INDEX || lead >= count || direction == 0) {
+    return {};
+  }
   auto current = rectAt(lead);
   double start = vertical ? current.y : current.x;
   double size = vertical ? current.height : current.width;
   double crossStart = vertical ? current.x : current.y;
   double crossSize = vertical ? current.width : current.height;
-  if (!(size > 0.0) || !(crossSize > 0.0)) return {};
+  if (!(size > 0.0) || !(crossSize > 0.0)) {
+    return {};
+  }
   struct Candidate {
     std::size_t index;
     bool outsideBeam;
@@ -73,28 +77,34 @@ std::vector<std::size_t> neighborRows(
   };
   std::vector<Candidate> candidates;
   for (std::size_t index = 0; index < count; ++index) {
-    if (index == lead) continue;
+    if (index == lead) {
+      continue;
+    }
     auto rect = rectAt(index);
     double nextStart = vertical ? rect.y : rect.x;
     double nextSize = vertical ? rect.height : rect.width;
     double nextCrossStart = vertical ? rect.x : rect.y;
     double nextCrossSize = vertical ? rect.width : rect.height;
     double gap = direction > 0 ? nextStart - (start + size) : start - (nextStart + nextSize);
-    if (gap < 0.0 || !(nextSize > 0.0) || !(nextCrossSize > 0.0)) continue;
-    double overlap = std::min(crossStart + crossSize, nextCrossStart + nextCrossSize) -
-      std::max(crossStart, nextCrossStart);
-    double crossGap = std::max({0.0, crossStart - nextCrossStart - nextCrossSize,
-      nextCrossStart - crossStart - crossSize});
+    if (gap < 0.0 || !(nextSize > 0.0) || !(nextCrossSize > 0.0)) {
+      continue;
+    }
+    double overlap =
+      std::min(crossStart + crossSize, nextCrossStart + nextCrossSize) - std::max(crossStart, nextCrossStart);
+    double crossGap =
+      std::max({0.0, crossStart - nextCrossStart - nextCrossSize, nextCrossStart - crossStart - crossSize});
     double centers = std::abs(crossStart + crossSize / 2.0 - nextCrossStart - nextCrossSize / 2.0);
     candidates.push_back({index, overlap <= 0.0, gap, crossGap, centers});
   }
   std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
     return std::tie(a.outsideBeam, a.gap, a.crossGap, a.centerDistance, a.index) <
-      std::tie(b.outsideBeam, b.gap, b.crossGap, b.centerDistance, b.index);
+           std::tie(b.outsideBeam, b.gap, b.crossGap, b.centerDistance, b.index);
   });
   std::vector<std::size_t> result;
   result.reserve(candidates.size());
-  for (const auto& candidate : candidates) result.push_back(candidate.index);
+  for (const auto& candidate : candidates) {
+    result.push_back(candidate.index);
+  }
   return result;
 }
 

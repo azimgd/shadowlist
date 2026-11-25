@@ -158,11 +158,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isHorizontal) BOOL horizontal;
 @property (nonatomic) NSInteger numberOfColumns;
 @property (nonatomic) CGFloat estimatedItemSize;
-@property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec * _Nullable (^getItemSizeSpec)(NSInteger index);
+@property (nonatomic, copy, nullable) ShadowListKitItemSizeSpec *_Nullable (^getItemSizeSpec)(NSInteger index);
 @property (nonatomic) NSUInteger measureLookaheadRows;
 @property (nonatomic, copy, nullable) NSInteger (^getItemSpan)(NSInteger index);
 @property (nonatomic, copy, nullable) ShadowListKitViewabilityConfig *viewabilityConfig;
-@property (nonatomic, copy, nullable) NSArray<ShadowListKitViewabilityConfigCallbackPair *> *viewabilityConfigCallbackPairs;
+@property (nonatomic, copy, nullable)
+  NSArray<ShadowListKitViewabilityConfigCallbackPair *> *viewabilityConfigCallbackPairs;
 @property (nonatomic, copy, nullable) void (^onViewableItemsChanged)(ShadowListKitViewableItemsChangedInfo *info);
 - (void)recordInteraction;
 @property (nonatomic) CGFloat overscan;
@@ -178,7 +179,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL animatesChanges;
 @property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
 @property (nonatomic) BOOL stickySectionHeaders;
-@property (nonatomic, copy, nullable) UIView * _Nullable (^renderStickyHeaderOverlay)(NSString * _Nullable key, NSInteger index, NSInteger section);
+@property (nonatomic, copy, nullable) UIView *_Nullable (^renderStickyHeaderOverlay)
+  (NSString *_Nullable key, NSInteger index, NSInteger section);
 @property (nonatomic, strong, nullable) UIView *headerView;
 @property (nonatomic, strong, nullable) UIView *footerView;
 @property (nonatomic) BOOL stickyHeader;
@@ -222,7 +224,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices;
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices payload:(nullable id)payload;
 - (void)moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
-- (void)performBatchUpdates:(void (NS_NOESCAPE ^_Nullable)(void))updates completion:(void (^_Nullable)(BOOL finished))completion;
+- (void)performBatchUpdates:(void(NS_NOESCAPE ^ _Nullable)(void))updates
+                 completion:(void (^_Nullable)(BOOL finished))completion;
 - (ShadowListKitListChanges *)applyChanges;
 
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated;

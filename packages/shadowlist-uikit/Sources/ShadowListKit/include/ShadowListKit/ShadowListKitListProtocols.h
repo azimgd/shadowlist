@@ -43,9 +43,14 @@ typedef NS_ENUM(NSInteger, ShadowListKitSnapAlignment) {
 NS_SWIFT_UI_ACTOR
 @protocol ShadowListKitItemAnimator <NSObject>
 
-- (void)listView:(ShadowListKitListView *)listView animateInsertOfCell:(ShadowListKitListCell *)cell NS_SWIFT_NAME(listView(_:animateInsertOf:));
-- (void)listView:(ShadowListKitListView *)listView animateDeleteOfCell:(ShadowListKitListCell *)cell completion:(void (^)(void))completion NS_SWIFT_NAME(listView(_:animateDeleteOf:completion:));
-- (void)listView:(ShadowListKitListView *)listView animateMoveOfCell:(ShadowListKitListCell *)cell fromOffset:(CGPoint)offset NS_SWIFT_NAME(listView(_:animateMoveOf:fromOffset:));
+- (void)listView:(ShadowListKitListView *)listView
+  animateInsertOfCell:(ShadowListKitListCell *)cell NS_SWIFT_NAME(listView(_:animateInsertOf:));
+- (void)listView:(ShadowListKitListView *)listView
+  animateDeleteOfCell:(ShadowListKitListCell *)cell
+           completion:(void (^)(void))completion NS_SWIFT_NAME(listView(_:animateDeleteOf:completion:));
+- (void)listView:(ShadowListKitListView *)listView
+  animateMoveOfCell:(ShadowListKitListCell *)cell
+         fromOffset:(CGPoint)offset NS_SWIFT_NAME(listView(_:animateMoveOf:fromOffset:));
 
 @end
 
@@ -70,11 +75,13 @@ NS_SWIFT_UI_ACTOR
 NS_SWIFT_UI_ACTOR
 @protocol ShadowListKitListViewPrefetchDataSource <NSObject>
 
-- (void)listView:(ShadowListKitListView *)listView prefetchItemsAtIndices:(NSIndexSet *)indices NS_SWIFT_NAME(listView(_:prefetchItemsAt:));
+- (void)listView:(ShadowListKitListView *)listView
+  prefetchItemsAtIndices:(NSIndexSet *)indices NS_SWIFT_NAME(listView(_:prefetchItemsAt:));
 
 @optional
 
-- (void)listView:(ShadowListKitListView *)listView cancelPrefetchingForItemsAtIndices:(NSIndexSet *)indices NS_SWIFT_NAME(listView(_:cancelPrefetchingForItemsAt:));
+- (void)listView:(ShadowListKitListView *)listView
+  cancelPrefetchingForItemsAtIndices:(NSIndexSet *)indices NS_SWIFT_NAME(listView(_:cancelPrefetchingForItemsAt:));
 
 @end
 
@@ -118,16 +125,23 @@ NS_SWIFT_UI_ACTOR
 - (nullable NSString *)listView:(ShadowListKitListView *)listView titleForFooterInSection:(NSInteger)section;
 - (ShadowListKitListCell *)listView:(ShadowListKitListView *)listView cellForHeaderInSection:(NSInteger)section;
 - (ShadowListKitListCell *)listView:(ShadowListKitListView *)listView cellForFooterInSection:(NSInteger)section;
-- (CGFloat)listView:(ShadowListKitListView *)listView sizeForHeaderInSection:(NSInteger)section crossSize:(CGFloat)crossSize;
-- (CGFloat)listView:(ShadowListKitListView *)listView sizeForFooterInSection:(NSInteger)section crossSize:(CGFloat)crossSize;
+- (CGFloat)listView:(ShadowListKitListView *)listView
+  sizeForHeaderInSection:(NSInteger)section
+               crossSize:(CGFloat)crossSize;
+- (CGFloat)listView:(ShadowListKitListView *)listView
+  sizeForFooterInSection:(NSInteger)section
+               crossSize:(CGFloat)crossSize;
 
 #if !TARGET_OS_OSX
 /*
  * Titles of the section index along the trailing edge, and the section a title scrolls to,
  * by default the section at the title's position. iOS only.
  */
-- (nullable NSArray<NSString *> *)sectionIndexTitlesForListView:(ShadowListKitListView *)listView NS_SWIFT_NAME(sectionIndexTitles(for:));
-- (NSInteger)listView:(ShadowListKitListView *)listView sectionForSectionIndexTitle:(NSString *)title atIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:sectionForSectionIndexTitle:at:));
+- (nullable NSArray<NSString *> *)sectionIndexTitlesForListView:(ShadowListKitListView *)listView
+  NS_SWIFT_NAME(sectionIndexTitles(for:));
+- (NSInteger)listView:(ShadowListKitListView *)listView
+  sectionForSectionIndexTitle:(NSString *)title
+                      atIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:sectionForSectionIndexTitle:at:));
 #endif
 
 /*
@@ -137,14 +151,14 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)listView:(ShadowListKitListView *)listView
   reconfigureCell:(ShadowListKitListCell *)cell
           atIndex:(NSInteger)index
-          payload:(nullable id)payload
-    NS_SWIFT_NAME(listView(_:reconfigureCell:at:payload:));
+          payload:(nullable id)payload NS_SWIFT_NAME(listView(_:reconfigureCell:at:payload:));
 
 /*
  * A value that changes when the item's content changes under the same key, like a revision or
  * a hash. applyChanges reloads the items whose value changed.
  */
-- (NSInteger)listView:(ShadowListKitListView *)listView contentVersionForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contentVersionForItemAt:));
+- (NSInteger)listView:(ShadowListKitListView *)listView
+  contentVersionForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contentVersionForItemAt:));
 
 @end
 
@@ -166,12 +180,19 @@ NS_SWIFT_UI_ACTOR
  * A cell that fades out after a delete ends displaying when its fade ends, with the index its
  * item had before the delete, the way UITableView reports a deleted row.
  */
-- (void)listView:(ShadowListKitListView *)listView willDisplayCell:(ShadowListKitListCell *)cell atIndex:(NSInteger)index;
-- (void)listView:(ShadowListKitListView *)listView didEndDisplayingCell:(ShadowListKitListCell *)cell atIndex:(NSInteger)index;
+- (void)listView:(ShadowListKitListView *)listView
+  willDisplayCell:(ShadowListKitListCell *)cell
+          atIndex:(NSInteger)index;
+- (void)listView:(ShadowListKitListView *)listView
+  didEndDisplayingCell:(ShadowListKitListCell *)cell
+               atIndex:(NSInteger)index;
 - (void)listView:(ShadowListKitListView *)listView didSelectItemAtIndex:(NSInteger)index;
-- (void)listView:(ShadowListKitListView *)listView didDeselectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didDeselectItemAt:));
-- (BOOL)listView:(ShadowListKitListView *)listView shouldSelectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldSelectItemAt:));
-- (BOOL)listView:(ShadowListKitListView *)listView shouldHighlightItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldHighlightItemAt:));
+- (void)listView:(ShadowListKitListView *)listView
+  didDeselectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didDeselectItemAt:));
+- (BOOL)listView:(ShadowListKitListView *)listView
+  shouldSelectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldSelectItemAt:));
+- (BOOL)listView:(ShadowListKitListView *)listView
+  shouldHighlightItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldHighlightItemAt:));
 
 #if TARGET_OS_OSX
 /*
@@ -179,25 +200,27 @@ NS_SWIFT_UI_ACTOR
  * item is the one the keyboard is on when it is selected, otherwise the first selected one.
  * macOS only.
  */
-- (void)listView:(ShadowListKitListView *)listView didActivateItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didActivateItemAt:));
+- (void)listView:(ShadowListKitListView *)listView
+  didActivateItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didActivateItemAt:));
 
 /*
  * The text typing selects an item by, or nil for an item typing skips. Typed characters within
  * a second of each other build one prefix, matched without case or diacritics from the item the
  * keyboard is on. It is read for any item, shown or not. macOS only.
  */
-- (nullable NSString *)listView:(ShadowListKitListView *)listView typeSelectStringForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:typeSelectStringForItemAt:));
+- (nullable NSString *)listView:(ShadowListKitListView *)listView
+  typeSelectStringForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:typeSelectStringForItemAt:));
 #endif
 
 /*
  * Actions behind an item swiped from its leading or trailing side, or nil for none.
  */
 - (nullable ShadowListKitSwipeActionsConfiguration *)listView:(ShadowListKitListView *)listView
-                  leadingSwipeActionsForItemAtIndex:(NSInteger)index
-    NS_SWIFT_NAME(listView(_:leadingSwipeActionsForItemAt:));
+                            leadingSwipeActionsForItemAtIndex:(NSInteger)index
+  NS_SWIFT_NAME(listView(_:leadingSwipeActionsForItemAt:));
 - (nullable ShadowListKitSwipeActionsConfiguration *)listView:(ShadowListKitListView *)listView
-                 trailingSwipeActionsForItemAtIndex:(NSInteger)index
-    NS_SWIFT_NAME(listView(_:trailingSwipeActionsForItemAt:));
+                           trailingSwipeActionsForItemAtIndex:(NSInteger)index
+  NS_SWIFT_NAME(listView(_:trailingSwipeActionsForItemAt:));
 
 /*
  * The menu for an item, or nil for none. On iOS it shows on touching and holding the item. An
@@ -206,20 +229,23 @@ NS_SWIFT_UI_ACTOR
  * the keyboard's item. With none, an item with swipe actions shows them as a menu, and
  * clickedIndex is the item while the menu is open.
  */
-- (nullable ShadowListKitPlatformMenu *)listView:(ShadowListKitListView *)listView contextMenuForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contextMenuForItemAt:));
+- (nullable ShadowListKitPlatformMenu *)listView:(ShadowListKitListView *)listView
+                       contextMenuForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contextMenuForItemAt:));
 
 /*
  * Whether the separator below an item shows when showsSeparators is set. Separators only go
  * between items of one section.
  */
-- (BOOL)listView:(ShadowListKitListView *)listView showsSeparatorAfterItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:showsSeparatorAfterItemAt:));
+- (BOOL)listView:(ShadowListKitListView *)listView
+  showsSeparatorAfterItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:showsSeparatorAfterItemAt:));
 
 #if !TARGET_OS_OSX
 /*
  * The reader touched and held an item that shows no menu. An item that can also be reordered
  * lifts on the hold, and letting go without moving it calls this when it has no menu. iOS only.
  */
-- (void)listView:(ShadowListKitListView *)listView didLongPressItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didLongPressItemAt:));
+- (void)listView:(ShadowListKitListView *)listView
+  didLongPressItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didLongPressItemAt:));
 
 /*
  * The reader pulled to refresh with refreshEnabled. Set refreshing to NO when done. iOS only.
@@ -236,7 +262,9 @@ NS_SWIFT_UI_ACTOR
  * A held item was dropped at another index. Move the item in the data. The list reads the
  * data again right after and keeps the dropped item where it was let go.
  */
-- (void)listView:(ShadowListKitListView *)listView moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
+- (void)listView:(ShadowListKitListView *)listView
+  moveItemAtIndex:(NSInteger)sourceIndex
+          toIndex:(NSInteger)destinationIndex;
 
 #if !TARGET_OS_OSX
 /*
@@ -244,8 +272,11 @@ NS_SWIFT_UI_ACTOR
  * update both data sources before returning. destinationKey is the item to insert before,
  * empty to append, with destinationIndex as the fallback when that key no longer exists.
  */
-- (void)listView:(ShadowListKitListView *)listView moveItemAtIndex:(NSInteger)sourceIndex
-       toListId:(NSString *)destinationListId destinationIndex:(NSInteger)destinationIndex destinationKey:(NSString *)destinationKey;
+- (void)listView:(ShadowListKitListView *)listView
+   moveItemAtIndex:(NSInteger)sourceIndex
+          toListId:(NSString *)destinationListId
+  destinationIndex:(NSInteger)destinationIndex
+    destinationKey:(NSString *)destinationKey;
 #endif
 
 /*

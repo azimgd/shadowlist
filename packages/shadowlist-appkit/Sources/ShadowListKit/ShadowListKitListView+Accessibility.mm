@@ -82,7 +82,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 {
   std::size_t row = [self row];
   NSView *content = row == UNDEFINED_INDEX ? nil : [_list accessibilityContentOfRow:row];
-  return content ? NSAccessibilityUnignoredChildren(@[content]) : @[];
+  return content ? NSAccessibilityUnignoredChildren(@[ content ]) : @[];
 }
 
 - (BOOL)isAccessibilitySelected
@@ -122,7 +122,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 
 - (NSArray<NSAccessibilityActionName> *)accessibilityActionNames
 {
-  return @[SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION];
+  return @[ SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION ];
 }
 
 - (void)accessibilityPerformAction:(NSAccessibilityActionName)action
@@ -177,18 +177,18 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   [self catchUpViews];
   NSMutableArray *children = [NSMutableArray arrayWithCapacity:_driver.getKeyCount() + 4];
   if (_headerView) {
-    [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[_headerView])];
+    [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[ _headerView ])];
   }
   NSView *empty = [self shownEmptyView];
   if (empty) {
-    [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[empty])];
+    [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[ empty ])];
   }
   [children addObjectsFromArray:self.accessibilityRows];
   if (_footerView) {
-    [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[_footerView])];
+    [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[ _footerView ])];
   }
   if (!_scrollers.hidden) {
-    [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[_scrollers])];
+    [children addObjectsFromArray:NSAccessibilityUnignoredChildren(@[ _scrollers ])];
   }
   return children;
 }
@@ -214,10 +214,13 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   std::optional<MountedRange> visible = _accessibilityHidden ? std::nullopt : _driver.getVisibleRange();
   NSMutableArray *rows = [NSMutableArray array];
   std::size_t overlay = _stickyHeaderOverlay ? _driver.indexOfKey(_stickyHeaderOverlayKey) : UNDEFINED_INDEX;
-  if (!_accessibilityHidden && overlay != UNDEFINED_INDEX && (!visible || overlay < visible->low || overlay > visible->high)) {
+  if (
+    !_accessibilityHidden && overlay != UNDEFINED_INDEX &&
+    (!visible || overlay < visible->low || overlay > visible->high)) {
     [rows addObject:[self accessibilityElementForRow:overlay]];
   }
-  for (std::size_t row = visible ? visible->low : 0; visible && row <= visible->high && row < _driver.getKeyCount(); ++row) {
+  for (std::size_t row = visible ? visible->low : 0; visible && row <= visible->high && row < _driver.getKeyCount();
+       ++row) {
     [rows addObject:[self accessibilityElementForRow:row]];
   }
   return rows;
@@ -290,7 +293,8 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   }
   [self catchUpViews];
   NSRect screen = NSMakeRect(point.x, point.y, 0, 0);
-  NSPoint local = self.window ? [self convertRect:[self.window convertRectFromScreen:screen] fromView:nil].origin : NSZeroPoint;
+  NSPoint local =
+    self.window ? [self convertRect:[self.window convertRectFromScreen:screen] fromView:nil].origin : NSZeroPoint;
   if (!_scrollers.hidden && [_scrollers hitTest:local]) {
     return [_scrollers accessibilityHitTest:point];
   }
@@ -368,7 +372,9 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 
 - (NSView *)accessibilityContentOfRow:(std::size_t)row
 {
-  if (_stickyHeaderOverlay && _driver.indexOfKey(_stickyHeaderOverlayKey) == row) return _stickyHeaderOverlay;
+  if (_stickyHeaderOverlay && _driver.indexOfKey(_stickyHeaderOverlayKey) == row) {
+    return _stickyHeaderOverlay;
+  }
   return [self accessibilityCellOfRow:row];
 }
 
@@ -439,8 +445,9 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   }
   NSEdgeInsets inset = self.adjustedContentInset;
   NSRect bounds = self.bounds;
-  NSRect visible = NSMakeRect(NSMinX(bounds) + inset.left, NSMinY(bounds) + inset.top,
-    NSWidth(bounds) - inset.left - inset.right, NSHeight(bounds) - inset.top - inset.bottom);
+  NSRect visible = NSMakeRect(
+    NSMinX(bounds) + inset.left, NSMinY(bounds) + inset.top, NSWidth(bounds) - inset.left - inset.right,
+    NSHeight(bounds) - inset.top - inset.bottom);
   ShadowListKitListCell *cell = [self accessibilityCellOfRow:row];
   NSRect rect = cell ? cell.frame : [self rowRect:row];
   return NSIntersectsRect([_contentView convertRect:rect toView:self], visible);
@@ -474,7 +481,7 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
     return;
   }
   [self postAccessibilityNotification:NSAccessibilityLayoutChangedNotification
-                             userInfo:@{NSAccessibilityUIElementsKey : @[[self accessibilityElementForRow:row]]}];
+                             userInfo:@{NSAccessibilityUIElementsKey : @[ [self accessibilityElementForRow:row] ]}];
 }
 
 #pragma mark - Reorder
@@ -488,28 +495,31 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
 {
   std::size_t row = [self accessibilityRowOfKey:key];
   NSInteger item = row == UNDEFINED_INDEX ? NSNotFound : [self itemForRow:(NSInteger)row];
-  if (!_reorderEnabled || item == NSNotFound ||
-      ([_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] && ![_userDelegate listView:self canMoveItemAtIndex:item])) {
+  if (
+    !_reorderEnabled || item == NSNotFound ||
+    ([_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] && ![_userDelegate listView:self
+                                                                                         canMoveItemAtIndex:item])) {
     return @[];
   }
   NSInteger columns = MAX(self.numberOfColumns, 1);
-  NSArray<NSString *> *along = _horizontal ? @[@"Move left", @"Move right"] : @[@"Move up", @"Move down"];
-  NSArray<NSString *> *across = _horizontal ? @[@"Move up", @"Move down"] : @[@"Move left", @"Move right"];
+  NSArray<NSString *> *along = _horizontal ? @[ @"Move left", @"Move right" ] : @[ @"Move up", @"Move down" ];
+  NSArray<NSString *> *across = _horizontal ? @[ @"Move up", @"Move down" ] : @[ @"Move left", @"Move right" ];
   NSMutableArray<NSAccessibilityCustomAction *> *actions = [NSMutableArray array];
   auto add = [&](NSString *name, NSInteger step) {
     NSInteger fromItem = NSNotFound;
     NSInteger toItem = NSNotFound;
     NSInteger target = (NSInteger)row + step;
-    if (target < 0 || target >= (NSInteger)_driver.getKeyCount() ||
-        ![self itemsForDropOfRow:row atRow:(std::size_t)target from:&fromItem to:&toItem]) {
+    if (
+      target < 0 || target >= (NSInteger)_driver.getKeyCount() ||
+      ![self itemsForDropOfRow:row atRow:(std::size_t)target from:&fromItem to:&toItem]) {
       return;
     }
     // The lambda holds the key by reference. The block keeps its own pointer to it.
     NSString *movedKey = key;
     __weak ShadowListKitListView *weakSelf = self;
-    [actions addObject:[[NSAccessibilityCustomAction alloc] initWithName:name handler:^BOOL {
-      return [weakSelf moveAccessibilityRowForKey:movedKey by:step];
-    }]];
+    [actions addObject:[[NSAccessibilityCustomAction alloc]
+                         initWithName:name
+                              handler:^BOOL { return [weakSelf moveAccessibilityRowForKey:movedKey by:step]; }]];
   };
   if (columns > 1) {
     add(across[0], -1);
@@ -530,8 +540,9 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   NSInteger target = row == UNDEFINED_INDEX ? -1 : (NSInteger)row + step;
   NSInteger from = NSNotFound;
   NSInteger to = NSNotFound;
-  if (!_reorderEnabled || [self hasHeldRow] || target < 0 || target >= (NSInteger)_driver.getKeyCount() ||
-      ![self itemsForDropOfRow:row atRow:(std::size_t)target from:&from to:&to]) {
+  if (
+    !_reorderEnabled || [self hasHeldRow] || target < 0 || target >= (NSInteger)_driver.getKeyCount() ||
+    ![self itemsForDropOfRow:row atRow:(std::size_t)target from:&from to:&to]) {
     return NO;
   }
   [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
@@ -598,8 +609,10 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   }
   NSString *status = ShadowListKitRowsShownAnnouncement(visible, _sections.getItemCount());
   [self postAccessibilityNotification:NSAccessibilityAnnouncementRequestedNotification
-                             userInfo:@{NSAccessibilityAnnouncementKey : status,
-                               NSAccessibilityPriorityKey : @(NSAccessibilityPriorityMedium)}];
+                             userInfo:@{
+                               NSAccessibilityAnnouncementKey : status,
+                               NSAccessibilityPriorityKey : @(NSAccessibilityPriorityMedium)
+                             }];
 }
 
 - (void)postAccessibilityNotification:(NSAccessibilityNotificationName)name userInfo:(NSDictionary *)userInfo
@@ -630,7 +643,8 @@ static NSAccessibilityActionName const SHADOWLIST_KIT_SCROLL_TO_VISIBLE_ACTION =
   return _accessibilityNotificationHandler;
 }
 
-- (void)setShadowListKit_accessibilityNotificationHandler:(void (^)(NSAccessibilityNotificationName, NSDictionary *))handler
+- (void)setShadowListKit_accessibilityNotificationHandler:
+  (void (^)(NSAccessibilityNotificationName, NSDictionary *))handler
 {
   _accessibilityNotificationHandler = [handler copy];
 }

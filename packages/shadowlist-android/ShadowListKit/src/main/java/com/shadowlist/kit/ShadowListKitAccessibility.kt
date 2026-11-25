@@ -22,19 +22,33 @@ internal class ShadowListKitAccessibility(private val list: ShadowListKitListVie
     info.isScrollable = maxOffset > 0
     if (offset > 0) {
       info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
-      info.addAction(if (horizontal) AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT
-        else AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP)
+      info.addAction(
+        if (horizontal) {
+          AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT
+        } else {
+          AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP
+        }
+      )
     }
     if (offset < maxOffset) {
       info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
-      info.addAction(if (horizontal) AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT
-        else AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN)
+      info.addAction(
+        if (horizontal) {
+          AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT
+        } else {
+          AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN
+        }
+      )
     }
     info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_TO_POSITION)
     val lines = (list.itemCount + numberOfColumns - 1) / numberOfColumns
-    val mode = if (list.allowsMultipleSelection) AccessibilityNodeInfo.CollectionInfo.SELECTION_MODE_MULTIPLE
-      else if (list.allowsSelection) AccessibilityNodeInfo.CollectionInfo.SELECTION_MODE_SINGLE
-      else AccessibilityNodeInfo.CollectionInfo.SELECTION_MODE_NONE
+    val mode = if (list.allowsMultipleSelection) {
+      AccessibilityNodeInfo.CollectionInfo.SELECTION_MODE_MULTIPLE
+    } else if (list.allowsSelection) {
+      AccessibilityNodeInfo.CollectionInfo.SELECTION_MODE_SINGLE
+    } else {
+      AccessibilityNodeInfo.CollectionInfo.SELECTION_MODE_NONE
+    }
     info.collectionInfo = if (horizontal) {
       AccessibilityNodeInfo.CollectionInfo.obtain(numberOfColumns, lines, false, mode)
     } else {
@@ -62,8 +76,16 @@ internal class ShadowListKitAccessibility(private val list: ShadowListKitListVie
    * Runs a scroll action. Returns null for an action the list leaves to View.
    */
   fun performAction(action: Int, arguments: Bundle?): Boolean? {
-    val forward = if (list.horizontal) android.R.id.accessibilityActionScrollRight else android.R.id.accessibilityActionScrollDown
-    val backward = if (list.horizontal) android.R.id.accessibilityActionScrollLeft else android.R.id.accessibilityActionScrollUp
+    val forward = if (list.horizontal) {
+      android.R.id.accessibilityActionScrollRight
+    } else {
+      android.R.id.accessibilityActionScrollDown
+    }
+    val backward = if (list.horizontal) {
+      android.R.id.accessibilityActionScrollLeft
+    } else {
+      android.R.id.accessibilityActionScrollUp
+    }
     return when (action) {
       AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, forward -> scrollByPage(1)
       AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD, backward -> scrollByPage(-1)
@@ -76,7 +98,12 @@ internal class ShadowListKitAccessibility(private val list: ShadowListKitListVie
    * One viewport toward the end, or toward the start for a negative direction.
    */
   private fun scrollByPage(direction: Int): Boolean {
-    val target = ShadowListKitCore.pageScrollTarget(list.offset.toDouble(), list.windowAlong.toDouble(), list.maxOffset.toDouble(), direction).roundToInt()
+    val target = ShadowListKitCore.pageScrollTarget(
+      list.offset.toDouble(),
+      list.windowAlong.toDouble(),
+      list.maxOffset.toDouble(),
+      direction
+    ).roundToInt()
     if (target == list.offset) return false
     list.gesture.stop()
     list.writeOffset(target, byUser = true)

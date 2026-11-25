@@ -19,11 +19,17 @@ final class DrivenModeTests: XCTestCase {
   private final class PhaseDelegate: NSObject, ShadowListKitListViewDelegate {
     var events: [String] = []
 
-    func listViewWillBeginDragging(_ listView: ShadowListKitListView) { events.append("begin") }
+    func listViewWillBeginDragging(_ listView: ShadowListKitListView) {
+      events.append("begin")
+    }
+
     func listViewDidEndDragging(_ listView: ShadowListKitListView, willDecelerate decelerate: Bool) {
       events.append(decelerate ? "end-decelerate" : "end")
     }
-    func listViewDidEndDecelerating(_ listView: ShadowListKitListView) { events.append("stop") }
+
+    func listViewDidEndDecelerating(_ listView: ShadowListKitListView) {
+      events.append("stop")
+    }
   }
 
   private func makeDriven(count: Int = 600) -> ListHarness {
@@ -74,8 +80,8 @@ final class DrivenModeTests: XCTestCase {
     harness.delegate.corrections.removeAll()
     harness.delegate.appliesCorrections = false
     let before = harness.visibleKeys()
-    source.keys.insert(contentsOf: (0..<10).map { "above-\($0)" }, at: 0)
-    list.insertItems(at: IndexSet(0..<10))
+    source.keys.insert(contentsOf: (0 ..< 10).map { "above-\($0)" }, at: 0)
+    list.insertItems(at: IndexSet(0 ..< 10))
     harness.layout()
     XCTAssertFalse(harness.delegate.corrections.isEmpty)
     XCTAssertEqual(list.contentOffset.y, 3000, accuracy: 0.01)
@@ -98,10 +104,10 @@ final class DrivenModeTests: XCTestCase {
     drag(harness, to: 2000)
     let before = harness.visibleKeys()
     list.performBatchUpdates({
-      source.keys.removeSubrange(0..<6)
+      source.keys.removeSubrange(0 ..< 6)
       source.keys.insert(contentsOf: ["x", "y", "z"], at: 0)
-      list.deleteItems(at: IndexSet(0..<6))
-      list.insertItems(at: IndexSet(0..<3))
+      list.deleteItems(at: IndexSet(0 ..< 6))
+      list.insertItems(at: IndexSet(0 ..< 3))
     }, completion: nil)
     harness.layout()
     XCTAssertFalse(harness.delegate.corrections.isEmpty)
@@ -119,7 +125,7 @@ final class DrivenModeTests: XCTestCase {
     list.scrollPhase = .settling
     XCTAssertTrue(list.isDecelerating)
     XCTAssertFalse(list.isDragging)
-    for step in 1...5 {
+    for step in 1 ... 5 {
       list.contentOffset = CGPoint(x: 0, y: 600 + CGFloat(step) * 40)
       harness.layout()
     }
@@ -146,12 +152,20 @@ final class DrivenModeTests: XCTestCase {
     list.removeFromSuperview()
     catcher.addSubview(list)
     harness.window.contentView!.addSubview(catcher)
-    let cgEvent = try XCTUnwrap(CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -40, wheel2: 0, wheel3: 0))
+    let cgEvent = try XCTUnwrap(CGEvent(
+      scrollWheelEvent2Source: nil,
+      units: .pixel,
+      wheelCount: 1,
+      wheel1: -40,
+      wheel2: 0,
+      wheel3: 0
+    ))
     let event = try XCTUnwrap(NSEvent(cgEvent: cgEvent))
     list.scrollWheel(with: event)
     XCTAssertEqual(catcher.wheels, 1)
     XCTAssertEqual(list.contentOffset.y, 0)
   }
+
   /*
    * A move that keeps the same rows mounted runs no layout pass: the content moves by its layer.
    * Once a row comes in a pass mounts it.
@@ -168,7 +182,7 @@ final class DrivenModeTests: XCTestCase {
     let passes = list.shadowListKit_layoutPassCount
     let mounts = list.shadowListKit_mountPassCount
     let cores = list.shadowListKit_corePassCount
-    for step in 2...4 {
+    for step in 2 ... 4 {
       list.contentOffset = CGPoint(x: 0, y: 1200 + CGFloat(step))
       XCTAssertFalse(list.needsLayout)
       list.layoutSubtreeIfNeeded()
@@ -187,7 +201,7 @@ final class DrivenModeTests: XCTestCase {
     XCTAssertEqual(list.shadowListKit_layoutPassCount, passes + 1)
     XCTAssertEqual(list.shadowListKit_mountPassCount, mounts + 1)
     let range = list.visibleRange
-    for index in range.location..<NSMaxRange(range) {
+    for index in range.location ..< NSMaxRange(range) {
       let y = try XCTUnwrap(harness.screenY(ofItem: index))
       XCTAssertEqual(y, list.rectForItem(at: index).minY - 1500, accuracy: 0.5)
     }
@@ -253,7 +267,7 @@ final class DrivenModeTests: XCTestCase {
     list.scrollPhase = .idle
     XCTAssertFalse(list.shadowListKit_viewsBehind)
     XCTAssertEqual(content.bounds.origin.y, 900, accuracy: 0.01)
-    XCTAssertTrue(CATransform3DIsIdentity(try XCTUnwrap(content.layer?.sublayerTransform)))
+    XCTAssertTrue(try CATransform3DIsIdentity(XCTUnwrap(content.layer?.sublayerTransform)))
     for cell in content.subviews.compactMap({ $0 as? TestCell }) {
       XCTAssertEqual(cell.isHidden, cell.layer?.isHidden)
       XCTAssertEqual(cell.frame.minY, try XCTUnwrap(cell.layer).position.y, accuracy: 0.01)
@@ -284,7 +298,7 @@ final class DrivenModeTests: XCTestCase {
     let content = try XCTUnwrap(list.subviews.first)
     list.scrollPhase = .dragging
     var y: CGFloat = 0
-    for _ in 0..<5 {
+    for _ in 0 ..< 5 {
       y += 200
       list.contentOffset = CGPoint(x: 0, y: y)
       harness.layout()
@@ -334,7 +348,7 @@ final class DrivenModeTests: XCTestCase {
     XCTAssertTrue(list.shadowListKit_viewsBehind)
   }
 
-  func testReadingCellsCatchesUpWithoutEndingTheScrollPhase() throws {
+  func testReadingCellsCatchesUpWithoutEndingTheScrollPhase() {
     let harness = makeDriven()
     let list = harness.list
     list.scrollPhase = .dragging
@@ -354,5 +368,4 @@ final class DrivenModeTests: XCTestCase {
     list.scrollPhase = .idle
     XCTAssertFalse(list.shadowListKit_viewsBehind)
   }
-
 }

@@ -77,7 +77,8 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 
 - (void)restoreAnchorStateFromCoder:(NSCoder *)coder
 {
-  ShadowListKitAnchorState *state = [coder decodeObjectOfClass:[ShadowListKitAnchorState class] forKey:@"ShadowListKitAnchorState"];
+  ShadowListKitAnchorState *state = [coder decodeObjectOfClass:[ShadowListKitAnchorState class]
+                                                        forKey:@"ShadowListKitAnchorState"];
   if (state) {
     [self restoreAnchorState:state];
   }

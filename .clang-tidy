@@ -1,0 +1,21 @@
+# Static checks for the C++ core. Run them with `make lint-core`, which builds the core tests'
+# compile database first.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-exception-escape,
+  -bugprone-branch-clone,
+  performance-*,
+  -performance-enum-size,
+  clang-analyzer-core.*,
+  clang-analyzer-cplusplus.*,
+  modernize-use-override,
+  modernize-use-nullptr,
+  readability-redundant-smartptr-get,
+  readability-container-size-empty
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'shadowlist-core/.*'
+FormatStyle: file

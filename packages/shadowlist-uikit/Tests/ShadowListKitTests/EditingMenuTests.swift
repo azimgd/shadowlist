@@ -9,19 +9,35 @@ final class EditingMenuTests: XCTestCase {
     var menus = 0
     var selections = 0
     var moves = 0
-    func numberOfItems(in listView: ShadowListKitListView) -> Int { 10 }
-    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { "item-\(index)" }
+    func numberOfItems(in listView: ShadowListKitListView) -> Int {
+      10
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+      "item-\(index)"
+    }
+
     func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
       listView.dequeueReusableCell(withIdentifier: "row")
     }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 40 }
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      40
+    }
+
     func listView(_ listView: ShadowListKitListView, contextMenuForItemAt index: Int) -> UIMenu? {
       menus += 1
       XCTAssertEqual(index, 0)
       return offerMenu ? UIMenu(children: [UIAction(title: "Inspect") { _ in }]) : nil
     }
-    func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) { selections += 1 }
-    func listView(_ listView: ShadowListKitListView, moveItemAt sourceIndex: Int, to destinationIndex: Int) { moves += 1 }
+
+    func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) {
+      selections += 1
+    }
+
+    func listView(_ listView: ShadowListKitListView, moveItemAt sourceIndex: Int, to destinationIndex: Int) {
+      moves += 1
+    }
   }
 
   private func menu(editing: Bool, offered: Bool) throws {
@@ -45,8 +61,13 @@ final class EditingMenuTests: XCTestCase {
     }
     let interaction = try XCTUnwrap(list.interactions.compactMap { $0 as? UIContextMenuInteraction }.first)
     // Invoke UIKit's installed menu delegate, rather than calling the app's provider directly.
-    let configuration = interaction.delegate?.contextMenuInteraction(interaction,
-      configurationForMenuAtLocation: CGPoint(x: 100, y: 20))
+    let configuration = interaction.delegate?.contextMenuInteraction(
+      interaction,
+      configurationForMenuAtLocation: CGPoint(
+        x: 100,
+        y: 20
+      )
+    )
     XCTAssertEqual(configuration != nil, offered)
     XCTAssertEqual(rows.menus, 1)
     XCTAssertEqual(rows.selections, 0)
@@ -54,7 +75,15 @@ final class EditingMenuTests: XCTestCase {
     withExtendedLifetime(rows) {}
   }
 
-  func testSuppliedMenuRemainsAvailable() throws { try menu(editing: false, offered: true) }
-  func testEditingDisablesReorderAndPreservesSuppliedMenu() throws { try menu(editing: true, offered: true) }
-  func testDeclinedMenuStaysAbsentWhileEditing() throws { try menu(editing: true, offered: false) }
+  func testSuppliedMenuRemainsAvailable() throws {
+    try menu(editing: false, offered: true)
+  }
+
+  func testEditingDisablesReorderAndPreservesSuppliedMenu() throws {
+    try menu(editing: true, offered: true)
+  }
+
+  func testDeclinedMenuStaysAbsentWhileEditing() throws {
+    try menu(editing: true, offered: false)
+  }
 }

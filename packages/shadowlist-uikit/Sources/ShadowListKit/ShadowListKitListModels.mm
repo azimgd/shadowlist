@@ -25,7 +25,8 @@
   if (_backgroundColor) {
     return _backgroundColor;
   }
-  return _style == ShadowListKitSwipeActionStyleDestructive ? [ShadowListKitColor systemRedColor] : [ShadowListKitColor systemGrayColor];
+  return _style == ShadowListKitSwipeActionStyleDestructive ? [ShadowListKitColor systemRedColor]
+                                                            : [ShadowListKitColor systemGrayColor];
 }
 
 - (ShadowListKitSwipeAction *)actionByApplyingDefaultDestructiveColor:(ShadowListKitColor *)color
@@ -57,7 +58,8 @@
   for (ShadowListKitSwipeAction *action in _actions) {
     [actions addObject:[action actionByApplyingDefaultDestructiveColor:color]];
   }
-  ShadowListKitSwipeActionsConfiguration *configuration = [ShadowListKitSwipeActionsConfiguration configurationWithActions:actions];
+  ShadowListKitSwipeActionsConfiguration *configuration =
+    [ShadowListKitSwipeActionsConfiguration configurationWithActions:actions];
   configuration.performsFirstActionWithFullSwipe = _performsFirstActionWithFullSwipe;
   return configuration;
 }
@@ -122,14 +124,14 @@
 - (BOOL)isEmpty
 {
   return _deletedIndices.count == 0 && _insertedIndices.count == 0 && _movedFromIndices.count == 0 &&
-    _reloadedIndices.count == 0;
+         _reloadedIndices.count == 0;
 }
 
 - (NSString *)description
 {
   return [NSString stringWithFormat:@"<ShadowListKitListChanges deleted=%lu inserted=%lu moved=%lu reloaded=%lu>",
-    (unsigned long)_deletedIndices.count, (unsigned long)_insertedIndices.count,
-    (unsigned long)_movedFromIndices.count, (unsigned long)_reloadedIndices.count];
+                                    (unsigned long)_deletedIndices.count, (unsigned long)_insertedIndices.count,
+                                    (unsigned long)_movedFromIndices.count, (unsigned long)_reloadedIndices.count];
 }
 
 @end

@@ -11,14 +11,21 @@ final class SelectionTests: XCTestCase {
     var keys = 0
     var mouseDowns = 0
 
-    override func keyDown(with event: NSEvent) { keys += 1 }
-    override func mouseDown(with event: NSEvent) { mouseDowns += 1 }
+    override func keyDown(with event: NSEvent) {
+      keys += 1
+    }
+
+    override func mouseDown(with event: NSEvent) {
+      mouseDowns += 1
+    }
   }
 
   private func mouseEvent(_ type: NSEvent.EventType, in list: ShadowListKitListView, at point: CGPoint) -> NSEvent {
     NSEvent.mouseEvent(
-      with: type, location: list.convert(point, to: nil), modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-      windowNumber: list.window?.windowNumber ?? 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+      with: type, location: list.convert(point, to: nil), modifierFlags: [],
+      timestamp: ProcessInfo.processInfo.systemUptime,
+      windowNumber: list.window?.windowNumber ?? 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1
+    )!
   }
 
   func testClickSelectsOnMouseDownAndHighlightsDuringThePress() throws {
@@ -217,7 +224,7 @@ final class SelectionTests: XCTestCase {
     XCTAssertEqual(harness.selection, [10])
     XCTAssertTrue(harness.isFullyVisible(10))
     harness.press(.pageDown, .shift)
-    XCTAssertEqual(harness.selection, Array(10...20))
+    XCTAssertEqual(harness.selection, Array(10 ... 20))
     harness.press(.pageUp, .option)
     XCTAssertEqual(harness.selection, [10])
   }
@@ -300,8 +307,10 @@ final class SelectionTests: XCTestCase {
 
   private func sendKey(_ characters: String, to list: ShadowListKitListView, at timestamp: TimeInterval) {
     let event = NSEvent.keyEvent(
-      with: .keyDown, location: .zero, modifierFlags: [], timestamp: timestamp, windowNumber: list.window?.windowNumber ?? 0,
-      context: nil, characters: characters, charactersIgnoringModifiers: characters, isARepeat: false, keyCode: 0)!
+      with: .keyDown, location: .zero, modifierFlags: [], timestamp: timestamp,
+      windowNumber: list.window?.windowNumber ?? 0,
+      context: nil, characters: characters, charactersIgnoringModifiers: characters, isARepeat: false, keyCode: 0
+    )!
     list.keyDown(with: event)
     list.layoutSubtreeIfNeeded()
   }
@@ -410,14 +419,14 @@ final class SelectionTests: XCTestCase {
     // A cell mounted while emphasized comes emphasized.
     list.contentOffset = CGPoint(x: 0, y: 4000)
     harness.layout()
-    XCTAssertTrue(list.visibleCells.allSatisfy { $0.isEmphasized })
+    XCTAssertTrue(list.visibleCells.allSatisfy(\.isEmphasized))
     // The focus ring follows focusRingType.
     XCTAssertEqual(list.focusRingMaskBounds, list.bounds)
     list.focusRingType = .none
     XCTAssertEqual(list.focusRingMaskBounds, .zero)
   }
 
-  func testWithoutSelectionTheListLeavesEventsToTheNextResponder() throws {
+  func testWithoutSelectionTheListLeavesEventsToTheNextResponder() {
     let harness = SelectionHarness { $0.allowsSelection = false }
     let list = harness.list
     let catcher = KeyCatcher(frame: harness.window.contentView!.bounds)

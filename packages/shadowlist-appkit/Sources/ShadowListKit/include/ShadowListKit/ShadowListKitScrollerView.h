@@ -14,7 +14,8 @@ NS_SWIFT_UI_ACTOR
 /*
  * The pointer dragged a thumb or clicked a track. The host moves its content to offset.
  */
-- (void)scrollerView:(ShadowListKitScrollerView *)scrollerView didScrollToOffset:(CGPoint)offset NS_SWIFT_NAME(scrollerView(_:didScrollTo:));
+- (void)scrollerView:(ShadowListKitScrollerView *)scrollerView
+   didScrollToOffset:(CGPoint)offset NS_SWIFT_NAME(scrollerView(_:didScrollTo:));
 
 @optional
 

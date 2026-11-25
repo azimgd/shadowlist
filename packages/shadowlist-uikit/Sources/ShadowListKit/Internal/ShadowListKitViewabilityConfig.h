@@ -2,4 +2,4 @@
 #import <ShadowListKit/ShadowListKitViewabilityConfig.h>
 #include <shadowlist-core/host/Viewability.hpp>
 
-azimgd::shadowlist::ViewabilityConfig ShadowListKitReadViewabilityConfig(ShadowListKitViewabilityConfig *config);
+azimgd::shadowlist::ViewabilityConfig ShadowListKitReadViewabilityConfig(ShadowListKitViewabilityConfig* config);

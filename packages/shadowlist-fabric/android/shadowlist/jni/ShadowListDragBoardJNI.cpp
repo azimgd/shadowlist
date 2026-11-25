@@ -208,12 +208,8 @@ JNIEXPORT jstring JNICALL SL_DRAG_BOARD_JNI(nativeReleaseKey)(JNIEnv* env, jclas
   return sl::stringToJava(env, peerOf(handle)->release.key);
 }
 
-JNIEXPORT jboolean JNICALL SL_DRAG_BOARD_JNI(nativeLanded)(
-  JNIEnv* env,
-  jclass,
-  jlong handle,
-  jstring listId,
-  jboolean keysHoldHeldKey) {
+JNIEXPORT jboolean JNICALL
+SL_DRAG_BOARD_JNI(nativeLanded)(JNIEnv* env, jclass, jlong handle, jstring listId, jboolean keysHoldHeldKey) {
   const bool landed = peerOf(handle)->board.landed(sl::stringFromJava(env, listId), keysHoldHeldKey == JNI_TRUE);
   return landed ? JNI_TRUE : JNI_FALSE;
 }
@@ -277,10 +273,8 @@ JNIEXPORT jdouble JNICALL SL_DRAG_BOARD_JNI(nativeScrollDelta)(
   jdouble pixelsPerDp,
   jdouble dtSeconds) {
   sl::DragAutoScrollConfig config{
-    sl::DRAG_BOARD_SCROLL_ANDROID.edge * pixelsPerDp,
-    sl::DRAG_BOARD_SCROLL_ANDROID.maxSpeed * pixelsPerDp};
+    sl::DRAG_BOARD_SCROLL_ANDROID.edge * pixelsPerDp, sl::DRAG_BOARD_SCROLL_ANDROID.maxSpeed * pixelsPerDp};
   return peerOf(handle)->scroll.delta(
     config, sl::DRAG_BOARD_SCROLL_ARM_ANDROID * pixelsPerDp, finger, touch, windowSize, dtSeconds);
 }
-
 }

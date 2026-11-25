@@ -314,8 +314,7 @@ TEST(drag_auto_scroll_moves_as_far_per_second_at_any_frame_rate) {
   CHECK_NEAR(at60, -config.maxSpeed, 1e-6);
   CHECK_NEAR(at120, -config.maxSpeed, 1e-6);
   // A stalled frame scrolls no further than the longest frame allowed.
-  CHECK_NEAR(dragAutoScrollDelta(config, 0.0, 600.0, 0.5),
-    -config.maxSpeed * DRAG_AUTO_SCROLL_MAX_FRAME_SECONDS, 1e-9);
+  CHECK_NEAR(dragAutoScrollDelta(config, 0.0, 600.0, 0.5), -config.maxSpeed * DRAG_AUTO_SCROLL_MAX_FRAME_SECONDS, 1e-9);
   CHECK_EQ(dragAutoScrollDelta(config, 0.0, 600.0, 0.0), 0.0);
 }
 

@@ -19,8 +19,8 @@ namespace {
  */
 class ShadowListStoreModule final : public TurboModule {
 public:
-  explicit ShadowListStoreModule(std::shared_ptr<CallInvoker> jsInvoker) :
-    TurboModule(shadowlist::STORE_MODULE_NAME, std::move(jsInvoker)) {}
+  explicit ShadowListStoreModule(std::shared_ptr<CallInvoker> jsInvoker)
+    : TurboModule(shadowlist::STORE_MODULE_NAME, std::move(jsInvoker)) {}
 
 protected:
   jsi::Value create(jsi::Runtime& runtime, const jsi::PropNameID& propName) override {

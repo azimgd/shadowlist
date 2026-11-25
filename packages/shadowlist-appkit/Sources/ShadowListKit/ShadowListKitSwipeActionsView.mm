@@ -123,8 +123,8 @@ static const CGFloat SHADOWLIST_KIT_SWIPE_FONT_SIZE = 13;
   for (NSButton *button in other) {
     button.hidden = YES;
   }
-  ShadowListKitLayOutSwipe(leading ? _leadingWidths : _trailingWidths, offset, full, self.bounds.size, _horizontal, _spans,
-    _layout);
+  ShadowListKitLayOutSwipe(
+    leading ? _leadingWidths : _trailingWidths, offset, full, self.bounds.size, _horizontal, _spans, _layout);
   for (NSUInteger at = 0; at < shown.count && at < _layout.buttons.size(); ++at) {
     NSButton *button = shown[at];
     CGRect frame = _layout.buttons[at];

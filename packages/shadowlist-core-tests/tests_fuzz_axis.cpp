@@ -24,8 +24,7 @@ using namespace slt;
  */
 TEST(fuzz_horizontal_changes_hold_the_first_visible_column) {
   const FuzzKinds kinds = {
-    {"prepend", "append", "insert", "delete", "scroll",
-      "core maintain anchor"},
+    {"prepend", "append", "insert", "delete", "scroll", "core maintain anchor"},
     {"core shrink clamp"},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -45,13 +44,13 @@ TEST(fuzz_horizontal_changes_hold_the_first_visible_column) {
       } else if (roll < 65) {
         episode.reach("insert");
         std::size_t at = pickSize(host.rng, 0, host.keys.size());
-        axisChangeAndHold(host, withInsert(host, at, count),
-          "insert " + std::to_string(count) + " at " + std::to_string(at));
+        axisChangeAndHold(
+          host, withInsert(host, at, count), "insert " + std::to_string(count) + " at " + std::to_string(at));
       } else if (roll < 80) {
         episode.reach("delete");
         std::size_t at = pickSize(host.rng, 0, host.keys.size() - 1);
-        axisChangeAndHold(host, withRemove(host, at, count),
-          "remove " + std::to_string(count) + " at " + std::to_string(at));
+        axisChangeAndHold(
+          host, withRemove(host, at, count), "remove " + std::to_string(count) + " at " + std::to_string(at));
       } else {
         episode.reach("scroll");
         axisScrollTo(host, pickFraction(host.rng) * host.maxOffset());
@@ -69,8 +68,7 @@ TEST(fuzz_horizontal_changes_hold_the_first_visible_column) {
  */
 TEST(fuzz_grid_changes_by_whole_rows_hold_the_top_row) {
   const FuzzKinds kinds = {
-    {"prepend", "append", "ragged delete", "scroll",
-      "core maintain anchor"},
+    {"prepend", "append", "ragged delete", "scroll", "core maintain anchor"},
     {"core shrink clamp"},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -112,8 +110,7 @@ TEST(fuzz_grid_changes_by_whole_rows_hold_the_top_row) {
  */
 TEST(fuzz_grid_and_horizontal_flings_never_blank) {
   const FuzzKinds kinds = {
-    {"fling forward", "fling back",
-      "core bottom pin"},
+    {"fling forward", "fling back", "core bottom pin"},
     {"core shrink clamp"},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -125,7 +122,8 @@ TEST(fuzz_grid_and_horizontal_flings_never_blank) {
     host.header = chance(host.rng, 50) ? 0.0 : 80.0;
     axisOpen(host, 150 + pickSize(host.rng, 0, 99) * 3);
     if (host.inverted && std::fabs(host.hostOffset - host.maxOffset()) > FUZZ_TOLERANCE) {
-      host.failWith("inverted list did not open at its end: off=" + std::to_string(host.hostOffset) +
+      host.failWith(
+        "inverted list did not open at its end: off=" + std::to_string(host.hostOffset) +
         " max=" + std::to_string(host.maxOffset()));
     }
     for (int fling = 0; fling < 4; ++fling) {
@@ -184,8 +182,8 @@ TEST(fuzz_grid_and_horizontal_flings_never_blank) {
  */
 TEST(fuzz_grid_and_horizontal_scroll_commands_land) {
   const FuzzKinds kinds = {
-    {"command to row", "command to end", "command to start", "prepend", "append",
-      "core maintain anchor", "core scroll to key", "core scroll to start", "core scroll to end"},
+    {"command to row", "command to end", "command to start", "prepend", "append", "core maintain anchor",
+     "core scroll to key", "core scroll to start", "core scroll to end"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -210,8 +208,8 @@ TEST(fuzz_grid_and_horizontal_scroll_commands_land) {
         }
         double wanted = landingOf(host, key, viewPosition);
         if (std::fabs(host.hostOffset - wanted) > FUZZ_TOLERANCE) {
-          host.failWith("scrollToRow landed at " + std::to_string(host.hostOffset) + " wanted " +
-            std::to_string(wanted));
+          host.failWith(
+            "scrollToRow landed at " + std::to_string(host.hostOffset) + " wanted " + std::to_string(wanted));
         }
         std::string coverage = checkMounted(host, host.hostOffset, 0);
         if (!coverage.empty()) {
@@ -226,8 +224,8 @@ TEST(fuzz_grid_and_horizontal_scroll_commands_land) {
           host.failWith("scrollToEnd never settled");
         }
         if (std::fabs(host.hostOffset - host.maxOffset()) > FUZZ_TOLERANCE) {
-          host.failWith("scrollToEnd landed at " + std::to_string(host.hostOffset) + " max " +
-            std::to_string(host.maxOffset()));
+          host.failWith(
+            "scrollToEnd landed at " + std::to_string(host.hostOffset) + " max " + std::to_string(host.maxOffset()));
         }
       } else if (roll < 80) {
         episode.reach("command to start");
@@ -244,8 +242,8 @@ TEST(fuzz_grid_and_horizontal_scroll_commands_land) {
         std::size_t count = host.numberOfColumns * pickSize(host.rng, 1, 4);
         bool prepend = chance(host.rng, 50);
         episode.reach(prepend ? "prepend" : "append");
-        axisChangeAndHold(host, prepend ? withPrepend(host, count) : withAppend(host, count),
-          "change " + std::to_string(count));
+        axisChangeAndHold(
+          host, prepend ? withPrepend(host, count) : withAppend(host, count), "change " + std::to_string(count));
       }
     }
   });

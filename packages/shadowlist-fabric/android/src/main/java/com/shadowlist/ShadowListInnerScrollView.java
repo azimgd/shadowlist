@@ -27,21 +27,16 @@ final class ShadowListInnerScrollView {
     private int mDrawHigh = Integer.MAX_VALUE;
     private boolean mCullHorizontal = false;
 
-    public ContentContainer(Context context) {
-      super(context);
-    }
+    public ContentContainer(Context context) { super(context); }
 
-    void setCullAxis(boolean horizontal) {
-      mCullHorizontal = horizontal;
-    }
+    void setCullAxis(boolean horizontal) { mCullHorizontal = horizontal; }
 
     @Override
-    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-    }
+    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {}
 
     @Override
     protected void dispatchDraw(Canvas canvas) {
-      View scroller = getParent() instanceof View ? (View) getParent() : null;
+      View scroller = getParent() instanceof View ? (View)getParent() : null;
       if (scroller != null) {
         int start = mCullHorizontal ? scroller.getScrollX() : scroller.getScrollY();
         int extent = mCullHorizontal ? scroller.getWidth() : scroller.getHeight();
@@ -58,7 +53,8 @@ final class ShadowListInnerScrollView {
 
     @Override
     protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
-      float low = mCullHorizontal ? child.getLeft() + child.getTranslationX() : child.getTop() + child.getTranslationY();
+      float low =
+        mCullHorizontal ? child.getLeft() + child.getTranslationX() : child.getTop() + child.getTranslationY();
       float size = mCullHorizontal ? child.getWidth() : child.getHeight();
       if (low > mDrawHigh || low + size < mDrawLow) {
         return false;

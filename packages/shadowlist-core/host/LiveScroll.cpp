@@ -33,8 +33,9 @@ std::pair<std::uint64_t, std::uint64_t> LiveScroll::geometryVersions(
   const std::shared_ptr<const void>& stickySizes,
   const std::shared_ptr<const void>& snapOffsets) {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (!sameOwner(seenStickyIndices_, stickyIndices) || !sameOwner(seenStickyOffsets_, stickyOffsets) ||
-      !sameOwner(seenStickySizes_, stickySizes)) {
+  if (
+    !sameOwner(seenStickyIndices_, stickyIndices) || !sameOwner(seenStickyOffsets_, stickyOffsets) ||
+    !sameOwner(seenStickySizes_, stickySizes)) {
     seenStickyIndices_ = stickyIndices;
     seenStickyOffsets_ = stickyOffsets;
     seenStickySizes_ = stickySizes;

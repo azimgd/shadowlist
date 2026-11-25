@@ -62,7 +62,8 @@ inline jsi::Object shadowListScrollPayload(jsi::Runtime& runtime, const ShadowLi
  */
 class ShadowListScrollTracker final {
 public:
-  explicit ShadowListScrollTracker(double throttleMs = 0.0) : throttleMs_(throttleMs) {}
+  explicit ShadowListScrollTracker(double throttleMs = 0.0)
+    : throttleMs_(throttleMs) {}
 
   /*
    * Record an offset and fill the velocity in metrics. Returns whether to send the event now.

@@ -23,10 +23,14 @@ static const NSTimeInterval SL_WHEEL_IDLE_DELAY = azimgd::shadowlist::SCROLL_WHE
   if ((self = [super initWithFrame:frame])) {
     self.automaticallyAdjustsContentInsets = NO;
     NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
-    [center addObserver:self selector:@selector(beginLiveScroll:)
-                   name:NSScrollViewWillStartLiveScrollNotification object:self];
-    [center addObserver:self selector:@selector(endLiveScroll:)
-                   name:NSScrollViewDidEndLiveScrollNotification object:self];
+    [center addObserver:self
+               selector:@selector(beginLiveScroll:)
+                   name:NSScrollViewWillStartLiveScrollNotification
+                 object:self];
+    [center addObserver:self
+               selector:@selector(endLiveScroll:)
+                   name:NSScrollViewDidEndLiveScrollNotification
+                 object:self];
   }
   return self;
 }

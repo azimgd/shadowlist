@@ -33,8 +33,10 @@ std::vector<std::size_t> insertionIndices(std::vector<std::size_t> indices, std:
 }
 
 std::vector<std::size_t> deletionIndices(std::vector<std::size_t> indices, std::size_t previousCount) {
-  indices.erase(std::remove_if(indices.begin(), indices.end(),
-    [previousCount](std::size_t index) { return index >= previousCount; }), indices.end());
+  indices.erase(
+    std::remove_if(
+      indices.begin(), indices.end(), [previousCount](std::size_t index) { return index >= previousCount; }),
+    indices.end());
   sortUnique(indices);
   return indices;
 }
@@ -52,9 +54,7 @@ KeySplice keySplice(const std::vector<std::string>& previous, const std::vector<
   return {start, previous.size() - start - end, next.size() - start - end};
 }
 
-std::unordered_set<std::string> keysOfRows(
-  const std::vector<std::string>& keys,
-  const std::vector<std::size_t>& rows) {
+std::unordered_set<std::string> keysOfRows(const std::vector<std::string>& keys, const std::vector<std::size_t>& rows) {
   std::unordered_set<std::string> found;
   for (std::size_t row : rows) {
     if (row < keys.size()) {
@@ -64,9 +64,8 @@ std::unordered_set<std::string> keysOfRows(
   return found;
 }
 
-std::vector<std::size_t> rowsOfKeys(
-  const std::vector<std::string>& keys,
-  const std::unordered_set<std::string>& wanted) {
+std::vector<std::size_t>
+rowsOfKeys(const std::vector<std::string>& keys, const std::unordered_set<std::string>& wanted) {
   std::vector<std::size_t> rows;
   if (wanted.empty()) {
     return rows;
@@ -139,10 +138,7 @@ CollectedBatch BatchCollector::take() {
 }
 
 template <typename Changed>
-void ContentVersions::keep(
-  KeyList itemKeys,
-  const std::vector<std::int64_t>& versions,
-  Changed changed) {
+void ContentVersions::keep(KeyList itemKeys, const std::vector<std::int64_t>& versions, Changed changed) {
   std::uint64_t round = ++round_;
   std::size_t count = std::min(itemKeys.size(), versions.size());
   std::size_t seen = 0;
@@ -202,9 +198,8 @@ void ContentVersions::record(KeyList itemKeys, const std::vector<std::int64_t>& 
   keep(itemKeys, versions, [](std::size_t) {});
 }
 
-std::vector<std::size_t> ContentVersions::update(
-  const std::vector<std::string>& itemKeys,
-  const std::vector<std::int64_t>& versions) {
+std::vector<std::size_t>
+ContentVersions::update(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions) {
   return update(KeyList(itemKeys), versions);
 }
 
@@ -254,7 +249,8 @@ HeldKeysCommit HeldKeys::commit(KeyChange rows, std::optional<KeyChange> items, 
     }
   }
   // The items splice reads the rows held before when the list had no sections.
-  items_ = items ? previousItems.splice(itemSplice.start, itemSplice.deleted, std::move(items->inserted)) : SharedKeys();
+  items_ =
+    items ? previousItems.splice(itemSplice.start, itemSplice.deleted, std::move(items->inserted)) : SharedKeys();
   sectioned_ = items.has_value();
   rows_ = rows_.splice(result.rows.start, result.rows.deleted, std::move(rows.inserted));
   return result;

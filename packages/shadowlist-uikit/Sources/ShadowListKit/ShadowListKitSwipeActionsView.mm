@@ -32,7 +32,8 @@ using namespace azimgd::shadowlist;
   return self;
 }
 
-- (NSArray<UIButton *> *)buttonsFor:(ShadowListKitSwipeActionsConfiguration *)configuration widths:(std::vector<double>&)widths
+- (NSArray<UIButton *> *)buttonsFor:(ShadowListKitSwipeActionsConfiguration *)configuration
+                             widths:(std::vector<double>&)widths
 {
   NSMutableArray<UIButton *> *buttons = [NSMutableArray array];
   for (ShadowListKitSwipeAction *action in configuration.actions) {
@@ -47,11 +48,12 @@ using namespace azimgd::shadowlist;
     button.accessibilityLabel = action.title;
     __weak ShadowListKitSwipeActionsView *weakSelf = self;
     [button addAction:[UIAction actionWithHandler:^(UIAction *) {
-      ShadowListKitSwipeActionsView *view = weakSelf;
-      if (view && view->_onAction) {
-        view->_onAction(action);
-      }
-    }] forControlEvents:UIControlEventTouchUpInside];
+              ShadowListKitSwipeActionsView *view = weakSelf;
+              if (view && view->_onAction) {
+                view->_onAction(action);
+              }
+            }]
+      forControlEvents:UIControlEventTouchUpInside];
     CGSize fits = [button sizeThatFits:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX)];
     widths.push_back(swipeButtonSize(_horizontal ? fits.height : fits.width, 1.0));
     [self addSubview:button];
@@ -82,8 +84,8 @@ using namespace azimgd::shadowlist;
   for (UIButton *button in other) {
     button.hidden = YES;
   }
-  ShadowListKitLayOutSwipe(leading ? _leadingWidths : _trailingWidths, offset, full, self.bounds.size, _horizontal, _spans,
-    _layout);
+  ShadowListKitLayOutSwipe(
+    leading ? _leadingWidths : _trailingWidths, offset, full, self.bounds.size, _horizontal, _spans, _layout);
   for (NSUInteger at = 0; at < shown.count && at < _layout.buttons.size(); ++at) {
     UIButton *button = shown[at];
     CGRect frame = _layout.buttons[at];

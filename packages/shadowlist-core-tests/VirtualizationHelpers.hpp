@@ -61,13 +61,14 @@ inline void checkNoRowLost(const Container& container, const std::string& contex
   }
 
   if (measured.low == UNDEFINED_INDEX) {
-    fail(context + ": " + std::to_string(overlapping.size()) +
+    fail(
+      context + ": " + std::to_string(overlapping.size()) +
       " rows overlap the viewport but the core reported no measured range");
   }
   for (std::size_t index : overlapping) {
     if (index < measured.low || index > measured.high) {
-      fail(context + ": row " + std::to_string(index) +
-        " overlaps the viewport but is outside the measured range [" +
+      fail(
+        context + ": row " + std::to_string(index) + " overlaps the viewport but is outside the measured range [" +
         std::to_string(measured.low) + ".." + std::to_string(measured.high) + "]");
     }
   }
@@ -77,11 +78,8 @@ inline void checkNoRowLost(const Container& container, const std::string& contex
  * A scroll report from the host with its offset and gesture phase. A view that is not idle
  * reports a user scroll.
  */
-inline FrameInput scrollReport(
-  const std::vector<std::string>& keys,
-  double offset,
-  const Fixture& fixture,
-  ScrollPhase phase) {
+inline FrameInput
+scrollReport(const std::vector<std::string>& keys, double offset, const Fixture& fixture, ScrollPhase phase) {
   FrameInput input = inputFor(keys, offset, fixture);
   input.scrollPhase = phase;
   input.userScrolled = phase != ScrollPhase::Idle;
@@ -162,8 +160,8 @@ inline std::string describeGeometryGap(const Container& container) {
       return "row " + std::to_string(index) + " has no finite place or size";
     }
     if (std::fabs(actual - expected) > 0.001) {
-      return "row " + std::to_string(index) + " sits at " + std::to_string(actual) +
-        " but the running track edge is " + std::to_string(expected);
+      return "row " + std::to_string(index) + " sits at " + std::to_string(actual) + " but the running track edge is " +
+             std::to_string(expected);
     }
     edges[track] = actual + size;
   }

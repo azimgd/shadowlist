@@ -14,9 +14,10 @@
 
 using namespace azimgd::shadowlist;
 
-static_assert(static_cast<int>(ShadowListKitSnapAlignmentStart) == static_cast<int>(SnapAlignment::Start) &&
-                static_cast<int>(ShadowListKitSnapAlignmentCenter) == static_cast<int>(SnapAlignment::Center) &&
-                static_cast<int>(ShadowListKitSnapAlignmentEnd) == static_cast<int>(SnapAlignment::End),
+static_assert(
+  static_cast<int>(ShadowListKitSnapAlignmentStart) == static_cast<int>(SnapAlignment::Start) &&
+    static_cast<int>(ShadowListKitSnapAlignmentCenter) == static_cast<int>(SnapAlignment::Center) &&
+    static_cast<int>(ShadowListKitSnapAlignmentEnd) == static_cast<int>(SnapAlignment::End),
   "ShadowListKitSnapAlignment mirrors the core's SnapAlignment");
 
 /*
@@ -96,7 +97,9 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
 
 - (void)recycleCell:(ShadowListKitListCell *)cell
 {
-  if (cell == _stickyHeaderOverlayCell) [self clearStickyHeaderOverlay];
+  if (cell == _stickyHeaderOverlayCell) {
+    [self clearStickyHeaderOverlay];
+  }
   // A cell only measured was never displayed.
   NSInteger index = cell.mountGeneration != 0 ? cell.index : NSNotFound;
   cell.mountGeneration = 0;
@@ -232,7 +235,7 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
   CGFloat footer = [self templateSize:_footerView cross:cross];
   CGFloat empty = [self templateSize:_emptyView cross:cross];
   BOOL changed = along != _windowAlong || cross != _windowCross || header != _headerSize || footer != _footerSize ||
-    empty != _emptySize;
+                 empty != _emptySize;
   _windowAlong = along;
   _windowCross = cross;
   _headerSize = header;
@@ -262,7 +265,9 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
  */
 - (void)runPasses
 {
-  if (![self sendRowSpans]) return;
+  if (![self sendRowSpans]) {
+    return;
+  }
   ListSettings settings = [self listSettings];
   if (!_hasSentSettings || settings != _sentSettings) {
     _driver.setSettings(settings);
@@ -460,7 +465,10 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
 {
   StickyTranslations translations = _driver.stickyTranslations([self stickyInput]);
   if (_headerView) {
-    [self placeTemplate:_headerView start:translations.header size:_headerSize pinned:(_stickyHeader || _autoHideHeader)];
+    [self placeTemplate:_headerView
+                  start:translations.header
+                   size:_headerSize
+                 pinned:(_stickyHeader || _autoHideHeader)];
   }
   if (_emptyView) {
     if (_emptyView.hidden == _showsEmpty) {
@@ -469,7 +477,10 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
     [self placeTemplate:_emptyView start:_headerSize size:_emptySize pinned:NO];
   }
   if (_footerView) {
-    [self placeTemplate:_footerView start:_footerStart + translations.footer size:_footerSize pinned:(_stickyFooter || _autoHideFooter)];
+    [self placeTemplate:_footerView
+                  start:_footerStart + translations.footer
+                   size:_footerSize
+                 pinned:(_stickyFooter || _autoHideFooter)];
   }
 }
 
@@ -501,8 +512,8 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
 - (BOOL)isUnderPinnedTemplate:(CGPoint)point
 {
   return (_stickyHeaderOverlay && CGRectContainsPoint(_stickyHeaderOverlay.frame, point)) ||
-    ((_stickyHeader || _autoHideHeader) && _headerView && CGRectContainsPoint(_headerView.frame, point)) ||
-    ((_stickyFooter || _autoHideFooter) && _footerView && CGRectContainsPoint(_footerView.frame, point));
+         ((_stickyHeader || _autoHideHeader) && _headerView && CGRectContainsPoint(_headerView.frame, point)) ||
+         ((_stickyFooter || _autoHideFooter) && _footerView && CGRectContainsPoint(_footerView.frame, point));
 }
 
 - (void)sendSizeSpecSource
@@ -511,22 +522,31 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
     _driver.setGetItemSizeSpec({}, {});
   } else {
     __weak ShadowListKitListView *weakSelf = self;
-    _driver.setGetItemSizeSpec([weakSelf](std::size_t row, const std::string&) -> std::optional<RowSizeSpec> {
-      ShadowListKitListView *list = weakSelf;
-      if (!list || !list->_getItemSizeSpec) return std::nullopt;
-      std::size_t item = list->_sections.itemForRow(row);
-      if (item == UNDEFINED_INDEX) return std::nullopt;
-      ShadowListKitItemSizeSpec *value = list->_getItemSizeSpec((NSInteger)item);
-      return value ? std::optional<RowSizeSpec>(ShadowListKitReadItemSizeSpec(value)) : std::nullopt;
-    }, ShadowListKitMeasureItemSizeSpec);
+    _driver.setGetItemSizeSpec(
+      [weakSelf](std::size_t row, const std::string&) -> std::optional<RowSizeSpec> {
+        ShadowListKitListView *list = weakSelf;
+        if (!list || !list->_getItemSizeSpec) {
+          return std::nullopt;
+        }
+        std::size_t item = list->_sections.itemForRow(row);
+        if (item == UNDEFINED_INDEX) {
+          return std::nullopt;
+        }
+        ShadowListKitItemSizeSpec *value = list->_getItemSizeSpec((NSInteger)item);
+        return value ? std::optional<RowSizeSpec>(ShadowListKitReadItemSizeSpec(value)) : std::nullopt;
+      },
+      ShadowListKitMeasureItemSizeSpec);
   }
   [self invalidateFrame];
 }
 
 - (BOOL)sendRowSpans
 {
-  if (_rowSpansColumns == self.numberOfColumns && _rowSpansSentRevision == _rowSpansRevision &&
-      _rowSpansStructureVersion == _structureVersion) return YES;
+  if (
+    _rowSpansColumns == self.numberOfColumns && _rowSpansSentRevision == _rowSpansRevision &&
+    _rowSpansStructureVersion == _structureVersion) {
+    return YES;
+  }
   auto provider = _getItemSpan;
   NSUInteger revision = _rowSpansRevision;
   NSUInteger structure = _structureVersion;
@@ -584,8 +604,9 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
     _viewabilityCallbacks = [_viewabilityConfigCallbackPairs copy];
   } else if (_onViewableItemsChanged) {
     ShadowListKitViewabilityConfig *config = _viewabilityConfig ?: [ShadowListKitViewabilityConfig new];
-    _viewabilityCallbacks = @[[[ShadowListKitViewabilityConfigCallbackPair alloc]
-      initWithViewabilityConfig:config onViewableItemsChanged:_onViewableItemsChanged]];
+    _viewabilityCallbacks =
+      @[ [[ShadowListKitViewabilityConfigCallbackPair alloc] initWithViewabilityConfig:config
+                                                                onViewableItemsChanged:_onViewableItemsChanged] ];
   } else {
     _viewabilityCallbacks = @[];
   }
@@ -594,10 +615,18 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
     configs.push_back(ShadowListKitReadViewabilityConfig(pair.viewabilityConfig));
   }
   auto changed = _driver.setViewabilityConfigs(std::move(configs), CACurrentMediaTime() * 1000);
-  if (!_viewabilityTokens) _viewabilityTokens = [NSMutableArray new];
-  while (_viewabilityTokens.count > _viewabilityCallbacks.count) [_viewabilityTokens removeLastObject];
-  while (_viewabilityTokens.count < _viewabilityCallbacks.count) [_viewabilityTokens addObject:[NSMutableDictionary new]];
-  for (std::size_t index : changed) _viewabilityTokens[index] = [NSMutableDictionary new];
+  if (!_viewabilityTokens) {
+    _viewabilityTokens = [NSMutableArray new];
+  }
+  while (_viewabilityTokens.count > _viewabilityCallbacks.count) {
+    [_viewabilityTokens removeLastObject];
+  }
+  while (_viewabilityTokens.count < _viewabilityCallbacks.count) {
+    [_viewabilityTokens addObject:[NSMutableDictionary new]];
+  }
+  for (std::size_t index : changed) {
+    _viewabilityTokens[index] = [NSMutableDictionary new];
+  }
   [self updateViewability];
 }
 
@@ -612,7 +641,9 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
   [self transitionViewabilityTo:ShadowListKitViewabilityPhase::Invalidated];
   [self pauseViewabilityTicks];
   _driver.resetViewability();
-  for (NSMutableDictionary *tokens in _viewabilityTokens) [tokens removeAllObjects];
+  for (NSMutableDictionary *tokens in _viewabilityTokens) {
+    [tokens removeAllObjects];
+  }
 }
 
 /*
@@ -621,10 +652,14 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
  */
 - (void)transitionViewabilityTo:(ShadowListKitViewabilityPhase)phase
 {
-  if (phase == ShadowListKitViewabilityPhase::Invalidated &&
-      _viewabilityPhase == ShadowListKitViewabilityPhase::Idle) return;
-  if (phase == ShadowListKitViewabilityPhase::UpdatePending &&
-      _viewabilityPhase == ShadowListKitViewabilityPhase::Invalidated) return;
+  if (phase == ShadowListKitViewabilityPhase::Invalidated && _viewabilityPhase == ShadowListKitViewabilityPhase::Idle) {
+    return;
+  }
+  if (
+    phase == ShadowListKitViewabilityPhase::UpdatePending &&
+    _viewabilityPhase == ShadowListKitViewabilityPhase::Invalidated) {
+    return;
+  }
   _viewabilityPhase = phase;
 }
 
@@ -634,7 +669,9 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
     [self transitionViewabilityTo:ShadowListKitViewabilityPhase::UpdatePending];
     return;
   }
-  if (!self.window || _viewabilityCallbacks.count == 0) return;
+  if (!self.window || _viewabilityCallbacks.count == 0) {
+    return;
+  }
   [self transitionViewabilityTo:ShadowListKitViewabilityPhase::Updating];
   ShadowListKitViewabilityPhase finished = ShadowListKitViewabilityPhase::Idle;
   @try {
@@ -642,7 +679,9 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
     NSMutableDictionary<NSNumber *, ShadowListKitViewableItemsChangedInfo *> *events = [NSMutableDictionary new];
     for (auto& entry : reports) {
       std::size_t config = entry.first;
-      if (config >= _viewabilityTokens.count) continue;
+      if (config >= _viewabilityTokens.count) {
+        continue;
+      }
       auto& report = entry.second;
       NSMutableDictionary<NSString *, ShadowListKitViewToken *> *current = [NSMutableDictionary new];
       NSMutableArray<ShadowListKitViewToken *> *viewable = [NSMutableArray new];
@@ -650,11 +689,18 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
       for (const std::string& key : report.viewable) {
         std::size_t row = _driver.indexOfKey(key);
         std::size_t item = row == UNDEFINED_INDEX ? UNDEFINED_INDEX : _sections.itemForRow(row);
-        if (item == UNDEFINED_INDEX) continue;
+        if (item == UNDEFINED_INDEX) {
+          continue;
+        }
         NSString *publicKey = [_dataSource listView:self keyForItemAtIndex:(NSInteger)item];
-        if (!publicKey) continue;
+        if (!publicKey) {
+          continue;
+        }
         NSInteger section = _sections.isSectioned() ? (NSInteger)_sections.sectionForItem(item) : NSNotFound;
-        ShadowListKitViewToken *token = [[ShadowListKitViewToken alloc] initWithKey:publicKey index:(NSInteger)item section:section viewable:YES];
+        ShadowListKitViewToken *token = [[ShadowListKitViewToken alloc] initWithKey:publicKey
+                                                                              index:(NSInteger)item
+                                                                            section:section
+                                                                           viewable:YES];
         current[ShadowListKitString(key)] = token;
         [viewable addObject:token];
       }
@@ -663,31 +709,47 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
       }];
       for (const std::string& key : report.changes.added) {
         ShadowListKitViewToken *token = current[ShadowListKitString(key)];
-        if (token) [changed addObject:token];
+        if (token) {
+          [changed addObject:token];
+        }
       }
       for (const std::string& key : report.changes.removed) {
         ShadowListKitViewToken *previous = _viewabilityTokens[config][ShadowListKitString(key)];
-        if (previous) [changed addObject:[[ShadowListKitViewToken alloc] initWithKey:previous.key index:previous.index section:previous.section viewable:NO]];
+        if (previous) {
+          [changed addObject:[[ShadowListKitViewToken alloc] initWithKey:previous.key
+                                                                   index:previous.index
+                                                                 section:previous.section
+                                                                viewable:NO]];
+        }
       }
       _viewabilityTokens[config] = current;
       if (changed.count) {
-        ShadowListKitViewableItemsChangedInfo *info = [[ShadowListKitViewableItemsChangedInfo alloc] initWithViewableItems:viewable changed:changed];
+        ShadowListKitViewableItemsChangedInfo *info =
+          [[ShadowListKitViewableItemsChangedInfo alloc] initWithViewableItems:viewable changed:changed];
         events[@(config)] = info;
       }
     }
     for (const auto& entry : reports) {
-      if (_viewabilityPhase == ShadowListKitViewabilityPhase::Invalidated || !self.window) break;
+      if (_viewabilityPhase == ShadowListKitViewabilityPhase::Invalidated || !self.window) {
+        break;
+      }
       NSUInteger config = entry.first;
       ShadowListKitViewableItemsChangedInfo *info = events[@(config)];
-      if (!info || config >= _viewabilityCallbacks.count) continue;
+      if (!info || config >= _viewabilityCallbacks.count) {
+        continue;
+      }
       void (^callback)(ShadowListKitViewableItemsChangedInfo *) = _viewabilityCallbacks[config].onViewableItemsChanged;
-      if (callback) callback(info);
+      if (callback) {
+        callback(info);
+      }
     }
   } @finally {
     finished = _viewabilityPhase;
     [self transitionViewabilityTo:ShadowListKitViewabilityPhase::Idle];
   }
-  if (finished == ShadowListKitViewabilityPhase::UpdatePending || finished == ShadowListKitViewabilityPhase::Invalidated) {
+  if (
+    finished == ShadowListKitViewabilityPhase::UpdatePending ||
+    finished == ShadowListKitViewabilityPhase::Invalidated) {
     [self updateViewability];
   } else if (_driver.isViewabilityWaiting() && self.window) {
     [self resumeViewabilityTicks];
@@ -708,22 +770,24 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
     return;
   }
   __weak ShadowListKitListView *weakSelf = self;
-  _viewabilityTimer = [NSTimer timerWithTimeInterval:1.0 / SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE repeats:YES block:^(NSTimer *timer) {
-    ShadowListKitListView *list = weakSelf;
-    if (!list) {
-      [timer invalidate];
-      return;
-    }
-    [list viewabilityFrame];
-  }];
+  _viewabilityTimer = [NSTimer timerWithTimeInterval:1.0 / SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE
+                                             repeats:YES
+                                               block:^(NSTimer *timer) {
+                                                 ShadowListKitListView *list = weakSelf;
+                                                 if (!list) {
+                                                   [timer invalidate];
+                                                   return;
+                                                 }
+                                                 [list viewabilityFrame];
+                                               }];
   [NSRunLoop.mainRunLoop addTimer:_viewabilityTimer forMode:NSRunLoopCommonModes];
 #else
   if (!_viewabilityLink) {
     ShadowListKitViewabilityLinkTarget *target = [ShadowListKitViewabilityLinkTarget new];
     target.list = self;
     _viewabilityLink = ShadowListKitDisplayLink(self, target, @selector(tick:));
-    _viewabilityLink.preferredFrameRateRange =
-      CAFrameRateRangeMake(SHADOWLIST_KIT_VIEWABILITY_MIN_FRAME_RATE, SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE,
+    _viewabilityLink.preferredFrameRateRange = CAFrameRateRangeMake(
+      SHADOWLIST_KIT_VIEWABILITY_MIN_FRAME_RATE, SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE,
       SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE);
     [_viewabilityLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
   }
@@ -775,7 +839,9 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
     [self unpinCell:_stickyCell];
   }
   _stickyCell = cell;
-  if ([self layoutStickyHeaderOverlay:active cell:cell]) return;
+  if ([self layoutStickyHeaderOverlay:active cell:cell]) {
+    return;
+  }
   if (!cell || active >= _driver.getRowCount() || cell.row != (NSInteger)active) {
     return;
   }
@@ -843,13 +909,17 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
         publicKey = [_dataSource listView:self keyForSection:section];
       }
       if (!publicKey && _sections.itemCountInSection(place.section) > 0) {
-        publicKey = [_dataSource listView:self keyForItemAtIndex:(NSInteger)_sections.firstItemInSection(place.section)];
+        publicKey = [_dataSource listView:self
+                        keyForItemAtIndex:(NSInteger)_sections.firstItemInSection(place.section)];
       }
     }
-    ShadowListKitView * _Nullable (^render)(NSString * _Nullable, NSInteger, NSInteger) = [_renderStickyHeaderOverlay copy];
+    ShadowListKitView *_Nullable (^render)(NSString *_Nullable, NSInteger, NSInteger) =
+      [_renderStickyHeaderOverlay copy];
     ShadowListKitView *view = render(publicKey, index, section);
     // A factory can synchronously replace the data or itself. Its old view never lands.
-    if (revision != _stickyHeaderOverlayRevision || !_renderStickyHeaderOverlay) return NO;
+    if (revision != _stickyHeaderOverlayRevision || !_renderStickyHeaderOverlay) {
+      return NO;
+    }
     _stickyHeaderOverlayKey = key;
     _stickyHeaderOverlayRenderedRevision = revision;
     _stickyHeaderOverlay = view;
@@ -867,20 +937,28 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
     }
   }
   ShadowListKitView *view = _stickyHeaderOverlay;
-  if (!view) return NO;
+  if (!view) {
+    return NO;
+  }
   CGSize constraint = _horizontal ? CGSizeMake(CGFLOAT_MAX, _windowCross) : CGSizeMake(_windowCross, CGFLOAT_MAX);
 #if TARGET_OS_OSX
   CGSize fits = view.fittingSize;
-  if ([view respondsToSelector:@selector(sizeThatFits:)]) fits = [(id)view sizeThatFits:constraint];
-  if (!view.wantsLayer) view.wantsLayer = YES;
+  if ([view respondsToSelector:@selector(sizeThatFits:)]) {
+    fits = [(id)view sizeThatFits:constraint];
+  }
+  if (!view.wantsLayer) {
+    view.wantsLayer = YES;
+  }
 #else
   CGSize fits = [view sizeThatFits:constraint];
 #endif
   CGFloat extent = _horizontal ? fits.width : fits.height;
-  if (!(extent > 0)) extent = _horizontal ? view.frame.size.width : view.frame.size.height;
+  if (!(extent > 0)) {
+    extent = _horizontal ? view.frame.size.width : view.frame.size.height;
+  }
   double leading = _driver.stickyLeading(active, [self offset], extent);
   CGRect frame = _horizontal ? [self displayRect:leading y:0 width:extent height:_windowCross]
-                            : [self displayRect:0 y:leading width:_windowCross height:extent];
+                             : [self displayRect:0 y:leading width:_windowCross height:extent];
   ShadowListKitPlace(view, frame);
   if (view.layer.zPosition != 2) {
     [CATransaction begin];
@@ -961,8 +1039,8 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
   double offset = [self offset];
   MountPlan plan = _driver.planMount(offset, inputs.windowAlong, inputs.pad, inputs.leadingInset, inputs.trailingInset);
   // A pass that covers what the last one did is skipped.
-  MountRecord next{plan.low, plan.high, plan.sticky, _driver.getGeometryVersion(), _structureVersion,
-    [self pixelShift], plan.band, inputs};
+  MountRecord next{plan.low,          plan.high,         plan.sticky, _driver.getGeometryVersion(),
+                   _structureVersion, [self pixelShift], plan.band,   inputs};
   BOOL skipped = shouldSkipMount(_mountRecord, next, offset, (std::size_t)self.numberOfColumns, [self hasHeldRow]);
   _mountRecord = next;
   if (skipped) {
@@ -973,7 +1051,10 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
   if (_mountPhase == ShadowListKitMountPhase::ViewportPending) {
     [self transitionMountTo:ShadowListKitMountPhase::OverscanPending];
     MountPlan viewport = _driver.planMount(offset, inputs.windowAlong, 0, inputs.leadingInset, inputs.trailingInset);
-    [self mountPlan:plan newRowsFrom:viewport.low through:viewport.high keepingFrom:offset - inputs.pad
+    [self mountPlan:plan
+        newRowsFrom:viewport.low
+            through:viewport.high
+        keepingFrom:offset - inputs.pad
             through:offset + inputs.windowAlong + inputs.pad];
     [self scheduleSettleFrame];
     return;
@@ -984,10 +1065,10 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
 }
 
 - (void)mountPlan:(const MountPlan&)plan
-     newRowsFrom:(std::size_t)low
-         through:(std::size_t)high
-     keepingFrom:(double)keepStart
-         through:(double)keepEnd
+      newRowsFrom:(std::size_t)low
+          through:(std::size_t)high
+      keepingFrom:(double)keepStart
+          through:(double)keepEnd
 {
   ++_mountPasses;
   NSUInteger generation = ++_mountGeneration;
@@ -1218,8 +1299,10 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
 - (void)placeSeparatorOfCell:(ShadowListKitListCell *)cell row:(std::size_t)row
 {
   BOOL shows = self.showsSeparators && self.numberOfColumns == 1 && row + 1 < _driver.getKeyCount() &&
-    _sections.isItemBeforeItem(row);
-  if (shows && cell.index != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:showsSeparatorAfterItemAtIndex:)]) {
+               _sections.isItemBeforeItem(row);
+  if (
+    shows && cell.index != NSNotFound &&
+    [_userDelegate respondsToSelector:@selector(listView:showsSeparatorAfterItemAtIndex:)]) {
     shows = [_userDelegate listView:self showsSeparatorAfterItemAtIndex:cell.index];
   }
   if (!shows) {
@@ -1237,11 +1320,12 @@ static const float SHADOWLIST_KIT_VIEWABILITY_FRAME_RATE = 60;
   }
   CGFloat thickness = self.separatorThickness > 0 ? self.separatorThickness : 1 / [self displayScale];
   CGSize size = cell.bounds.size;
-  CGRect frame = _horizontal
-    ? CGRectMake(size.width - thickness, self.separatorInsetStart, thickness,
-        MAX(0, size.height - self.separatorInsetStart - self.separatorInsetEnd))
-    : CGRectMake(self.separatorInsetStart, size.height - thickness,
-        MAX(0, size.width - self.separatorInsetStart - self.separatorInsetEnd), thickness);
+  CGRect frame = _horizontal ? CGRectMake(
+                                 size.width - thickness, self.separatorInsetStart, thickness,
+                                 MAX(0, size.height - self.separatorInsetStart - self.separatorInsetEnd))
+                             : CGRectMake(
+                                 self.separatorInsetStart, size.height - thickness,
+                                 MAX(0, size.width - self.separatorInsetStart - self.separatorInsetEnd), thickness);
   line.hidden = NO;
   line.frame = frame;
   line.backgroundColor = [self separatorCGColor];

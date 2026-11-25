@@ -69,7 +69,8 @@ std::unique_ptr<Container> settledContainer(const BandScenario& scenario, Fired*
   std::vector<std::string> keys = keysFor(scenario.rows);
   Virtualizer::update(*container, bandInput(scenario, keys, 0.0));
   for (std::size_t index = 0; index < scenario.rows; ++index) {
-    double width = scenario.numberOfColumns > 1 ? WINDOW_WIDTH / static_cast<double>(scenario.numberOfColumns) : WINDOW_WIDTH;
+    double width =
+      scenario.numberOfColumns > 1 ? WINDOW_WIDTH / static_cast<double>(scenario.numberOfColumns) : WINDOW_WIDTH;
     Virtualizer::updateRowAtIndex(*container, index, {width, rowHeight(index)});
   }
   FrameInput drag = bandInput(scenario, keys, scenario.offset);
@@ -119,7 +120,7 @@ FrameOutcome frameAt(const BandScenario& scenario, double offset, bool gesture) 
 
 bool changesSomething(const FrameOutcome& outcome, const IndexRange& baseline) {
   return outcome.visible != baseline || outcome.fired.visible > 0 || outcome.fired.startReached > 0 ||
-    outcome.fired.endReached > 0 || outcome.corrected || outcome.operation;
+         outcome.fired.endReached > 0 || outcome.corrected || outcome.operation;
 }
 
 /*

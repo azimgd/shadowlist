@@ -23,14 +23,19 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
   private var overlayRevision = 0L
   private var renderedOverlayRevision = -1L
 
-  fun invalidateOverlay() { ++overlayRevision }
+  fun invalidateOverlay() {
+    ++overlayRevision
+  }
 
   fun clearOverlay() {
     ++overlayRevision
     if (overlayView == null && overlayCell == null && overlayKey == null) return
     overlayView?.let { (it.parent as? ViewGroup)?.removeView(it) }
     overlayView = null
-    overlayCell?.let { it.visibility = overlayCellVisibility; it.importantForAccessibility = overlayCellAccessibility }
+    overlayCell?.let {
+      it.visibility = overlayCellVisibility
+      it.importantForAccessibility = overlayCellAccessibility
+    }
     overlayCell = null
     overlayKey = null
     list.contentStale = true
@@ -54,11 +59,16 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
       val index = list.itemForRow(active)
       val section = if (list.isSectioned && place >= 0) place shr ShadowListKitCore.ROW_KIND_BITS else -1
       val source = list.dataSource
-      val publicKey = if (index >= 0) source?.keyForItem(list, index) else {
+      val publicKey = if (index >= 0) {
+        source?.keyForItem(list, index)
+      } else {
         val sections = source as? ShadowListKitListView.Sections
-        sections?.keyForSection(list, section) ?: if (sections != null && sections.numberOfItemsInSection(list, section) > 0) {
-          source?.keyForItem(list, list.firstItemIndexInSection(section))
-        } else null
+        sections?.keyForSection(list, section)
+          ?: if (sections != null && sections.numberOfItemsInSection(list, section) > 0) {
+            source?.keyForItem(list, list.firstItemIndexInSection(section))
+          } else {
+            null
+          }
       }
       val view = factory(publicKey, index, section)
       if (revision != overlayRevision || factory !== list.renderStickyHeaderOverlay) return false
@@ -81,8 +91,11 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
     val extent = list.templateSize(view, list.windowCross)
     val leading = core.stickyLeading(active, list.exactOffset, extent.toDouble())
     val cross = list.windowCross.toDouble()
-    if (list.horizontal) list.placeView(view, leading, 0.0, extent.toDouble(), cross)
-    else list.placeView(view, 0.0, leading, cross, extent.toDouble())
+    if (list.horizontal) {
+      list.placeView(view, leading, 0.0, extent.toDouble(), cross)
+    } else {
+      list.placeView(view, 0.0, leading, cross, extent.toDouble())
+    }
     return true
   }
 
@@ -149,8 +162,7 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
     return found
   }
 
-  fun activeStickyIndex(offset: Double): Int =
-    pinnedSectionIndex(offset).let { if (it >= 0) stickyRows[it] else -1 }
+  fun activeStickyIndex(offset: Double): Int = pinnedSectionIndex(offset).let { if (it >= 0) stickyRows[it] else -1 }
 
   /*
    * The core's pinnedSectionLeading: where the pinned header's leading edge goes, at the offset,
@@ -188,7 +200,17 @@ internal class ShadowListKitStickyPinning(private val list: ShadowListKitListVie
     val pinned = pinnedSectionLeading(position, list.exactOffset)
     val extent = stickyFrames[position * 2 + 1]
     val cross = list.windowCross.toDouble()
-    if (list.horizontal) list.placeView(cell, pinned, 0.0, extent, cross) else list.placeView(cell, 0.0, pinned, cross, extent)
+    if (list.horizontal) {
+      list.placeView(
+        cell,
+        pinned,
+        0.0,
+        extent,
+        cross
+      )
+    } else {
+      list.placeView(cell, 0.0, pinned, cross, extent)
+    }
   }
 
   private fun unpinCell(cell: ShadowListKitListCell) {

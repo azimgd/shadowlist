@@ -15,8 +15,11 @@ internal class ShadowListKitListSwipeHost(private val list: ShadowListKitListVie
 
   override fun actions(cell: ShadowListKitListCell, leading: Boolean): ShadowListKitSwipeActionsConfiguration? {
     val delegate = list.delegate ?: return null
-    return if (leading) delegate.leadingSwipeActionsForItem(list, cell.index)
-      else delegate.trailingSwipeActionsForItem(list, cell.index)
+    return if (leading) {
+      delegate.leadingSwipeActionsForItem(list, cell.index)
+    } else {
+      delegate.trailingSwipeActionsForItem(list, cell.index)
+    }
   }
 
   override fun isValid(cell: ShadowListKitListCell): Boolean = list.isCurrentActionCell(cell)

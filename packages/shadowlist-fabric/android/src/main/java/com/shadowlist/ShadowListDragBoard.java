@@ -41,9 +41,7 @@ import java.util.HashMap;
  * scrolled, and whether the picture is settling onto the landed row.
  */
 final class ShadowListDragBoard {
-  static {
-    SoLoader.loadLibrary("react_codegen_ShadowListViewSpec");
-  }
+  static { SoLoader.loadLibrary("react_codegen_ShadowListViewSpec"); }
 
   /*
    * What a hover changes, matching DragBoardStep::Kind.
@@ -98,11 +96,11 @@ final class ShadowListDragBoard {
     double[] constants = new double[CONSTANT_SLOTS];
     nativeConstants(constants);
     LAND_TIMEOUT_MS = Math.round(constants[CONSTANT_LAND_TIMEOUT_MS]);
-    PHASE_IDLE = (int) constants[CONSTANT_PHASE_IDLE];
-    PHASE_AT_HOME = (int) constants[CONSTANT_PHASE_AT_HOME];
-    PHASE_FLOATING = (int) constants[CONSTANT_PHASE_FLOATING];
-    PHASE_LANDING = (int) constants[CONSTANT_PHASE_LANDING];
-    PHASE_SETTLING = (int) constants[CONSTANT_PHASE_SETTLING];
+    PHASE_IDLE = (int)constants[CONSTANT_PHASE_IDLE];
+    PHASE_AT_HOME = (int)constants[CONSTANT_PHASE_AT_HOME];
+    PHASE_FLOATING = (int)constants[CONSTANT_PHASE_FLOATING];
+    PHASE_LANDING = (int)constants[CONSTANT_PHASE_LANDING];
+    PHASE_SETTLING = (int)constants[CONSTANT_PHASE_SETTLING];
   }
 
   private static final ShadowListPeerReclaimer RECLAIMER =
@@ -145,9 +143,7 @@ final class ShadowListDragBoard {
   private final Rect mRect = new Rect();
   private final int[] mLocation = new int[2];
 
-  private ShadowListDragBoard(String boardId) {
-    mBoardId = boardId;
-  }
+  private ShadowListDragBoard(String boardId) { mBoardId = boardId; }
 
   private long handle() {
     if (mHandle == 0) {
@@ -197,9 +193,7 @@ final class ShadowListDragBoard {
     listsChanged();
   }
 
-  ArrayList<ShadowListDragController> getLists() {
-    return mLists;
-  }
+  ArrayList<ShadowListDragController> getLists() { return mLists; }
 
   /*
    * A list joined or left, or one changed its id, label, drag switch or window. Every row's
@@ -211,7 +205,8 @@ final class ShadowListDragBoard {
     }
   }
 
-  @Nullable ShadowListDragController listWithToken(String token) {
+  @Nullable
+  ShadowListDragController listWithToken(String token) {
     if (token == null || token.isEmpty()) {
       return null;
     }
@@ -227,8 +222,15 @@ final class ShadowListDragBoard {
 
   // region Flight
 
-  void begin(ShadowListDragController home, String heldKey, float fingerX, float fingerY, float centerX, float centerY,
-    int windowWidth, int windowHeight) {
+  void begin(
+    ShadowListDragController home,
+    String heldKey,
+    float fingerX,
+    float fingerY,
+    float centerX,
+    float centerY,
+    int windowWidth,
+    int windowHeight) {
     nativeBegin(handle(), home.getBoardToken(), heldKey, fingerX, fingerY, centerX, centerY);
     mPickupList = home;
     mWindowWidth = windowWidth;
@@ -240,13 +242,9 @@ final class ShadowListDragBoard {
     return nativeFrame(handle(), fingerX, fingerY, shownX, shownY, mCandidates, candidateCount, nowMs, mFrame);
   }
 
-  double[] getFrame() {
-    return mFrame;
-  }
+  double[] getFrame() { return mFrame; }
 
-  String getStepNext() {
-    return nativeStepNext(handle());
-  }
+  String getStepNext() { return nativeStepNext(handle()); }
 
   /*
    * The held row's offset after a return home, in window pixels. The array is reused.
@@ -260,21 +258,13 @@ final class ShadowListDragBoard {
     return nativeRelease(handle(), insertionIndex, insertionKey, rowCount, nowMs);
   }
 
-  String getReleaseListId() {
-    return nativeReleaseListId(handle());
-  }
+  String getReleaseListId() { return nativeReleaseListId(handle()); }
 
-  int getReleaseIndex() {
-    return nativeReleaseIndex(handle());
-  }
+  int getReleaseIndex() { return nativeReleaseIndex(handle()); }
 
-  String getReleaseKey() {
-    return nativeReleaseKey(handle());
-  }
+  String getReleaseKey() { return nativeReleaseKey(handle()); }
 
-  boolean landed(String listId, boolean keysHoldHeldKey) {
-    return nativeLanded(handle(), listId, keysHoldHeldKey);
-  }
+  boolean landed(String listId, boolean keysHoldHeldKey) { return nativeLanded(handle(), listId, keysHoldHeldKey); }
 
   /*
    * The drag stops without a drop. Returns the target's core id, empty for none.
@@ -296,18 +286,14 @@ final class ShadowListDragBoard {
     }
   }
 
-  int getPhase() {
-    return mHandle == 0 ? PHASE_IDLE : nativePhase(mHandle);
-  }
+  int getPhase() { return mHandle == 0 ? PHASE_IDLE : nativePhase(mHandle); }
 
   boolean isDeciding() {
     int phase = getPhase();
     return phase == PHASE_AT_HOME || phase == PHASE_FLOATING;
   }
 
-  boolean isFloating() {
-    return getPhase() == PHASE_FLOATING;
-  }
+  boolean isFloating() { return getPhase() == PHASE_FLOATING; }
 
   boolean isLanding() {
     int phase = getPhase();
@@ -317,62 +303,47 @@ final class ShadowListDragBoard {
   /*
    * Whether list is the home of a drag the core is still deciding, before its drop.
    */
-  boolean isDecidingFor(ShadowListDragController list) {
-    return mPickupList == list && isDeciding();
-  }
+  boolean isDecidingFor(ShadowListDragController list) { return mPickupList == list && isDeciding(); }
 
-  String getHeldKey() {
-    return mHandle == 0 ? "" : nativeHeldKey(mHandle);
-  }
+  String getHeldKey() { return mHandle == 0 ? "" : nativeHeldKey(mHandle); }
 
-  String getTargetId() {
-    return mHandle == 0 ? "" : nativeTargetId(mHandle);
-  }
+  String getTargetId() { return mHandle == 0 ? "" : nativeTargetId(mHandle); }
 
-  long getFlight() {
-    return mHandle == 0 ? 0L : nativeFlight(mHandle);
-  }
+  long getFlight() { return mHandle == 0 ? 0L : nativeFlight(mHandle); }
 
   double scrollDelta(double finger, double touch, double windowSize, double dtSeconds) {
     return nativeScrollDelta(handle(), finger, touch, windowSize, PixelUtil.toPixelFromDIP(1f), dtSeconds);
   }
 
-  @Nullable ShadowListDragController getHome() {
+  @Nullable
+  ShadowListDragController getHome() {
     return mHome;
   }
 
-  void setHome(@Nullable ShadowListDragController home) {
-    mHome = home;
-  }
+  void setHome(@Nullable ShadowListDragController home) { mHome = home; }
 
-  @Nullable ShadowListDragController getTarget() {
+  @Nullable
+  ShadowListDragController getTarget() {
     return mTarget;
   }
 
-  void setTarget(@Nullable ShadowListDragController target) {
-    mTarget = target;
-  }
+  void setTarget(@Nullable ShadowListDragController target) { mTarget = target; }
 
   /*
    * The picture flies onto the landed row. The core's DragBoard holds it.
    */
-  boolean isSettling() {
-    return nativeIsOverlaySettling(handle());
-  }
+  boolean isSettling() { return nativeIsOverlaySettling(handle()); }
 
-  boolean windowSizeChanged(int width, int height) {
-    return width != mWindowWidth || height != mWindowHeight;
-  }
+  boolean windowSizeChanged(int width, int height) { return width != mWindowWidth || height != mWindowHeight; }
 
-  @Nullable ViewGroup takeSidewaysScrollView() {
+  @Nullable
+  ViewGroup takeSidewaysScrollView() {
     ViewGroup outer = mSidewaysScrollView;
     mSidewaysScrollView = null;
     return outer;
   }
 
-  void setSidewaysScrollView(ViewGroup outer) {
-    mSidewaysScrollView = outer;
-  }
+  void setSidewaysScrollView(ViewGroup outer) { mSidewaysScrollView = outer; }
 
   /*
    * End the flight right away, without animation: drop the overlay, show the hidden rows and
@@ -439,7 +410,7 @@ final class ShadowListDragBoard {
 
   private static int depthOf(View view) {
     int depth = 0;
-    for (Object parent = view.getParent(); parent instanceof View; parent = ((View) parent).getParent()) {
+    for (Object parent = view.getParent(); parent instanceof View; parent = ((View)parent).getParent()) {
       depth++;
     }
     return depth;
@@ -449,7 +420,8 @@ final class ShadowListDragBoard {
 
   // region Overlay
 
-  @Nullable View getOverlay() {
+  @Nullable
+  View getOverlay() {
     return mOverlay;
   }
 
@@ -484,8 +456,8 @@ final class ShadowListDragBoard {
         outline.set(shape);
       }
     });
-    overlay.setElevation(PixelUtil.toPixelFromDIP((float) ShadowListDrag.LIFT_ELEVATION_DP));
-    ((ViewGroup) root).addView(overlay, new FrameLayout.LayoutParams(width, height));
+    overlay.setElevation(PixelUtil.toPixelFromDIP((float)ShadowListDrag.LIFT_ELEVATION_DP));
+    ((ViewGroup)root).addView(overlay, new FrameLayout.LayoutParams(width, height));
     mOverlay = overlay;
     mOverlayWidth = width;
     mOverlayHeight = height;
@@ -502,7 +474,7 @@ final class ShadowListDragBoard {
     if (overlay == null || !(overlay.getParent() instanceof ViewGroup)) {
       return;
     }
-    ViewGroup root = (ViewGroup) overlay.getParent();
+    ViewGroup root = (ViewGroup)overlay.getParent();
     root.getLocationInWindow(mLocation);
     overlay.setTranslationX(windowLeft - mLocation[0] - root.getPaddingLeft());
     overlay.setTranslationY(windowTop - mLocation[1] - root.getPaddingTop());
@@ -524,7 +496,7 @@ final class ShadowListDragBoard {
       endAction.run();
       return;
     }
-    ViewGroup root = (ViewGroup) overlay.getParent();
+    ViewGroup root = (ViewGroup)overlay.getParent();
     root.getLocationInWindow(mLocation);
     overlay.animate().cancel();
     overlay.animate()
@@ -539,7 +511,8 @@ final class ShadowListDragBoard {
    * Hand the overlay over to an animation that removes it when done. The flight no longer
    * holds it.
    */
-  @Nullable View detachOverlay() {
+  @Nullable
+  View detachOverlay() {
     View overlay = mOverlay;
     mOverlay = null;
     return overlay;
@@ -551,13 +524,11 @@ final class ShadowListDragBoard {
     }
     overlay.animate().cancel();
     if (overlay.getParent() instanceof ViewGroup) {
-      ((ViewGroup) overlay.getParent()).removeView(overlay);
+      ((ViewGroup)overlay.getParent()).removeView(overlay);
     }
   }
 
-  void removeOverlay() {
-    removeOverlayView(detachOverlay());
-  }
+  void removeOverlay() { removeOverlayView(detachOverlay()); }
 
   /*
    * The picture flies onto the landed row, and the flight ends when it arrives.
@@ -635,14 +606,28 @@ final class ShadowListDragBoard {
   private static native void nativeDestroy(long handle);
   private static native void nativeConstants(double[] out);
   private static native void nativeBegin(
-    long handle, String homeId, String heldKey, double fingerX, double fingerY, double heldCenterX,
+    long handle,
+    String homeId,
+    String heldKey,
+    double fingerX,
+    double fingerY,
+    double heldCenterX,
     double heldCenterY);
   private static native int nativeFrame(
-    long handle, double fingerX, double fingerY, double shownX, double shownY, String[] candidates, int count,
-    double nowMs, double[] out);
+    long handle,
+    double fingerX,
+    double fingerY,
+    double shownX,
+    double shownY,
+    String[] candidates,
+    int count,
+    double nowMs,
+    double[] out);
   private static native String nativeStepNext(long handle);
-  private static native void nativeReturnOffset(long handle, double placedX, double placedY, double nowMs, double[] out);
-  private static native int nativeRelease(long handle, int insertionIndex, String insertionKey, int rowCount, double nowMs);
+  private static native void
+  nativeReturnOffset(long handle, double placedX, double placedY, double nowMs, double[] out);
+  private static native int
+  nativeRelease(long handle, int insertionIndex, String insertionKey, int rowCount, double nowMs);
   private static native String nativeReleaseListId(long handle);
   private static native int nativeReleaseIndex(long handle);
   private static native String nativeReleaseKey(long handle);
@@ -657,6 +642,6 @@ final class ShadowListDragBoard {
   private static native String nativeHeldKey(long handle);
   private static native String nativeTargetId(long handle);
   private static native long nativeFlight(long handle);
-  private static native double nativeScrollDelta(
-    long handle, double finger, double touch, double windowSize, double pixelsPerDp, double dtSeconds);
+  private static native double
+  nativeScrollDelta(long handle, double finger, double touch, double windowSize, double pixelsPerDp, double dtSeconds);
 }

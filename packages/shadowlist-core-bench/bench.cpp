@@ -47,8 +47,7 @@ constexpr double OVERSCAN = 1.0;
 /*
  * Rows that fit on screen plus one screen of overscan on each side.
  */
-constexpr std::size_t MOUNTED_ROWS =
-  static_cast<std::size_t>((WINDOW_HEIGHT * (1.0 + 2.0 * OVERSCAN)) / ROW_HEIGHT);
+constexpr std::size_t MOUNTED_ROWS = static_cast<std::size_t>((WINDOW_HEIGHT * (1.0 + 2.0 * OVERSCAN)) / ROW_HEIGHT);
 
 struct Timing {
   double medianUs = 0.0;
@@ -232,8 +231,7 @@ void benchScrollFrames(
 
   double offset = startOffset;
   Timing timing = measure(
-    25, 7,
-    [&] { offset = startOffset; },
+    25, 7, [&] { offset = startOffset; },
     [&](std::size_t) {
       offset += STEP;
       FrameInput input = makeInput(keys, offset);
@@ -260,8 +258,7 @@ void benchUnchangedMeasurements(
 
   std::size_t count = std::min<std::size_t>(20, rows - startIndex);
   Timing timing = measure(
-    5, 7,
-    [] {},
+    5, 7, [] {},
     [&](std::size_t) {
       for (std::size_t offset = 0; offset < count; ++offset) {
         Virtualizer::updateRowAtIndex(container, startIndex + offset, {WINDOW_WIDTH, ROW_HEIGHT});
@@ -275,8 +272,7 @@ void benchUnchangedMeasurements(
  */
 void benchKeyCopy(const std::vector<std::string>& keys, std::size_t rows, const char* label, std::size_t opsPerBatch) {
   Timing timing = measure(
-    opsPerBatch, 7,
-    [] {},
+    opsPerBatch, 7, [] {},
     [&](std::size_t) {
       FrameInput input;
       input.keys = keys;
@@ -325,14 +321,15 @@ void benchContentVersions(
   std::vector<std::string> grown = keys;
   std::size_t start = where < 0 ? 0 : where > 0 ? keys.size() : keys.size() / 2;
   for (std::size_t at = 0; at < count; ++at) {
-    grown.insert(grown.begin() + static_cast<std::ptrdiff_t>(start + at), "inserted-0123456789abcdef-0123456789abcdef-" + std::to_string(at));
+    grown.insert(
+      grown.begin() + static_cast<std::ptrdiff_t>(start + at),
+      "inserted-0123456789abcdef-0123456789abcdef-" + std::to_string(at));
   }
   std::vector<std::int64_t> keysVersions(keys.size(), 1);
   std::vector<std::int64_t> grownVersions(grown.size(), 1);
   ContentVersions versions;
   Timing timing = measure(
-    25, 7,
-    [&] { versions.record(keys, keysVersions); },
+    25, 7, [&] { versions.record(keys, keysVersions); },
     [&](std::size_t op) {
       bool grow = op % 2 == 0;
       doNotOptimize(versions.update(grow ? grown : keys, grow ? grownVersions : keysVersions));
@@ -385,8 +382,7 @@ void benchSnapOffsets(const std::vector<std::string>& keys, std::size_t rows, bo
   stampFullyMeasured(container, rows, ROW_HEIGHT);
 
   Timing timing = measure(
-    25, 7,
-    [] {},
+    25, 7, [] {},
     [&](std::size_t) {
       if (geometryChanged) {
         ++container.state.geometryVersion;
@@ -408,12 +404,8 @@ void benchReconcile(const std::vector<std::string>& keys, std::size_t rows) {
   std::vector<std::string> grown = keys;
   grown.push_back("k-appended");
 
-  Timing timing = measure(
-    25, 7,
-    [] {},
-    [&](std::size_t op) {
-      Virtualizer::reconcileRows(container, (op % 2 == 0) ? grown : keys);
-    });
+  Timing timing =
+    measure(25, 7, [] {}, [&](std::size_t op) { Virtualizer::reconcileRows(container, (op % 2 == 0) ? grown : keys); });
   record("reconcile alternating append-one/remove-one", rows, timing);
 }
 
@@ -438,13 +430,11 @@ void benchDeepPredictions(const std::vector<std::string>& keys, std::size_t rows
   std::size_t base = rows - 200;
 
   Timing timing = measure(
-    10, 7,
-    [] {},
+    10, 7, [] {},
     [&](std::size_t op) {
       for (std::size_t offset = 0; offset < 20; ++offset) {
         container.setPredictedSize(
-          keys[base + offset],
-          {WINDOW_WIDTH, ROW_HEIGHT + static_cast<double>((op + offset) % 11)});
+          keys[base + offset], {WINDOW_WIDTH, ROW_HEIGHT + static_cast<double>((op + offset) % 11)});
       }
       FrameInput input = makeInput(keys, 0.0);
       input.keysUnchanged = true;
@@ -479,8 +469,7 @@ void benchColdUpdate(const std::vector<std::string>& keys, std::size_t rows) {
  */
 void benchRowConstruction(std::size_t rows) {
   Timing timing = measure(
-    5, 7,
-    [] {},
+    5, 7, [] {},
     [&](std::size_t) {
       std::vector<Row> placed(rows);
       doNotOptimize(placed);
@@ -579,31 +568,28 @@ void benchFling(const std::vector<std::string>& keys, std::size_t rows, const Fl
   std::size_t sizesChanged = 0;
   std::size_t framesRun = 0;
 
-  Timing timing = measure(
-    30, 7,
-    reset,
-    [&](std::size_t) {
-      offset += options.pixelsPerFrame;
-      ++framesRun;
-      Virtualizer::update(*container, frameInput(offset, false));
+  Timing timing = measure(30, 7, reset, [&](std::size_t) {
+    offset += options.pixelsPerFrame;
+    ++framesRun;
+    Virtualizer::update(*container, frameInput(offset, false));
 
-      /*
+    /*
        * Rows measured on an earlier frame report the same size and stop early. The rows
        * mounted ahead of the fling this frame report sizes that differ from the estimate
        * and move every row after them.
        */
-      sizesChanged += feedMounted(*container);
-    });
+    sizesChanged += feedMounted(*container);
+  });
 
   /*
    * A fling frame mounts the rows it scrolls into. Fewer than half of those changing
    * size means the timing measured nothing and isn't a speedup.
    */
-  double rowsScrolledInto = static_cast<double>(framesRun) * options.pixelsPerFrame / estimate *
-    static_cast<double>(options.numberOfColumns);
+  double rowsScrolledInto =
+    static_cast<double>(framesRun) * options.pixelsPerFrame / estimate * static_cast<double>(options.numberOfColumns);
   if (framesRun == 0 || static_cast<double>(sizesChanged) < rowsScrolledInto / 2.0) {
-    std::printf("  !! %s did no meaningful work (%zu sizes changed over %zu frames)\n",
-      options.label, sizesChanged, framesRun);
+    std::printf(
+      "  !! %s did no meaningful work (%zu sizes changed over %zu frames)\n", options.label, sizesChanged, framesRun);
   }
   record(options.label, rows, timing, "us/frame");
 }
@@ -643,41 +629,37 @@ void benchScrollbarDrag(const std::vector<std::string>& keys, std::size_t rows, 
     offset = 0.0;
   };
 
-  Timing timing = measure(
-    DRAG_FRAMES, 7,
-    reset,
-    [&](std::size_t) {
-      offset += step;
-      ++framesRun;
+  Timing timing = measure(DRAG_FRAMES, 7, reset, [&](std::size_t) {
+    offset += step;
+    ++framesRun;
 
-      FrameInput input = makeInput(keys, offset);
-      input.userScrolled = true;
-      input.scrollPhase = ScrollPhase::Dragging;
-      input.keysUnchanged = true;
-      Virtualizer::update(*container, input);
+    FrameInput input = makeInput(keys, offset);
+    input.userScrolled = true;
+    input.scrollPhase = ScrollPhase::Dragging;
+    input.keysUnchanged = true;
+    Virtualizer::update(*container, input);
 
-      auto visible = container->getMeasuredRange();
-      if (visible.low == UNDEFINED_INDEX) {
-        return;
-      }
-      std::size_t low = visible.low;
-      std::size_t high = std::min(visible.high, low + MOUNTED_ROWS);
-      if (high >= rows) {
-        high = rows - 1;
-      }
-      /*
+    auto visible = container->getMeasuredRange();
+    if (visible.low == UNDEFINED_INDEX) {
+      return;
+    }
+    std::size_t low = visible.low;
+    std::size_t high = std::min(visible.high, low + MOUNTED_ROWS);
+    if (high >= rows) {
+      high = rows - 1;
+    }
+    /*
        * Real rows rarely match the estimate, and that difference shifts the rows after
        * them. Sending back the estimate itself would make this too easy.
        */
-      feedRangeMeasurements(*container, low, high, [](std::size_t index) {
-        return Size{WINDOW_WIDTH, ROW_HEIGHT + static_cast<double>(index % 9) * 3.0};
-      });
-      rowsTouched += high - low + 1;
+    feedRangeMeasurements(*container, low, high, [](std::size_t index) {
+      return Size{WINDOW_WIDTH, ROW_HEIGHT + static_cast<double>(index % 9) * 3.0};
     });
+    rowsTouched += high - low + 1;
+  });
 
   if (framesRun == 0 || rowsTouched / framesRun < MOUNTED_ROWS / 2) {
-    std::printf("  !! %s did no meaningful work (%zu rows over %zu frames)\n",
-      label, rowsTouched, framesRun);
+    std::printf("  !! %s did no meaningful work (%zu rows over %zu frames)\n", label, rowsTouched, framesRun);
   }
   record(label, rows, timing, "us/frame");
 }
@@ -708,8 +690,7 @@ void benchInvertedScrollToTop(const std::vector<std::string>& keys, std::size_t 
   Virtualizer::update(container, frameInput(bottom, true));
 
   Timing timing = measure(
-    10, 7,
-    [&] { Virtualizer::update(container, frameInput(bottom, true)); },
+    10, 7, [&] { Virtualizer::update(container, frameInput(bottom, true)); },
     [&](std::size_t) {
       // The jump and the settle frames the scroll view reports after it.
       Virtualizer::update(container, frameInput(0.0, true));
@@ -736,8 +717,7 @@ void benchPrependWhileScrolled(const std::vector<std::string>& keys, std::size_t
 
   double offset = ROW_HEIGHT * 40.0;
   Timing timing = measure(
-    10, 7,
-    [] {},
+    10, 7, [] {},
     [&](std::size_t op) {
       FrameInput input = makeInput((op % 2 == 0) ? prepended : keys, offset);
       Virtualizer::update(container, input);
@@ -755,14 +735,12 @@ void benchScrollToRowCentred(const std::vector<std::string>& keys, std::size_t r
   Container container;
   Virtualizer::update(container, makeInput(keys, 0.0));
   // Only the first screen is laid out. Every row past it is still an estimate.
-  feedRangeMeasurements(container, 0, std::min(MOUNTED_ROWS, rows - 1), [](std::size_t) {
-    return Size{WINDOW_WIDTH, ROW_HEIGHT};
-  });
+  feedRangeMeasurements(
+    container, 0, std::min(MOUNTED_ROWS, rows - 1), [](std::size_t) { return Size{WINDOW_WIDTH, ROW_HEIGHT}; });
 
   std::uint64_t sequence = 0;
   Timing timing = measure(
-    4, 7,
-    [] {},
+    4, 7, [] {},
     [&](std::size_t) {
       container.requestScrollToRow(target, static_cast<double>(++sequence), UNDEFINED_INDEX, 0.5);
       // Each settle frame mounts and measures the rows the correction moved to.
@@ -789,9 +767,9 @@ void benchScrollToRowCentred(const std::vector<std::string>& keys, std::size_t r
 void emitMachineReadable() {
   std::printf("\n#BEGIN_TSV\nscenario\trows\tmedian_us\tmin_us\tmax_us\tunit\n");
   for (const Result& result : results) {
-    std::printf("%s\t%zu\t%.3f\t%.3f\t%.3f\t%s\n",
-      result.scenario.c_str(), result.rows,
-      result.timing.medianUs, result.timing.minUs, result.timing.maxUs, result.unit);
+    std::printf(
+      "%s\t%zu\t%.3f\t%.3f\t%.3f\t%s\n", result.scenario.c_str(), result.rows, result.timing.medianUs,
+      result.timing.minUs, result.timing.maxUs, result.unit);
   }
   std::printf("#END_TSV\n");
 }

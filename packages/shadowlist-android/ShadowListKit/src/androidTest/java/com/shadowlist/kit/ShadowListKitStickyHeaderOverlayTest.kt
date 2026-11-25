@@ -15,16 +15,23 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ShadowListKitStickyHeaderOverlayTest {
-  private open class Rows : ShadowListKitListView.DataSource, ShadowListKitListView.Sizing {
+  private open class Rows :
+    ShadowListKitListView.DataSource,
+    ShadowListKitListView.Sizing {
     val keys = MutableList(20) { "item-$it" }
     var title = "Custom header"
     override fun numberOfItems(listView: ShadowListKitListView): Int = keys.size
     override fun keyForItem(listView: ShadowListKitListView, index: Int): String = keys[index]
-    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell = listView.dequeueReusableCell("row")
+    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
+      listView.dequeueReusableCell("row")
     override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = 40
   }
-  private class EmptySection : Rows(), ShadowListKitListView.Sections {
-    init { keys.clear() }
+  private class EmptySection :
+    Rows(),
+    ShadowListKitListView.Sections {
+    init {
+      keys.clear()
+    }
     override fun numberOfSections(listView: ShadowListKitListView): Int = 1
     override fun numberOfItemsInSection(listView: ShadowListKitListView, section: Int): Int = 0
     override fun titleForHeaderInSection(listView: ShadowListKitListView, section: Int): String = "Empty section"
@@ -32,15 +39,33 @@ class ShadowListKitStickyHeaderOverlayTest {
   }
   private class OverlayButton(context: Context) : Button(context) {
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-      setMeasuredDimension(if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.EXACTLY) MeasureSpec.getSize(widthMeasureSpec) else 60,
-        if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY) MeasureSpec.getSize(heightMeasureSpec) else 60)
+      setMeasuredDimension(
+        if (MeasureSpec.getMode(widthMeasureSpec) ==
+          MeasureSpec.EXACTLY
+        ) {
+          MeasureSpec.getSize(widthMeasureSpec)
+        } else {
+          60
+        },
+        if (MeasureSpec.getMode(heightMeasureSpec) ==
+          MeasureSpec.EXACTLY
+        ) {
+          MeasureSpec.getSize(heightMeasureSpec)
+        } else {
+          60
+        }
+      )
     }
   }
   private val instrumentation = InstrumentationRegistry.getInstrumentation()
   private fun fixture(source: Rows = Rows(), body: (Activity, ShadowListKitListView, Rows) -> Unit) {
     val context = instrumentation.context
-    val activity = instrumentation.startActivitySync(Intent().setClassName(context.packageName,
-      ShadowListKitBoardTestActivity::class.java.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    val activity = instrumentation.startActivitySync(
+      Intent().setClassName(
+        context.packageName,
+        ShadowListKitBoardTestActivity::class.java.name
+      ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
     lateinit var list: ShadowListKitListView
     try {
       instrumentation.runOnMainSync {
@@ -77,7 +102,10 @@ class ShadowListKitStickyHeaderOverlayTest {
     list.layoutPass()
     assertEquals(20, button.top)
     list.layoutParams = FrameLayout.LayoutParams(300, 100)
-    list.measure(View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY))
+    list.measure(
+      View.MeasureSpec.makeMeasureSpec(300, View.MeasureSpec.EXACTLY),
+      View.MeasureSpec.makeMeasureSpec(100, View.MeasureSpec.EXACTLY)
+    )
     list.layout(0, 0, 300, 100)
     list.layoutPass()
     assertEquals(1, made.size)
@@ -96,7 +124,10 @@ class ShadowListKitStickyHeaderOverlayTest {
     val made = mutableListOf<OverlayButton>()
     list.renderStickyHeaderOverlay = { key, index, _ ->
       assertEquals(source.keys[index], key)
-      OverlayButton(activity).also { it.text = source.title + ":" + key; made.add(it) }
+      OverlayButton(activity).also {
+        it.text = source.title + ":" + key
+        made.add(it)
+      }
     }
     list.layoutPass()
     val first = made[0]
@@ -122,7 +153,11 @@ class ShadowListKitStickyHeaderOverlayTest {
     assertNull(list.liveCore)
   }
 
-  @Test fun interaction_and_accessibility_use_the_overlay_and_nil_restores_the_original() = fixture { activity, list, _ ->
+  @Test fun interaction_and_accessibility_use_the_overlay_and_nil_restores_the_original() = fixture {
+      activity,
+      list,
+      _
+    ->
     val button = OverlayButton(activity)
     button.contentDescription = "Custom section action"
     var presses = 0
@@ -145,7 +180,11 @@ class ShadowListKitStickyHeaderOverlayTest {
     assertNull(button.parent)
   }
 
-  @Test fun anonymous_empty_section_uses_nil_key_and_the_public_section_index() = fixture(EmptySection()) { activity, list, _ ->
+  @Test fun anonymous_empty_section_uses_nil_key_and_the_public_section_index() = fixture(EmptySection()) {
+      activity,
+      list,
+      _
+    ->
     list.stickyIndices = intArrayOf()
     list.stickySectionHeaders = true
     var calls = 0
@@ -159,6 +198,7 @@ class ShadowListKitStickyHeaderOverlayTest {
     list.layoutPass()
     assertEquals(1, calls)
   }
+
   @Test fun horizontal_overlay_uses_the_existing_leading_axis_and_cross_size() = fixture { activity, list, _ ->
     list.horizontal = true
     list.layoutPass()
@@ -198,5 +238,4 @@ class ShadowListKitStickyHeaderOverlayTest {
     assertNull(button.parent)
     assertEquals(View.VISIBLE, original.visibility)
   }
-
 }

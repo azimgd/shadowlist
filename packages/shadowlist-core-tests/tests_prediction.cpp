@@ -49,11 +49,7 @@ void predictAll(Container& container, const std::vector<std::string>& keys, cons
  * Report real sizes in one batch like a Fabric layout pass, and return how many rows
  * changed. Zero is the goal.
  */
-std::size_t measureBatch(
-  Container& container,
-  const std::vector<double>& heights,
-  std::size_t low,
-  std::size_t high) {
+std::size_t measureBatch(Container& container, const std::vector<double>& heights, std::size_t low, std::size_t high) {
   std::size_t changedCount = 0;
   std::size_t lowestChanged = UNDEFINED_INDEX;
   for (std::size_t index = low; index <= high && index < container.revision.rows.size(); ++index) {
@@ -75,8 +71,9 @@ void checkOffsetsAreExactPrefixSums(const Container& container, const std::vecto
   for (std::size_t index = 0; index < container.revision.rows.size(); ++index) {
     const Row& row = container.revision.rows[index];
     if (row.offsetY != expected) {
-      fail(std::string(label) + ": row " + std::to_string(index) + " sits at " +
-           toStr(row.offsetY) + ", expected " + toStr(expected));
+      fail(
+        std::string(label) + ": row " + std::to_string(index) + " sits at " + toStr(row.offsetY) + ", expected " +
+        toStr(expected));
     }
     expected += heights[index];
   }
@@ -198,9 +195,7 @@ TEST(a_redundant_prediction_reflows_nothing) {
   Virtualizer::update(container, inputFor(keys, 0.0));
 
   Virtualizer::applyPredictedRowSize(container, "k5", {WINDOW_WIDTH, 500.0});
-  CHECK_EQ(
-    Virtualizer::applyPredictedRowSize(container, "k5", {WINDOW_WIDTH, 500.0}),
-    UNDEFINED_INDEX);
+  CHECK_EQ(Virtualizer::applyPredictedRowSize(container, "k5", {WINDOW_WIDTH, 500.0}), UNDEFINED_INDEX);
 }
 
 /*
@@ -227,9 +222,7 @@ TEST(a_late_prediction_never_overwrites_a_measurement) {
   Virtualizer::update(container, inputFor(keys, 0.0));
   Virtualizer::updateRowAtIndex(container, 5, {WINDOW_WIDTH, 333.0});
 
-  CHECK_EQ(
-    Virtualizer::applyPredictedRowSize(container, "k5", {WINDOW_WIDTH, 999.0}),
-    UNDEFINED_INDEX);
+  CHECK_EQ(Virtualizer::applyPredictedRowSize(container, "k5", {WINDOW_WIDTH, 999.0}), UNDEFINED_INDEX);
   CHECK_NEAR(container.revision.rows[5].height, 333.0, 0.001);
 
   // It must not be queued either, or it would overwrite the real size on the next update.
@@ -271,8 +264,8 @@ TEST(only_predicted_or_measured_rows_carry_trusted_geometry) {
   Virtualizer::update(container, inputFor(keys, 0.0));
   Virtualizer::updateRowAtIndex(container, 2, {WINDOW_WIDTH, 200.0});
 
-  CHECK(container.hasTrustedSize(1));   // predicted
-  CHECK(container.hasTrustedSize(2));   // measured
+  CHECK(container.hasTrustedSize(1)); // predicted
+  CHECK(container.hasTrustedSize(2)); // measured
   CHECK(!container.hasTrustedSize(10)); // estimate only
   CHECK(!container.hasTrustedSize(999));
 }
@@ -498,14 +491,8 @@ TEST(in_place_append_matches_a_full_rebuild) {
   CHECK_EQ(appended.revision.rows.size(), wholesale.revision.rows.size());
   for (std::size_t index = 0; index < grown.size(); ++index) {
     CHECK_EQ(appended.revision.rows[index].key, wholesale.revision.rows[index].key);
-    CHECK_NEAR(
-      appended.revision.rows[index].offsetY,
-      wholesale.revision.rows[index].offsetY,
-      0.001);
-    CHECK_NEAR(
-      appended.revision.rows[index].height,
-      wholesale.revision.rows[index].height,
-      0.001);
+    CHECK_NEAR(appended.revision.rows[index].offsetY, wholesale.revision.rows[index].offsetY, 0.001);
+    CHECK_NEAR(appended.revision.rows[index].height, wholesale.revision.rows[index].height, 0.001);
   }
   CHECK_NEAR(appended.revision.contentHeight, wholesale.revision.contentHeight, 0.001);
   CHECK_EQ(appended.revision.measuredRealCount, wholesale.revision.measuredRealCount);

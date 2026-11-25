@@ -103,7 +103,7 @@ inline std::optional<std::uint32_t> readFuzzNumber(const char* variable, std::st
   }
   std::string text = value;
   bool digits = !text.empty() && text.size() <= 10 &&
-    std::all_of(text.begin(), text.end(), [](unsigned char letter) { return std::isdigit(letter) != 0; });
+                std::all_of(text.begin(), text.end(), [](unsigned char letter) { return std::isdigit(letter) != 0; });
   unsigned long long number = digits ? std::strtoull(value, nullptr, 10) : 0;
   if (!digits || number > std::numeric_limits<std::uint32_t>::max()) {
     if (error.empty()) {
@@ -218,9 +218,7 @@ struct FuzzEpisode {
   std::uint64_t digest = FUZZ_DIGEST_BASIS;
   std::map<std::string, std::uint64_t> reached;
 
-  void reach(const std::string& kind) {
-    ++reached[kind];
-  }
+  void reach(const std::string& kind) { ++reached[kind]; }
 
   template <typename T>
   void observe(const T& value) {
@@ -248,7 +246,10 @@ struct Trail {
   bool tracing = false;
   std::vector<std::string> log;
 
-  Trail(std::uint32_t seed, FuzzEpisode& episode) : episode(episode), seed(seed), tracing(episode.tracing) {}
+  Trail(std::uint32_t seed, FuzzEpisode& episode)
+    : episode(episode),
+      seed(seed),
+      tracing(episode.tracing) {}
 
   void note(const std::string& line) {
     if (tracing) {
@@ -283,7 +284,9 @@ struct FuzzHost : Trail {
   std::unordered_map<std::string, double> trueSizes;
   std::size_t nextKey = 0;
 
-  FuzzHost(std::uint32_t seed, FuzzEpisode& episode) : Trail(seed, episode), rng(seed) {}
+  FuzzHost(std::uint32_t seed, FuzzEpisode& episode)
+    : Trail(seed, episode),
+      rng(seed) {}
 
   /*
    * The number makeKeys gave a key: 7 for r7.
@@ -332,11 +335,8 @@ inline double landingOffset(double rowStart, double rowSize, double viewPosition
  * the rows the list has now. edge is "start" or "end", and firedForCount the row count the
  * edge last fired with.
  */
-inline void checkEdgeFired(
-  const Trail& trail,
-  const std::string& edge,
-  std::size_t rowCount,
-  std::size_t firedForCount) {
+inline void
+checkEdgeFired(const Trail& trail, const std::string& edge, std::size_t rowCount, std::size_t firedForCount) {
   if (rowCount > 0 && firedForCount != rowCount) {
     trail.failWith(edge + " reached never fired at the " + edge + " of " + std::to_string(rowCount) + " rows");
   }
@@ -411,7 +411,7 @@ inline std::string fuzzBucketKey(const std::string& message) {
   };
   while (index < line.size()) {
     bool negative = line[index] == '-' && digitAt(index + 1) &&
-      (index == 0 || std::isalnum(static_cast<unsigned char>(line[index - 1])) == 0);
+                    (index == 0 || std::isalnum(static_cast<unsigned char>(line[index - 1])) == 0);
     if (!digitAt(index) && !negative) {
       key.push_back(line[index++]);
       continue;
@@ -435,8 +435,8 @@ inline std::string fuzzBucketKey(const std::string& message) {
 
 inline void addFuzzFailure(FuzzReport& report, const std::string& message, std::uint32_t seed) {
   std::string key = fuzzBucketKey(message);
-  auto found = std::find_if(report.buckets.begin(), report.buckets.end(),
-    [&](const FuzzBucket& bucket) { return bucket.key == key; });
+  auto found = std::find_if(
+    report.buckets.begin(), report.buckets.end(), [&](const FuzzBucket& bucket) { return bucket.key == key; });
   if (found == report.buckets.end()) {
     report.buckets.push_back({key, fuzzHeadline(message), seed, 0});
     found = report.buckets.end() - 1;
@@ -489,11 +489,8 @@ FuzzOutcome runFuzzEpisode(const Run& run, std::uint32_t seed, bool tracing) {
  * The kinds the seeds were bound to reach and did not, and the kinds they reached that the
  * test does not list or lists for the campaign mix only.
  */
-inline std::vector<std::string> fuzzCoverageGaps(
-  const FuzzReport& report,
-  const FuzzKinds& kinds,
-  const std::string& seedRange,
-  bool rareRequired) {
+inline std::vector<std::string>
+fuzzCoverageGaps(const FuzzReport& report, const FuzzKinds& kinds, const std::string& seedRange, bool rareRequired) {
   const FuzzOptions& options = fuzzOptions();
   std::vector<std::string> gaps;
   auto requireReached = [&](const std::string& kind) {
@@ -574,7 +571,7 @@ void forEachFuzzSeed(const std::string& test, std::uint32_t seeds, const FuzzKin
       bool sameFailure = replay.failure == outcome.failure;
       if (replay.digest != outcome.digest || !sameFailure) {
         std::string message = "seed " + std::to_string(seed) + ": determinism: a replay of the seed " +
-          (sameFailure ? "observed different frames" : "ended with a different failure");
+                              (sameFailure ? "observed different frames" : "ended with a different failure");
         if (!options.campaign) {
           fail(message);
         }
@@ -599,7 +596,8 @@ void forEachFuzzSeed(const std::string& test, std::uint32_t seeds, const FuzzKin
   }
 
   if (!report.buckets.empty()) {
-    fail("failing seeds: " + std::to_string(report.failedSeeds) + " of " + std::to_string(report.seeds) +
+    fail(
+      "failing seeds: " + std::to_string(report.failedSeeds) + " of " + std::to_string(report.seeds) +
       ", buckets: " + std::to_string(report.buckets.size()) + ", see the campaign summary");
   }
 }
@@ -632,18 +630,19 @@ inline void printFuzzCampaign(const std::string& program) {
   for (const FuzzReport& report : fuzzReports()) {
     char digest[24];
     std::snprintf(digest, sizeof(digest), "%016llx", static_cast<unsigned long long>(report.digest));
-    std::cout << "\n" << report.test << "\n  seeds run: " << report.seeds << ", from " << options.firstSeed
-      << ", failed: " << report.failedSeeds << ", digest: " << digest << "\n";
+    std::cout << "\n"
+              << report.test << "\n  seeds run: " << report.seeds << ", from " << options.firstSeed
+              << ", failed: " << report.failedSeeds << ", digest: " << digest << "\n";
     for (const FuzzBucket& bucket : report.buckets) {
       if (!bucket.firstSeed) {
         std::cout << "  " << bucket.message << "\n";
         continue;
       }
       std::cout << "  first seed " << *bucket.firstSeed << ", " << bucket.count
-        << (bucket.count == 1 ? " seed: " : " seeds: ") << bucket.message << "\n"
-        << "    " << RUN_ONLY_VARIABLE << "=" << report.test << " " << FUZZ_FIRST_SEED_VARIABLE << "="
-        << *bucket.firstSeed << " " << FUZZ_SEEDS_VARIABLE << "=1" << mix << " " << FUZZ_TRACE_VARIABLE << "="
-        << *bucket.firstSeed << " " << program << "\n";
+                << (bucket.count == 1 ? " seed: " : " seeds: ") << bucket.message << "\n"
+                << "    " << RUN_ONLY_VARIABLE << "=" << report.test << " " << FUZZ_FIRST_SEED_VARIABLE << "="
+                << *bucket.firstSeed << " " << FUZZ_SEEDS_VARIABLE << "=1" << mix << " " << FUZZ_TRACE_VARIABLE << "="
+                << *bucket.firstSeed << " " << program << "\n";
     }
     const char* separator = "  reached: ";
     for (const auto& [kind, times] : report.reached) {

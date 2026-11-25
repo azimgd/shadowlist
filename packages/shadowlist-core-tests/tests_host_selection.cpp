@@ -313,8 +313,8 @@ TEST(key_navigation_pages_a_viewport_from_the_lead_and_reveals_at_the_nearest_ed
  */
 TEST(fuzz_selection_is_the_keys_selected_in_order_through_taps_and_data_changes) {
   const FuzzKinds kinds = {
-    {"tap", "refused tap", "select", "select only", "deselect", "clear", "set keys", "toggle multiple",
-      "delete rows", "insert rows"},
+    {"tap", "refused tap", "select", "select only", "deselect", "clear", "set keys", "toggle multiple", "delete rows",
+     "insert rows"},
     {},
   };
   forEachFuzzSeed(__func__, 200, kinds, [](std::uint32_t seed, FuzzEpisode& episode) {
@@ -362,8 +362,11 @@ TEST(fuzz_selection_is_the_keys_selected_in_order_through_taps_and_data_changes)
           expected.push_back(key);
         }
         if (tap.toggledOff != togglesOff || tap.selected != (allowed && !togglesOff)) {
-          trail.failWith("a tap on " + key + " answered " + (tap.selected ? "selected" :
-            tap.toggledOff ? "toggled off" : "nothing"));
+          trail.failWith(
+            "a tap on " + key + " answered " +
+            (tap.selected     ? "selected"
+             : tap.toggledOff ? "toggled off"
+                              : "nothing"));
         }
         deselected = tap.deselected;
       } else if (roll < 42) {
@@ -427,8 +430,8 @@ TEST(fuzz_selection_is_the_keys_selected_in_order_through_taps_and_data_changes)
         episode.reach("delete rows");
         std::size_t at = pickSize(rng, 0, data.size() - 1);
         std::size_t count = std::min(pickSize(rng, 1, 6), data.size() - at);
-        data.erase(data.begin() + static_cast<std::ptrdiff_t>(at), data.begin() + static_cast<std::ptrdiff_t>(at +
-          count));
+        data.erase(
+          data.begin() + static_cast<std::ptrdiff_t>(at), data.begin() + static_cast<std::ptrdiff_t>(at + count));
         trail.note("delete " + std::to_string(count) + " rows at " + std::to_string(at));
         std::vector<std::string> kept;
         for (const std::string& held : expected) {
@@ -451,12 +454,15 @@ TEST(fuzz_selection_is_the_keys_selected_in_order_through_taps_and_data_changes)
         trail.failWith(std::string("the call said the selection ") + (changed ? "changed" : "stayed"));
       }
       if (deselected != expectedDeselected) {
-        trail.failWith("the call deselected " + std::to_string(deselected.size()) + " rows, expected " +
+        trail.failWith(
+          "the call deselected " + std::to_string(deselected.size()) + " rows, expected " +
           std::to_string(expectedDeselected.size()));
       }
-      if (selection.getKeys() != expected || selection.getCount() != expected.size() ||
+      if (
+        selection.getKeys() != expected || selection.getCount() != expected.size() ||
         selection.isEmpty() != expected.empty()) {
-        trail.failWith("the selection holds " + std::to_string(selection.getCount()) + " keys, expected " +
+        trail.failWith(
+          "the selection holds " + std::to_string(selection.getCount()) + " keys, expected " +
           std::to_string(expected.size()) + " in the order they were selected");
       }
       std::vector<std::size_t> indices;

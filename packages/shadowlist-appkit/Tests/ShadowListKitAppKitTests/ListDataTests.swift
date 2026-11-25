@@ -28,7 +28,7 @@ final class ListDataTests: XCTestCase {
 
   private func harnessInMiddle(_ source: TestSource) -> ListHarness {
     let harness = ListHarness(source: source)
-    for step in 1...10 {
+    for step in 1 ... 10 {
       harness.list.contentOffset = CGPoint(x: 0, y: CGFloat(step) * 300)
       harness.layout()
     }
@@ -40,12 +40,12 @@ final class ListDataTests: XCTestCase {
     let harness = harnessInMiddle(source)
     let before = harness.visibleKeys()
     XCTAssertGreaterThan(before.count, 5)
-    let added = (0..<25).map { "new-\($0)" }
+    let added = (0 ..< 25).map { "new-\($0)" }
     for key in added {
       source.heights[key] = 70
     }
     source.keys.insert(contentsOf: added, at: 0)
-    harness.list.insertItems(at: IndexSet(0..<25))
+    harness.list.insertItems(at: IndexSet(0 ..< 25))
     harness.layout()
     let (shift, kept) = harness.maxShift(from: before)
     XCTAssertLessThan(shift, 0.5)
@@ -58,7 +58,7 @@ final class ListDataTests: XCTestCase {
     let source = makeSource(count: 400)
     let harness = harnessInMiddle(source)
     let before = harness.visibleKeys()
-    source.keys.insert(contentsOf: (0..<40).map { "older-\($0)" }, at: 0)
+    source.keys.insert(contentsOf: (0 ..< 40).map { "older-\($0)" }, at: 0)
     harness.list.reloadData()
     harness.layout()
     let (shift, kept) = harness.maxShift(from: before)
@@ -70,8 +70,8 @@ final class ListDataTests: XCTestCase {
     let source = makeSource(count: 400)
     let harness = harnessInMiddle(source)
     let before = harness.visibleKeys()
-    source.keys.removeSubrange(0..<10)
-    harness.list.deleteItems(at: IndexSet(0..<10))
+    source.keys.removeSubrange(0 ..< 10)
+    harness.list.deleteItems(at: IndexSet(0 ..< 10))
     harness.layout()
     XCTAssertLessThan(harness.maxShift(from: before).shift, 0.5)
 
@@ -88,7 +88,7 @@ final class ListDataTests: XCTestCase {
     XCTAssertEqual((harness.list.cellForItem(at: first) as? TestCell)?.key, source.keys[first])
   }
 
-  func testMoveItemReordersTheRows() throws {
+  func testMoveItemReordersTheRows() {
     let source = makeSource(count: 50)
     let harness = ListHarness(source: source)
     let moved = source.keys.remove(at: 4)
@@ -119,7 +119,7 @@ final class ListDataTests: XCTestCase {
     }
     harness.layout()
     wait(for: [finished], timeout: 1)
-    let keys = (0..<6).compactMap { (harness.list.cellForItem(at: $0) as? TestCell)?.key }
+    let keys = (0 ..< 6).compactMap { (harness.list.cellForItem(at: $0) as? TestCell)?.key }
     XCTAssertEqual(keys, ["a", "b", "item-0", "item-2", "item-4", "item-5"])
     XCTAssertEqual(reloadedCell.reconfigured, 1)
     XCTAssertEqual((harness.list.cellForItem(at: 6) as? TestCell)?.key, "item-6")
@@ -142,7 +142,9 @@ final class ListDataTests: XCTestCase {
   func testAnInvertedListThatShrinksToAFewRowsReachesItsEnd() {
     final class Edges: NSObject, ShadowListKitListViewDelegate {
       var ends = 0
-      func listViewDidReachEnd(_ listView: ShadowListKitListView) { ends += 1 }
+      func listViewDidReachEnd(_ listView: ShadowListKitListView) {
+        ends += 1
+      }
     }
     let edges = Edges()
     let source = makeSource(count: 400)
@@ -172,7 +174,7 @@ final class ListDataTests: XCTestCase {
     list.contentOffset = CGPoint(x: 0, y: 3000)
     harness.layout()
     source.keys = Array(source.keys.prefix(13))
-    list.deleteItems(at: IndexSet(13..<400))
+    list.deleteItems(at: IndexSet(13 ..< 400))
     XCTAssertEqual(list.contentOffset.y, list.contentSize.height - 480, accuracy: 0.01)
     harness.layout()
     XCTAssertEqual(list.contentSize.height, 666, accuracy: 0.01)

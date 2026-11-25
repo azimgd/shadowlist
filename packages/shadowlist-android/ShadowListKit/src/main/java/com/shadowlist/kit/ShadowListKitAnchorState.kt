@@ -15,7 +15,8 @@ class ShadowListKitAnchorState(val key: String, val offset: Float) : Parcelable 
 
   override fun describeContents(): Int = 0
 
-  override fun equals(other: Any?): Boolean = other is ShadowListKitAnchorState && other.key == key && other.offset == offset
+  override fun equals(other: Any?): Boolean =
+    other is ShadowListKitAnchorState && other.key == key && other.offset == offset
   override fun hashCode(): Int = key.hashCode() * 31 + offset.hashCode()
   override fun toString(): String = "ShadowListKitAnchorState(key=$key, offset=$offset)"
 

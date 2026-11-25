@@ -7,7 +7,7 @@ import androidx.core.view.ViewCompat
 /* Native custom action ids compose with the caller's actions and resolve the current host. */
 internal class ShadowListKitSwipeAccessibility(
   private val view: View,
-  private val resolve: () -> Pair<ShadowListKitSwipeController, ShadowListKitListCell>?,
+  private val resolve: () -> Pair<ShadowListKitSwipeController, ShadowListKitListCell>?
 ) {
   private var actions = emptyList<AccessibilityNodeInfo.AccessibilityAction>()
   private var entries = emptyList<Pair<Int, String>>()

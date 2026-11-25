@@ -23,7 +23,8 @@ NS_SWIFT_UI_ACTOR
  * The engine moved the offset, from a wheel event, a frame or stopScrolling. Rubber banding
  * puts it past the content's edges.
  */
-- (void)scrollEngine:(ShadowListKitScrollEngine *)engine didScrollToOffset:(CGPoint)offset NS_SWIFT_NAME(scrollEngine(_:didScrollTo:));
+- (void)scrollEngine:(ShadowListKitScrollEngine *)engine
+   didScrollToOffset:(CGPoint)offset NS_SWIFT_NAME(scrollEngine(_:didScrollTo:));
 
 @optional
 
@@ -43,7 +44,8 @@ NS_SWIFT_UI_ACTOR
  * Where a gesture coming to rest at offset rests instead, like the nearest item edge. The engine
  * eases there and stays settling until it arrives.
  */
-- (CGPoint)scrollEngine:(ShadowListKitScrollEngine *)engine restingOffsetForOffset:(CGPoint)offset NS_SWIFT_NAME(scrollEngine(_:restingOffsetFor:));
+- (CGPoint)scrollEngine:(ShadowListKitScrollEngine *)engine
+  restingOffsetForOffset:(CGPoint)offset NS_SWIFT_NAME(scrollEngine(_:restingOffsetFor:));
 
 @end
 

@@ -61,14 +61,12 @@ struct ListSettings {
 
   friend bool operator==(const ListSettings& a, const ListSettings& b) {
     return a.estimatedRowSize == b.estimatedRowSize && a.overscan == b.overscan &&
-      a.startReachedThreshold == b.startReachedThreshold && a.endReachedThreshold == b.endReachedThreshold &&
-      a.numberOfColumns == b.numberOfColumns && a.inverted == b.inverted && a.followAppends == b.followAppends &&
-      a.horizontal == b.horizontal && a.snapToItem == b.snapToItem && a.snapAlignment == b.snapAlignment;
+           a.startReachedThreshold == b.startReachedThreshold && a.endReachedThreshold == b.endReachedThreshold &&
+           a.numberOfColumns == b.numberOfColumns && a.inverted == b.inverted && a.followAppends == b.followAppends &&
+           a.horizontal == b.horizontal && a.snapToItem == b.snapToItem && a.snapAlignment == b.snapAlignment;
   }
 
-  friend bool operator!=(const ListSettings& a, const ListSettings& b) {
-    return !(a == b);
-  }
+  friend bool operator!=(const ListSettings& a, const ListSettings& b) { return !(a == b); }
 };
 
 /*
@@ -168,12 +166,10 @@ struct MountInputs {
 
   friend bool operator==(const MountInputs& a, const MountInputs& b) {
     return a.windowAlong == b.windowAlong && a.pad == b.pad && a.leadingInset == b.leadingInset &&
-      a.trailingInset == b.trailingInset;
+           a.trailingInset == b.trailingInset;
   }
 
-  friend bool operator!=(const MountInputs& a, const MountInputs& b) {
-    return !(a == b);
-  }
+  friend bool operator!=(const MountInputs& a, const MountInputs& b) { return !(a == b); }
 };
 
 /*
@@ -237,10 +233,8 @@ public:
    * like a browser laying out once for all the rows it styled. sizes gets one size along the
    * scroll axis per index.
    */
-  using MeasureRows = std::function<void(
-    const std::vector<std::size_t>& indices,
-    const std::vector<double>& crossSizes,
-    std::vector<double>& sizes)>;
+  using MeasureRows = std::function<
+    void(const std::vector<std::size_t>& indices, const std::vector<double>& crossSizes, std::vector<double>& sizes)>;
 
   /*
    * Hears the rows to prefetch and to cancel, low to high, from runPasses with PassInput's
@@ -290,8 +284,8 @@ public:
 
   /* Changed config positions start a new observation; equal configs keep their reports. */
   std::vector<std::size_t> setViewabilityConfigs(std::vector<ViewabilityConfig> configs, double now = 0.0);
-  std::vector<std::pair<std::size_t, ViewabilityReport>> updateViewability(
-    double offset, double windowAlong, double now, const ListSections* sections = nullptr);
+  std::vector<std::pair<std::size_t, ViewabilityReport>>
+  updateViewability(double offset, double windowAlong, double now, const ListSections* sections = nullptr);
   void recordInteraction(double now);
   void resetViewability();
   bool isViewabilityWaiting() const;
@@ -411,12 +405,8 @@ public:
    * view before and after the window, like the area under translucent bars or padding with
    * clipping off. Rows there show and are mounted too.
    */
-  MountPlan planMount(
-    double offset,
-    double windowAlong,
-    double pad,
-    double leadingInset = 0.0,
-    double trailingInset = 0.0) const;
+  MountPlan
+  planMount(double offset, double windowAlong, double pad, double leadingInset = 0.0, double trailingInset = 0.0) const;
 
   /*
    * Whether a row in the plan's range gets mounted. In a masonry grid a row inside the index

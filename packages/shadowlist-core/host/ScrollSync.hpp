@@ -202,11 +202,10 @@ public:
   };
 
   ScrollSync() = default;
-  explicit ScrollSync(Options options) : options_(options) {}
+  explicit ScrollSync(Options options)
+    : options_(options) {}
 
-  void setHorizontal(bool horizontal) {
-    horizontal_ = horizontal;
-  }
+  void setHorizontal(bool horizontal) { horizontal_ = horizontal; }
 
   /*
    * Forget everything, for a view recycled into another list.
@@ -221,9 +220,7 @@ public:
   /*
    * Set around the content size write. The clamp it causes is not taken for the user.
    */
-  void setApplyingContentSize(bool applying) {
-    applyingContentSize_ = applying;
-  }
+  void setApplyingContentSize(bool applying) { applyingContentSize_ = applying; }
 
   /*
    * What to do with the mounted state's correction, if any.
@@ -246,9 +243,7 @@ public:
    */
   bool concealAckDue(bool jumpPending) const;
 
-  void endMount() {
-    mounting_ = false;
-  }
+  void endMount() { mounting_ = false; }
 
   FrameReport onScroll(const ScrollFrame& frame);
 
@@ -257,7 +252,12 @@ public:
    * user. An animated one lasts until it lands on the target, or until a frame in the
    * Dragging phase shows a finger took over.
    */
-  void arm(double offsetX, double offsetY, bool animated, std::uint64_t token = 0, bool exact = false,
+  void arm(
+    double offsetX,
+    double offsetY,
+    bool animated,
+    std::uint64_t token = 0,
+    bool exact = false,
     std::uint64_t revision = 0);
 
   /*
@@ -265,13 +265,9 @@ public:
    */
   void disarm();
 
-  bool isArmed() const {
-    return armed_;
-  }
+  bool isArmed() const { return armed_; }
 
-  bool isArmedAnimated() const {
-    return armed_ && armedAnimated_;
-  }
+  bool isArmedAnimated() const { return armed_ && armedAnimated_; }
 
   /*
    * The host stopped a fling or animation. Forget any scroll of ours waiting for its frame.
@@ -315,9 +311,7 @@ public:
   /*
    * Whether an animated command is on its way and waits for land.
    */
-  bool isLanding() const {
-    return landing_;
-  }
+  bool isLanding() const { return landing_; }
 
   /*
    * Ask the core for the anchor at the live offset. The sequence goes past the previous one.
@@ -331,13 +325,9 @@ public:
   bool isCurrentUserScrolled() const;
   double getCurrentScrollPhase() const;
 
-  std::uint64_t getEchoedRevision() const {
-    return echoedRevision_;
-  }
+  std::uint64_t getEchoedRevision() const { return echoedRevision_; }
 
-  std::uint64_t getEchoedToken() const {
-    return echoedToken_;
-  }
+  std::uint64_t getEchoedToken() const { return echoedToken_; }
 
 private:
   LiveScroll::Report writeReport(
@@ -357,9 +347,7 @@ private:
   void release();
   bool reportNeedsCommit(const LiveScroll::Report& report, bool commitEveryFrame) const;
 
-  double along(double x, double y) const {
-    return horizontal_ ? x : y;
-  }
+  double along(double x, double y) const { return horizontal_ ? x : y; }
 
   Options options_;
   bool horizontal_ = false;

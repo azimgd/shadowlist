@@ -69,10 +69,9 @@ static const CGFloat SL_REFRESH_REVEAL_FALLBACK = 60.0;
       [_refreshControl beginRefreshing];
       // Scroll to show the spinner when refresh starts from code. A pull already shows it.
       if (!_dragging && !_dragDropPending && _scrollView.contentOffset.y >= 0) {
-        CGFloat reveal = _refreshControl.frame.size.height > 0
-          ? _refreshControl.frame.size.height : SL_REFRESH_REVEAL_FALLBACK;
-        [_scrollView setContentOffset:CGPointMake(_scrollView.contentOffset.x,
-                                                  _scrollView.contentOffset.y - reveal)
+        CGFloat reveal =
+          _refreshControl.frame.size.height > 0 ? _refreshControl.frame.size.height : SL_REFRESH_REVEAL_FALLBACK;
+        [_scrollView setContentOffset:CGPointMake(_scrollView.contentOffset.x, _scrollView.contentOffset.y - reveal)
                              animated:YES];
       }
     }
@@ -123,31 +122,26 @@ static const CGFloat SL_REFRESH_REVEAL_FALLBACK = 60.0;
  */
 - (BOOL)refreshInProgress
 {
-  return _refreshPhase == SLRefreshPhase::Refreshing ||
-    _refreshPhase == SLRefreshPhase::RefreshingAwaiting;
+  return _refreshPhase == SLRefreshPhase::Refreshing || _refreshPhase == SLRefreshPhase::RefreshingAwaiting;
 }
 
 - (BOOL)refreshSettleRequested
 {
-  return _refreshPhase == SLRefreshPhase::RefreshingAwaiting ||
-    _refreshPhase == SLRefreshPhase::RetractingAwaiting ||
-    _refreshPhase == SLRefreshPhase::Awaiting;
+  return _refreshPhase == SLRefreshPhase::RefreshingAwaiting || _refreshPhase == SLRefreshPhase::RetractingAwaiting ||
+         _refreshPhase == SLRefreshPhase::Awaiting;
 }
 
 - (void)transitionRefresh:(SLRefreshEvent)event
 {
   switch (event) {
     case SLRefreshEvent::Begin:
-      _refreshPhase = [self refreshSettleRequested]
-        ? SLRefreshPhase::RefreshingAwaiting : SLRefreshPhase::Refreshing;
+      _refreshPhase = [self refreshSettleRequested] ? SLRefreshPhase::RefreshingAwaiting : SLRefreshPhase::Refreshing;
       break;
     case SLRefreshEvent::End:
       if (_refreshControl) {
-        _refreshPhase = [self refreshSettleRequested]
-          ? SLRefreshPhase::RetractingAwaiting : SLRefreshPhase::Retracting;
+        _refreshPhase = [self refreshSettleRequested] ? SLRefreshPhase::RetractingAwaiting : SLRefreshPhase::Retracting;
       } else {
-        _refreshPhase = [self refreshSettleRequested]
-          ? SLRefreshPhase::Awaiting : SLRefreshPhase::Rest;
+        _refreshPhase = [self refreshSettleRequested] ? SLRefreshPhase::Awaiting : SLRefreshPhase::Rest;
       }
       break;
     case SLRefreshEvent::Await:
@@ -167,11 +161,10 @@ static const CGFloat SL_REFRESH_REVEAL_FALLBACK = 60.0;
       }
       break;
     case SLRefreshEvent::Check:
-      if (_refreshPhase == SLRefreshPhase::Awaiting &&
-          !_scrollSync.isLanding() && !_scrollSync.isArmedAnimated() && _landCommandSequence == 0 &&
-          !_scrollingToTop && !_scrollToTopJumpPending &&
-          !_scrollView.isDragging && !_scrollView.isTracking && !_scrollView.isDecelerating &&
-          _scrollView.contentOffset.y >= -1.0) {
+      if (
+        _refreshPhase == SLRefreshPhase::Awaiting && !_scrollSync.isLanding() && !_scrollSync.isArmedAnimated() &&
+        _landCommandSequence == 0 && !_scrollingToTop && !_scrollToTopJumpPending && !_scrollView.isDragging &&
+        !_scrollView.isTracking && !_scrollView.isDecelerating && _scrollView.contentOffset.y >= -1.0) {
         _refreshPhase = SLRefreshPhase::Sent;
         [self emitRefreshSettle];
       }

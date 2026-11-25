@@ -1,5 +1,3 @@
 #include "ShadowListTemplateViewShadowNode.h"
 
-namespace facebook::react {
-
-}
+namespace facebook::react {}

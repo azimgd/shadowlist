@@ -21,9 +21,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-enum class SLRefreshPhase {
-  Rest, Refreshing, RefreshingAwaiting, Retracting, RetractingAwaiting, Awaiting, Sent
-};
+enum class SLRefreshPhase { Rest, Refreshing, RefreshingAwaiting, Retracting, RetractingAwaiting, Awaiting, Sent };
 enum class SLRefreshEvent { Begin, End, Await, Retracted, Check, Reset };
 enum class SLAnchorRequest { Idle, Parked };
 enum class SLAnchorEvent { Request, Ready, Reset };
@@ -139,9 +137,7 @@ static inline void SLCancelReactTouches(UIView *view)
 {
   static Class touchHandlerClass;
   static dispatch_once_t once;
-  dispatch_once(&once, ^{
-    touchHandlerClass = NSClassFromString(@"RCTSurfaceTouchHandler");
-  });
+  dispatch_once(&once, ^{ touchHandlerClass = NSClassFromString(@"RCTSurfaceTouchHandler"); });
   if (!touchHandlerClass) {
     return;
   }
@@ -175,12 +171,11 @@ static inline BOOL SLFrameTraceEnabled(void)
   return enabled;
 }
 
-#define SLF_TRACE(fmt, ...)                                                    \
-  do {                                                                         \
-    if (SLFrameTraceEnabled()) {                                               \
-      printf("[SLF] t=%.4f id=%ld " fmt "\n", CACurrentMediaTime(),            \
-        (long)self.tag, ##__VA_ARGS__);                                        \
-    }                                                                          \
+#define SLF_TRACE(fmt, ...)                                                                                            \
+  do {                                                                                                                 \
+    if (SLFrameTraceEnabled()) {                                                                                       \
+      printf("[SLF] t=%.4f id=%ld " fmt "\n", CACurrentMediaTime(), (long)self.tag, ##__VA_ARGS__);                    \
+    }                                                                                                                  \
   } while (0)
 #else
 #define SLF_TRACE(...) ((void)0)
@@ -365,7 +360,9 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (azimgd::shadowlist::ScrollPatch)livePatch;
 - (void)clearUserScrolled;
 
-- (void)commitDragEventType:(int)type sourceKey:(nullable NSString *)sourceKey destinationKey:(nullable NSString *)destinationKey;
+- (void)commitDragEventType:(int)type
+                  sourceKey:(nullable NSString *)sourceKey
+             destinationKey:(nullable NSString *)destinationKey;
 - (void)commitDragEventType:(int)type
                   sourceKey:(nullable NSString *)sourceKey
              destinationKey:(nullable NSString *)destinationKey

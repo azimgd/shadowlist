@@ -63,7 +63,9 @@ open class ShadowListKitDefaultItemAnimator : ShadowListKitItemAnimator {
           Event.LayoutFinished -> state = State.Waiting(current.animations)
           Event.Discarded -> Unit
         }
+
         is State.Waiting -> if (event is Event.Ended) current.animations.remove(event.animation)
+
         State.Complete -> Unit
       }
       val waiting = state as? State.Waiting ?: return

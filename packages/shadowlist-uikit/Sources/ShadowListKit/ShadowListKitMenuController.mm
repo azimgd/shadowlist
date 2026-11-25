@@ -10,7 +10,10 @@
 
 - (instancetype)initWithHost:(id<ShadowListKitMenuHost>)host
 {
-  if (self = [super init]) { _host = host; [self refresh]; }
+  if (self = [super init]) {
+    _host = host;
+    [self refresh];
+  }
   return self;
 }
 
@@ -40,15 +43,21 @@
 }
 
 - (UIContextMenuConfiguration *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
-                    configurationForMenuAtLocation:(CGPoint)location
+                        configurationForMenuAtLocation:(CGPoint)location
 {
   id<ShadowListKitMenuHost> host = _host;
   UIView *content = [host menuContentAtPoint:location];
-  if (!content || ![host canShowMenuForContent:content] || ![host isMenuContentValid:content]) return nil;
+  if (!content || ![host canShowMenuForContent:content] || ![host isMenuContentValid:content]) {
+    return nil;
+  }
   UIMenu *menu = [host menuForContent:content];
-  if (!menu.children.count || ![host isMenuContentValid:content]) return nil;
-  return [UIContextMenuConfiguration configurationWithIdentifier:[host menuIdentifierForContent:content]
-    previewProvider:nil actionProvider:^UIMenu *(NSArray<UIMenuElement *> *) { return menu; }];
+  if (!menu.children.count || ![host isMenuContentValid:content]) {
+    return nil;
+  }
+  return
+    [UIContextMenuConfiguration configurationWithIdentifier:[host menuIdentifierForContent:content]
+                                            previewProvider:nil
+                                             actionProvider:^UIMenu *(NSArray<UIMenuElement *> *) { return menu; }];
 }
 
 - (UITargetedPreview *)previewForConfiguration:(UIContextMenuConfiguration *)configuration
@@ -58,15 +67,15 @@
 }
 
 - (UITargetedPreview *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
-                            configuration:(UIContextMenuConfiguration *)configuration
-    highlightPreviewForItemWithIdentifier:(id<NSCopying>)identifier
+                                configuration:(UIContextMenuConfiguration *)configuration
+        highlightPreviewForItemWithIdentifier:(id<NSCopying>)identifier
 {
   return [self previewForConfiguration:configuration];
 }
 
 - (UITargetedPreview *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
-                            configuration:(UIContextMenuConfiguration *)configuration
-    dismissalPreviewForItemWithIdentifier:(id<NSCopying>)identifier
+                                configuration:(UIContextMenuConfiguration *)configuration
+        dismissalPreviewForItemWithIdentifier:(id<NSCopying>)identifier
 {
   return [self previewForConfiguration:configuration];
 }
@@ -76,23 +85,30 @@
                          animator:(id<UIContextMenuInteractionAnimating>)animator
 {
   UIView *content = [_host menuContentForIdentifier:configuration.identifier];
-  if (interaction == _interaction && content && [_host isMenuContentValid:content]) [_host contextMenuWillShowForContent:content];
+  if (interaction == _interaction && content && [_host isMenuContentValid:content]) {
+    [_host contextMenuWillShowForContent:content];
+  }
 }
 
 - (BOOL)showMenuForContent:(UIView *)content atPoint:(CGPoint)point
 {
-  if (!_editMenu || ![_host isMenuContentValid:content]) return NO;
+  if (!_editMenu || ![_host isMenuContentValid:content]) {
+    return NO;
+  }
   UIMenu *menu = [_host menuForContent:content];
-  if (!menu.children.count || ![_host isMenuContentValid:content]) return NO;
+  if (!menu.children.count || ![_host isMenuContentValid:content]) {
+    return NO;
+  }
   _pendingMenu = menu;
   _pendingContent = content;
-  [_editMenu presentEditMenuWithConfiguration:[UIEditMenuConfiguration configurationWithIdentifier:nil sourcePoint:point]];
+  [_editMenu presentEditMenuWithConfiguration:[UIEditMenuConfiguration configurationWithIdentifier:nil
+                                                                                       sourcePoint:point]];
   return YES;
 }
 
 - (UIMenu *)editMenuInteraction:(UIEditMenuInteraction *)interaction
-          menuForConfiguration:(UIEditMenuConfiguration *)configuration
-              suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions
+           menuForConfiguration:(UIEditMenuConfiguration *)configuration
+               suggestedActions:(NSArray<UIMenuElement *> *)suggestedActions
 {
   UIMenu *menu = _pendingMenu;
   _pendingMenu = nil;
@@ -104,7 +120,9 @@
                          animator:(id<UIEditMenuInteractionAnimating>)animator
 {
   UIView *content = _pendingContent;
-  if (interaction == _editMenu && content && [_host isMenuContentValid:content]) [_host contextMenuWillShowForContent:content];
+  if (interaction == _editMenu && content && [_host isMenuContentValid:content]) {
+    [_host contextMenuWillShowForContent:content];
+  }
 }
 
 @end

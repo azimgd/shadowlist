@@ -98,9 +98,7 @@ public:
   /*
    * Whether a step waits for the host's next frame.
    */
-  bool hasStep() const {
-    return !pending_ && step_.has_value();
-  }
+  bool hasStep() const { return !pending_ && step_.has_value(); }
 
   /*
    * The prepared step, sent now. Nothing while a range is in flight.
@@ -110,9 +108,7 @@ public:
   /*
    * Whether a range is sent and not applied yet.
    */
-  bool isPending() const {
-    return pending_;
-  }
+  bool isPending() const { return pending_; }
 
 private:
   /*

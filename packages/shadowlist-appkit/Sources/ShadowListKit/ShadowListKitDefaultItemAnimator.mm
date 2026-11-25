@@ -39,7 +39,9 @@ static const NSTimeInterval SHADOWLIST_KIT_CHANGE_DURATION = azimgd::shadowlist:
   [cell.layer addAnimation:[self animationOf:@"opacity" from:@0 to:@1] forKey:@"shadowListKitInsert"];
 }
 
-- (void)listView:(ShadowListKitListView *)listView animateDeleteOfCell:(ShadowListKitListCell *)cell completion:(void (^)(void))completion
+- (void)listView:(ShadowListKitListView *)listView
+  animateDeleteOfCell:(ShadowListKitListCell *)cell
+           completion:(void (^)(void))completion
 {
   CABasicAnimation *fade = [self animationOf:@"opacity" from:@1 to:@0];
   fade.fillMode = kCAFillModeForwards;
@@ -53,7 +55,9 @@ static const NSTimeInterval SHADOWLIST_KIT_CHANGE_DURATION = azimgd::shadowlist:
   [CATransaction commit];
 }
 
-- (void)listView:(ShadowListKitListView *)listView animateMoveOfCell:(ShadowListKitListCell *)cell fromOffset:(CGPoint)offset
+- (void)listView:(ShadowListKitListView *)listView
+  animateMoveOfCell:(ShadowListKitListCell *)cell
+         fromOffset:(CGPoint)offset
 {
   if (offset.x == 0 && offset.y == 0) {
     return;

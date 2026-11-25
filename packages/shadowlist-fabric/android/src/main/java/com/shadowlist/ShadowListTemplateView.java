@@ -47,9 +47,7 @@ public class ShadowListTemplateView extends ViewGroup {
    * renderer still processes every frame. Drop the outline then. A styled template
    * keeps its outline and its shadow.
    */
-  private void updateOutline() {
-    setOutlineProvider(getBackground() == null ? null : ViewOutlineProvider.BACKGROUND);
-  }
+  private void updateOutline() { setOutlineProvider(getBackground() == null ? null : ViewOutlineProvider.BACKGROUND); }
 
   @Override
   @SuppressWarnings("deprecation")
@@ -72,15 +70,12 @@ public class ShadowListTemplateView extends ViewGroup {
     }
   }
 
-  public String getTemplateType() {
-    return mTemplateType;
-  }
+  public String getTemplateType() { return mTemplateType; }
 
   /*
    * The list attaches its listeners on mount and passes null on unmount.
    */
-  void setListListeners(
-      @Nullable View.OnLayoutChangeListener layoutListener, @Nullable Runnable typeListener) {
+  void setListListeners(@Nullable View.OnLayoutChangeListener layoutListener, @Nullable Runnable typeListener) {
     if (mListLayoutListener != null) {
       removeOnLayoutChangeListener(mListLayoutListener);
     }
@@ -100,7 +95,7 @@ public class ShadowListTemplateView extends ViewGroup {
     removeAllViews();
     ViewParent parent = getParent();
     if (parent instanceof ViewGroup) {
-      ((ViewGroup) parent).removeView(this);
+      ((ViewGroup)parent).removeView(this);
     }
   }
 }

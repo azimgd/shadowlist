@@ -5,18 +5,30 @@ import XCTest
 @MainActor
 final class PredictiveSizeSpecsTests: XCTestCase {
   private final class Source: NSObject, ShadowListKitListViewDataSource {
-    var keys = (0..<200).map { "spec-\($0)" }
-    func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
-    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+    var keys = (0 ..< 200).map { "spec-\($0)" }
+    func numberOfItems(in listView: ShadowListKitListView) -> Int {
+      keys.count
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+      keys[index]
+    }
+
     func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
       listView.dequeueReusableCell(withIdentifier: "cell")
     }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 40 }
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      40
+    }
   }
 
   private func drain(_ list: ShadowListKitListView) {
-    for _ in 0..<8 { list.setNeedsLayout(); list.layoutIfNeeded() }
+    for _ in 0 ..< 8 {
+      list.setNeedsLayout(); list.layoutIfNeeded()
+    }
   }
+
   private func makeList() -> (ShadowListKitListView, Source) {
     let list = ShadowListKitListView(frame: CGRect(x: 0, y: 0, width: 320, height: 400))
     let source = Source()

@@ -25,8 +25,7 @@ import java.util.List;
  * Events only fire when the Activity uses SOFT_INPUT_ADJUST_RESIZE.
  */
 @ReactModule(name = ShadowListKeyboardModule.NAME)
-public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
-    implements LifecycleEventListener {
+public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec implements LifecycleEventListener {
   public static final String NAME = "ShadowListKeyboard";
 
   /*
@@ -132,9 +131,8 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
 
     @NonNull
     @Override
-    public WindowInsetsAnimationCompat.BoundsCompat onStart(
-      @NonNull WindowInsetsAnimationCompat animation,
-      @NonNull WindowInsetsAnimationCompat.BoundsCompat bounds) {
+    public WindowInsetsAnimationCompat.BoundsCompat
+    onStart(@NonNull WindowInsetsAnimationCompat animation, @NonNull WindowInsetsAnimationCompat.BoundsCompat bounds) {
       ShadowListKeyboardModule module = mModuleRef.get();
       if (module == null || module.mInvalidated) {
         return bounds;
@@ -153,9 +151,8 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
 
     @NonNull
     @Override
-    public WindowInsetsCompat onProgress(
-      @NonNull WindowInsetsCompat insets,
-      @NonNull List<WindowInsetsAnimationCompat> runningAnimations) {
+    public WindowInsetsCompat
+    onProgress(@NonNull WindowInsetsCompat insets, @NonNull List<WindowInsetsAnimationCompat> runningAnimations) {
       ShadowListKeyboardModule module = mModuleRef.get();
       if (module == null || module.mInvalidated) {
         return insets;

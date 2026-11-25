@@ -69,12 +69,8 @@ inline double sizeOf(const azimgd::shadowlist::Container& container, std::size_t
  * Done the slow and obvious way so measured range checks have something to compare against.
  */
 inline std::set<std::size_t> overlappingIndices(const azimgd::shadowlist::Container& container, double overscanUnits) {
-  double windowSize = container.horizontal
-    ? container.revision.windowWidth
-    : container.revision.windowHeight;
-  double offset = container.horizontal
-    ? container.revision.offsetX
-    : container.revision.offsetY;
+  double windowSize = container.horizontal ? container.revision.windowWidth : container.revision.windowHeight;
+  double offset = container.horizontal ? container.revision.offsetX : container.revision.offsetY;
   double bandSize = windowSize * overscanUnits;
   double lowerBound = offset - bandSize;
   double upperBound = offset + windowSize + bandSize;

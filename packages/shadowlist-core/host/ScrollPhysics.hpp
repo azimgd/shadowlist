@@ -108,13 +108,8 @@ struct ScrollerThumb {
   double end() const { return start + length; }
 };
 
-ScrollerThumb scrollerThumb(
-  double total,
-  double view,
-  double offset,
-  double trackStart,
-  double inset,
-  double minLength);
+ScrollerThumb
+scrollerThumb(double total, double view, double offset, double trackStart, double inset, double minLength);
 
 /*
  * The offset a dragged thumb puts the content at: where its start, held grabOffset from the

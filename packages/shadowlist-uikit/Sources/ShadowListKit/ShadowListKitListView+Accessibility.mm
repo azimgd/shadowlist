@@ -20,21 +20,28 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
  */
 static id ShadowListKitHeadingTarget(UIView *view)
 {
-  if (!view || view.hidden || view.accessibilityElementsHidden) return nil;
-  if (view.isAccessibilityElement && view.accessibilityLabel.length > 0) return view;
+  if (!view || view.hidden || view.accessibilityElementsHidden) {
+    return nil;
+  }
+  if (view.isAccessibilityElement && view.accessibilityLabel.length > 0) {
+    return view;
+  }
   NSArray *elements = view.accessibilityElements;
   if (elements) {
     for (id element in elements) {
-      id target = [element isKindOfClass:[UIView class]]
-        ? ShadowListKitHeadingTarget(element)
-        : ([element accessibilityLabel].length > 0 ? element : nil);
-      if (target) return target;
+      id target = [element isKindOfClass:[UIView class]] ? ShadowListKitHeadingTarget(element)
+                                                         : ([element accessibilityLabel].length > 0 ? element : nil);
+      if (target) {
+        return target;
+      }
     }
     return nil;
   }
   for (UIView *child in view.subviews) {
     id target = ShadowListKitHeadingTarget(child);
-    if (target) return target;
+    if (target) {
+      return target;
+    }
   }
   return nil;
 }
@@ -57,9 +64,7 @@ static id ShadowListKitHeadingTarget(UIView *view)
   NSString *key = _key;
   __weak ShadowListKitListView *weakList = (ShadowListKitListView *)self.accessibilityContainer;
   // Scroll after the focus change finishes, then hand focus to the mounted cell.
-  dispatch_async(dispatch_get_main_queue(), ^{
-    [weakList focusAccessibilityRowForKey:key];
-  });
+  dispatch_async(dispatch_get_main_queue(), ^{ [weakList focusAccessibilityRowForKey:key]; });
 }
 
 @end
@@ -76,39 +81,53 @@ static id ShadowListKitHeadingTarget(UIView *view)
 - (NSArray<UIAccessibilityCustomRotor *> *)accessibilityCustomRotors
 {
   NSArray<UIAccessibilityCustomRotor *> *custom = [super accessibilityCustomRotors];
-  if (custom || !_sections.isSectioned() || _sections.headerRows().empty()) return custom;
+  if (custom || !_sections.isSectioned() || _sections.headerRows().empty()) {
+    return custom;
+  }
   if (!_sectionHeaderRotor) {
     __weak ShadowListKitListView *weakList = self;
     _sectionHeaderRotor = [[UIAccessibilityCustomRotor alloc]
       initWithSystemType:UIAccessibilityCustomSystemRotorTypeHeading
-      itemSearchBlock:^UIAccessibilityCustomRotorItemResult *(UIAccessibilityCustomRotorSearchPredicate *predicate) {
-        ShadowListKitListView *list = weakList;
-        if (!list || !list.window || list.hidden || list.accessibilityElementsHidden) return nil;
-        NSInteger current = [list indexOfAccessibilityElement:predicate.currentItem.targetElement];
-        BOOL forward = predicate.searchDirection == UIAccessibilityCustomRotorDirectionNext;
-        auto headers = list->_sections.headerRows();
-        std::vector<std::string> keys;
-        for (std::size_t position = 0; position < headers.size(); ++position) {
-          std::size_t row = headers[forward ? position : headers.size() - position - 1];
-          NSInteger index = (NSInteger)row + (list->_headerView ? 1 : 0);
-          if (current != NSNotFound && (forward ? index <= current : index >= current)) continue;
-          if (row >= list->_driver.getKeyCount()) return nil;
-          keys.push_back(list->_driver.getKeyAt(row));
-        }
-        for (const std::string& headerKey : keys) {
-          std::size_t row = list->_driver.indexOfKey(headerKey);
-          if (row == UNDEFINED_INDEX || list->_sections.placeOfRow(row).kind != RowKind::Header) continue;
-          NSString *key = ShadowListKitString(headerKey);
-          UIView *view = [list scrollAccessibilityRowForKey:key];
-          row = list->_driver.indexOfKey(ShadowListKitStdString(key));
-          if (row == UNDEFINED_INDEX || list->_sections.placeOfRow(row).kind != RowKind::Header) return nil;
-          id target = ShadowListKitHeadingTarget(view);
-          if (target) return [[UIAccessibilityCustomRotorItemResult alloc] initWithTargetElement:target targetRange:nil];
-        }
-        return nil;
-      }];
+         itemSearchBlock:^UIAccessibilityCustomRotorItemResult *(UIAccessibilityCustomRotorSearchPredicate *predicate) {
+           ShadowListKitListView *list = weakList;
+           if (!list || !list.window || list.hidden || list.accessibilityElementsHidden) {
+             return nil;
+           }
+           NSInteger current = [list indexOfAccessibilityElement:predicate.currentItem.targetElement];
+           BOOL forward = predicate.searchDirection == UIAccessibilityCustomRotorDirectionNext;
+           auto headers = list->_sections.headerRows();
+           std::vector<std::string> keys;
+           for (std::size_t position = 0; position < headers.size(); ++position) {
+             std::size_t row = headers[forward ? position : headers.size() - position - 1];
+             NSInteger index = (NSInteger)row + (list->_headerView ? 1 : 0);
+             if (current != NSNotFound && (forward ? index <= current : index >= current)) {
+               continue;
+             }
+             if (row >= list->_driver.getKeyCount()) {
+               return nil;
+             }
+             keys.push_back(list->_driver.getKeyAt(row));
+           }
+           for (const std::string& headerKey : keys) {
+             std::size_t row = list->_driver.indexOfKey(headerKey);
+             if (row == UNDEFINED_INDEX || list->_sections.placeOfRow(row).kind != RowKind::Header) {
+               continue;
+             }
+             NSString *key = ShadowListKitString(headerKey);
+             UIView *view = [list scrollAccessibilityRowForKey:key];
+             row = list->_driver.indexOfKey(ShadowListKitStdString(key));
+             if (row == UNDEFINED_INDEX || list->_sections.placeOfRow(row).kind != RowKind::Header) {
+               return nil;
+             }
+             id target = ShadowListKitHeadingTarget(view);
+             if (target) {
+               return [[UIAccessibilityCustomRotorItemResult alloc] initWithTargetElement:target targetRange:nil];
+             }
+           }
+           return nil;
+         }];
   }
-  return @[_sectionHeaderRotor];
+  return @[ _sectionHeaderRotor ];
 }
 
 - (NSInteger)accessibilityElementCount
@@ -195,15 +214,16 @@ static id ShadowListKitHeadingTarget(UIView *view)
   if (![self isRowOnScreen:row]) {
     CGRect visible = UIEdgeInsetsInsetRect(self.bounds, self.adjustedContentInset);
     CGRect rect = [self rowRect:row];
-    BOOL before = _horizontal
-      ? CGRectGetMinX(rect) < CGRectGetMinX(visible)
-      : CGRectGetMinY(rect) < CGRectGetMinY(visible);
+    BOOL before =
+      _horizontal ? CGRectGetMinX(rect) < CGRectGetMinX(visible) : CGRectGetMinY(rect) < CGRectGetMinY(visible);
     [self scrollToRow:row viewPosition:before ? 0 : 1 animated:NO];
     [self layoutIfNeeded];
   }
   // A scroll callback can replace the data. Resolve the key again before choosing its view.
   row = _driver.indexOfKey(ShadowListKitStdString(key));
-  if (row == UNDEFINED_INDEX || row >= _driver.getRowCount()) return nil;
+  if (row == UNDEFINED_INDEX || row >= _driver.getRowCount()) {
+    return nil;
+  }
   ShadowListKitListCell *cell = [self mountedCellAtIndex:row];
   return _stickyHeaderOverlay && _driver.indexOfKey(_stickyHeaderOverlayKey) == row ? _stickyHeaderOverlay : cell;
 }
@@ -211,7 +231,9 @@ static id ShadowListKitHeadingTarget(UIView *view)
 - (NSInteger)indexOfAccessibilityElement:(id)element
 {
   UIView *overlayView = [element isKindOfClass:[UIView class]] ? element : nil;
-  if (_stickyHeaderOverlay && (overlayView == _stickyHeaderOverlay || [overlayView isDescendantOfView:_stickyHeaderOverlay])) {
+  if (
+    _stickyHeaderOverlay &&
+    (overlayView == _stickyHeaderOverlay || [overlayView isDescendantOfView:_stickyHeaderOverlay])) {
     std::size_t row = _driver.indexOfKey(_stickyHeaderOverlayKey);
     return row == UNDEFINED_INDEX ? NSNotFound : (NSInteger)row + (_headerView ? 1 : 0);
   }
@@ -254,12 +276,13 @@ static id ShadowListKitHeadingTarget(UIView *view)
  */
 - (BOOL)accessibilityScroll:(UIAccessibilityScrollDirection)direction
 {
-  BOOL forward = _horizontal
-    ? (direction == UIAccessibilityScrollDirectionLeft || direction == UIAccessibilityScrollDirectionNext)
-    : (direction == UIAccessibilityScrollDirectionUp || direction == UIAccessibilityScrollDirectionNext);
-  BOOL backward = _horizontal
-    ? (direction == UIAccessibilityScrollDirectionRight || direction == UIAccessibilityScrollDirectionPrevious)
-    : (direction == UIAccessibilityScrollDirectionDown || direction == UIAccessibilityScrollDirectionPrevious);
+  BOOL forward =
+    _horizontal ? (direction == UIAccessibilityScrollDirectionLeft || direction == UIAccessibilityScrollDirectionNext)
+                : (direction == UIAccessibilityScrollDirectionUp || direction == UIAccessibilityScrollDirectionNext);
+  BOOL backward =
+    _horizontal
+      ? (direction == UIAccessibilityScrollDirectionRight || direction == UIAccessibilityScrollDirectionPrevious)
+      : (direction == UIAccessibilityScrollDirectionDown || direction == UIAccessibilityScrollDirectionPrevious);
   if (!forward && !backward) {
     return NO;
   }

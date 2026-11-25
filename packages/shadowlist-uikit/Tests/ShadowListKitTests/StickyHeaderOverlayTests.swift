@@ -5,27 +5,60 @@ import XCTest
 @MainActor
 final class StickyHeaderOverlayTests: XCTestCase {
   private class Source: NSObject, ShadowListKitListViewDataSource {
-    var keys = (0..<20).map { "item-\($0)" }
+    var keys = (0 ..< 20).map { "item-\($0)" }
     var title = "Custom header"
-    func numberOfItems(in listView: ShadowListKitListView) -> Int { keys.count }
-    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { keys[index] }
+    func numberOfItems(in listView: ShadowListKitListView) -> Int {
+      keys.count
+    }
+
+    func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
+      keys[index]
+    }
+
     func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
       listView.dequeueReusableCell(withIdentifier: "row")
     }
-    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 40 }
-  }
-  private final class EmptySection: Source {
-    override init() { super.init(); keys = [] }
-    func numberOfSections(in listView: ShadowListKitListView) -> Int { 1 }
-    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { 0 }
-    func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { "Empty section" }
-    func listView(_ listView: ShadowListKitListView, sizeForHeaderInSection section: Int, crossSize: CGFloat) -> CGFloat { 40 }
-  }
-  private final class Button: UIButton {
-    override func sizeThatFits(_ size: CGSize) -> CGSize {
-      size.width == CGFloat.greatestFiniteMagnitude ? CGSize(width: 60, height: size.height) : CGSize(width: size.width, height: 60)
+
+    func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+      40
     }
   }
+
+  private final class EmptySection: Source {
+    override init() {
+      super.init(); keys = []
+    }
+
+    func numberOfSections(in listView: ShadowListKitListView) -> Int {
+      1
+    }
+
+    func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int {
+      0
+    }
+
+    func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? {
+      "Empty section"
+    }
+
+    func listView(
+      _ listView: ShadowListKitListView,
+      sizeForHeaderInSection section: Int,
+      crossSize: CGFloat
+    ) -> CGFloat {
+      40
+    }
+  }
+
+  private final class Button: UIButton {
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+      size.width == CGFloat.greatestFiniteMagnitude ? CGSize(width: 60, height: size.height) : CGSize(
+        width: size.width,
+        height: 60
+      )
+    }
+  }
+
   private func fixture(_ source: Source) -> (ShadowListKitListView, UIWindow) {
     let list = ShadowListKitListView()
     list.contentInsetAdjustmentBehavior = .never
@@ -35,6 +68,7 @@ final class StickyHeaderOverlayTests: XCTestCase {
     list.reloadData()
     return (list, host(list, size: CGSize(width: 200, height: 100)))
   }
+
   private func layout(_ list: ShadowListKitListView) {
     list.setNeedsLayout()
     list.layoutIfNeeded()
@@ -154,6 +188,7 @@ final class StickyHeaderOverlayTests: XCTestCase {
     XCTAssertEqual(calls, 1)
     withExtendedLifetime((window, source)) {}
   }
+
   func testHorizontalOverlayUsesTheExistingLeadingAxisAndCrossSize() {
     let source = Source()
     let (list, window) = fixture(source)
@@ -201,5 +236,4 @@ final class StickyHeaderOverlayTests: XCTestCase {
     XCTAssertFalse(original.isHidden)
     withExtendedLifetime((window, source)) {}
   }
-
 }

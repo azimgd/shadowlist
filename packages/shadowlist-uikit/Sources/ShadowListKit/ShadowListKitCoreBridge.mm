@@ -32,8 +32,13 @@ std::string ShadowListKitStdString(NSString *string)
   }
   std::string result([string maximumLengthOfBytesUsingEncoding:NSUTF8StringEncoding], '\0');
   NSUInteger used = 0;
-  [string getBytes:result.data() maxLength:result.size() usedLength:&used encoding:NSUTF8StringEncoding
-           options:NSStringEncodingConversionAllowLossy range:NSMakeRange(0, (NSUInteger)length) remainingRange:NULL];
+  [string getBytes:result.data()
+         maxLength:result.size()
+        usedLength:&used
+          encoding:NSUTF8StringEncoding
+           options:NSStringEncodingConversionAllowLossy
+             range:NSMakeRange(0, (NSUInteger)length)
+    remainingRange:NULL];
   result.resize(used);
   return result;
 }

@@ -118,9 +118,9 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 
   std::vector<std::pair<CGFloat, CGFloat>> spans;
   for (UIView *subview in _contentView.subviews) {
-    if (subview.hidden ||
-        !([subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)] ||
-          [subview conformsToProtocol:@protocol(RCTShadowListTemplateViewViewProtocol)])) {
+    if (
+      subview.hidden || !([subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)] ||
+                          [subview conformsToProtocol:@protocol(RCTShadowListTemplateViewViewProtocol)])) {
       continue;
     }
     CGFloat low = MAX(CGRectGetMinY(subview.frame), y);
@@ -158,8 +158,8 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 
   _scrollToTopJumpPending = NO;
   CGFloat top = -_scrollView.contentInset.top;
-  CGFloat maxY = MAX(top, _scrollView.contentSize.height - _scrollView.bounds.size.height
-    + _scrollView.contentInset.bottom);
+  CGFloat maxY =
+    MAX(top, _scrollView.contentSize.height - _scrollView.bounds.size.height + _scrollView.contentInset.bottom);
   CGPoint before = _scrollView.contentOffset;
   CGPoint target = CGPointMake(before.x, MIN(MAX(_scrollToTopJumpY, top), maxY));
   /*
@@ -209,9 +209,8 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   CGFloat eased = (CGFloat)azimgd::shadowlist::easeOut(time);
   CGFloat remainingFraction = 1.0 - _scrollToTopProgress;
   CGFloat currentY = _scrollView.contentOffset.y;
-  CGFloat nextY = (time >= 1.0 || remainingFraction <= 0.0)
-    ? top
-    : top + (currentY - top) * (1.0 - eased) / remainingFraction;
+  CGFloat nextY =
+    (time >= 1.0 || remainingFraction <= 0.0) ? top : top + (currentY - top) * (1.0 - eased) / remainingFraction;
   CGFloat progress = time >= 1.0 ? 1.0 : eased;
 
   CGFloat maxStep = MAX(1.0, _scrollView.bounds.size.height * SL_SCROLL_TO_TOP_MAX_STEP_VIEWPORTS);

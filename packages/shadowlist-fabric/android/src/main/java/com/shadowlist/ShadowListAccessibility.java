@@ -34,9 +34,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
   private long mKeysStore = 0;
   private double mKeysVersion = 0;
 
-  ShadowListAccessibility(ShadowListView view) {
-    mView = view;
-  }
+  ShadowListAccessibility(ShadowListView view) { mView = view; }
 
   void setItemKeys(@Nullable ReadableArray keys) {
     mItemKeys = keys;
@@ -48,9 +46,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
     mKeysVersion = version;
   }
 
-  private boolean usesKeysStore() {
-    return mKeysStore > 0 && mKeysVersion > 0;
-  }
+  private boolean usesKeysStore() { return mKeysStore > 0 && mKeysVersion > 0; }
 
   @Override
   public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfoCompat info) {
@@ -60,11 +56,12 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
     int lines = (itemCount + columns - 1) / columns;
     info.setClassName(columns > 1 ? "android.widget.GridView" : "android.widget.ListView");
     info.setScrollable(scrollRangePx() > 0 && mView.isScrollEnabled());
-    info.setCollectionInfo(mView.isHorizontal()
-      ? AccessibilityNodeInfoCompat.CollectionInfoCompat.obtain(columns, lines, false,
-          AccessibilityNodeInfoCompat.CollectionInfoCompat.SELECTION_MODE_NONE)
-      : AccessibilityNodeInfoCompat.CollectionInfoCompat.obtain(lines, columns, false,
-          AccessibilityNodeInfoCompat.CollectionInfoCompat.SELECTION_MODE_NONE));
+    info.setCollectionInfo(
+      mView.isHorizontal()
+        ? AccessibilityNodeInfoCompat.CollectionInfoCompat.obtain(
+            columns, lines, false, AccessibilityNodeInfoCompat.CollectionInfoCompat.SELECTION_MODE_NONE)
+        : AccessibilityNodeInfoCompat.CollectionInfoCompat.obtain(
+            lines, columns, false, AccessibilityNodeInfoCompat.CollectionInfoCompat.SELECTION_MODE_NONE));
     info.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_SCROLL_TO_POSITION);
   }
 
@@ -99,9 +96,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
     return super.performAccessibilityAction(host, action, arguments);
   }
 
-  private int getItemCount() {
-    return Math.max(0, getItemCountOrUnknown());
-  }
+  private int getItemCount() { return Math.max(0, getItemCountOrUnknown()); }
 
   /*
    * The number of rows, or -1 when the key store no longer has the version the props name.
@@ -141,9 +136,8 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
   private int scrollRangePx() {
     ViewGroup content = mView.getContentView();
     ViewGroup scrollView = mView.getScrollView();
-    return mView.isHorizontal()
-      ? Math.max(0, content.getWidth() - scrollView.getWidth())
-      : Math.max(0, content.getHeight() - scrollView.getHeight());
+    return mView.isHorizontal() ? Math.max(0, content.getWidth() - scrollView.getWidth())
+                                : Math.max(0, content.getHeight() - scrollView.getHeight());
   }
 
   /*
@@ -154,7 +148,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
     ViewGroup scrollView = mView.getScrollView();
     int offset = horizontal ? scrollView.getScrollX() : scrollView.getScrollY();
     int viewport = horizontal ? scrollView.getWidth() : scrollView.getHeight();
-    int target = (int) ShadowListGeometry.pageScrollTarget(offset, viewport, scrollRangePx(), direction);
+    int target = (int)ShadowListGeometry.pageScrollTarget(offset, viewport, scrollRangePx(), direction);
     if (target == offset) {
       return false;
     }
@@ -209,7 +203,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
       if (end <= low || start >= high) {
         continue;
       }
-      String rowKey = ((ShadowListCellView) view).getRowKey();
+      String rowKey = ((ShadowListCellView)view).getRowKey();
       int index;
       if (fromStore) {
         index = rowKey != null ? ShadowListKeys.indexOfKey(mKeysStore, mKeysVersion, rowKey) : -1;

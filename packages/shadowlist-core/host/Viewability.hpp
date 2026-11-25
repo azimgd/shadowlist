@@ -69,9 +69,7 @@ public:
   /*
    * Whether a report waits for minimumViewTime to pass.
    */
-  bool isWaiting() const {
-    return deadline_ >= 0.0;
-  }
+  bool isWaiting() const { return deadline_ >= 0.0; }
 
   /*
    * The report due at now, if any. Returns false when nothing is due or nothing changed.

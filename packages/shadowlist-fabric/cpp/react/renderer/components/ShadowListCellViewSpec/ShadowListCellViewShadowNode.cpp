@@ -1,5 +1,3 @@
 #include "ShadowListCellViewShadowNode.h"
 
-namespace facebook::react {
-
-}
+namespace facebook::react {}

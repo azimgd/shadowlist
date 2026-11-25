@@ -35,8 +35,9 @@ final class ScrollerTests: XCTestCase {
    */
   private func makeScrollers(axes: ShadowListKitScrollAxes = .vertical) -> ShadowListKitScrollerView {
     window = NSWindow(
-      contentRect: NSRect(x: -10_000, y: -10_000, width: 300, height: 500), styleMask: [.borderless], backing: .buffered,
-      defer: false)
+      contentRect: NSRect(x: -10000, y: -10000, width: 300, height: 500), styleMask: [.borderless], backing: .buffered,
+      defer: false
+    )
     window.isReleasedWhenClosed = false
     let scrollers = ShadowListKitScrollerView(frame: NSRect(x: 0, y: 0, width: 300, height: 500))
     scrollers.shadowListKit_setScrollerStyle(.overlay)
@@ -52,7 +53,8 @@ final class ScrollerTests: XCTestCase {
     let location = view.convert(point, to: nil)
     return NSEvent.mouseEvent(
       with: type, location: location, modifierFlags: [], timestamp: 0, windowNumber: view.window!.windowNumber,
-      context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+      context: nil, eventNumber: 0, clickCount: 1, pressure: 1
+    )!
   }
 
   func testThumbsFollowTheOffset() {

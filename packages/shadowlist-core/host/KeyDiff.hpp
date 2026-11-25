@@ -30,9 +30,7 @@ struct KeyDiff {
   std::vector<std::size_t> inserted;
   std::vector<KeyMove> moved;
 
-  bool isEmpty() const {
-    return deleted.empty() && inserted.empty() && moved.empty();
-  }
+  bool isEmpty() const { return deleted.empty() && inserted.empty() && moved.empty(); }
 };
 
 KeyDiff diffKeys(const std::vector<std::string>& previous, const std::vector<std::string>& next);
@@ -49,9 +47,7 @@ struct BatchUpdate {
   std::vector<KeyMove> moved;
   std::vector<std::size_t> reloaded;
 
-  bool isEmpty() const {
-    return deleted.empty() && inserted.empty() && moved.empty() && reloaded.empty();
-  }
+  bool isEmpty() const { return deleted.empty() && inserted.empty() && moved.empty() && reloaded.empty(); }
 };
 
 /*

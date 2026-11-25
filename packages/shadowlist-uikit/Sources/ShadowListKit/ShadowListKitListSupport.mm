@@ -66,11 +66,11 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
 static BOOL ShadowListKitListHandles(SEL selector)
 {
   return selector == @selector(scrollViewDidScroll:) ||
-    selector == @selector(scrollViewWillEndDragging:withVelocity:targetContentOffset:) ||
-    selector == @selector(scrollViewDidEndDragging:willDecelerate:) ||
-    selector == @selector(scrollViewDidEndDecelerating:) ||
-    selector == @selector(scrollViewDidEndScrollingAnimation:) ||
-    selector == @selector(scrollViewWillBeginDragging:);
+         selector == @selector(scrollViewWillEndDragging:withVelocity:targetContentOffset:) ||
+         selector == @selector(scrollViewDidEndDragging:willDecelerate:) ||
+         selector == @selector(scrollViewDidEndDecelerating:) ||
+         selector == @selector(scrollViewDidEndScrollingAnimation:) ||
+         selector == @selector(scrollViewWillBeginDragging:);
 }
 
 - (BOOL)respondsToSelector:(SEL)selector

@@ -7,7 +7,9 @@ static dispatch_queue_t ShadowListKitTextRenderQueue(void)
   static dispatch_queue_t queue;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    queue = dispatch_queue_create("com.shadowlist.kit.text.render", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0));
+    queue = dispatch_queue_create(
+      "com.shadowlist.kit.text.render",
+      dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0));
   });
   return queue;
 }
@@ -41,7 +43,8 @@ static double ShadowListKitAsyncBenchDelay;
     @"rendered" : @(ShadowListKitAsyncRendered),
     @"superseded" : @(ShadowListKitAsyncSuperseded),
     @"late" : @(ShadowListKitAsyncLate),
-    @"lateWaitAvgMs" : @(ShadowListKitAsyncLate > 0 ? ShadowListKitAsyncLateWaitSum * 1000 / ShadowListKitAsyncLate : 0),
+    @"lateWaitAvgMs" :
+      @(ShadowListKitAsyncLate > 0 ? ShadowListKitAsyncLateWaitSum * 1000 / ShadowListKitAsyncLate : 0),
     @"lateWaitMaxMs" : @(ShadowListKitAsyncLateWaitMax * 1000),
   };
 }
@@ -60,7 +63,12 @@ static double ShadowListKitAsyncBenchDelay;
   ShadowListKitAsyncBenchDelay = MAX(0, seconds);
 }
 
-static void ShadowListKitTextViewsCountBlank(UIView *view, UIScrollView *scrollView, CGRect visible, NSUInteger *shown, NSUInteger *blank)
+static void ShadowListKitTextViewsCountBlank(
+  UIView *view,
+  UIScrollView *scrollView,
+  CGRect visible,
+  NSUInteger *shown,
+  NSUInteger *blank)
 {
   for (UIView *child in view.subviews) {
     if (child.hidden || child.alpha < 0.01) {
@@ -68,8 +76,9 @@ static void ShadowListKitTextViewsCountBlank(UIView *view, UIScrollView *scrollV
     }
     if ([child isKindOfClass:[ShadowListKitTextView class]]) {
       ShadowListKitTextView *text = (ShadowListKitTextView *)child;
-      if (!text.displaysAsynchronously || text.textLayout.lineCount == 0 ||
-          !CGRectIntersectsRect([text convertRect:text.bounds toView:scrollView], visible)) {
+      if (
+        !text.displaysAsynchronously || text.textLayout.lineCount == 0 ||
+        !CGRectIntersectsRect([text convertRect:text.bounds toView:scrollView], visible)) {
         continue;
       }
       ++*shown;
@@ -206,7 +215,8 @@ static void ShadowListKitTextViewsCountBlank(UIView *view, UIScrollView *scrollV
     };
     // The bitmap shows as soon as it is drawn. Only the bench's self-test holds it back.
     if (delay > 0) {
-      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), show);
+      dispatch_after(
+        dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), dispatch_get_main_queue(), show);
     } else {
       dispatch_async(dispatch_get_main_queue(), show);
     }

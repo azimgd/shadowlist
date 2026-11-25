@@ -182,7 +182,9 @@ extern "C" const char ShadowListKitListViewScrollingLink = 0;
   return [self viewsBehind];
 }
 
-- (void)shadowListKit_scrollWheelDelta:(CGPoint)delta phase:(NSEventPhase)phase momentumPhase:(NSEventPhase)momentumPhase
+- (void)shadowListKit_scrollWheelDelta:(CGPoint)delta
+                                 phase:(NSEventPhase)phase
+                         momentumPhase:(NSEventPhase)momentumPhase
 {
   [self scrollWheel:ShadowListKitScrollWheelEvent(delta, phase, momentumPhase)];
   [self layoutSubtreeIfNeeded];

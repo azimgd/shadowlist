@@ -9,9 +9,8 @@
  */
 static inline void SLSetTranslation(RCTUIView *view, BOOL horizontal, CGFloat translation)
 {
-  CGAffineTransform transform = horizontal
-    ? CGAffineTransformMakeTranslation(translation, 0.0)
-    : CGAffineTransformMakeTranslation(0.0, translation);
+  CGAffineTransform transform = horizontal ? CGAffineTransformMakeTranslation(translation, 0.0)
+                                           : CGAffineTransformMakeTranslation(0.0, translation);
   if (!CGAffineTransformEqualToTransform(view.transform, transform)) {
     view.transform = transform;
   }
@@ -48,14 +47,14 @@ static inline void SLSetHidden(RCTUIView *view, BOOL hidden)
   input.contentSize = _horizontal ? content.width : content.height;
   input.hasHeader = _stickyHeaderView != nil;
   input.headerSize = _stickyHeaderView
-    ? (_horizontal ? _stickyHeaderView.bounds.size.width : _stickyHeaderView.bounds.size.height)
-    : 0.0;
+                       ? (_horizontal ? _stickyHeaderView.bounds.size.width : _stickyHeaderView.bounds.size.height)
+                       : 0.0;
   input.stickyHeader = _stickyHeader;
   input.autoHideHeader = _autoHideHeader;
   input.hasFooter = _stickyFooterView != nil;
   input.footerSize = _stickyFooterView
-    ? (_horizontal ? _stickyFooterView.bounds.size.width : _stickyFooterView.bounds.size.height)
-    : 0.0;
+                       ? (_horizontal ? _stickyFooterView.bounds.size.width : _stickyFooterView.bounds.size.height)
+                       : 0.0;
   // The footer rests at the end of the content.
   input.footerStart = input.contentSize - input.footerSize;
   input.stickyFooter = _stickyFooter;

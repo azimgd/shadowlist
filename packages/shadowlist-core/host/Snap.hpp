@@ -15,9 +15,7 @@ inline double nearestSnapOffset(const double* offsets, std::size_t count, double
   if (count == 0) {
     return target;
   }
-  auto candidate = [roundOffsets](double offset) {
-    return roundOffsets ? std::floor(offset + 0.5) : offset;
-  };
+  auto candidate = [roundOffsets](double offset) { return roundOffsets ? std::floor(offset + 0.5) : offset; };
   double best = candidate(offsets[0]);
   double bestDistance = std::fabs(best - target);
   for (std::size_t index = 1; index < count; ++index) {

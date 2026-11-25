@@ -13,24 +13,19 @@
 
 using namespace azimgd::shadowlist;
 
-static_assert(static_cast<int>(ShadowListKitScrollPhaseIdle) == static_cast<int>(ScrollPhase::Idle) &&
-                static_cast<int>(ShadowListKitScrollPhaseDragging) == static_cast<int>(ScrollPhase::Dragging) &&
-                static_cast<int>(ShadowListKitScrollPhaseSettling) == static_cast<int>(ScrollPhase::Settling),
+static_assert(
+  static_cast<int>(ShadowListKitScrollPhaseIdle) == static_cast<int>(ScrollPhase::Idle) &&
+    static_cast<int>(ShadowListKitScrollPhaseDragging) == static_cast<int>(ScrollPhase::Dragging) &&
+    static_cast<int>(ShadowListKitScrollPhaseSettling) == static_cast<int>(ScrollPhase::Settling),
   "ShadowListKitScrollPhase mirrors the core's ScrollPhase");
 
 /*
  * Keeps every category file linked into apps that link the kit as a static library without -ObjC.
  */
 __attribute__((used)) static const char *const ShadowListKitListViewCategoryLinks[] = {
-  &ShadowListKitListViewAccessibilityLink,
-  &ShadowListKitListViewActionsLink,
-  &ShadowListKitListViewCommandsLink,
-  &ShadowListKitListViewDataLink,
-  &ShadowListKitListViewDragLink,
-  &ShadowListKitListViewPassesLink,
-  &ShadowListKitListViewScrollingLink,
-  &ShadowListKitListViewSectionsLink,
-  &ShadowListKitListViewSelectionLink,
+  &ShadowListKitListViewAccessibilityLink, &ShadowListKitListViewActionsLink,  &ShadowListKitListViewCommandsLink,
+  &ShadowListKitListViewDataLink,          &ShadowListKitListViewDragLink,     &ShadowListKitListViewPassesLink,
+  &ShadowListKitListViewScrollingLink,     &ShadowListKitListViewSectionsLink, &ShadowListKitListViewSelectionLink,
 };
 
 void ShadowListKitPlace(NSView *view, CGRect frame)
@@ -177,8 +172,9 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
 - (NSEdgeInsets)adjustedContentInset
 {
   NSEdgeInsets safe = self.safeAreaInsets;
-  return NSEdgeInsetsMake(_contentInset.top + safe.top, _contentInset.left + safe.left,
-    _contentInset.bottom + safe.bottom, _contentInset.right + safe.right);
+  return NSEdgeInsetsMake(
+    _contentInset.top + safe.top, _contentInset.left + safe.left, _contentInset.bottom + safe.bottom,
+    _contentInset.right + safe.right);
 }
 
 - (CGFloat)leadingInset
@@ -416,8 +412,7 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
     return YES;
   }
   for (NSView *view in _contentView.subviews) {
-    if ([view isKindOfClass:[ShadowListKitListCell class]] &&
-        ((ShadowListKitListCell *)view).placedByLayer) {
+    if ([view isKindOfClass:[ShadowListKitListCell class]] && ((ShadowListKitListCell *)view).placedByLayer) {
       return YES;
     }
   }
@@ -664,18 +659,21 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   return _persistentKeys;
 }
 
-- (ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+- (ShadowListKitItemSizeSpec *_Nullable (^)(NSInteger))getItemSizeSpec
 {
   return _getItemSizeSpec;
 }
 
-- (void)setGetItemSizeSpec:(ShadowListKitItemSizeSpec * _Nullable (^)(NSInteger))getItemSizeSpec
+- (void)setGetItemSizeSpec:(ShadowListKitItemSizeSpec *_Nullable (^)(NSInteger))getItemSizeSpec
 {
   _getItemSizeSpec = [getItemSizeSpec copy];
   [self sendSizeSpecSource];
 }
 
-- (NSInteger (^)(NSInteger))getItemSpan { return _getItemSpan; }
+- (NSInteger (^)(NSInteger))getItemSpan
+{
+  return _getItemSpan;
+}
 - (void)setGetItemSpan:(NSInteger (^)(NSInteger))getItemSpan
 {
   _getItemSpan = [getItemSpan copy];
@@ -683,7 +681,10 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   [self invalidateFrame];
 }
 
-- (NSUInteger)measureLookaheadRows { return _measureLookaheadRows; }
+- (NSUInteger)measureLookaheadRows
+{
+  return _measureLookaheadRows;
+}
 - (void)setMeasureLookaheadRows:(NSUInteger)measureLookaheadRows
 {
   _measureLookaheadRows = measureLookaheadRows;
@@ -691,31 +692,40 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   [self invalidateFrame];
 }
 
-- (NSView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))renderStickyHeaderOverlay
+- (NSView *_Nullable (^)(NSString *_Nullable, NSInteger, NSInteger))renderStickyHeaderOverlay
 {
   return _renderStickyHeaderOverlay;
 }
 
-- (void)setRenderStickyHeaderOverlay:(NSView * _Nullable (^)(NSString * _Nullable, NSInteger, NSInteger))render
+- (void)setRenderStickyHeaderOverlay:(NSView *_Nullable (^)(NSString *_Nullable, NSInteger, NSInteger))render
 {
   [self clearStickyHeaderOverlay];
   _renderStickyHeaderOverlay = [render copy];
   [self invalidateFrame];
 }
 
-- (ShadowListKitViewabilityConfig *)viewabilityConfig { return _viewabilityConfig; }
+- (ShadowListKitViewabilityConfig *)viewabilityConfig
+{
+  return _viewabilityConfig;
+}
 - (void)setViewabilityConfig:(ShadowListKitViewabilityConfig *)viewabilityConfig
 {
   _viewabilityConfig = [viewabilityConfig copy];
   [self sendViewabilityConfigs];
 }
-- (NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)viewabilityConfigCallbackPairs { return _viewabilityConfigCallbackPairs; }
+- (NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)viewabilityConfigCallbackPairs
+{
+  return _viewabilityConfigCallbackPairs;
+}
 - (void)setViewabilityConfigCallbackPairs:(NSArray<ShadowListKitViewabilityConfigCallbackPair *> *)pairs
 {
   _viewabilityConfigCallbackPairs = [pairs copy];
   [self sendViewabilityConfigs];
 }
-- (void (^)(ShadowListKitViewableItemsChangedInfo *))onViewableItemsChanged { return _onViewableItemsChanged; }
+- (void (^)(ShadowListKitViewableItemsChangedInfo *))onViewableItemsChanged
+{
+  return _onViewableItemsChanged;
+}
 - (void)setOnViewableItemsChanged:(void (^)(ShadowListKitViewableItemsChangedInfo *))callback
 {
   _onViewableItemsChanged = [callback copy];
@@ -941,12 +951,15 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   if (!_scrollDriven || _needsFrame || self.needsLayout || _windowAlong <= 0 || _windowCross <= 0) {
     return NO;
   }
-  if (_autoHideHeader || _autoHideFooter || _driver.hasSticky() || [self hasHeldRow] || _swipeCell || _changes || _hoverActive || _hoveredCell) {
+  if (
+    _autoHideHeader || _autoHideFooter || _driver.hasSticky() || [self hasHeldRow] || _swipeCell || _changes ||
+    _hoverActive || _hoveredCell) {
     return NO;
   }
   double offset = [self offset];
-  if (!_band.contains(offset) || !_mountRecord.band.contains(offset) ||
-      _driver.getGeometryVersion() != _mountRecord.geometry || _structureVersion != _mountRecord.structure) {
+  if (
+    !_band.contains(offset) || !_mountRecord.band.contains(offset) ||
+    _driver.getGeometryVersion() != _mountRecord.geometry || _structureVersion != _mountRecord.structure) {
     return NO;
   }
   [self trackUserScroll];
@@ -984,9 +997,8 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
 {
   if (!_separatorCGColor) {
     __block CGColorRef color = NULL;
-    [self.effectiveAppearance performAsCurrentDrawingAppearance:^{
-      color = CGColorRetain(self->_separatorColor.CGColor);
-    }];
+    [self.effectiveAppearance
+      performAsCurrentDrawingAppearance:^{ color = CGColorRetain(self->_separatorColor.CGColor); }];
     _separatorCGColor = color;
   }
   return _separatorCGColor;
@@ -1052,14 +1064,17 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
       [_userDelegate listViewWillBeginDragging:self];
     }
   }
-  if (previous == ShadowListKitScrollPhaseDragging && [_userDelegate respondsToSelector:@selector(listViewDidEndDragging:willDecelerate:)]) {
+  if (
+    previous == ShadowListKitScrollPhaseDragging &&
+    [_userDelegate respondsToSelector:@selector(listViewDidEndDragging:willDecelerate:)]) {
     [_userDelegate listViewDidEndDragging:self willDecelerate:scrollPhase == ShadowListKitScrollPhaseSettling];
   }
   if (scrollPhase == ShadowListKitScrollPhaseIdle) {
     [self catchUpViews];
   }
-  if (previous == ShadowListKitScrollPhaseSettling && scrollPhase == ShadowListKitScrollPhaseIdle &&
-      [_userDelegate respondsToSelector:@selector(listViewDidEndDecelerating:)]) {
+  if (
+    previous == ShadowListKitScrollPhaseSettling && scrollPhase == ShadowListKitScrollPhaseIdle &&
+    [_userDelegate respondsToSelector:@selector(listViewDidEndDecelerating:)]) {
     [_userDelegate listViewDidEndDecelerating:self];
   }
   [self invalidateFrame];
@@ -1107,8 +1122,8 @@ void ShadowListKitPlace(NSView *view, CGRect frame)
   }
   for (auto& entry : _mounted) {
     ShadowListKitListCell *cell = entry.second;
-    if (cell.shown && cell.index != NSNotFound && cell.mountGeneration != 0 &&
-        NSPointInRect(content, cell.shownFrame)) {
+    if (
+      cell.shown && cell.index != NSNotFound && cell.mountGeneration != 0 && NSPointInRect(content, cell.shownFrame)) {
       return cell;
     }
   }

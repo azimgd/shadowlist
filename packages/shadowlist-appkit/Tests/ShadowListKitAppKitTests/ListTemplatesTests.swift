@@ -43,7 +43,7 @@ final class ListTemplatesTests: XCTestCase {
     harness.layout()
   }
 
-  func testAutoHideBarsAccumulateOnlyTrackpadMovementAndRetainIntentAcrossCommands() throws {
+  func testAutoHideBarsAccumulateOnlyTrackpadMovementAndRetainIntentAcrossCommands() {
     let header = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 60))
     let footer = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 40))
     let harness = ListHarness(source: SizedTestSource(count: 100)) {
@@ -70,7 +70,7 @@ final class ListTemplatesTests: XCTestCase {
     XCTAssertEqual(frame(header, in: harness.list).minY, 0, accuracy: 0.01)
   }
 
-  func testAStickyHeaderStaysAtTheViewportStartUntilTheFooterPushesItOff() throws {
+  func testAStickyHeaderStaysAtTheViewportStartUntilTheFooterPushesItOff() {
     let header = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 60))
     let footer = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 50))
     let harness = ListHarness(source: SizedTestSource(count: 100)) {
@@ -95,7 +95,7 @@ final class ListTemplatesTests: XCTestCase {
     list.stickyHeader = true
 
     // In a viewport shorter than the two, the footer pushes the header off at the end.
-    harness.window.setFrame(NSRect(x: -10_000, y: -10_000, width: 320, height: 100), display: false)
+    harness.window.setFrame(NSRect(x: -10000, y: -10000, width: 320, height: 100), display: false)
     harness.layout()
     list.scrollToEnd(animated: false)
     harness.layout()
@@ -118,10 +118,14 @@ final class ListTemplatesTests: XCTestCase {
     }
     list.scrollToEnd(animated: false)
     harness.layout()
-    XCTAssertEqual(frame(footer, in: list).minY, frame(try XCTUnwrap(list.cellForItem(at: 99)), in: list).maxY, accuracy: 0.01)
+    XCTAssertEqual(
+      frame(footer, in: list).minY,
+      try frame(XCTUnwrap(list.cellForItem(at: 99)), in: list).maxY,
+      accuracy: 0.01
+    )
   }
 
-  func testAStickyFooterOfAShortListRestsAtTheViewportEndAndUnderTheHeader() throws {
+  func testAStickyFooterOfAShortListRestsAtTheViewportEndAndUnderTheHeader() {
     let header = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 60))
     let footer = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 50))
     let harness = ListHarness(source: SizedTestSource(count: 2)) {
@@ -134,12 +138,12 @@ final class ListTemplatesTests: XCTestCase {
     XCTAssertEqual(list.contentSize.height, 60 + 2 * 44 + 50, accuracy: 0.01)
 
     // A viewport shorter than the header and the footer keeps the footer under the header.
-    harness.window.setFrame(NSRect(x: -10_000, y: -10_000, width: 320, height: 80), display: false)
+    harness.window.setFrame(NSRect(x: -10000, y: -10000, width: 320, height: 80), display: false)
     harness.layout()
     XCTAssertEqual(frame(footer, in: list).minY, 60, accuracy: 0.01)
   }
 
-  func testTheEmptyViewShowsAfterTheHeaderWhileTheListHasNoItems() throws {
+  func testTheEmptyViewShowsAfterTheHeaderWhileTheListHasNoItems() {
     let header = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 60))
     let footer = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 50))
     let empty = NSView(frame: NSRect(x: 0, y: 0, width: 10, height: 200))
@@ -159,7 +163,7 @@ final class ListTemplatesTests: XCTestCase {
     XCTAssertTrue((list.accessibilityChildren() ?? []).contains { ($0 as? NSView) === empty })
 
     source.keys = ["item-0", "item-1"]
-    list.insertItems(at: IndexSet(integersIn: 0...1))
+    list.insertItems(at: IndexSet(integersIn: 0 ... 1))
     harness.layout()
     XCTAssertTrue(empty.isHidden)
     XCTAssertFalse((list.accessibilityChildren() ?? []).contains { ($0 as? NSView) === empty })
@@ -213,7 +217,7 @@ final class ListTemplatesTests: XCTestCase {
     }
   }
 
-  func testAnInvertedListSaysWhenItLeavesItsEndAndIsBack() throws {
+  func testAnInvertedListSaysWhenItLeavesItsEndAndIsBack() {
     let recorder = EndRecorder()
     let source = SizedTestSource(count: 200)
     let harness = ListHarness(source: source) { $0.isInverted = true }
@@ -225,7 +229,7 @@ final class ListTemplatesTests: XCTestCase {
 
     // Items appended while the list rests at its end do not leave it.
     source.keys.append(contentsOf: ["new-0", "new-1"])
-    list.insertItems(at: IndexSet(integersIn: 200...201))
+    list.insertItems(at: IndexSet(integersIn: 200 ... 201))
     harness.layout()
     XCTAssertTrue(list.isAtEnd)
     XCTAssertEqual(recorder.changes, [])

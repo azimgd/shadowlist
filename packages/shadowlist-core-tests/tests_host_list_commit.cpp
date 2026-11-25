@@ -50,7 +50,6 @@ TEST(list_commit_host_scroll_fills_the_frame) {
   CHECK(input.scrollPhase == ScrollPhase::Dragging);
   CHECK_EQ(input.commitToken, static_cast<std::uint64_t>(4));
   CHECK_EQ(input.commitRevision, static_cast<std::uint64_t>(12));
-
 }
 
 TEST(list_commit_publish_keeps_the_first_base_of_a_correction) {

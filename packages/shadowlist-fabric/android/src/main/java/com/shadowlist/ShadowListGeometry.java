@@ -9,9 +9,7 @@ import com.facebook.soloader.SoLoader;
  * own session, see ShadowListDrag.
  */
 final class ShadowListGeometry {
-  static {
-    SoLoader.loadLibrary("react_codegen_ShadowListViewSpec");
-  }
+  static { SoLoader.loadLibrary("react_codegen_ShadowListViewSpec"); }
 
   /*
    * Slots of the array stickyTranslations reads and writes. The state slots carry the auto
@@ -42,9 +40,7 @@ final class ShadowListGeometry {
   /*
    * Header and footer translations for one pin, see STICKY_*. Flags are 0 or 1.
    */
-  static void stickyTranslations(double[] slots) {
-    nativeStickyTranslations(slots);
-  }
+  static void stickyTranslations(double[] slots) { nativeStickyTranslations(slots); }
 
   /*
    * Where the section header overlay goes, or NaN when no section is active.
@@ -71,9 +67,7 @@ final class ShadowListGeometry {
   /*
    * The number of sticky rows in the state a list mounted last, found by its mount handle.
    */
-  static int stickyCount(long mountHandle) {
-    return nativeStickyCount(mountHandle);
-  }
+  static int stickyCount(long mountHandle) { return nativeStickyCount(mountHandle); }
 
   /*
    * Copy those sticky rows, their offsets and sizes in dp, into arrays at least stickyCount
@@ -86,22 +80,20 @@ final class ShadowListGeometry {
   /*
    * The number of snap offsets in the state a list mounted last.
    */
-  static int snapCount(long mountHandle) {
-    return nativeSnapCount(mountHandle);
-  }
+  static int snapCount(long mountHandle) { return nativeSnapCount(mountHandle); }
 
   /*
    * Copy those snap offsets in dp into an array at least snapCount long. Returns how many it
    * copied.
    */
-  static int copySnapOffsets(long mountHandle, double[] offsets) {
-    return nativeCopySnapOffsets(mountHandle, offsets);
-  }
+  static int copySnapOffsets(long mountHandle, double[] offsets) { return nativeCopySnapOffsets(mountHandle, offsets); }
 
   private static native void nativeStickyTranslations(double[] slots);
-  private static native double nativeSectionOverlayTranslation(double[] offsets, double[] sizes, int count, double offset);
+  private static native double
+  nativeSectionOverlayTranslation(double[] offsets, double[] sizes, int count, double offset);
   private static native int nativeNearestSnapOffsetPx(float[] offsetsPx, int count, int targetPx);
-  private static native double nativePageScrollTarget(double offset, double windowAlong, double maxOffset, int direction);
+  private static native double
+  nativePageScrollTarget(double offset, double windowAlong, double maxOffset, int direction);
   private static native int nativeStickyCount(long mountHandle);
   private static native int nativeCopyStickyGeometry(long mountHandle, int[] indices, double[] offsets, double[] sizes);
   private static native int nativeSnapCount(long mountHandle);

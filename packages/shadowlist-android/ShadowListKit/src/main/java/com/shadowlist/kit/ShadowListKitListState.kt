@@ -35,31 +35,74 @@ internal class ShadowListKitListState {
     const val COMMIT_UPDATE_VERSIONS = 4
 
     @JvmStatic private external fun nativeCreate(): Long
+
     @JvmStatic private external fun nativeDestroy(handle: Long)
+
     @JvmStatic private external fun nativeSetMultipleSelection(handle: Long, multiple: Boolean)
+
     @JvmStatic private external fun nativeSelectedCount(handle: Long): Int
+
     @JvmStatic private external fun nativeIsSelected(handle: Long, key: String): Boolean
+
     @JvmStatic private external fun nativeSelect(handle: Long, key: String): Array<String>
+
     @JvmStatic private external fun nativeDeselect(handle: Long, key: String): Boolean
+
     @JvmStatic private external fun nativeClearSelection(handle: Long): Array<String>
-    @JvmStatic private external fun nativeTap(handle: Long, key: String, shouldSelect: ShouldSelect, out: IntArray): Array<String>?
+
+    @JvmStatic
+    private external fun nativeTap(handle: Long, key: String, shouldSelect: ShouldSelect, out: IntArray): Array<String>?
+
     @JvmStatic private external fun nativeSelectedRows(handle: Long): IntArray
+
     @JvmStatic private external fun nativeBeginBatch(handle: Long)
+
     @JvmStatic private external fun nativeEndBatch(handle: Long): Boolean
+
     @JvmStatic private external fun nativeIsBatching(handle: Long): Boolean
+
     @JvmStatic private external fun nativeBatchDeleted(handle: Long, indices: IntArray)
+
     @JvmStatic private external fun nativeBatchInserted(handle: Long, indices: IntArray)
+
     @JvmStatic private external fun nativeBatchMoved(handle: Long, from: Int, to: Int)
+
     @JvmStatic private external fun nativeBatchReloaded(handle: Long, indices: IntArray)
+
     @JvmStatic private external fun nativeBatchNeedsReload(handle: Long)
+
     @JvmStatic private external fun nativeTakeBatch(handle: Long): IntArray?
+
     @JvmStatic private external fun nativePlanTakenBatch(handle: Long, previousCount: Int, nextCount: Int): IntArray?
+
     @JvmStatic private external fun nativeCommitKeys(
-      handle: Long, core: Long, rowStart: Int, rowEnd: Int, rowPacked: CharArray, rowEnds: IntArray, sectioned: Boolean,
-      itemStart: Int, itemEnd: Int, itemPacked: CharArray, itemEnds: IntArray, versions: LongArray?, flags: Int): IntArray
-    @JvmStatic private external fun nativeInsertRows(handle: Long, core: Long, indices: IntArray, packed: CharArray, ends: IntArray)
+      handle: Long,
+      core: Long,
+      rowStart: Int,
+      rowEnd: Int,
+      rowPacked: CharArray,
+      rowEnds: IntArray,
+      sectioned: Boolean,
+      itemStart: Int,
+      itemEnd: Int,
+      itemPacked: CharArray,
+      itemEnds: IntArray,
+      versions: LongArray?,
+      flags: Int
+    ): IntArray
+
+    @JvmStatic private external fun nativeInsertRows(
+      handle: Long,
+      core: Long,
+      indices: IntArray,
+      packed: CharArray,
+      ends: IntArray
+    )
+
     @JvmStatic private external fun nativeInsertVersions(handle: Long, items: IntArray, versions: LongArray)
+
     @JvmStatic private external fun nativeDeleteRows(handle: Long, core: Long, indices: IntArray)
+
     @JvmStatic private external fun nativeSeedCore(handle: Long, core: Long)
   }
 
@@ -114,7 +157,8 @@ internal class ShadowListKitListState {
    * gets selected, never before a multiple selection toggles it off.
    */
   fun tap(key: String, shouldSelect: ShouldSelect): Tap {
-    val deselected = changingSelection { nativeTap(handle, key, shouldSelect, tapOut) } ?: return Tap(TAP_NOTHING, emptyArray())
+    val deselected =
+      changingSelection { nativeTap(handle, key, shouldSelect, tapOut) } ?: return Tap(TAP_NOTHING, emptyArray())
     return Tap(tapOut[0], deselected)
   }
 
@@ -151,7 +195,8 @@ internal class ShadowListKitListState {
    * The source of every row after the taken batch, a previous index or -1 for an insert, or
    * null when the batch does not add up. See the core's planBatch.
    */
-  fun planTakenBatch(previousCount: Int, nextCount: Int): IntArray? = nativePlanTakenBatch(handle, previousCount, nextCount)
+  fun planTakenBatch(previousCount: Int, nextCount: Int): IntArray? =
+    nativePlanTakenBatch(handle, previousCount, nextCount)
 
   // endregion
 
@@ -167,14 +212,23 @@ internal class ShadowListKitListState {
    * whose version changed under COMMIT_UPDATE_VERSIONS.
    */
   fun commitKeys(
-    core: ShadowListKitCore?, rows: List<String>, rowStart: Int, rowEnd: Int,
-    items: List<String>?, itemStart: Int, itemEnd: Int, versions: LongArray?, flags: Int,
+    core: ShadowListKitCore?,
+    rows: List<String>,
+    rowStart: Int,
+    rowEnd: Int,
+    items: List<String>?,
+    itemStart: Int,
+    itemEnd: Int,
+    versions: LongArray?,
+    flags: Int
   ): IntArray {
     val rowEnds = rowPacker.pack(rows, rowStart, rows.size - rowEnd)
     val itemEnds = if (items != null) itemPacker.pack(items, itemStart, items.size - itemEnd) else IntArray(0)
     return droppingSelection {
-      nativeCommitKeys(handle, core?.handle ?: 0L, rowStart, rowEnd, rowPacker.chars, rowEnds, items != null,
-        itemStart, itemEnd, itemPacker.chars, itemEnds, versions, flags)
+      nativeCommitKeys(
+        handle, core?.handle ?: 0L, rowStart, rowEnd, rowPacker.chars, rowEnds, items != null,
+        itemStart, itemEnd, itemPacker.chars, itemEnds, versions, flags
+      )
     }
   }
 

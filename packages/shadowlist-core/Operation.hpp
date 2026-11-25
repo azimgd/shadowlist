@@ -39,12 +39,12 @@ enum class ScrollPhase {
  * Why the core wants to move the scroll offset. Only one runs at a time.
  */
 enum class OperationType {
-  MaintainAnchor,  // Keep the visible content in place across a data update
-  ScrollToKey,     // scrollToRow, turned into a key when requested
-  ScrollToStart,   // Hold the first row at its offset from the top
-  ScrollToEnd,     // Keep closing in on the real bottom as rows get measured
-  BottomPin,       // First bottom pin of an inverted list, dropped once the user drags
-  ShrinkClamp,     // Content got shorter than the offset. Pull back to the reader's row or the new end
+  MaintainAnchor, // Keep the visible content in place across a data update
+  ScrollToKey, // scrollToRow, turned into a key when requested
+  ScrollToStart, // Hold the first row at its offset from the top
+  ScrollToEnd, // Keep closing in on the real bottom as rows get measured
+  BottomPin, // First bottom pin of an inverted list, dropped once the user drags
+  ShrinkClamp, // Content got shorter than the offset. Pull back to the reader's row or the new end
 };
 
 /*
